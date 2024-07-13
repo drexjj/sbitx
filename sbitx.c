@@ -74,7 +74,6 @@ int freq_hdr = -1;
 static double volume 	= 100.0;
 static int tx_drive = 40;
 static int rx_gain = 100;
-static int rx_vol = 100;
 static int tx_gain = 100;
 static int tx_compress = 0;
 static double spectrum_speed = 0.3;
@@ -93,6 +92,19 @@ static int rx_pitch = 700; //used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
+static double ssb_val = 1.0;  // W9JES
+extern void check_r1_volume();//Volume control normalization W2JON
+static int rx_vol;
+
+void initialize_rx_vol() {
+    rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
+}
+void set_input_volume(int volume) {
+    input_volume = volume;
+}
+int get_input_volume() {
+    return input_volume;
+}
 
 static int multicast_socket = -1;
 
@@ -280,7 +292,6 @@ static int create_mcast_socket(){
 		return socketfd;
 }
 */
-
 
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
@@ -546,7 +557,7 @@ double agc2(struct rx *r){
 	else
 		agc_gain_should_be = 100000000000/signal_strength;
 	r->signal_strength = signal_strength;
-	//printf("Agc temp, g:%g, s:%g, f:%g ", r->agc_gain, signal_strength, agc_gain_should_be);
+  //printf("Agc temp, g:%g, s:%g, f:%g ", r->agc_gain, signal_strength, agc_gain_should_be);
 
 	double agc_ramp = 0.0;
 
@@ -716,7 +727,8 @@ void rx_linear(int32_t *input_rx,  int32_t *input_mic,
 
 	// the spectrum display is updated
 	spectrum_update();
-  // ... back to the actual processing, after spectrum update  
+
+	// ... back to the actual processing, after spectrum update  
 
 	// we may add another sub receiver within the pass band later,
 	// hence, the linkced list of receivers here
@@ -772,7 +784,6 @@ void rx_linear(int32_t *input_rx,  int32_t *input_mic,
 				//keep transmit buffer empty
 				output_speaker[i] = sample;
 				output_tx[i] = 0;
-        
 			}
 		else
 			for (i= 0; i < MAX_BINS/2; i++){
@@ -837,107 +848,100 @@ void read_power(){
 //	printf("alc: %g\n", alc_level);
 }
 
-static int tx_process_restart = 0;
+static int tx_process_restart = 0; 
 
 void tx_process(
-	int32_t *input_rx, int32_t *input_mic, 
-	int32_t *output_speaker, int32_t *output_tx, 
-	int n_samples)
+    int32_t *input_rx, int32_t *input_mic, 
+    int32_t *output_speaker, int32_t *output_tx, 
+    int n_samples)
 {
-	int i;
-	double i_sample, q_sample, i_carrier;
+    int i;
+    double i_sample, q_sample, i_carrier;
 
-	struct rx *r = tx_list;
+    struct rx *r = tx_list;
 
-	//fix the burst at the start of transmission
-	if (tx_process_restart){
-    fft_reset_m_bins();
-		tx_process_restart = 0;
-	} 
-  static int eq_initialized = 0;
-
+    // Fix the burst at the start of transmission
+    if (tx_process_restart) {
+        fft_reset_m_bins();
+        tx_process_restart = 0;
+    } 
+   
+    // Shoehorn in the EQ functionality. This should work...W2JON 
+    static int eq_initialized = 0;
     if (!eq_initialized) {
         init_eq(&eq);
         eq_initialized = 1;
     }
 
-// Apply EQ to mic samples under voice modes while in (TX) -W2JON
-if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
-     if (eq_is_enabled == 1) {
-        // EQ is enabled, perform EQ processing
-        apply_eq(&eq, input_mic, n_samples, 48000.0);
-    } else {
-        // EQ is disabled, skip EQ processing
-        
+    // Apply EQ to mic samples under voice modes while in (TX) -W2JON
+    if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
+        if (eq_is_enabled == 1) {
+            // EQ is enabled, perform EQ processing
+            apply_eq(&eq, input_mic, n_samples, 48000.0);
+        }
     }
-}
-    
-	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB 
-		|| r->mode == MODE_AM)){
-		memset(input_mic, 0, n_samples * sizeof(int32_t));
-		mute_count--;
-	}
-	//first add the previous M samples
-	for (i = 0; i < MAX_BINS/2; i++)
-		fft_in[i]  = fft_m[i];
 
-	int m = 0;
-	int j = 0;
+    if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)) {
+        memset(input_mic, 0, n_samples * sizeof(int32_t));
+        mute_count--;
+    }
 
-	//double max = -10.0, min = 10.0;
-	//gather the samples into a time domain array 
-	for (i= MAX_BINS/2; i < MAX_BINS; i++){
+    // First add the previous M samples
+    for (i = 0; i < MAX_BINS/2; i++)
+        fft_in[i] = fft_m[i];
 
-		if (r->mode == MODE_2TONE)
-			i_sample = (1.0 * (vfo_read(&tone_a) 
-			+ vfo_read(&tone_b))) / 50000000000.0;
-		else if (r->mode == MODE_CALIBRATE)
-			i_sample = (1.0 * (vfo_read(&tone_a))) / 30000000000.0;
-		else if (r->mode == MODE_CW || r->mode == MODE_CWR || r->mode == MODE_FT8)
-			i_sample = modem_next_sample(r->mode) / 3;
-		else if (r->mode == MODE_AM){
-			//double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
-	  		double modulation = (1.0 * input_mic[j]) / 200000000.0;
-			if (modulation < -1.0)
-				modulation = -1.0;
-			i_carrier= (1.0  * vfo_read(&am_carrier))/ 50000000000.0 ; 
-	  		i_sample =  (1.0 + modulation) * i_carrier;
-		}
-		else 
-	  		i_sample = (1.0 * input_mic[j]) / 2000000000.0;
-		
-		//clip the overdrive to prevent damage up the processing chain, PA
-		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM){
-			if (i_sample < (-1.0 * voice_clip_level))
-				i_sample = -1.0 * voice_clip_level;
-			else if (i_sample > voice_clip_level)
-				i_sample = voice_clip_level;
-		}
+    int m = 0;
+    int j = 0;
 
-		//don't echo the voice modes
-		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM 
-			|| r->mode == MODE_NBFM)
-			output_speaker[j] = 0;
-		else
-			output_speaker[j] = i_sample * sidetone;
-	  	q_sample = 0;
+    // Gather the samples into a time domain array 
+    for (i = MAX_BINS/2; i < MAX_BINS; i++) {
+        if (r->mode == MODE_2TONE)
+            i_sample = (1.0 * (vfo_read(&tone_a) + vfo_read(&tone_b))) / 50000000000.0;
+        else if (r->mode == MODE_CALIBRATE)
+            i_sample = (1.0 * (vfo_read(&tone_a))) / 30000000000.0;
+        else if (r->mode == MODE_CW || r->mode == MODE_CWR || r->mode == MODE_FT8)
+            i_sample = modem_next_sample(r->mode) / 3;
+        else if (r->mode == MODE_AM) {
+            //double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
+            double modulation = (1.0 * input_mic[j]) / 200000000.0;
+            if (modulation < -1.0)
+                modulation = -1.0;
+            i_carrier = (1.0 * vfo_read(&am_carrier)) / 50000000000.0; 
+            i_sample = (1.0 + modulation) * i_carrier;
+        } else 
+            i_sample = (1.0 * input_mic[j]) / 2000000000.0;
+        
+        // Clip the overdrive to prevent damage up the processing chain, PA
+        if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM) {
+            if (i_sample < (-1.0 * voice_clip_level))
+                i_sample = -1.0 * voice_clip_level;
+            else if (i_sample > voice_clip_level)
+                i_sample = voice_clip_level;
+        }
 
-	  	j++;
+        // Don't echo the voice modes
+        if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_NBFM)
+            output_speaker[j] = 0;
+        else
+            output_speaker[j] = i_sample * sidetone;
 
-	  	__real__ fft_m[m] = i_sample;
-	  	__imag__ fft_m[m] = q_sample;
+        q_sample = 0;
+        j++;
 
-	  	__real__ fft_in[i]  = i_sample;
-	  	__imag__ fft_in[i]  = q_sample;
-	  	m++;
-	}
+        __real__ fft_m[m] = i_sample;
+        __imag__ fft_m[m] = q_sample;
 
-	//push the samples to the remote audio queue, decimated to 16000 samples/sec
-	for (i = 0; i < MAX_BINS/2; i += 6)
-		q_write(&qremote, output_speaker[i]);
+        __real__ fft_in[i] = i_sample;
+        __imag__ fft_in[i] = q_sample;
+        m++;
+    }
 
-	//convert to frequency
-	fftw_execute(plan_fwd);
+    // Push the samples to the remote audio queue, decimated to 16000 samples/sec
+    for (i = 0; i < MAX_BINS/2; i += 6)
+        q_write(&qremote, output_speaker[i]);
+
+    // Convert to frequency
+    fftw_execute(plan_fwd);
 
 	// NOTE: fft_out holds the fft output (in freq domain) of the 
 	// incoming mic samples 
@@ -965,49 +969,57 @@ if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list-
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;	
 		}
+		// adjust USB/CW modulation power factor W9JES
+		for (i = 0; i < MAX_BINS/2; i++) {
+			__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
+		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
+		}
 
-	//now rotate to the tx_bin 
-	//rememeber the AM is already a carrier modulated at 24 KHz
-	int shift = tx_shift;
-	if (r->mode == MODE_AM)
-		shift = 0;
-	for (i = 0; i < MAX_BINS; i++){
-		int b = i + shift;
-		if (b >= MAX_BINS)
-			b = b - MAX_BINS;
-		if (b < 0)
-			b = b + MAX_BINS;
-		r->fft_freq[b] = fft_out[i];
-	}
-
+    // Now rotate to the tx_bin
+    // Remember the AM is already a carrier modulated at 24 KHz
+    int shift;
+    if (r->mode == MODE_AM) {
+        shift = 0;
+    } else {
+        shift = tx_shift;
+    }
+    
+    for (i = 0; i < MAX_BINS; i++) {
+        int b = i + shift;
+        if (b >= MAX_BINS)
+            b -= MAX_BINS;
+        if (b < 0)
+            b += MAX_BINS;
+        r->fft_freq[b] = fft_out[i];
+    }
 	// the spectrum display is updated
 	//spectrum_update();
 
-	//convert back to time domain	
-	fftw_execute(r->plan_rev);
-	int min = 10000000;
-	int max = -10000000;
-	float scale = volume;
-	for (i= 0; i < MAX_BINS/2; i++){
-		double s = creal(r->fft_time[i+(MAX_BINS/2)]);
-		output_tx[i] = s * scale * tx_amp * alc_level;
-		if (min > output_tx[i])
-			min = output_tx[i];
-		if (max < output_tx[i])
-			max = output_tx[i];	
-			//output_tx[i] = 0;
-	}
+    // Convert back to time domain
+    fftw_execute(r->plan_rev);
+    int min = 10000000;
+    int max = -10000000;
+    float scale = volume;
+    for (i = 0; i < MAX_BINS/2; i++) {
+        double s = creal(r->fft_time[i + (MAX_BINS/2)]);
+        output_tx[i] = s * scale * tx_amp * alc_level;
+        if (min > output_tx[i])
+            min = output_tx[i];
+        if (max < output_tx[i])
+            max = output_tx[i];
+		//output_tx[i] = 0;
+    }
 //	printf("min %d, max %d\n", min, max);
 
-	read_power();
-	sdr_modulation_update(output_tx, MAX_BINS/2, tx_amp);	
+    read_power();
+    sdr_modulation_update(output_tx, MAX_BINS/2, tx_amp);
 }
+
 
 /*
 	This is called each time there is a block of signal samples ready 
 	either from the mic or from the rx IF 
 */
-
 
 void sound_process(
     int32_t *input_rx, int32_t *input_mic, 
@@ -1106,9 +1118,12 @@ static int hw_settings_handler(void* user, const char* section,
 		band_power[hw_init_index].f_stop = atoi(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
-
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
+	// Add parsing for SSB/CW Power Factor Adjustment W9JES
+	if (!strcmp(name, "ssb_val"))
+		ssb_val = atof(value);
+
 }
 
 static void read_hw_ini(){
@@ -1297,11 +1312,12 @@ void tr_switch_de(int tx_on){
 			digitalWrite(EXT_PTT, LOW); //ADDED by KF7YDU, shuts down ext_ptt.  If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
 			delay(5); 
 			//audio codec is back on
-			sound_mixer(audio_card, "Master", rx_vol);
+      check_r1_volume();
+      sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			//rx_tx_ramp = 10;
-    }
+		}
 }
 
 //v2 t/r switch uses the lpfs to cut the feedback during t/r transitions
@@ -1311,7 +1327,7 @@ void tr_switch_v2(int tx_on){
 			//first turn off the LPFs, so PA doesnt connect 
   		digitalWrite(LPF_A, LOW);
   		digitalWrite(LPF_B, LOW);
- 	 	digitalWrite(LPF_C, LOW);
+ 	  	digitalWrite(LPF_C, LOW);
   		digitalWrite(LPF_D, LOW);
 
 			//mute it all and hang on for a millisecond
@@ -1343,7 +1359,7 @@ void tr_switch_v2(int tx_on){
 		else {
 			in_tx = 0;
 			//mute it all and hang on
-			sound_mixer(audio_card, "Master", 0);
+      sound_mixer(audio_card, "Master", 0);
 			sound_mixer(audio_card, "Capture", 0);
 			delay(1);
       fft_reset_m_bins();
@@ -1351,7 +1367,7 @@ void tr_switch_v2(int tx_on){
 
   		digitalWrite(LPF_A, LOW);
   		digitalWrite(LPF_B, LOW);
- 	 	digitalWrite(LPF_C, LOW);
+ 	 	  digitalWrite(LPF_C, LOW);
   		digitalWrite(LPF_D, LOW);
 			prev_lpf = -1; //force the lpf to be re-energized
 			delay(10);
@@ -1364,13 +1380,17 @@ void tr_switch_v2(int tx_on){
 			
       delay(5); 
 			//audio codec is back on
-			sound_mixer(audio_card, "Master", rx_vol);
+     
+     //added to set volume after tx -W2JON 
+      check_r1_volume();
+      initialize_rx_vol();
+      sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			prev_lpf = -1;
 			set_lpf_40mhz(freq_hdr);
 			//rx_tx_ramp = 10;
-   	}
+		}
 }
 
 void tr_switch(int tx_on){
@@ -1442,7 +1462,6 @@ void setup(){
 
 
 }
-
 void sdr_request(char *request, char *response){
 	char cmd[100], value[1000];
 
@@ -1572,7 +1591,7 @@ void sdr_request(char *request, char *response){
 			set_tx_power_levels();
 	}
 	else if (!strcmp(cmd, "tx_power")){
-    tx_drive = atoi(value);
+     tx_drive = atoi(value);
 		if(in_tx)
 			set_tx_power_levels();	
 	}
@@ -1584,11 +1603,22 @@ void sdr_request(char *request, char *response){
 		if(!in_tx)
 			sound_mixer(audio_card, "Capture", rx_gain);
 	}
-	else if (!strcmp(cmd, "r1:volume")){
-		rx_vol = atoi(value);
-		if(!in_tx)	
-			sound_mixer(audio_card, "Master", rx_vol);
-	}
+// Volume control scaling adjustment - W2JON
+  else if (!strcmp(cmd, "r1:volume")) {
+      int input_volume = atoi(value);
+      int rx_vol;
+
+      if (input_volume == 0) {
+          rx_vol = 0;
+      } else {
+        rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
+      }
+  
+      if (!in_tx) {
+          sound_mixer(audio_card, "Master", rx_vol);
+      }
+   }
+//
 	else if(!strcmp(cmd, "r1:high")){
     rx_list->high_hz = atoi(value);
     set_rx_filter();
