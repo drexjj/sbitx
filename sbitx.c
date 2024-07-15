@@ -74,7 +74,6 @@ int freq_hdr = -1;
 static double volume 	= 100.0;
 static int tx_drive = 40;
 static int rx_gain = 100;
-static int rx_vol = 100;
 static int tx_gain = 100;
 static int tx_compress = 0;
 static double spectrum_speed = 0.3;
@@ -94,6 +93,18 @@ static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;  // W9JES
+extern void check_r1_volume();//Volume control normalization W2JON
+static int rx_vol;
+
+void initialize_rx_vol() {
+    rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
+}
+void set_input_volume(int volume) {
+    input_volume = volume;
+}
+int get_input_volume() {
+    return input_volume;
+}
 
 static int multicast_socket = -1;
 
@@ -773,7 +784,6 @@ void rx_linear(int32_t *input_rx,  int32_t *input_mic,
 				//keep transmit buffer empty
 				output_speaker[i] = sample;
 				output_tx[i] = 0;
-        
 			}
 		else
 			for (i= 0; i < MAX_BINS/2; i++){
@@ -862,7 +872,6 @@ void tx_process(
         eq_initialized = 1;
     }
 
-// Apply EQ to mic samples under voice modes while in (TX) -W2JON
 if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE && r->mode != MODE_CW && r->mode != MODE_CWR)) {
     if (eq_is_enabled == 1) {
         // EQ is enabled, perform EQ processing
@@ -1305,7 +1314,8 @@ void tr_switch_de(int tx_on){
 			digitalWrite(EXT_PTT, LOW); //ADDED by KF7YDU, shuts down ext_ptt.  If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
 			delay(5); 
 			//audio codec is back on
-			sound_mixer(audio_card, "Master", rx_vol);
+            check_r1_volume();
+            sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			//rx_tx_ramp = 10;
@@ -1372,7 +1382,11 @@ void tr_switch_v2(int tx_on){
 			
       delay(5); 
 			//audio codec is back on
-			sound_mixer(audio_card, "Master", rx_vol);
+     
+     //added to set volume after tx -W2JON 
+    	 check_r1_volume();
+	      initialize_rx_vol();
+  		    sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			prev_lpf = -1;
@@ -1450,7 +1464,6 @@ void setup(){
 
 
 }
-
 void sdr_request(char *request, char *response){
 	char cmd[100], value[1000];
 
@@ -1592,11 +1605,22 @@ void sdr_request(char *request, char *response){
 		if(!in_tx)
 			sound_mixer(audio_card, "Capture", rx_gain);
 	}
-	else if (!strcmp(cmd, "r1:volume")){
-		rx_vol = atoi(value);
-		if(!in_tx)	
-			sound_mixer(audio_card, "Master", rx_vol);
-	}
+// Volume control scaling adjustment - W2JON
+  else if (!strcmp(cmd, "r1:volume")) {
+      int input_volume = atoi(value);
+      int rx_vol;
+
+      if (input_volume == 0) {
+          rx_vol = 0;
+      } else {
+        rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
+      }
+  
+      if (!in_tx) {
+          sound_mixer(audio_card, "Master", rx_vol);
+      }
+   }
+//
 	else if(!strcmp(cmd, "r1:high")){
     rx_list->high_hz = atoi(value);
     set_rx_filter();

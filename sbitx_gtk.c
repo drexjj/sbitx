@@ -53,9 +53,8 @@ void change_band (char *request);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
-
 int eq_is_enabled = 0;
-
+int input_volume = 0;
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -3371,32 +3370,6 @@ void tx_on(int trigger){
 
 
 //-----Check for EQ enable/bypass W2JON
-//This first section was written to force the eq control in the menu to switch off. 
-// Although the code in sbitx.c should be disabling the eq if the mode is non voice this is left here as a J.I.C. for now.
-//
-//gboolean check_eq_control(gpointer data) {
-//    struct field* stat = get_field("#eq_plugin");
-//    struct field* mode_field = get_field("r1:mode");
-//
-//    if (stat && stat->value && mode_field && mode_field->value) {
-//        const char* mode_str = mode_field->value;  // Use the mode field value as a string
-//
-//        int mode = mode_id(mode_str);  // Convert mode string to its corresponding integer identifier
-//
-//        if (mode != MODE_DIGITAL &&  mode != MODE_FT8 &&  mode != MODE_2TONE &&  mode != MODE_CW &&  mode != MODE_CWR)  {
-//            if (!strcmp(stat->value, "ON")) {
-//                eq_is_enabled = 1;
-//            } else if (!strcmp(stat->value, "OFF")) {
-//                eq_is_enabled = 0;
-//                set_field("#eq_plugin", "OFF");
-//            }
-//        } else {
-//            eq_is_enabled = 0;
-//            set_field("#eq_plugin", "OFF");  // Ensure EQ is disabled for all restricted modes
-//        }
-//    }
-//    return TRUE;  // Return TRUE to keep the timer running
-//  }
 gboolean check_eq_control(gpointer data) {
     struct field* stat = get_field("#eq_plugin");
     if (stat) {
@@ -3409,6 +3382,20 @@ gboolean check_eq_control(gpointer data) {
     return TRUE;  // Return TRUE to keep the timer running
 }
 
+//-----Check for r1:volume setting W2JON
+// Function to check r1:volume and update input_volume variable for volume control normalization 
+void check_r1_volume() {
+    char value_buffer[100];
+    int result = get_field_value("r1:volume", value_buffer);
+    if (result == 0) {
+        const char *volume_value = value_buffer;
+        int volume = atoi(volume_value);
+        input_volume = volume; // Directly update input_volume
+       // printf("Updated input_volume to: %d\n", input_volume);
+    } else {
+        printf("Error: Failed to get volume value from r1:volume.\n");
+    }
+}
 
 void tx_off(){
 	char response[100];
@@ -5141,8 +5128,6 @@ int main( int argc, char* argv[] ) {
  
   // Set up a timer to check the EQ control every 1/2 second (500 ms)
   g_timeout_add(500, check_eq_control, NULL);
-
- 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
 	

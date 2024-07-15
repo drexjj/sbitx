@@ -26,3 +26,8 @@ void	sound_thread_stop();
 void sound_volume(char *card_name, char *element, int volume);
 void sound_mixer(char *card_name, char *element, int make_on);
 void sound_input(int loop);
+
+extern int input_volume;
+void set_input_volume(int volume);
+int get_input_volume(void);
+void check_r1_volume();
