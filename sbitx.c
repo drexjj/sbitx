@@ -863,13 +863,13 @@ void tx_process(
     }
 
 // Apply EQ to mic samples under voice modes while in (TX) -W2JON
-if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
-     if (eq_is_enabled == 1) {
+if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE && r->mode != MODE_CW && r->mode != MODE_CWR)) {
+    if (eq_is_enabled == 1) {
         // EQ is enabled, perform EQ processing
         apply_eq(&eq, input_mic, n_samples, 48000.0);
+        //printf("EQ is active on the audio chain\n");
     } else {
         // EQ is disabled, skip EQ processing
-        
     }
 }
     
