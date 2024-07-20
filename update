@@ -8,7 +8,7 @@ sudo apt-mark unhold linux-headers-6.6.20+rpt-common-rpi linux-headers-6.6.20+rp
 date
 cd $HOME/sbitx
 git pull
-cd $HOME/sbitx/ft8_lib
+cd $HOME/sbitx/src/ft8_lib
 make
 sudo make install
 cd ..
