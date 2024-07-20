@@ -11,7 +11,7 @@ git pull
 cd $HOME/sbitx/src/ft8_lib
 make
 sudo make install
-cd ..
+cd $HOME/sbitx
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
