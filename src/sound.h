@@ -22,12 +22,23 @@ void sound_process(
 	int32_t *input_rx, int32_t *input_mic, 
 	int32_t *output_speaker, int32_t *output_tx, 
 	int n_samples);
-void	sound_thread_stop();
+void sound_thread_stop();
 void sound_volume(char *card_name, char *element, int volume);
 void sound_mixer(char *card_name, char *element, int make_on);
 void sound_input(int loop);
 
+//volume control normalizer
 extern int input_volume;
-void set_input_volume(int volume);
+//void set_input_volume(int volume);
 int get_input_volume(void);
 void check_r1_volume();
+
+//ANR (automatic noise reduction)
+extern int anr_enabled;
+
+//rx DSP tool
+extern int dsp_enabled;
+extern int noise_threshold;
+extern int noise_update_interval; 
+double scaleNoiseThreshold(int control);
+
