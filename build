@@ -3,12 +3,23 @@
 # the error reflected in the environment.  This lets one issue commands like
 # "./build sbitx && ./sbitx" to build then run if it built correctly, and not
 # run if the build failed.
-F=$@
+F=$1
+O=$2
+OPT=0
+FLAGS="-g"
 [ -z "$F" ] && {
-   echo "usage:   $0 program"
+   echo "usage:   $0 program [o]"
    echo "example: $0 sbitx"
+   echo "-optional 'o' argument enables compiler optimizations"
    exit 1
 }
+if [ ! -z "$O" ] && [ "$O" = "o" ] ; then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building optimized binary, most warnings can be safely ignored !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-O3 -flto=auto"
+	OPT=1
+fi
 WORKING_DIRECTORY=`pwd`
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 date
@@ -31,7 +42,7 @@ else
   VERSION=`grep VER src/sdr_ui.h | awk 'FNR==1{print $4}' | sed -e 's/"//g'`
   echo "compiling $F version $VERSION in $WORKING_DIRECTORY"
 fi
-gcc -g -o $F \
+gcc $FLAGS -o $F \
 	 src/vfo.c src/si570.c src/sbitx_sound.c src/fft_filter.c src/sbitx_gtk.c src/sbitx_utils.c \
     src/i2cbb.c src/si5351v2.c src/ini.c src/hamlib.c src/queue.c src/modems.c src/logbook.c \
 		src/modem_cw.c src/settings_ui.c src/ntputil.c \
@@ -40,7 +51,17 @@ gcc -g -o $F \
 	-lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lncurses -lsqlite3 -lnsl -lrt \
 	`pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0`
  
-# This addition is used to provide the application the capability to adjust the local system time -W2JON
+if [ $OPT -eq 1 ]; then
+	#Remove debugging stuff for a smaller binary
+	echo Stripping $F
+	strip $F
+fi
+
+
 echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, KF7YDU, and N1QM" 
-sudo setcap CAP_SYS_TIME+ep /home/pi/sbitx/sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+# This addition is used to provide the application the capability to adjust the local system time -W2JON
+# It should probably always run last at it'll fail if the file system doesn't support it - N1QM
+if [ "$F" = "sbitx" ] && [ -x $F ]; then 
+	sudo setcap CAP_SYS_TIME+ep $F
+fi
