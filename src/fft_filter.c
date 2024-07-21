@@ -18,7 +18,7 @@
 // if the Wisdom plans in the file were generated at the same or more rigorous level.
 #define WISDOM_MODE FFTW_MEASURE
 #define PLANTIME -1		// spend no more than plantime seconds finding the best FFT algorithm. -1 turns the platime cap off.
-char wisdom_file_f[] = "sbitx_wisdom_f.wis";
+char wisdom_file_f[] = "/home/pi/sbitx/data/sbitx_wisdom_f.wis";  // Moved to default data directory - N3SB
 
 // Modified Bessel function of the 0th kind, used by the Kaiser window
 const float i0(float const z){
@@ -160,7 +160,7 @@ int window_filter(int const L,int const M,complex float * const response,float c
   fftwf_execute(fwd_filter_plan);
   fftwf_destroy_plan(fwd_filter_plan);
 
-#if 0 
+#if 0       // Prints current filter shape in Frequency Domain
   printf("#Filter Frequency response amplitude\n");
   for(int n=0;n<N;n++){
     printf("#%d %.1f db\n",n,power2dB(cnrmf(buffer[n])));
@@ -196,8 +196,9 @@ int filter_tune(struct filter *f, float const low,float const high,float const k
   if(isnan(low) || isnan(high) || isnan(kaiser_beta))
     return -1;
 
-  assert(fabs(low) <= 0.5);
-  assert(fabs(high) <= 0.5);
+	printf("filter set from %g to %g\n", low, high);
+  //assert(fabs(low) <= 0.5);
+  //assert(fabs(high) <= 0.5);
 
   float gain = 1./((float)f->N);
 	//printf("# Gain is %lf\n", gain);
