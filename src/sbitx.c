@@ -24,7 +24,7 @@
 #include "para_eq.h"
 
 #define DEBUG 0
-int ext_ptt_enable = 0; //ADDED BY KF7YDU.  Can be used by external software to enable/disable external PTT.  1=enabled, 0=disabled. Disabled by default.
+int ext_ptt_enable = 0; //ADDED BY KF7YDU. 
 char audio_card[32];
 static int tx_shift = 512;
 ParametricEQ eq; 
@@ -48,10 +48,11 @@ FILE *pf_debug = NULL;
 int sbitx_version = SBITX_V2;
 int fwdpower, vswr;
 float fft_bins[MAX_BINS]; // spectrum ampltiudes  
+float spectrum_window[MAX_BINS];
 int spectrum_plot[MAX_BINS];
 fftw_complex *fft_spectrum;
 fftw_plan plan_spectrum;
-float spectrum_window[MAX_BINS];
+
 void set_rx1(int frequency);
 void tr_switch(int tx_on);
 
@@ -63,6 +64,9 @@ void tr_switch(int tx_on);
 #define WISDOM_MODE FFTW_MEASURE
 #define PLANTIME -1		// spend no more than plantime seconds finding the best FFT algorithm. -1 turns the platime cap off.
 char wisdom_file[] = "sbitx_wisdom.wis";
+
+#define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
+#define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
 
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
@@ -93,6 +97,8 @@ static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;  // W9JES
+int dsp_enabled = 0;//dsp W2JON
+int anr_enabled = 0;//anr W2JON
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -679,134 +685,164 @@ void rx_am(int32_t *input_rx,  int32_t *input_mic,
 //		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
 }
 
-//TODO : optimize the memory copy and moves to use the memcpy
-void rx_linear(int32_t *input_rx,  int32_t *input_mic, 
-	int32_t *output_speaker, int32_t *output_tx, int n_samples)
+
+//rx_linear with Spectral Subtraction and Wiener Filter DSP filtering - W2JON
+void rx_linear(int32_t *input_rx, int32_t *input_mic, 
+    int32_t *output_speaker, int32_t *output_tx, int n_samples)
 {
-	int i, j = 0;
-	double i_sample, q_sample;
+    static double noise_est[MAX_BINS] = {0};
+    static double signal_est[MAX_BINS] = {0}; // For Wiener filter
+    static int noise_est_initialized = 0;
+    static int noise_update_counter = 0;
 
+    int i, j = 0;
+    double i_sample, q_sample;
+    double sampling_rate = 96000.0; // Assuming sample rate
 
-	//STEP 1: first add the previous M samples to
-	for (i = 0; i < MAX_BINS/2; i++)
-		fft_in[i]  = fft_m[i];
+    // Scale the noise_threshold value
+    double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
 
-	//STEP 2: then add the new set of samples
-	// m is the index into incoming samples, starting at zero
-	// i is the index into the time samples, picking from 
-	// the samples added in the previous step
-	int m = 0;
-	//gather the samples into a time domain array 
-	for (i= MAX_BINS/2; i < MAX_BINS; i++){
-		i_sample = (1.0  *input_rx[j])/200000000.0;
-		q_sample = 0;
+    // STEP 1: First add the previous M samples
+    for (i = 0; i < MAX_BINS/2; i++)
+        fft_in[i] = fft_m[i];
 
-		j++;
+    // STEP 2: Add the new set of samples
+    int m = 0;
+    for (i = MAX_BINS/2; i < MAX_BINS; i++) {
+        i_sample = (1.0 * input_rx[j]) / 200000000.0;
+        q_sample = 0;
+        j++;
+        __real__ fft_m[m] = i_sample;
+        __imag__ fft_m[m] = q_sample;
+        __real__ fft_in[i] = i_sample;
+        __imag__ fft_in[i] = q_sample;
+        m++;
+    }
 
-		__real__ fft_m[m] = i_sample;
-		__imag__ fft_m[m] = q_sample;
+    // STEP 3: Convert to frequency domain
+    my_fftw_execute(plan_fwd);
 
-		__real__ fft_in[i]  = i_sample;
-		__imag__ fft_in[i]  = q_sample;
-		m++;
-	}
+    // STEP 3B: Spectrum update for user interface
+    for (i = 0; i < MAX_BINS; i++)
+        __real__ fft_in[i] *= spectrum_window[i];
+    my_fftw_execute(plan_spectrum);
+    spectrum_update();
 
-	// STEP 3: convert the time domain samples to  frequency domain
-	my_fftw_execute(plan_fwd);
+    // STEP 4: Rotate the bins around by r->tuned_bin
+    struct rx *r = rx_list;
+    int shift = r->tuned_bin;
+    if (r->mode == MODE_AM)
+        shift = 0;
+    for (i = 0; i < MAX_BINS; i++) {
+        int b = i + shift;
+        if (b >= MAX_BINS)
+            b -= MAX_BINS;
+        if (b < 0)
+            b += MAX_BINS;
+        r->fft_freq[i] = fft_out[b];
+    }
 
-	//STEP 3B: this is a side line, we use these frequency domain
-	// values to paint the spectrum in the user interface
-	// I discovered that the raw time samples give horrible spectrum
-	// and they need to be multiplied wiht a window function 
-	// they use a separate fft plan
-	// NOTE: the spectrum update has nothing to do with the actual
-	// signal processing. If you are not showing the spectrum or the
-	// waterfall, you can skip these steps
-	for (i = 0; i < MAX_BINS; i++)
-		__real__ fft_in[i] *= spectrum_window[i];
-	my_fftw_execute(plan_spectrum);
+    // STEP 4a: DSP noise estimation
+    if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE) {
+        // Noise Estimation
+        if (!noise_est_initialized || noise_update_counter >= noise_update_interval) {
+            for (i = 0; i < MAX_BINS; i++) {
+                double current_magnitude = cabs(r->fft_freq[i]);
+                if (!noise_est_initialized) {
+                    noise_est[i] = current_magnitude;
+                } else {
+                    noise_est[i] = NOISE_ALPHA * noise_est[i] + (1 - NOISE_ALPHA) * current_magnitude;
+                }
+            }
+            noise_update_counter = 0;
+            noise_est_initialized = 1;
+        } else {
+            noise_update_counter++;
+        }
 
-	// the spectrum display is updated
-	spectrum_update();
-  // ... back to the actual processing, after spectrum update  
+        if (dsp_enabled) {
+            // Spectral Subtraction filter
+            for (i = 0; i < MAX_BINS; i++) {
+                double magnitude = cabs(r->fft_freq[i]);
+                double phase = carg(r->fft_freq[i]);
+                double noise_magnitude = noise_est[i];
+                double new_magnitude = fmax(scaled_noise_threshold, magnitude - noise_magnitude);
+                r->fft_freq[i] = new_magnitude * cexp(I * phase);
+                rx_list->agc_speed = -1;
+            }
+        }
 
-	// we may add another sub receiver within the pass band later,
-	// hence, the linkced list of receivers here
-	// at present, we handle just the first receiver
-	struct rx *r = rx_list;
+        if (anr_enabled) {
+            // Signal Estimation for Wiener filter
+            for (i = 0; i < MAX_BINS; i++) {
+                double current_magnitude = cabs(r->fft_freq[i]);
+                signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
+            }
 
-	//STEP 4: we rotate the bins around by r-tuned_bin
-	int shift = r->tuned_bin;
-	if (r->mode == MODE_AM)
-		shift = 0;
-	for (i = 0; i < MAX_BINS; i++){
-		int b =  i + shift;
-		if (b >= MAX_BINS)
-			b = b - MAX_BINS;
-		if (b < 0)
-			b = b + MAX_BINS;
-		r->fft_freq[i] = fft_out[b];
-	}
+            // Wiener Filter (ANR)
+            for (i = 0; i < MAX_BINS; i++) {
+                double signal_power = signal_est[i] * signal_est[i];
+                double noise_power = noise_est[i] * noise_est[i];
+                double wiener_filter = signal_power / (signal_power + noise_power);
+                r->fft_freq[i] *= wiener_filter;
+            }
+        }
+     }
 
+    // STEP 5: Zero out the other sideband
+    if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
+        for (i = 0; i < MAX_BINS/2; i++) {
+            __real__ r->fft_freq[i] = 0;
+            __imag__ r->fft_freq[i] = 0;
+        }
+    } else if (r->mode != MODE_AM) {
+        for (i = MAX_BINS/2; i < MAX_BINS; i++) {
+            __real__ r->fft_freq[i] = 0;
+            __imag__ r->fft_freq[i] = 0;
+        }
+    }
 
-	// STEP 5:zero out the other sideband
-	if (r->mode == MODE_LSB || r->mode == MODE_CWR)
-		for (i = 0; i < MAX_BINS/2; i++){
-			__real__ r->fft_freq[i] = 0;
-			__imag__ r->fft_freq[i] = 0;	
-		}
-	else if (r->mode != MODE_AM)  
-		for (i = MAX_BINS/2; i < MAX_BINS; i++){
-			__real__ r->fft_freq[i] = 0;
-			__imag__ r->fft_freq[i] = 0;	
-		}
+    // STEP 6: Apply the FIR filter
+    for (i = 0; i < MAX_BINS; i++) {
+        r->fft_freq[i] *= r->filter->fir_coeff[i];
+    }
 
-	// STEP 6: apply the filter to the signal,
-	// in frequency domain we just multiply the filter
-	// coefficients with the frequency domain samples
-	for (i = 0; i < MAX_BINS; i++)
-		r->fft_freq[i] *= r->filter->fir_coeff[i];
+    // STEP 7: Convert back to time domain
+    my_fftw_execute(r->plan_rev);
 
-	//STEP 7: convert back to time domain	
-	my_fftw_execute(r->plan_rev);
+    // STEP 8: AGC
+    agc2(r);
 
-	//STEP 8 : AGC
-	agc2(r);
-	
-	//STEP 9: send the output back to where it needs to go
-	int is_digital = 0;
+    // STEP 9: Send the output
+    int is_digital = 0;
+    if (rx_list->output == 0) {
+        if (r->mode == MODE_AM) {
+            for (i = 0; i < MAX_BINS/2; i++) {
+                int32_t sample = cabs(r->fft_time[i + (MAX_BINS/2)]);
+                output_speaker[i] = sample;
+                output_tx[i] = 0;
+            }
+        } else {
+            for (i = 0; i < MAX_BINS/2; i++) {
+                int32_t sample = cimag(r->fft_time[i + (MAX_BINS/2)]);
+                output_speaker[i] = sample;
+                output_tx[i] = 0;
+            }
+        }
 
-	if (rx_list->output == 0){
-		if (r->mode == MODE_AM)
-			for (i= 0; i < MAX_BINS/2; i++){
-				int32_t sample;
-				sample = cabs(r->fft_time[i+(MAX_BINS/2)]);
-				//keep transmit buffer empty
-				output_speaker[i] = sample;
-				output_tx[i] = 0;
-			}
-		else
-			for (i= 0; i < MAX_BINS/2; i++){
-				int32_t sample;
-				sample = cimag(r->fft_time[i+(MAX_BINS/2)]);
-				//keep transmit buffer empty
-				output_speaker[i] = sample;
-				output_tx[i] = 0;
-			}
+        // Push the samples to the remote audio queue, decimated to 16000 samples/sec
+        for (i = 0; i < MAX_BINS/2; i += 6) {
+            q_write(&qremote, output_speaker[i]);
+        }
+    }
 
-		//push the samples to the remote audio queue, decimated to 16000 samples/sec
-		for (i = 0; i < MAX_BINS/2; i += 6)
-			q_write(&qremote, output_speaker[i]);
+    if (mute_count) {
+        memset(output_speaker, 0, MAX_BINS/2 * sizeof(int32_t));
+        mute_count--;
+    }
 
-	}
-
-	if (mute_count){
-		memset(output_speaker, 0, MAX_BINS/2 * sizeof(int32_t));
-		mute_count--;
-	}
-
-	//push the data to any potential modem 
-	modem_rx(rx_list->mode, output_speaker, MAX_BINS/2);
+    // Push the data to any potential modem 
+    modem_rx(rx_list->mode, output_speaker, MAX_BINS/2);
 }
 
 void read_power(){
@@ -975,7 +1011,7 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;	
 		}
-		// adjust USB/CW modulation power factor W9JES/KX4Z
+		// adjust USB/CW modulation power factor W9JES
 		for (i = 0; i < MAX_BINS/2; i++) {
 			__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
 		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
@@ -1040,8 +1076,6 @@ void sound_process(
     }
 }
 
-
-
 // Existing set_rx_filter function
 void set_rx_filter() {
     // on AM filter at the IF level, instead of the baseband
@@ -1105,7 +1139,6 @@ void setup_oscillators(){
 
   si5351_reset();
 }
-
 
 static int hw_init_index = 0;
 static int hw_settings_handler(void* user, const char* section, 
@@ -1311,7 +1344,7 @@ void tr_switch_de(int tx_on){
 
 			//drive the tx line low, switching the signal path 
 			digitalWrite(TX_LINE, LOW);
-			digitalWrite(EXT_PTT, LOW); //ADDED by KF7YDU, shuts down ext_ptt.  If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
+			digitalWrite(EXT_PTT, LOW); //ADDED by KF7YDU, shuts down ext_ptt. 
 			delay(5); 
 			//audio codec is back on
             check_r1_volume();
@@ -1343,7 +1376,7 @@ void tr_switch_v2(int tx_on){
 			mute_count = 20;
 			tx_process_restart = 1;
 			
-			//ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
+			//ADDED BY KF7YDU - Check if ptt is enabled
 			if (ext_ptt_enable == 1) {
 				digitalWrite(EXT_PTT, HIGH);
 			}
@@ -1377,16 +1410,12 @@ void tr_switch_v2(int tx_on){
 			digitalWrite(TX_LINE, LOW);
       
       //ADDED by KF7YDU, shuts down ext_ptt.
-			digitalWrite(EXT_PTT, LOW);   
-      //If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
-			
+			digitalWrite(EXT_PTT, LOW);         	
       delay(5); 
 			//audio codec is back on
-     
-     //added to set volume after tx -W2JON 
-    	 check_r1_volume();
-	      initialize_rx_vol();
-  		    sound_mixer(audio_card, "Master", rx_vol);
+      check_r1_volume();//added to set volume after tx -W2JON 
+	    initialize_rx_vol();//added to set volume after tx -W2JON 
+  	  sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			prev_lpf = -1;
