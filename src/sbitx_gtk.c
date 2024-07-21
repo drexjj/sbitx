@@ -4762,12 +4762,12 @@ void do_control_action(char* cmd) {
         tx_on(TX_SOFT);
     }
     else if (!strcmp(request, "TUNE OFF")) {
-        printf("TUNE OFF command received.\n");
         if (tune_on_invoked) {
-            do_control_action("RX");
-            field_set("MODE", modestore);
-            field_set("DRIVE", powerstore);
-            tune_on_invoked = false;
+          printf("TUNE OFF command received.\n");
+          do_control_action("RX");
+          field_set("MODE", modestore);
+          field_set("DRIVE", powerstore);
+          tune_on_invoked = false;
         }
     }
  	else if (!strcmp(request, "SET")) {
@@ -5272,6 +5272,7 @@ int main( int argc, char* argv[] ) {
   field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
   field_set("TUNE", "OFF"); 
+   
  
  
  
