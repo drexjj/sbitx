@@ -1525,6 +1525,8 @@ void sdr_request(char *request, char *response){
 			rx_list->mode = MODE_CWR;
 		else if (!strcmp(value, "2TONE"))
 			rx_list->mode = MODE_2TONE;
+		else if (!strcmp(value, "TUNE"))  // W9JES
+			rx_list->mode = MODE_CALIBRATE;
 		else if (!strcmp(value, "FT8"))
 			rx_list->mode = MODE_FT8;
 		else if (!strcmp(value, "AM"))

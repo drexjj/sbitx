@@ -644,9 +644,11 @@ struct field main_controls[] = {
   { "#anr_plugin", NULL, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
     
-  //GLG Tune 
-  { "#tune", NULL, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-    "ON/OFF", 0, 0, 0, 0},
+        //GLG Tune 
+        { "#tune", NULL, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+                "ON/OFF", 0, 0, 0, 0},
+	{ "#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 0, 100, 1,0},
   
 
 	// Settings Panel
@@ -1350,6 +1352,8 @@ static int mode_id(const char *mode_str){
 		return MODE_2TONE;
 	else if (!strcmp(mode_str, "DIGITAL"))
 		return MODE_DIGITAL;
+	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - W9JES
+		return MODE_CALIBRATE;
 	return -1;
 }
 
@@ -2150,6 +2154,7 @@ void menu_display(int show) {
         field_move("THSHLD", 445, screen_height - 95, 45, 45);
         field_move("ANR", 500, screen_height - 120, 45, 45); 
         field_move("TUNE", 700, screen_height - 145 ,45 ,45); 
+        field_move("TNPWR", 700, screen_height - 95 ,45 ,45);
         field_move("QRO",650,screen_height - 145 ,45 ,45);         
           
         
@@ -3456,6 +3461,8 @@ void tx_on(int trigger){
 			tx_mode = MODE_2TONE;
 		else if (!strcmp(f->value, "DIGITAL"))
 			tx_mode = MODE_DIGITAL;
+		else if (!strcmp(f->value, "TUNE"))  // Defined TUNE mode - W9JES
+			tx_mode = MODE_CALIBRATE;
 	}
 
 	if (in_tx == 0){
@@ -4736,10 +4743,10 @@ bool tune_on_invoked = false;//Set initial state of TUNE
 
 void do_control_action(char* cmd) {
 	char request[1000], response[1000], buff[100];
-  static char modestore[10], powerstore[10];//GLG TUNE previous state 
+        static char modestore[10], powerstore[10];//GLG TUNE previous state 
 	strcpy(request, cmd);  // Don't mangle the original, thank you
  
-   //printf("do_control_action called with command: %s\n", request); //Debug logging
+        //printf("do_control_action called with command: %s\n", request); //Debug logging
 
 	if (!strcmp(request, "CLOSE")) {
 		gtk_window_iconify(GTK_WINDOW(window));
@@ -4750,26 +4757,31 @@ void do_control_action(char* cmd) {
 		save_user_settings(1);
 		exit(0);
 	}
-  // GLG TUNE for TUNE button modified -W2JON
-   else if (!strcmp(request, "TUNE ON")) {
-        printf("TUNE ON command received.\n");
-        tune_on_invoked = true;
-        get_field_value_by_label("MODE", modestore);
-        get_field_value_by_label("DRIVE", powerstore);
-        sdr_request("tx_power=40", response);
-        sdr_request("r1:mode=2TONE", response);
-        sdr_request("txmode=2TONE", response);
-        tx_on(TX_SOFT);
-    }
-    else if (!strcmp(request, "TUNE OFF")) {
-        if (tune_on_invoked) {
-          printf("TUNE OFF command received.\n");
-          do_control_action("RX");
-          field_set("MODE", modestore);
-          field_set("DRIVE", powerstore);
-          tune_on_invoked = false;
+        // GLG TUNE for TUNE button modified - W9JES, W2JON
+        else if (!strcmp(request, "TUNE ON")) {
+                struct field *tnpwr_field = get_field("#tune_power");  // Obtain value of tune power
+                int tunepower = atoi(tnpwr_field->value);
+                printf("TUNE ON command received with power level: %d.\n", tunepower);
+                tune_on_invoked = true;
+                get_field_value_by_label("MODE", modestore);
+                get_field_value_by_label("DRIVE", powerstore);
+
+                char tn_power_command[50];
+                snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower);  //  create TNPWR string
+                sdr_request(tn_power_command, response);  //  send TX with power level from TNPWR
+                sdr_request("r1:mode=TUNE", response);
+	        delay(100);
+                tx_on(TX_SOFT);
         }
-    }
+        else if (!strcmp(request, "TUNE OFF")) {
+              if (tune_on_invoked) {
+                  printf("TUNE OFF command received.\n");
+                  do_control_action("RX");
+                  field_set("MODE", modestore);
+                  field_set("DRIVE", powerstore);
+                  tune_on_invoked = false;
+              }
+        }
  	else if (!strcmp(request, "SET")) {
 		settings_ui(window);
 	}
