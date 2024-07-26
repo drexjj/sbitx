@@ -1,3 +1,8 @@
+
+/*
+Hamlib rigcltd emulation
+example rigctl connecetion command:  rigctl -m 2 -r localhost:4532
+*/
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -20,8 +25,6 @@ static int welcome_socket = -1, data_socket = -1;
 #define MAX_DATA 1000
 char incoming_data[MAX_DATA];
 int incoming_ptr;
-
-void  hamlib_tx(int tx_on);
 
 //copied from gqrx on github
 static char dump_state_response[] =
@@ -86,6 +89,34 @@ static char dump_state_response[] =
         /* Bit field list of set parm */
         "0\n" /* RIG_PARM_NONE */;
 
+/*
+enum rig_errcode_e {
+    RIG_OK = 0,     /*!< 0 No error, operation completed successfully 
+RIG_EINVAL,     /*!< 1 invalid parameter 
+RIG_ECONF,      /*!< 2 invalid configuration (serial,..) 
+RIG_ENOMEM,     /*!< 3 memory shortage 
+RIG_ENIMPL,     /*!< 4 function not implemented, but will be 
+RIG_ETIMEOUT,   /*!< 5 communication timed out 
+RIG_EIO,        /*!< 6 IO error, including open failed 
+RIG_EINTERNAL,  /*!< 7 Internal Hamlib error, huh! 
+RIG_EPROTO,     /*!< 8 Protocol error 
+RIG_ERJCTED,    /*!< 9 Command rejected by the rig 
+RIG_ETRUNC,     /*!< 10 Command performed, but arg truncated 
+RIG_ENAVAIL,    /*!< 11 Function not available 
+RIG_ENTARGET,   /*!< 12 VFO not targetable 
+RIG_BUSERROR,   /*!< 13 Error talking on the bus 
+RIG_BUSBUSY,    /*!< 14 Collision on the bus 
+RIG_EARG,       /*!< 15 NULL RIG handle or any invalid pointer parameter in get arg 
+RIG_EVFO,       /*!< 16 Invalid VFO 
+RIG_EDOM,       /*!< 17 Argument out of domain of func 
+RIG_EDEPRECATED,/*!< 18 Function deprecated 
+RIG_ESECURITY,  /*!< 19 Security error 
+RIG_EPOWER,     /*!< 20 Rig not powered on 
+RIG_ELIMIT,     /*!< 21 Limit exceeded 
+RIG_EEND        // MUST BE LAST ITEM IN LAST
+};
+*/
+
 int check_cmd(char *cmd, char *token){
   if (strstr(cmd, token) == cmd)
     return 1;
@@ -94,97 +125,201 @@ int check_cmd(char *cmd, char *token){
 }
 
 void send_response(char *response){
-  send(data_socket, response, strlen(response), 0);
-	printf(" %s]\n", response); 
+  int e = send(data_socket, response, strlen(response), 0);
+  //printf("[%s]", response); 
+  if (e >=0) return;
+  // Connection closed by client
+  puts("Hamlib client disconnected (send). Restarting ...");
+  close(data_socket);
+  data_socket = -1;
 }
 
-int in_tx = 0;
 void send_freq(){
+  //Returns the active VFO's current frequency
   char response[20];
   sprintf(response, "%d\n", get_freq());
   send_response(response);
 }
+void send_mode(){
+char mode[10];
+    char response[20];
+    get_field_value_by_label("MODE",mode);
+    if (!strcmp(mode,"DIGITAL"))
+      strcpy(mode,"PKTUSB");
+    sprintf(response,"%s\n%i\n", mode,  get_passband_bw());
+    send_response(response);
+    //printf("[%s]",response);
+}
+void set_mode(char* f) {
+    int delim = -1;
+    char mode[10];
+    char cmd[50];
+    for (int i = 0; i < strlen(f) -1; i++) {
+        if (f[i] == ' ') {
+            delim = i;
+            break;
+        }
+    }
+    if (delim == -1) {
+        send_response("RPRT -9\n");
+        return;
+    }
+    strncpy(mode, f, delim);
+    mode[delim] = '\0';
+    if (!strcmp(mode, "PKTUSB"))
+        strcpy(mode, "DIGITAL");
+    //printf("Mode? = '%s'\n", mode);
+    char* supported_hamlib_modes[5] = {
+    "USB", "LSB", "CW", "CWR","DIGITAL"
+    };
+    for (int i = 0; i < 5; i++) {
+        if (!strcmp(mode, supported_hamlib_modes[i])) {
+            sprintf(cmd, "mode %s", mode);
+            cmd_exec(cmd);
+            send_response("RPRT 0\n");
+            return;
+        }
+    }
+    //Unknown mode
+    printf("Unknown mode passed: [%s]\n", mode);
+    send_response("RPRT -9\n");
+}
+void send_rfpower() {
+    char resp[3];
+    float drive = (float)field_int("DRIVE") / (float)100;
+    sprintf(resp, "%f\n", drive);
+    send_response(resp);
+}
+void get_vfo() {
+    char currVFO[2];
+    get_field_value_by_label("VFO", currVFO);
+    //printf("Current VFO: %s\n", currVFO);
+    if (currVFO[0] == 'A') {
+        //active_vfo = 0;
+        send_response("VFOA\n");
+    } else {
+        //active_vfo = 1;
+        send_response("VFOB\n");
+    }
+}
+void set_vfo(char* f) {
+    field_set("VFO", f);
+    char response[5];
+    sprintf(response, "VFO%s\n", f);
+    //printf("[VFO%s\n]", f);
+    send_response("RPRT 0\n");
 
+
+}
+void get_split() {
+    char curr_split[4];
+    get_field_value_by_label("SPLIT", curr_split);
+    
+    if (!strcmp(curr_split,"OFF")) {
+        send_response("0\n");
+        get_vfo();
+    }
+    else {
+        send_response("1\n");
+        //In split mode, tx vfo is always B
+        send_response("VFOB\n");
+    }
+    
+}
 void hamlib_set_freq(char *f){
-	long freq;
-	char cmd[50];
+  long freq;
+  char cmd[50];
   if (!strncmp(f, "VFO", 3))
     freq = atoi(f+5);
   else
     freq = atoi(f);
-  send_response("RPRT 0\n");
 	sprintf(cmd, "freq %d", freq);
 	cmd_exec(cmd);
-//	set_freq(freq);
+    send_response("RPRT 0\n");
 }
 	
 
 void tx_control(int s){
 	//printf("tx_control(%d)\n", s);
   if (s == 1){
-    in_tx = 1;
-    hamlib_tx(in_tx);
+    hamlib_tx(1);
   }
   if (s == 0){
-    in_tx = 0;
-    hamlib_tx(in_tx);
+    hamlib_tx(0);
   }
-  if (s != -1)
-    send_response("RPRT 0\n");
-  if (in_tx == 1)
-    send_response("1\n");
-  else
-    send_response("0\n");
+  if (s == -1) {
+      char tx_status[100];
+      sdr_request("stat:tx=1", tx_status);
+      if (!strcmp(tx_status, "ok on"))
+          send_response("1\n");
+      else
+          send_response("0\n");
+      return;
+  }
+  send_response("RPRT 0\n");
+
 }
 
-void interpret_command(char *cmd){
- 
-  if (check_cmd(cmd, "\\chk_vfo"))
-    send_response("CHKVFO 1\n"); 
-  else if (check_cmd(cmd, "\\dump_state"))
-    send_response(dump_state_response);
-  else if (check_cmd(cmd, "V"))
-    send_response("VFOA\n");
-  else if (check_cmd(cmd, "v"))
-    send_response("VFOA\n");
-	else if (!strcmp(cmd, "m VFOA"))
-		send_response("USB\n3000\n");
-  else if (!strncmp(cmd, "m VFOA", 6))
-    send_response("USB\n3000\n");
-  else if (check_cmd(cmd, "f"))
-		send_freq();
-  else if (check_cmd(cmd, "F"))
-    hamlib_set_freq(cmd + 2);
-  else if (cmd[0] == 'T'){
-		if (strchr(cmd, '0'))
-			tx_control(0); //if there is a zero in it, we are to rx
-		else
-			tx_control(1); //this is a shaky way to do it, who has the time to parse?
-/*    if (!strcmp(cmd, "T 0") || !strcmp(cmd, "T VFOA 0"))
-      tx_control(0);
-    else if (!strcmp(cmd, "T 1") || !strcmp(cmd, "T VFOA 1"))
-      tx_control(1);
-*/
+void interpret_command(char* cmd) {
+
+    if (check_cmd(cmd, "\\chk_vfo"))
+        //Lets not default to VFO mode
+        send_response("0\n");
+    else if (check_cmd(cmd, "\\dump_state"))
+        send_response(dump_state_response);
+    else if (check_cmd(cmd, "V VFOA")) {
+        set_vfo("A");
+    }
+    else if (check_cmd(cmd, "V VFOB")) {
+        set_vfo("B");
+    } else if (check_cmd(cmd, "v")) {
+        get_vfo();
+    } else if (cmd[0] == 'm')
+        send_mode();
+    else if (cmd[0] == 'M') {
+        set_mode(cmd + 2);
+    } else if (cmd[0] == 'f')
+        send_freq();
+    else if (check_cmd(cmd, "F"))
+        hamlib_set_freq(cmd + 2);
+    else if (cmd[0] == 'T') {
+        if (strchr(cmd, '0'))
+            tx_control(0); //if there is a zero in it, we are to rx
+        else
+            tx_control(1); //this is a shaky way to do it, who has the time to parse?
+    }
+    else if (cmd[0] == 's') {
+        get_split();
+        
+    } else if (check_cmd(cmd, "t"))
+        tx_control(-1);
+    else if (check_cmd(cmd, "\\get_powerstat"))
+        send_response("1\n");
+    else if (check_cmd(cmd, "\\get_lock_mode"))
+        send_response("0\n");
+    else if (check_cmd(cmd, "q")) {
+        send_response("RPRT 0\n");
+        close(data_socket);
+        data_socket = -1;
+    }
+    else if (check_cmd(cmd, "u TUNER"))
+        send_response("0\n");
+  else if (check_cmd(cmd, "l RFPOWER")) {
+        send_rfpower();
+  }  else { 
+    printf("Hamlib: Unrecognized command [%s] '%c'\n", cmd, cmd[0]);
+    //Send an unimplemented response error code
+    send_response("RPRT -11\n");
   }
-  else if (check_cmd(cmd, "s"))
-    send_response("0\n");
-  else if (check_cmd(cmd, "t"))
-    tx_control(-1);
-  else if (check_cmd(cmd, "q")){
-    close(data_socket);
-    data_socket = -1;
-  }
-	else 
-		printf("Hamlib: Unrecognized command [%s] '%c'\n", cmd, cmd[0]);
 }
 
 void hamlib_handler(char *data, int len){
 
-//	printf("<<<hamlib cmd %s =>", data);
   for (int i = 0; i < len; i++){
     if (data[i] == '\n'){
       incoming_data[incoming_ptr] = 0;
       incoming_ptr = 0;
+      printf("<<<hamlib cmd %s =>", data);
       interpret_command(incoming_data);
     }
     else if (incoming_ptr < MAX_DATA){
@@ -204,7 +339,9 @@ void hamlib_start(){
   
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(4532);
-  serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  //Allow connections from all interfaces
+  //Shouldn't use with a public IP
+  serverAddr.sin_addr.s_addr = INADDR_ANY;
   memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
 
   /*---- Bind the address struct to the socket ----*/
@@ -227,7 +364,7 @@ void hamlib_slice(){
     e = accept(welcome_socket, (struct sockaddr *) &server_storage, &addr_size);
     if (e == -1)
       return;
-    puts("Accepted connection\n");
+    puts("Accepted Hamlib client\n");
     incoming_ptr = 0;
     data_socket = e;
     fcntl(data_socket, F_SETFL, fcntl(data_socket, F_GETFL) | O_NONBLOCK);
@@ -236,11 +373,11 @@ void hamlib_slice(){
         else {
         len = recv(data_socket, buffer, sizeof(buffer), 0);
         if (len > 0) {
-            buffer[len] = 0;
+            buffer[len] = '\0';
             hamlib_handler(buffer, len);
         } else if (len == 0) {
             // Connection closed by client
-            puts("Client disconnected. Restarting to listen ...");
+            puts("Hamlib client disconnected. Restarting to listen ...");
             close(data_socket);
             data_socket = -1;
         } else {
@@ -249,10 +386,9 @@ void hamlib_slice(){
                 return;
             }
             // For other errors, close the socket
-            puts("Hamlib connection dropped. Restarting to listen ...");
+            puts("Hamlib client dropped. Restarting to listen ...");
             close(data_socket);
             data_socket = -1;     
     }
   } 
 }
-
