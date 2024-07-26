@@ -213,6 +213,8 @@ int is_in_tx();
 void tx_on(int trigger);
 void tx_off();
 long get_freq();
+int get_passband_bw();
+void hamlib_tx(int tx_on);
 int get_pitch();
 time_t time_sbitx();
 
