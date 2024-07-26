@@ -2,6 +2,9 @@
 /*
 Hamlib rigcltd emulation
 example rigctl connecetion command:  rigctl -m 2 -r localhost:4532
+
+Known issues
+-Can only handle one client at once currently - n1qm
 */
 #include <stdio.h>
 #include <unistd.h>
@@ -267,37 +270,37 @@ void interpret_command(char* cmd) {
         send_response("0\n");
     else if (check_cmd(cmd, "\\dump_state"))
         send_response(dump_state_response);
-    else if (check_cmd(cmd, "V VFOA")) {
+    else if (check_cmd(cmd, "V VFOA") || check_cmd(cmd, "\\set_vfo VFOA")) {
         set_vfo("A");
     }
-    else if (check_cmd(cmd, "V VFOB")) {
+    else if (check_cmd(cmd, "V VFOB") || check_cmd(cmd, "\\set_vfo VFOB")) {
         set_vfo("B");
-    } else if (check_cmd(cmd, "v")) {
+    } else if (check_cmd(cmd, "v")|| check_cmd(cmd, "\\get_vfo")) {
         get_vfo();
-    } else if (cmd[0] == 'm')
+    } else if (cmd[0] == 'm' || check_cmd(cmd, "\\get_mode"))
         send_mode();
-    else if (cmd[0] == 'M') {
+    else if (cmd[0] == 'M' || check_cmd(cmd, "\\set_mode")) {
         set_mode(cmd + 2);
-    } else if (cmd[0] == 'f')
+    } else if (cmd[0] == 'f' || check_cmd(cmd, "\\get_freq"))
         send_freq();
-    else if (check_cmd(cmd, "F"))
+    else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
         hamlib_set_freq(cmd + 2);
-    else if (cmd[0] == 'T') {
+    else if (cmd[0] == 'T' || check_cmd(cmd, "\\set_ptt")) {
         if (strchr(cmd, '0'))
             tx_control(0); //if there is a zero in it, we are to rx
         else
             tx_control(1); //this is a shaky way to do it, who has the time to parse?
     }
-    else if (cmd[0] == 's') {
+    else if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
         get_split();
         
-    } else if (check_cmd(cmd, "t"))
+    } else if (check_cmd(cmd, "t") || check_cmd(cmd, "\\get_ptt"))
         tx_control(-1);
     else if (check_cmd(cmd, "\\get_powerstat"))
         send_response("1\n");
     else if (check_cmd(cmd, "\\get_lock_mode"))
         send_response("0\n");
-    else if (check_cmd(cmd, "q")) {
+    else if (check_cmd(cmd, "q") || check_cmd(cmd, "Q")) {
         send_response("RPRT 0\n");
         close(data_socket);
         data_socket = -1;
