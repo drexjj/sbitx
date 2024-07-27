@@ -7,7 +7,7 @@ window {
 
 /* Style for the vertical gain sliders */
 .gain-slider{
-    background-image: -gtk-scaled(url("images/fader_bkgnd-v.png"));
+    background-image: -gtk-scaled(url("/home/pi/sbitx/src/images/fader_bkgnd-v.png"));
     background-color: rgba(147,147,147,1);
     background-size: 80px 178px;/*width(80) x height(178)*/
     background-repeat: no-repeat;
