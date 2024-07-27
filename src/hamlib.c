@@ -36,7 +36,7 @@ static char dump_state_response[] =
         /* rigctl model */
         "2\n"
         /* ITU region */
-        "1\n"
+        "2\n"
         /* RX/TX frequency ranges
          * start, end, modes, low_power, high_power, vfo, ant
          *  start/end - Start/End frequency [Hz]
@@ -154,31 +154,39 @@ char mode[10];
     //printf("[%s]",response);
 }
 void set_mode(char* f) {
-    int delim = -1;
     char mode[10];
     char cmd[50];
-    for (int i = 0; i < strlen(f) -1; i++) {
-        if (f[i] == ' ') {
-            delim = i;
-            break;
+    char passband[3];
+    char* tok = strtok(f," ");
+    if (tok != 0) {
+        strcpy(mode,tok);
+        tok = strtok(0," ");
+        //printf("Received mode: [%s] \n", mode);
+        if (tok != 0) {
+            strcpy(passband,tok);
+            //printf("Received bw: [%s] \n", passband);
         }
-    }
-    if (delim == -1) {
+    } else {
+        //We didn't receive what was expected
         send_response("RPRT -9\n");
         return;
-    }
-    strncpy(mode, f, delim);
-    mode[delim] = '\0';
+    } 
     if (!strcmp(mode, "PKTUSB"))
         strcpy(mode, "DIGITAL");
     //printf("Mode? = '%s'\n", mode);
-    char* supported_hamlib_modes[5] = {
-    "USB", "LSB", "CW", "CWR","DIGITAL"
+    const char* supported_hamlib_modes[6] = {
+    "USB", "LSB", "CW", "CWR","DIGITAL","AM"
     };
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (!strcmp(mode, supported_hamlib_modes[i])) {
+            char bw_str[10];
             sprintf(cmd, "mode %s", mode);
             cmd_exec(cmd);
+            if (!strcmp(passband,"0")) {
+                //passband=0 == use default BW for mode
+                sprintf(bw_str, "%d", get_default_passband_bw());
+	            field_set("BW", bw_str);
+            }
             send_response("RPRT 0\n");
             return;
         }
@@ -264,8 +272,15 @@ void tx_control(int s){
 }
 
 void interpret_command(char* cmd) {
-
-    if (check_cmd(cmd, "\\chk_vfo"))
+    if (cmd[0] == 'T' || check_cmd(cmd, "\\set_ptt")) {
+        if (strchr(cmd, '0'))
+            tx_control(0); //if there is a zero in it, we are to rx
+        else
+            tx_control(1); //this is a shaky way to do it, who has the time to parse?
+    } 
+    else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
+        hamlib_set_freq(cmd + 2);
+    else if (check_cmd(cmd, "\\chk_vfo"))
         //Lets not default to VFO mode
         send_response("0\n");
     else if (check_cmd(cmd, "\\dump_state"))
@@ -283,15 +298,7 @@ void interpret_command(char* cmd) {
         set_mode(cmd + 2);
     } else if (cmd[0] == 'f' || check_cmd(cmd, "\\get_freq"))
         send_freq();
-    else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
-        hamlib_set_freq(cmd + 2);
-    else if (cmd[0] == 'T' || check_cmd(cmd, "\\set_ptt")) {
-        if (strchr(cmd, '0'))
-            tx_control(0); //if there is a zero in it, we are to rx
-        else
-            tx_control(1); //this is a shaky way to do it, who has the time to parse?
-    }
-    else if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
+    else  if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
         get_split();
         
     } else if (check_cmd(cmd, "t") || check_cmd(cmd, "\\get_ptt"))
