@@ -215,6 +215,7 @@ void tx_off();
 long get_freq();
 int get_passband_bw();
 void hamlib_tx(int tx_on);
+int get_default_passband_bw();
 int get_pitch();
 time_t time_sbitx();
 

@@ -4177,14 +4177,33 @@ int get_passband_bw() {
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_NBFM:
-	case MODE_AM:
 		return field_int("BW_VOICE");
+		break;
+	case MODE_AM:
+		return field_int("BW_AM");
 		break;
 	default:
 		return field_int("BW_DIGITAL");
 	}
 }
-
+int get_default_passband_bw() {
+	int mode = mode_id(get_field("r1:mode")->value);
+	switch (mode) {
+	case MODE_CW:
+	case MODE_CWR:
+		return 400;
+		break;
+	case MODE_USB:
+	case MODE_LSB:
+	case MODE_NBFM:
+		return 2400;
+		break;
+	case MODE_AM:
+		return 5000;
+	default:
+		return 3000;
+	}
+}
 void bin_dump(int length, uint8_t *data){
 	printf("i2c: ");
 	for (int i = 0; i < length; i++)
