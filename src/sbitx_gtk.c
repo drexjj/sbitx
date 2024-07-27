@@ -5287,8 +5287,8 @@ int main( int argc, char* argv[] ) {
 	do_control_action("FREQ 7100000");
 	do_control_action("MODE LSB");	
 	do_control_action("STEP 1K");	
-  do_control_action("SPAN 25K");
-
+  	do_control_action("SPAN 25K");
+ 
 	strcpy(vfo_a_mode, "USB");
 	strcpy(vfo_b_mode, "LSB");
 	set_field("#mycallsign", "VU2LCH");
@@ -5327,11 +5327,11 @@ int main( int argc, char* argv[] ) {
 	char buff[1000];
 
 	//now set the frequency of operation and more to vfo_a
-  set_field("r1:freq", get_field("#vfo_a_freq")->value);
+ 	set_field("r1:freq", get_field("#vfo_a_freq")->value);
 
 	console_init();
 	write_console(FONT_LOG, VER_STR);
-  write_console(FONT_LOG, "\r\nEnter \\help for help\r\n");
+  	write_console(FONT_LOG, "\r\nEnter \\help for help\r\n");
 
 	if (strcmp(get_field("#mycallsign")->value, "NOBODY")){
 		sprintf(buff, "\nWelcome %s your grid is %s\n", 
@@ -5345,14 +5345,13 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-  field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+ 	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
-  field_set("TUNE", "OFF");
+  	field_set("TUNE", "OFF");
   
   // Set up a timer to check the EQ and DSP control every 500 ms
   g_timeout_add(500, check_plugin_controls, NULL);
-  
-    
+ 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
 	
@@ -5365,7 +5364,6 @@ int main( int argc, char* argv[] ) {
 //  modify_eq_band_gain(&eq, 3, -16);
 //  modify_eq_band_bandwidth(&eq, 3, 6);
 //  print_eq_int(&eq);
-
 //	open_url("http://127.0.0.1:8080");
 //	execute_app("chromium-browser --log-leve=3 "
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
