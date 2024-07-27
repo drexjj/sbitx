@@ -5347,6 +5347,7 @@ int main( int argc, char* argv[] ) {
 //  modify_eq_band_gain(&eq, 3, -16);
 //  modify_eq_band_bandwidth(&eq, 3, 6);
 //  print_eq_int(&eq);
+
 //	open_url("http://127.0.0.1:8080");
 //	execute_app("chromium-browser --log-leve=3 "
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
@@ -5356,6 +5357,5 @@ int main( int argc, char* argv[] ) {
   
   return 0;
 }
-
 
 
