@@ -48,14 +48,14 @@ void eq_ui(GtkWidget* parent){
     const gint freq_min[5] = {40, 150, 250, 600, 1500};
     const gint freq_max[5] = {160, 500, 1000, 2400, 3500};
     const gint freq_initial[5] = {100, 300, 500, 1200, 2500};
-
+    gint wx, wy, ww, wh;
+    gint nx, ny, nw, nh;
     //gtk_init(&argc, &argv);
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "TX Audio EQ");
     gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
     gtk_container_set_border_width(GTK_CONTAINER(window), 5);
-    gtk_window_move(GTK_WINDOW(window), 150, 100);//position window
 
 
     // Connect the custom close handler to the window destroy event
@@ -125,5 +125,10 @@ void eq_ui(GtkWidget* parent){
     // Set the sliders to the initial values from the external controls
     get_print_and_set_values(freq_sliders, gain_sliders);
 
-  
+    // Get main window size and new window's size so we can center new window
+    gdk_window_get_geometry(gtk_widget_get_window(parent),&wx, &wy, &ww, &wh);
+    gdk_window_get_geometry(gtk_widget_get_window(window),&nx, &ny, &nw, &nh);
+
+    gtk_window_move(GTK_WINDOW(window), wx + (ww-nw)/2, wy + (wh - nh)/2);//position window
+
 }
