@@ -308,8 +308,50 @@ int export_adif(char *path, char *start_date, char *end_date){
 	fclose(pf);
 }
 
+// Added the data folder for the save location  - W9JES
+int get_filename(char *path) {
+    GtkWidget *dialog;
+    GtkFileChooser *chooser;
+    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_SAVE;
+    gint res;
+
+    // Create a file chooser dialog
+    dialog = gtk_file_chooser_dialog_new("Save Logbook As..",
+      NULL, action, "_Cancel", GTK_RESPONSE_CANCEL, "_Save", GTK_RESPONSE_ACCEPT,
+      NULL);
+
+    chooser = GTK_FILE_CHOOSER(dialog);
+
+    // Set default folder, filename, and file filter
+    gtk_file_chooser_set_current_folder(chooser, "/home/pi/sbitx/data");
+    gtk_file_chooser_set_current_name(chooser, "Untitled.adi");
+    gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
+    GtkFileFilter *filter = gtk_file_filter_new();
+    gtk_file_filter_add_pattern(filter, "*.adi");
+    gtk_file_filter_set_name(filter, "ADI files (*.adi)");
+    gtk_file_chooser_add_filter(chooser, filter);
+
+    // Run the dialog and process the user response
+    res = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (res == GTK_RESPONSE_ACCEPT) {
+        char *filename;
+        filename = gtk_file_chooser_get_filename(chooser);
+        // Do something with the selected filename
+        strcpy(path, filename);
+        g_free(filename);
+        gtk_widget_destroy(dialog);
+        return 0;
+    }
+
+    gtk_widget_destroy(dialog);
+    return -1;
+}
+
+
+
 /* Export functions */
 
+/*
 int get_filename(char *path) {
     GtkWidget *dialog;
     GtkFileChooser *chooser;
@@ -346,7 +388,9 @@ int get_filename(char *path) {
     gtk_widget_destroy(dialog);
 		return -1;
 }
+*/
 
+/*
 void import_button_clicked(GtkWidget *window) {
     GtkWidget *dialog, *content_area, *vbox, *hbox, *frombox, *tobox;
     GtkWidget *start_label, *end_label;
@@ -366,12 +410,12 @@ void import_button_clicked(GtkWidget *window) {
     gtk_container_add(GTK_CONTAINER(content_area), vbox);
 
 
-		//horizontal box to have the from and to dates side by side
+    // horizontal box to have the from and to dates side by side
     hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
     gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
     gtk_container_add(GTK_CONTAINER(content_area), hbox);
 
-		//vertical box to have the from date
+    // vertical box to have the from date
     frombox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_container_set_border_width(GTK_CONTAINER(frombox), 10);
     gtk_container_add(GTK_CONTAINER(hbox), frombox);
@@ -385,7 +429,7 @@ void import_button_clicked(GtkWidget *window) {
     start_calendar = gtk_calendar_new();
     gtk_box_pack_start(GTK_BOX(frombox), start_calendar, TRUE, TRUE, 0);
 
-		//vertical box to have the from date
+    // vertical box to have the from date
     tobox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_container_set_border_width(GTK_CONTAINER(tobox), 10);
     gtk_container_add(GTK_CONTAINER(hbox), tobox);
@@ -418,8 +462,79 @@ void import_button_clicked(GtkWidget *window) {
 		}
     gtk_widget_destroy(dialog);
 }
+*/
 
-/* logbook ui  mostly generated through chatgpt 3 */
+void export_button_clicked(GtkWidget *window) {
+    GtkWidget *dialog, *content_area, *vbox, *hbox, *frombox, *tobox;
+    GtkWidget *start_label, *end_label;
+    GtkWidget *start_calendar, *end_calendar;
+    GtkWidget *save_button, *cancel_button;
+
+    // Create a new dialog
+    dialog = gtk_dialog_new_with_buttons("Date Selection",
+      NULL, GTK_DIALOG_MODAL,
+      "_Save", GTK_RESPONSE_OK, "_Cancel", GTK_RESPONSE_CANCEL, NULL);
+
+    content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+    // Create vertical box container
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 10);
+    gtk_container_add(GTK_CONTAINER(content_area), vbox);
+
+
+    // horizontal box to have the from and to dates side by side
+    hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+    gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
+    gtk_container_add(GTK_CONTAINER(content_area), hbox);
+
+    // vertical box to have the from date
+    frombox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_container_set_border_width(GTK_CONTAINER(frombox), 10);
+    gtk_container_add(GTK_CONTAINER(hbox), frombox);
+
+    // Create From Date label
+    start_label = gtk_label_new("From Date:");
+    gtk_label_set_xalign(GTK_LABEL(start_label), 0); // Left-align the text within the label
+    gtk_box_pack_start(GTK_BOX(frombox), start_label, FALSE, FALSE, 0);
+
+    // Create start date calendar
+    start_calendar = gtk_calendar_new();
+    gtk_box_pack_start(GTK_BOX(frombox), start_calendar, TRUE, TRUE, 0);
+
+    // vertical box to have the from date
+    tobox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_container_set_border_width(GTK_CONTAINER(tobox), 10);
+    gtk_container_add(GTK_CONTAINER(hbox), tobox);
+
+    // Create To Date label
+    end_label = gtk_label_new("To Date:");
+    gtk_label_set_xalign(GTK_LABEL(end_label), 0); // Left-align the text within the label
+    gtk_box_pack_start(GTK_BOX(tobox), end_label, FALSE, FALSE, 0);
+
+    // Create end date calendar
+    end_calendar = gtk_calendar_new();
+    gtk_box_pack_start(GTK_BOX(tobox), end_calendar, TRUE, TRUE, 0);
+
+    // Show all widgets
+    gtk_widget_show_all(dialog);
+		gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+		if (response == GTK_RESPONSE_OK){
+			char path[1000], start_str[20], end_str[20];
+			if (get_filename(path) != -1){
+				guint start_year, start_month, start_day, end_year, end_month, end_day;
+				gtk_calendar_get_date((GtkCalendar *)end_calendar, 
+					&end_year, &end_month, &end_day);
+				gtk_calendar_get_date((GtkCalendar *)start_calendar, 
+					&start_year, &start_month, &start_day);
+				sprintf(start_str,"%04d-%02d-%02d",start_year, start_month + 1, start_day);
+				sprintf(end_str, "%04d-%02d-%02d", end_year, end_month + 1, end_day);
+				export_adif(path, start_str, end_str);
+				printf("saved logs from %s to %s to file %s\n", start_str, end_str, path); 
+			}
+		}
+    gtk_widget_destroy(dialog);
+}
 
 // Signal handler to allow only uppercase letters and numbers for Callsign
 static void on_callsign_changed(GtkWidget *widget, gpointer data) {
@@ -880,11 +995,17 @@ void logbook_list_open(){
     gtk_container_add(GTK_CONTAINER(delete_tool_item), delete_button);
     gtk_toolbar_insert(GTK_TOOLBAR(toolbar), delete_tool_item, -1);
 
-    // Create "Import" button
-    GtkWidget *import_button = gtk_button_new_with_label("Import...");
-    GtkToolItem *import_tool_item = gtk_tool_item_new();
-    gtk_container_add(GTK_CONTAINER(import_tool_item), import_button);
-    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), import_tool_item, -1);
+    // Create "Import" button  - W9JES
+//    GtkWidget *import_button = gtk_button_new_with_label("Import...");
+//    GtkToolItem *import_tool_item = gtk_tool_item_new();
+//    gtk_container_add(GTK_CONTAINER(import_tool_item), import_button);
+//    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), import_tool_item, -1);
+	
+    // Create "Export" button    - W9JES
+    GtkWidget *export_button = gtk_button_new_with_label("Export...");
+    GtkToolItem *export_tool_item = gtk_tool_item_new();
+    gtk_container_add(GTK_CONTAINER(export_tool_item), export_button);
+    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), export_tool_item, -1);
 
     // Create a scrolled window
     scrolled_window = gtk_scrolled_window_new(NULL, NULL);
@@ -913,7 +1034,8 @@ void logbook_list_open(){
 		//connect the edit button the handler, passing the tree_view (afte tree_view is created) 
     g_signal_connect(edit_button, "clicked", G_CALLBACK(edit_button_clicked), tree_view);
     g_signal_connect(delete_button, "clicked", G_CALLBACK(delete_button_clicked), tree_view);
-    g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), window);
+//    g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), window);  - W9JES
+    g_signal_connect(export_button, "clicked", G_CALLBACK(export_button_clicked), window);	// W9JES
     g_signal_connect(search_entry, "changed", G_CALLBACK(search_update), tree_view); // Connect signal handler
 /*
     // Apply CSS for tree view
