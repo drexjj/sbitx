@@ -3786,9 +3786,9 @@ static gboolean on_window_state (GtkWidget *widget, GdkEventKey *event, gpointer
 static void switch_cursor() {
     set_field("mouse_pointer", "BLANK");
     is_cursor_blank = TRUE;
-    g_print("Cursor is now blank\n");
+ // g_print("Cursor is now blank\n");
     timer_id = 0;
-    g_print("Cursor has been switched\n");
+//  g_print("Cursor has been switched\n");
 }
 
 static gboolean switch_cursor_wrapper(gpointer user_data) {
@@ -3805,7 +3805,7 @@ static gboolean handle_mouse_movement(GtkWidget *widget, GdkEventMotion *event, 
     timer_id = g_timeout_add_seconds(1, (GSourceFunc)switch_cursor_wrapper, NULL);
     is_cursor_blank = FALSE;
     set_field("mouse_pointer", "LEFT");
-	g_print("Mouse moved, Cursor is visible\n");
+//	g_print("Mouse moved, Cursor is visible\n");
 		
     return true;
 }
