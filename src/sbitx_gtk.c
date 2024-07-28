@@ -46,6 +46,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include <glib.h>
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -85,6 +86,11 @@ static long time_delta = 0;
 static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
+
+//cursor blanking -W2JON
+static gboolean is_cursor_blank = FALSE;
+static gint last_mouse_move_time = 0;
+static gint timer_id = 0;
 
 //encoder state
 struct encoder {
@@ -3772,9 +3778,42 @@ static gboolean on_scroll (GtkWidget *widget, GdkEventScroll *event, gpointer da
 		
 }
 
-
 static gboolean on_window_state (GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
 	mouse_down = 0;
+}
+
+//Cursor Blanking -W2JON
+static void switch_cursor() {
+    set_field("mouse_pointer", "BLANK");
+    is_cursor_blank = TRUE;
+    g_print("Cursor is now blank\n");
+    timer_id = 0;
+    g_print("Cursor has been switched\n");
+}
+
+static gboolean switch_cursor_wrapper(gpointer user_data) {
+    switch_cursor();
+    return G_SOURCE_REMOVE;
+}
+
+//monitor cursor movement that isn't drag tracking -W2JON
+static gboolean handle_mouse_movement(GtkWidget *widget, GdkEventMotion *event, gpointer data) {
+    last_mouse_move_time = g_get_monotonic_time();
+    if (timer_id != 0) {
+        g_source_remove(timer_id);
+    }
+    timer_id = g_timeout_add_seconds(1, (GSourceFunc)switch_cursor_wrapper, NULL);
+    is_cursor_blank = FALSE;
+    set_field("mouse_pointer", "LEFT");
+	g_print("Mouse moved, Cursor is visible\n");
+		
+    return true;
+}
+
+static void on_destroy(GtkWidget *widget, gpointer user_data) {
+	set_field("mouse_pointer", "LEFT");
+    g_source_remove(timer_id);
+    gtk_main_quit();
 }
 
 static gboolean on_mouse_release (GtkWidget *widget, GdkEventButton *event, gpointer data) {
@@ -3790,11 +3829,11 @@ static gboolean on_mouse_release (GtkWidget *widget, GdkEventButton *event, gpoi
   /* We've handled the event, stop processing */
   return TRUE;
 }
-
-
+//This function is for dragging
 static gboolean on_mouse_move (GtkWidget *widget, GdkEventButton *event, gpointer data) {
 	char buff[100];
-
+    // Call the new function to handle mouse movement events
+    handle_mouse_movement(widget, (GdkEventMotion *)event, data);
 	if (!mouse_down)
 		return false;
 
@@ -3804,19 +3843,18 @@ static gboolean on_mouse_move (GtkWidget *widget, GdkEventButton *event, gpointe
 	// if a control is in focus and it handles the mouse drag, then just do that
 	// else treat it as a spin up/down of the control
 	if (f_focus){
-
-			if (!f_focus->fn ||  !f_focus->fn(f_focus, NULL, GDK_MOTION_NOTIFY, event->x, event->y, 0)){
-				//just emit up or down
-				if(last_mouse_x < x || last_mouse_y > y)
-					edit_field(f_focus, MIN_KEY_UP);
-				else if (last_mouse_x > x || last_mouse_y < y)
-					edit_field(f_focus, MIN_KEY_DOWN);
-			}
+		if (!f_focus->fn ||  !f_focus->fn(f_focus, NULL, GDK_MOTION_NOTIFY, event->x, event->y, 0)){
+			//just emit up or down
+			if(last_mouse_x < x || last_mouse_y > y)
+				edit_field(f_focus, MIN_KEY_UP);
+			else if (last_mouse_x > x || last_mouse_y < y)
+				edit_field(f_focus, MIN_KEY_DOWN);
 		}
+	}
 	last_mouse_x = x;
 	last_mouse_y = y;
 
-	return true;
+
 }
 
 static gboolean on_mouse_press (GtkWidget *widget, GdkEventButton *event, gpointer data) {
@@ -3851,7 +3889,6 @@ static gboolean on_mouse_press (GtkWidget *widget, GdkEventButton *event, gpoint
   /* We've handled the event, stop processing */
   return FALSE;
 }
-
 
 /*
 Turns out (after two days of debugging) that GTK is not thread-safe and
@@ -5236,7 +5273,7 @@ int main( int argc, char* argv[] ) {
 	puts(VER_STR);
 	active_layout = main_controls;
 
-  //	ensure_single_instance();
+  	//ensure_single_instance();
 
 	//unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
@@ -5249,14 +5286,21 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_remote_commands, 1000); //not too many commands
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
- // --- Check time against NTP server
-  const char* ntp_server = "pool.ntp.org";
-  sync_system_time(ntp_server);
- // ---
-  rtc_sync();
+ 	// --- Check time against NTP server
+  	const char* ntp_server = "pool.ntp.org";
+ 	sync_system_time(ntp_server);
+ 	// ---
+  	rtc_sync();
 
 	struct field *f;
 	f = active_layout;
+
+//---------------------
+    //window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+   // gtk_window_set_size_request(GTK_WINDOW(window), 400, 400);
+    g_signal_connect(window, "destroy", G_CALLBACK(on_destroy), NULL);
+    g_signal_connect(window, "motion-notify-event", G_CALLBACK(on_mouse_move), NULL);
+//--------------------
 
 	//initialize the modulation display
 
@@ -5352,10 +5396,10 @@ int main( int argc, char* argv[] ) {
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
 //	"  &>/dev/null &");
 
-
   gtk_main();
   
   return 0;
 }
+
 
 
