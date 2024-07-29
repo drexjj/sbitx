@@ -3061,6 +3061,7 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	if(event == GDK_BUTTON_PRESS){
+		set_field("#menu","OFF");
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -3068,7 +3069,7 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 }
 int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
 	if (event == GDK_BUTTON_PRESS) {
-		//THIS SPACE FOR RENT-W2JON
+		set_field("#toggle_kbd", "OFF");
 		printf("entered do_toggle_menu \n ");
 		return 1;
 	}
