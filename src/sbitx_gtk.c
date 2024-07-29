@@ -3069,6 +3069,7 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	if(event == GDK_BUTTON_PRESS){
+		set_field("#menu","OFF");
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -3076,6 +3077,7 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 }
 int do_toggle_option(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
 	if (event == GDK_BUTTON_PRESS) {
+		set_field("#toggle_kbd", "OFF");
 	focus_field(f_last_text);//this will prevent the controls from bouncing
 
    

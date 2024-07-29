@@ -1,7 +1,7 @@
 window {
     background-color: #939393; /* Light gray background */
     border: 5px solid #333333;/* Dark gray border with 5px width #f0f0f0 */
-    border-radius: 10; /* slightly rounded corners */
+    border-radius: 10px; /* slightly rounded corners */
 }
 
 
