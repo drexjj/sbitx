@@ -3058,7 +3058,6 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
-
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	if(event == GDK_BUTTON_PRESS){
 		set_field("#menu","OFF");
@@ -3067,14 +3066,17 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
-int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
+int do_toggle_option(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
 	if (event == GDK_BUTTON_PRESS) {
-		set_field("#toggle_kbd", "OFF");
-		printf("entered do_toggle_menu \n ");
-		return 1;
+		set_field("#toggle_kbd","OFF");
+	focus_field(f_last_text);//this will prevent the controls from bouncing
+
+   
+	return 1;
 	}
 	return 0;
 }
+
 
 void open_url(char *url){
 	char temp_line[200];
