@@ -2293,8 +2293,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-                case MODE_2TONE:  // W9JES
-      field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+        case MODE_2TONE:  // W9JES
+      		field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
