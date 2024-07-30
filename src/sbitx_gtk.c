@@ -2301,7 +2301,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-      field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+     		field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2315,10 +2315,10 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		break;
 
 		default:
-      field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+    		field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-      field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+     		field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
 			y1 = y2 - 105;
 			field_move("F1", 5, y1, 90, 45);
 			field_move("F2", 100, y1, 95, 45);
