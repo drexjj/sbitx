@@ -1,0 +1,48 @@
+window {
+    background-color: #939393; /* Light gray background */
+    border: 5px solid #333333;/* Dark gray border with 5px width #f0f0f0 */
+    border-radius: 10px; /* slightly rounded corners */
+}
+
+
+/* Style for the vertical gain sliders */
+.gain-slider{
+    background-image: -gtk-scaled(url("/home/pi/sbitx/src/images/fader_bkgnd-v.png"));
+    background-color: rgba(147,147,147,1);
+    background-size: 80px 178px;/*width(80) x height(178)*/
+    background-repeat: no-repeat;
+    min-height: 155px; /* Adjust height if needed(155 seems good) */
+    border-radius: 0px;
+              
+}
+
+/* Style for the horizontal frequency sliders */
+.freq-slider {
+    background-image: -gtk-scaled(url("/home/pi/sbitx/src/images/fader_bkgnd-h.png"));
+    background-size: 100px 60px;
+    background-repeat: no-repeat;
+    background-color: rgba(147,147,147,1);
+
+}
+
+/* Style for slider handles */
+scale slider {                                                                                      
+    background-image: -gtk-scaled(url("/home/pi/sbitx/src/images/slider_handle.png")); 
+    background-size: 43px 45px;                                                                 
+    min-width: 43px;                                                                               
+    min-height: 45px;  
+                                                                           
+}
+
+scale trough {
+    
+    border: alpha (@base_color, 0.0);
+    background: alpha (@base_color, 0.0);
+    
+}
+scale trough highlight {
+    border: alpha (@base_color, 0.0);
+    background: alpha (@base_color, 0.0);
+
+}
+
