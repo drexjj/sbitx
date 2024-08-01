@@ -1461,7 +1461,7 @@ void setup(){
 
 	fft_init();
 	vfo_init_phase_table();
-  setup_oscillators();
+  	setup_oscillators();
 	q_init(&qremote, 8000);
 
 	modem_init();
