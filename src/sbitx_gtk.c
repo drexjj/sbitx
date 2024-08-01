@@ -1752,14 +1752,14 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	//calculate the position of bandwidth strip
 	int filter_start, filter_width;
 
-if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
+	if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
     filter_start = f_spectrum->x + (f_spectrum->width/2) - 
         ((f_spectrum->width * bw_high)/(span * 1000)); 
     if (filter_start < f_spectrum->x){
-        filter_width = ((f_spectrum->width * (bw_high -bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
+        filter_width = ((f_spectrum->width * (bw_high - bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
         filter_start = f_spectrum->x;
     } else {
-        filter_width = (f_spectrum->width * (bw_high -bw_low))/(span * 1000); 
+        filter_width = (f_spectrum->width * (bw_high - bw_low))/(span * 1000); 
     }
     if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
         filter_width = f_spectrum->x + f_spectrum->width - filter_start;
@@ -1856,10 +1856,6 @@ if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
   cairo_show_text(gfx, anr_text);
   cairo_stroke(gfx);
   
-
-
-
-
 
 	//draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0], 
