@@ -2148,6 +2148,7 @@ void menu_display(int show) {
         //field_move("B4G", 240, screen_height - 95, 45, 45);
         //field_move("B4B", 375, screen_height - 145, 45, 45);
         //field_move("TXEQ", 295, screen_height - 120, 45, 45);
+		// NEW LAYOUT @ 3.027
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
         field_move("DSP", 240, screen_height - 140, 95, 45);
@@ -3204,9 +3205,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
-//------------------------------------------------------
-//Functions to modify the Parametric EQ settings. W2JON
-
+// Modify an existing band in the ParametricEQ structure
 void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
@@ -3392,10 +3391,9 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
  //   printf("Exiting do_eq_edit\n");
     return 0; 
 }
-//---end Parametric EQ W2JON--------------------
 
 
-//----DSP W2JON 
+//---Noise threshold for DSP -W2JON
 double scaleNoiseThreshold(int control) {
     double minValue = 0.001;
     double maxValue = 0.01;
@@ -3475,14 +3473,14 @@ void tx_on(int trigger){
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
 		printf("TX\n");
-    printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
-    printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
+    //	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
+    //	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
 
 	tx_start_time = millis();
 }
 
-gboolean check_plugin_controls(gpointer data) {/// Check for enabled plug-ins W2JON
+gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
@@ -3566,7 +3564,7 @@ static int layout_handler(void* user, const char* section,
 	else if (!strcmp(name, "height"))
 		f->height = atoi(value);	
 }
-void set_ui(int id) { // Modified to include the EQ layout int he rotation
+void set_ui(int id) { // Modified to include the EQ layout in the rotation
 	struct field* f = get_field("#kbd_q"); 
 
 	if (id == LAYOUT_KBD) {
