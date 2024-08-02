@@ -3205,8 +3205,8 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
-// Modify an existing band in the ParametricEQ structure
-void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
+// Modify an existing band in the parametriceq structure
+void modify_eq_band_frequency(parametriceq *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
 //        print_eq_int(eq);
@@ -3216,7 +3216,7 @@ void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequ
 }
 // Example usage: modify_eq_band_frequency(&eq, 3, 4105.0);  // Change frequency of band 3 to 4105.0 Hz
 
-void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
+void modify_eq_band_gain(parametriceq *eq, int band_index, double new_gain) {
     // Limit gain range -16 to +16 dB
     if (band_index >= 0 && band_index < NUM_BANDS) {
         // Clamp gain within range
@@ -3234,7 +3234,7 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
 }
 // Example usage: modify_eq_band_gain(&eq, 1, 4.5);  // Change gain of band 1 to 4.5 dB
 
-void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
+void modify_eq_band_bandwidth(parametriceq *eq, int band_index, double new_bandwidth) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].bandwidth = new_bandwidth;
 //       print_eq_int(eq);
@@ -5172,7 +5172,7 @@ void ensure_single_instance(){
 	}
 }
 
-void print_eq_int(const ParametricEQ *eq) {
+void print_eq_int(const parametriceq *eq) {
     for (int i = 0; i < NUM_BANDS; ++i) {
         printf("Band %d: Frequency=%.2f, Gain=%.2f, Bandwidth=%.2f\n",
                i, eq->bands[i].frequency, eq->bands[i].gain, eq->bands[i].bandwidth);

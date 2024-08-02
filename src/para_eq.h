@@ -17,20 +17,20 @@ typedef struct {
     double bandwidth;
 } EQBand;
 
-// Define ParametricEQ structure
+// Define parametriceq structure
 typedef struct {
     EQBand bands[NUM_BANDS];
-} ParametricEQ;
+} parametriceq;
 
-extern ParametricEQ eq;
+extern parametriceq eq;
 
 // Function declarations
-extern void init_eq(ParametricEQ *eq);
-extern void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency);
-extern void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain);
-extern void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth);
-extern void print_eq_int(const ParametricEQ *eq);
-extern void apply_eq(ParametricEQ* eq, int32_t* samples, int num_samples, double sample_rate);
+extern void init_eq(parametriceq *eq);
+extern void modify_eq_band_frequency(parametriceq *eq, int band_index, double new_frequency);
+extern void modify_eq_band_gain(parametriceq *eq, int band_index, double new_gain);
+extern void modify_eq_band_bandwidth(parametriceq *eq, int band_index, double new_bandwidth);
+extern void print_eq_int(const parametriceq *eq);
+extern void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate);
 extern int eq_is_enabled;
 gboolean check_eq_control(gpointer data);  
 

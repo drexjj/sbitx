@@ -4,10 +4,6 @@
 #include <fcntl.h>
 #include <math.h>
 #include <complex.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <ifaddrs.h>
-#include <netdb.h>
 #include <fftw3.h>
 #include <unistd.h>
 #include <wiringPi.h>
@@ -31,7 +27,7 @@
 int ext_ptt_enable = 0; //ADDED BY KF7YDU. 
 char audio_card[32];
 static int tx_shift = 512;
-parametriceq eq; 
+ParametricEQ eq; 
 
 FILE *pf_debug = NULL;
 
