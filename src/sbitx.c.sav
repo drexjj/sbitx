@@ -27,7 +27,7 @@
 int ext_ptt_enable = 0; //ADDED BY KF7YDU. 
 char audio_card[32];
 static int tx_shift = 512;
-ParametricEQ eq; 
+parametriceq eq; 
 
 FILE *pf_debug = NULL;
 

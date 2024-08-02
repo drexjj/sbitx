@@ -4,10 +4,6 @@
 #include <fcntl.h>
 #include <math.h>
 #include <complex.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <ifaddrs.h>
-#include <netdb.h>
 #include <fftw3.h>
 #include <unistd.h>
 #include <wiringPi.h>
