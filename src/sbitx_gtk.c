@@ -561,9 +561,9 @@ struct field main_controls[] = {
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100,5000, 50, 0, DIGITAL_CONTROL},
+		"", 50,5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 5000, 50, 0, DIGITAL_CONTROL},
+		"", 50, 5000, 50, 0, DIGITAL_CONTROL},
 
 	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL, 
 		"", 0,0,0, COMMON_CONTROL},  

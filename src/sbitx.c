@@ -75,7 +75,7 @@ fftw_plan plan_fwd, plan_tx;
 int bfo_freq = 40035000;
 int freq_hdr = -1;
 
-static double volume 	= 100.0;
+static double volume = 100.0;
 static int tx_drive = 40;
 static int rx_gain = 100;
 static int tx_gain = 100;
