@@ -56,6 +56,7 @@ void change_band (char *request);
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
 int eq_is_enabled = 0;
+int qro_enabled = 0;
 int input_volume = 0;
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
@@ -548,7 +549,7 @@ struct field main_controls[] = {
 
 	{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,100,10, VOICE_CONTROL},
-   
+  
 	{ "#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 50, 1, CW_CONTROL},
 	{ "rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -1801,18 +1802,36 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 
   
   //display active plugins
+  // --- QRO plugin indicator W2JON
+  const char *qro_text = "QRO";
+  cairo_set_font_size(gfx, FONT_SMALL);
+  
+  // Check the qro_enabled variable and set the text color
+  if (qro_enabled) {
+      cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Green when enabled
+  } else {
+      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+  }
+  
+  // Cast qro_text to char* to avoid the warning
+  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 85;
+  int qro_text_y = f_spectrum->y + 7;
+  
+  cairo_move_to(gfx, qro_text_x, qro_text_y);
+  cairo_show_text(gfx, qro_text);
+  
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
   
-  // Check the anr_enabled variable and set the text color
+  // Check the txeq_enabled variable and set the text color
   if (eq_is_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
       cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
   }
   
-  // Cast anr_text to char* to avoid the warning
+  // Cast txeq_text to char* to avoid the warning
   int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 55;
   int txeq_text_y = f_spectrum->y + 7;
   
@@ -2210,7 +2229,6 @@ static void layout_ui(){
 
 	//locate the kbd to the right corner
 	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
-		
 	//now, move the main radio controls to the right
 	field_move("FREQ", x2-205, 0, 180, 40);
 	field_move("AUDIO", x2-45, 5, 40, 40);
@@ -3484,6 +3502,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
     struct field* eq_stat = get_field("#eq_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
+	struct field* qro_stat = get_field("#qro");
 
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
@@ -3507,6 +3526,15 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             anr_enabled = 1;
         } else if (!strcmp(anr_stat->value, "OFF")) {
             anr_enabled = 0;
+        }
+    }
+
+
+	if (qro_stat) {
+        if (!strcmp(qro_stat->value, "ON")) {
+            qro_enabled = 1;
+        } else if (!strcmp(qro_stat->value, "OFF")) {
+            qro_enabled = 0;
         }
     }
 

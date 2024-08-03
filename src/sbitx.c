@@ -174,7 +174,7 @@ void fft_init(){
 	fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
 	fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
 	fft_spectrum = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
-
+	
 	memset(fft_spectrum, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_in, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_out, 0, sizeof(fftw_complex) * MAX_BINS);
@@ -535,8 +535,6 @@ struct rx *add_rx(int frequency, short mode, int bpf_low, int bpf_high){
 
 }
 
-
-
 int count = 0;
 
 double agc2(struct rx *r){
@@ -697,7 +695,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 
     int i, j = 0;
     double i_sample, q_sample;
-    double sampling_rate = 96000.0; // Assuming sample rate
+    double sampling_rate = 96000.0; // Sample rate
 
     // Scale the noise_threshold value
     double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
@@ -1058,7 +1056,6 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 	This is called each time there is a block of signal samples ready 
 	either from the mic or from the rx IF 
 */
-
 
 void sound_process(
     int32_t *input_rx, int32_t *input_mic, 
@@ -1465,7 +1462,7 @@ void setup(){
 	q_init(&qremote, 8000);
 
 	modem_init();
-  
+	
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
@@ -1487,10 +1484,8 @@ void setup(){
 	vfo_start(&tone_a, 700, 0);
 	vfo_start(&tone_b, 1900, 0);
 	vfo_start(&am_carrier, 24000, 0);
-
 	delay(2000);	
 //	pf_debug = fopen("am_test.raw", "w");	
-
 
 }
 void sdr_request(char *request, char *response){
@@ -1683,8 +1678,10 @@ void sdr_request(char *request, char *response){
   }
 	else if (!strcmp(cmd, "txcal"))
 		tx_cal();
-	else if (!strcmp(cmd, "tx_compress"))
-		tx_compress = atoi(value); 
+	else if (!strcmp(cmd, "tx_compress")){
+		tx_compress = atoi(value);
+	}else{}
+		
   /* else
 		printf("*Error request[%s] not accepted\n", request); */
 }
