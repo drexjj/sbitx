@@ -4912,7 +4912,8 @@ void do_control_action(char* cmd) {
 		spectrum_span = 10000;
 	}
 	else if (!strcmp(request, "SPAN 25K")) {
-		spectrum_span = 25000;
+		//spectrum_span = 25000;
+		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
 	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
 		change_band(request);
