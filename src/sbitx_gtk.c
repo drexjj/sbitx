@@ -2247,7 +2247,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 	int button_width = 100;
 	switch(m_id){
 		case MODE_FT8:
-     	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 100);
 			field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-155);
 			field_move("ESC", 5, y2-47, 40, 45);
@@ -2267,7 +2267,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		break;
 		case MODE_CW:
 		case MODE_CWR:
-      field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+                        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			//field_move("SPECTRUM", 360, y1, x2-365, 100);
 			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed W9JES
@@ -2297,9 +2297,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-
-    	case MODE_2TONE:  // W9JES
-     	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+    	        case MODE_2TONE:  // W9JES
+     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2308,15 +2307,25 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			
-      
-		break;
-
+                        break;
+                case MODE_DIGITAL:  // W9JES
+                        field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			y1 = y2 -50;
+			field_move("MIC", 5, y1, 45, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("TX", 260, y1, 95, 45);
+			field_move("RX", 360, y1, 95, 45);
+			//field_move("TX_PITCH", 560, y1, 95, 45);
+			//field_move("SIDETONE", 460, y1, 95, 45);
+			break;
 		default:
-    		field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+    		        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-     		field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+     		        field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
 			y1 = y2 - 105;
 			field_move("F1", 5, y1, 90, 45);
 			field_move("F2", 100, y1, 95, 45);
