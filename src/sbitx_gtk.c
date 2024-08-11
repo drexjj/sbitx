@@ -5173,6 +5173,21 @@ void cmd_exec(char *cmd){
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
 		write_console(FONT_LOG, buff);
 	}
+	else if (!strcmp(exec,"bfo")) {
+		//Change runtime bfo to get rid of birdies in passband
+		long freq = atol(args);
+		if (!strlen(args)) {
+			write_console(FONT_LOG, "Usage:\n\\bfo xxxxx (in Hz to adjust bfo, 0 to reset)\n");
+		}
+		//Clear offset if requested freq = 0
+		if (freq == 0){
+			freq -= get_bfo_offset();
+		}
+		long result = set_bfo_offset(freq, atol(get_field("r1:freq")->value));
+		char output[500];
+		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
+		write_console(FONT_LOG, output);
+	}
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);
 		field_set("PITCH", args);

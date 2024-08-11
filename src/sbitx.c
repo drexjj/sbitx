@@ -73,6 +73,7 @@ fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as 
 fftw_complex *fft_m;			// holds previous samples for overlap and discard convolution 
 fftw_plan plan_fwd, plan_tx;
 int bfo_freq = 40035000;
+int bfo_freq_runtime_offset = 0; //Runtime bfo offset
 int freq_hdr = -1;
 
 static double volume = 100.0;
@@ -153,15 +154,24 @@ struct Queue qremote;
 
 void radio_tune_to(u_int32_t f){
 	if (rx_list->mode == MODE_CW)
-  	si5351bx_setfreq(2, f + bfo_freq - 24000 + TUNING_SHIFT - rx_pitch);
+  	si5351bx_setfreq(2, f + bfo_freq + bfo_freq_runtime_offset - 24000 + TUNING_SHIFT - rx_pitch);
 	else if (rx_list->mode == MODE_CWR)
-  	si5351bx_setfreq(2, f + bfo_freq - 24000 + TUNING_SHIFT + rx_pitch);
+  	si5351bx_setfreq(2, f + bfo_freq + bfo_freq_runtime_offset- 24000 + TUNING_SHIFT + rx_pitch);
 	else
-  	si5351bx_setfreq(2, f + bfo_freq - 24000 + TUNING_SHIFT);
+  	si5351bx_setfreq(2, f + bfo_freq + bfo_freq_runtime_offset - 24000 + TUNING_SHIFT);
 
 //  printf("Setting radio rx_pitch %d\n", rx_pitch);
 }
-
+long set_bfo_offset(int offset, long cur_freq) {
+	bfo_freq_runtime_offset += offset;
+	resetup_oscillators();
+	radio_tune_to(cur_freq);
+	return bfo_freq + bfo_freq_runtime_offset;
+	
+}
+int get_bfo_offset() {
+	return bfo_freq_runtime_offset;
+}
 void fft_init(){
 	// int mem_needed;
 
@@ -1129,14 +1139,18 @@ void setup_oscillators(){
   delay(200);
   si5351bx_init();
   delay(200);
-  si5351bx_setfreq(1, bfo_freq);
-
-  delay(200);
-  si5351bx_setfreq(1, bfo_freq);
+  si5351bx_setfreq(1, bfo_freq + bfo_freq_runtime_offset);
+  //TODO:  Seems to not be needed, but worth testing before release - n1qm
+  //delay(200);
+  //si5351bx_setfreq(1, bfo_freq + bfo_freq_runtime_offset);
 
   si5351_reset();
 }
-
+void resetup_oscillators(){
+  //re-initialize the SI5351
+  si5351bx_setfreq(1, bfo_freq + bfo_freq_runtime_offset);
+  si5351_reset();
+}
 static int hw_init_index = 0;
 static int hw_settings_handler(void* user, const char* section, 
             const char* name, const char* value)
