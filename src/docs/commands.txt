@@ -31,6 +31,11 @@ These are text commands that can be entered from the keyboard
 \txpitch [in Hz]
 	Sets the tone of transmit tone of the CW. 
 	Ex: \txpitch 700
+\bfo [offset in HZ]
+    Allows adjustment of BFO during runtime; pass a value in +/- HZ
+	Passing a value of 0 will reset to default/no offset
+	An offset of +/- 3000 is usually enough to move birdies out of the passband
+	Value is not saved and always 0 on a fresh launch
 10M	
 12M
 15M
