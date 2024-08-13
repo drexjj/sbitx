@@ -652,7 +652,7 @@ struct field main_controls[] = {
 
   // BFO Control
 	{ "#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",-3000, 3000, 100,0}, 
+		"",-1000, 1000, 50,0}, 
     
   //GLG Tune 
   	{ "#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -3462,8 +3462,8 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
     long new_bfo_offset = atol(bfo_field->value);
 
     // Define the valid range for the BFO offset
-    const long BFO_MIN = -3000;
-    const long BFO_MAX = 3000;
+    const long BFO_MIN = -1000;
+    const long BFO_MAX = 1000;
 
     // Clamp the BFO offset to the valid range
     if (new_bfo_offset < BFO_MIN) {
