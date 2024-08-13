@@ -3495,8 +3495,8 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	write_console(FONT_LOG, output);
 
     return 0; 
-}
 
+}
 
 
 
