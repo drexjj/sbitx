@@ -204,7 +204,6 @@ int	console_selected_line = -1;
 struct Queue q_web;
 int noise_threshold = 0; // DSP 
 int noise_update_interval = 50; //DSP 
-int bfo_offset = 0;
 // event ids, some of them are mapped from gtk itself
 #define FIELD_DRAW 0
 #define FIELD_UPDATE 1 
