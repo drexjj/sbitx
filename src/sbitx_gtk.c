@@ -334,7 +334,7 @@ struct field {
 	int 	font_index; //refers to font_style table
 	char  selection[1000];
 	long int	 	min, max;
-  int step;
+  	int step;
 	int 	section;
 	char is_dirty;
 	char update_remote;
@@ -3591,7 +3591,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             qro_enabled = 0;
         }
     }
-
+	
     return TRUE;  // Return TRUE to keep the timer running
 }
 
@@ -5455,7 +5455,10 @@ int main( int argc, char* argv[] ) {
  	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
   	field_set("TUNE", "OFF");
-  
+	
+	//This does appear to work although it doesn't spit anything out in console on init....
+	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
+
   // Set up a timer to check the EQ and DSP control every 500 ms
   g_timeout_add(500, check_plugin_controls, NULL);
  
@@ -5478,7 +5481,7 @@ int main( int argc, char* argv[] ) {
 //	"  &>/dev/null &");
 
   gtk_main();
-  
+
   return 0;
 }
 
