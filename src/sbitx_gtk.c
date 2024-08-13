@@ -204,6 +204,7 @@ int	console_selected_line = -1;
 struct Queue q_web;
 int noise_threshold = 0; // DSP 
 int noise_update_interval = 50; //DSP 
+int bfo_offset = 0;
 // event ids, some of them are mapped from gtk itself
 #define FIELD_DRAW 0
 #define FIELD_UPDATE 1 
@@ -457,6 +458,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -651,7 +653,7 @@ struct field main_controls[] = {
 
   // BFO Control
 	{ "#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",-3000, 3000, 50,0}, 
+		"",-3000, 3000, 100,0}, 
     
   //GLG Tune 
   	{ "#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -2182,6 +2184,7 @@ void menu_display(int show) {
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
         field_move("BFO", 350, screen_height - 90 ,45 ,45);
+        field_move("BFO", 350, screen_height - 90 ,45 ,45);
        
                  
           
@@ -3454,40 +3457,43 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 }
 
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    // Retrieve and parse the BFO offset field to get the desired user setting
+    // Retrieve and parse the BFO offset field
     struct field *bfo_field = get_field("#bfo_manual_offset");
     long new_bfo_offset = atol(bfo_field->value);
 
-    // Clamp the BFO offset to the valid range or it'll keep going if you dont
-    if (new_bfo_offset < bfo_field->min) {
-        new_bfo_offset = bfo_field->min;
-    } else if (new_bfo_offset > bfo_field->max) {
-        new_bfo_offset = bfo_field->max;
+    // Define the valid range for the BFO offset
+    const long BFO_MIN = -3000;
+    const long BFO_MAX = 3000;
+
+    // Clamp the BFO offset to the valid range
+    if (new_bfo_offset < BFO_MIN) {
+        new_bfo_offset = BFO_MIN;
+    } else if (new_bfo_offset > BFO_MAX) {
+        new_bfo_offset = BFO_MAX;
     }
 
     // Retrieve the base frequency
     long base_freq = atol(get_field("r1:freq")->value);
 
-	//Get the current bfo
+    // Clear the current BFO offset
     long current_bfo_offset = get_bfo_offset();
-	
-	// Compute the difference between new and current
-	long delta_offset = new_bfo_offset - current_bfo_offset;
+    if (current_bfo_offset != 0) {
+        // If there's an existing offset, reset it first
+        set_bfo_offset(-current_bfo_offset, base_freq);
+    }
 
-    
-	// This function can be called multiple times (window moves, etc.) and this check prevents the sdr from being reset
-    if (delta_offset == 0) return 0;
-	// Apply the new BFO offset delta
-	long result = set_bfo_offset(delta_offset, base_freq);
+    // Apply the new BFO offset
+    long result = set_bfo_offset(new_bfo_offset, base_freq);
    
     char output[500];
 	//console_init(); //playing with clearing the console...
-	sprintf(output,"BFO value = %d\n", result);
+	sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 	write_console(FONT_LOG, output);
 
-    return 0; 
-
+    return 0; // Return a value based on your needs
 }
+
+
 
 
 
@@ -5200,6 +5206,37 @@ void cmd_exec(char *cmd){
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
 		write_console(FONT_LOG, buff);
 	}
+<<<<<<< HEAD
+=======
+	else if (!strcmp(exec, "bfo")) {
+    // Change runtime BFO to get rid of birdies in passband
+    long freq = atol(args);
+
+    if (!strlen(args)) {
+        write_console(FONT_LOG, "Usage:\n\\bfo xxxxx (in Hz to adjust bfo, 0 to reset)\n");
+        return; 
+    }
+
+    // Clear offset if requested freq = 0
+    if (freq == 0) {
+        set_field("#bfo_manual_offset", "0");
+
+		freq = -get_bfo_offset();
+		
+    }
+      long result = set_bfo_offset(freq, atol(get_field("r1:freq")->value));
+   
+    // Convert int_freq to string for set_field
+    char int_freq_str[20];
+    snprintf(int_freq_str, sizeof(int_freq_str), "%d", (int)freq);
+	
+	set_field("#bfo_manual_offset", int_freq_str);
+    
+	char output[500];
+    sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
+    write_console(FONT_LOG, output);
+}
+>>>>>>> 0c1ef8d (added bfo control to gtk)
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);
 		field_set("PITCH", args);
