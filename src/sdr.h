@@ -128,8 +128,9 @@ struct filter *filter_new(int input_length, int impulse_length);
 int filter_tune(struct filter *f, float const low,float const high,float const kaiser_beta);
 int make_hann_window(float *window, int max_count);
 void filter_print(struct filter *f);
-
-
+long set_bfo_offset(int offset,long freq);
+void resetup_oscillators();
+int get_bfo_offset();
 // Complex norm (sum of squares of real and imaginary parts)
 static inline float const cnrmf(const complex float x){
   return crealf(x)*crealf(x) + cimagf(x) * cimagf(x);
