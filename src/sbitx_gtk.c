@@ -3456,15 +3456,15 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 }
 
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    // Retrieve and parse the BFO offset field
+    // Retrieve and parse the BFO offset field to get the desired user setting
     struct field *bfo_field = get_field("#bfo_manual_offset");
     long new_bfo_offset = atol(bfo_field->value);
 
-    // Define the valid range for the BFO offset
+    // Define the valid range for the BFO offset to limit the user input
     const long BFO_MIN = -1000;
     const long BFO_MAX = 1000;
 
-    // Clamp the BFO offset to the valid range
+    // Clamp the BFO offset to the valid range or it'll keep going if you dont
     if (new_bfo_offset < BFO_MIN) {
         new_bfo_offset = BFO_MIN;
     } else if (new_bfo_offset > BFO_MAX) {
@@ -3474,7 +3474,7 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
     // Retrieve the base frequency
     long base_freq = atol(get_field("r1:freq")->value);
 
-    // Clear the current BFO offset
+    // Clear the current BFO offset with each change or the offset will compound
     long current_bfo_offset = get_bfo_offset();
     if (current_bfo_offset != 0) {
         // If there's an existing offset, reset it first
@@ -3489,8 +3489,7 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 	write_console(FONT_LOG, output);
 
-    return 0; // Return a value based on your needs
-}
+    return 0; 
 
 
 
