@@ -1355,7 +1355,7 @@ static int mode_id(const char *mode_str){
 		return MODE_2TONE;
 	else if (!strcmp(mode_str, "DIGITAL"))
 		return MODE_DIGITAL;
- 	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - W9JES
+ 	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - 
 		return MODE_CALIBRATE;
 	return -1;
 }
@@ -2264,14 +2264,14 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("FT8_AUTO", 550, y2-47, 50, 45);
 			field_move("TX_PITCH", 600, y2-47, 73, 45);
 			field_move("SIDETONE", 675, y2-47, 73, 45);
-		break;
+                        break;
 		case MODE_CW:
 		case MODE_CWR:
                         field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			//field_move("SPECTRUM", 360, y1, x2-365, 100);
 			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed W9JES
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed W9JES
+			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed 
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed 
 			// first line below the decoder/waterfall
 			y1 = y2 - 97;
 			field_move("ESC", 5, y1, 70, 45);
@@ -2318,8 +2318,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			//field_move("TX_PITCH", 560, y1, 95, 45);
-			//field_move("SIDETONE", 460, y1, 95, 45);
+			field_move("PITCH", 460, y1, 95, 45);
+			field_move("SIDETONE", 560, y1, 95, 45);
 			break;
 		default:
     		        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
@@ -2344,8 +2344,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 475, y1, 50, 45);
 			field_move("PITCH", 550, y1, 50, 45);
 			field_move("SIDETONE", 600, y1, 95, 45);
-           
-		break;	
+                        break;	
 	}
 	invalidate_rect(0,0,screen_width, screen_height);
 }
