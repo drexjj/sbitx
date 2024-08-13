@@ -2978,7 +2978,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
         //sprintf(temp_char, "x100 activated\r\n");
         //write_console(FONT_LOG, temp_char);
       }
-    } else if (delta_us < atof(get_field("tuning_accel_thresh1")->value)){
+	} else if (delta_us < atof(get_field("tuning_accel_thresh1")->value)){
       if (tuning_step < 1000){
         tuning_step = tuning_step * 10;
         //printf(temp_char, "x10 activated\r\n");
@@ -2989,7 +2989,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
-			if (!strcmp(get_field("#rit")->value, "ON")){
+			//Fix a compiler warning - n1qm
+			//orig: if (!strcmp(get_field("#rit")->value, "ON")){
+			if (!strcmp(field_str("RIT"), "ON")){
 				struct field *f = get_field("#rit_delta");
 				int rit_delta = atoi(f->value);
 				if(rit_delta < MAX_RIT){
@@ -2997,6 +2999,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 					char tempstr[100];
 					sprintf(tempstr, "%d", rit_delta);
 					set_field("#rit_delta", tempstr);
+					printf("moved rit to %s\n", f->value);
 				}
 				else
 					return 1;
@@ -3005,7 +3008,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 				v = (v / tuning_step + 1)*tuning_step;
 		}
 		else if (a == MIN_KEY_DOWN && v - f->step >= f->min){
-			if (!strcmp(get_field("#rit")->value, "ON")){
+			//Fix a compiler warning - n1qm
+			//orig: if (!strcmp(get_field("#rit")->value, "ON")){
+			if (!strcmp(field_str("RIT"), "ON")){
 				struct field *f = get_field("#rit_delta");
 				int rit_delta = atoi(f->value);
 				if (rit_delta > -MAX_RIT){
@@ -3435,7 +3440,9 @@ double scaleNoiseThreshold(int control) {
 }
 
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
+    //Fix a compiler warning - n1qm
+	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
+	if (!strcmp(field_str("DSP"), "ON")) {
         struct field *dsp_threshold_field = get_field("#dsp_threshold");
         int noise_threshold_value = atoi(dsp_threshold_field->value);
         noise_threshold = noise_threshold_value;  
