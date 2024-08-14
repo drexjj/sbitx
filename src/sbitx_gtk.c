@@ -56,6 +56,7 @@ void change_band (char *request);
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
 int eq_is_enabled = 0;
+int qro_enabled = 0;
 int input_volume = 0;
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
@@ -203,7 +204,7 @@ int	console_selected_line = -1;
 struct Queue q_web;
 int noise_threshold = 0; // DSP 
 int noise_update_interval = 50; //DSP 
-
+int bfo_offset = 0;
 // event ids, some of them are mapped from gtk itself
 #define FIELD_DRAW 0
 #define FIELD_UPDATE 1 
@@ -334,7 +335,7 @@ struct field {
 	int 	font_index; //refers to font_style table
 	char  selection[1000];
 	long int	 	min, max;
-  int step;
+  	int step;
 	int 	section;
 	char is_dirty;
 	char update_remote;
@@ -456,6 +457,8 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -548,7 +551,7 @@ struct field main_controls[] = {
 
 	{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,100,10, VOICE_CONTROL},
-   
+  
 	{ "#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 50, 1, CW_CONTROL},
 	{ "rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -561,9 +564,9 @@ struct field main_controls[] = {
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100,5000, 50, 0, DIGITAL_CONTROL},
+		"", 50,5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 5000, 50, 0, DIGITAL_CONTROL},
+		"", 50, 5000, 50, 0, DIGITAL_CONTROL},
 
 	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL, 
 		"", 0,0,0, COMMON_CONTROL},  
@@ -647,6 +650,10 @@ struct field main_controls[] = {
   // ANR Control
   	{ "#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
+
+  // BFO Control
+	{ "#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",-3000, 3000, 50,0}, 
     
   //GLG Tune 
   	{ "#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1801,18 +1808,36 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 
   
   //display active plugins
+  // --- QRO plugin indicator W2JON
+  const char *qro_text = "QRO";
+  cairo_set_font_size(gfx, FONT_SMALL);
+  
+  // Check the qro_enabled variable and set the text color
+  if (qro_enabled) {
+      cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Green when enabled
+  } else {
+      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+  }
+  
+  // Cast qro_text to char* to avoid the warning
+  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 85;
+  int qro_text_y = f_spectrum->y + 7;
+  
+  cairo_move_to(gfx, qro_text_x, qro_text_y);
+  cairo_show_text(gfx, qro_text);
+  
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
   
-  // Check the anr_enabled variable and set the text color
+  // Check the txeq_enabled variable and set the text color
   if (eq_is_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
       cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
   }
   
-  // Cast anr_text to char* to avoid the warning
+  // Cast txeq_text to char* to avoid the warning
   int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 55;
   int txeq_text_y = f_spectrum->y + 7;
   
@@ -2148,6 +2173,7 @@ void menu_display(int show) {
         //field_move("B4G", 240, screen_height - 95, 45, 45);
         //field_move("B4B", 375, screen_height - 145, 45, 45);
         //field_move("TXEQ", 295, screen_height - 120, 45, 45);
+		// NEW LAYOUT @ 3.027
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
         field_move("DSP", 240, screen_height - 140, 95, 45);
@@ -2157,7 +2183,8 @@ void menu_display(int show) {
         field_move("QRO", 460,screen_height - 140 ,95 ,45);
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
-        
+        field_move("BFO", 350, screen_height - 90 ,45 ,45);
+        field_move("BFO", 350, screen_height - 90 ,45 ,45);
        
                  
           
@@ -2209,7 +2236,6 @@ static void layout_ui(){
 
 	//locate the kbd to the right corner
 	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
-		
 	//now, move the main radio controls to the right
 	field_move("FREQ", x2-205, 0, 180, 40);
 	field_move("AUDIO", x2-45, 5, 40, 40);
@@ -2954,7 +2980,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
         //sprintf(temp_char, "x100 activated\r\n");
         //write_console(FONT_LOG, temp_char);
       }
-    } else if (delta_us < atof(get_field("tuning_accel_thresh1")->value)){
+	} else if (delta_us < atof(get_field("tuning_accel_thresh1")->value)){
       if (tuning_step < 1000){
         tuning_step = tuning_step * 10;
         //printf(temp_char, "x10 activated\r\n");
@@ -2965,7 +2991,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
-			if (!strcmp(get_field("#rit")->value, "ON")){
+			//Fix a compiler warning - n1qm
+			//orig: if (!strcmp(get_field("#rit")->value, "ON")){
+			if (!strcmp(field_str("RIT"), "ON")){
 				struct field *f = get_field("#rit_delta");
 				int rit_delta = atoi(f->value);
 				if(rit_delta < MAX_RIT){
@@ -2973,6 +3001,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 					char tempstr[100];
 					sprintf(tempstr, "%d", rit_delta);
 					set_field("#rit_delta", tempstr);
+					printf("moved rit to %s\n", f->value);
 				}
 				else
 					return 1;
@@ -2981,7 +3010,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 				v = (v / tuning_step + 1)*tuning_step;
 		}
 		else if (a == MIN_KEY_DOWN && v - f->step >= f->min){
-			if (!strcmp(get_field("#rit")->value, "ON")){
+			//Fix a compiler warning - n1qm
+			//orig: if (!strcmp(get_field("#rit")->value, "ON")){
+			if (!strcmp(field_str("RIT"), "ON")){
 				struct field *f = get_field("#rit_delta");
 				int rit_delta = atoi(f->value);
 				if (rit_delta > -MAX_RIT){
@@ -3212,10 +3243,8 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
-//------------------------------------------------------
-//Functions to modify the Parametric EQ settings. W2JON
-
-void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
+// Modify an existing band in the parametriceq structure
+void modify_eq_band_frequency(parametriceq *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
 //        print_eq_int(eq);
@@ -3225,7 +3254,7 @@ void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequ
 }
 // Example usage: modify_eq_band_frequency(&eq, 3, 4105.0);  // Change frequency of band 3 to 4105.0 Hz
 
-void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
+void modify_eq_band_gain(parametriceq *eq, int band_index, double new_gain) {
     // Limit gain range -16 to +16 dB
     if (band_index >= 0 && band_index < NUM_BANDS) {
         // Clamp gain within range
@@ -3243,7 +3272,7 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
 }
 // Example usage: modify_eq_band_gain(&eq, 1, 4.5);  // Change gain of band 1 to 4.5 dB
 
-void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
+void modify_eq_band_bandwidth(parametriceq *eq, int band_index, double new_bandwidth) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].bandwidth = new_bandwidth;
 //       print_eq_int(eq);
@@ -3400,10 +3429,9 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
  //   printf("Exiting do_eq_edit\n");
     return 0; 
 }
-//---end Parametric EQ W2JON--------------------
 
 
-//----DSP W2JON 
+//---Noise threshold for DSP -W2JON
 double scaleNoiseThreshold(int control) {
     double minValue = 0.001;
     double maxValue = 0.01;
@@ -3414,7 +3442,9 @@ double scaleNoiseThreshold(int control) {
 }
 
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
+    //Fix a compiler warning - n1qm
+	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
+	if (!strcmp(field_str("DSP"), "ON")) {
         struct field *dsp_threshold_field = get_field("#dsp_threshold");
         int noise_threshold_value = atoi(dsp_threshold_field->value);
         noise_threshold = noise_threshold_value;  
@@ -3433,6 +3463,47 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 
     return 0; 
 }
+
+int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    // Retrieve and parse the BFO offset field
+    struct field *bfo_field = get_field("#bfo_manual_offset");
+    long new_bfo_offset = atol(bfo_field->value);
+
+    // Clamp the BFO offset to the valid range or it'll keep going if you dont
+    if (new_bfo_offset < bfo_field->min) {
+        new_bfo_offset = bfo_field->min;
+    } else if (new_bfo_offset > bfo_field->max) {
+        new_bfo_offset = bfo_field->max;
+    }
+
+    // Retrieve the base frequency
+    long base_freq = atol(get_field("r1:freq")->value);
+
+	//Get the current bfo
+    long current_bfo_offset = get_bfo_offset();
+	
+	// Compute the difference between new and current
+	long delta_offset = new_bfo_offset - current_bfo_offset;
+
+    
+	// This function can be called multiple times (window moves, etc.) and this check prevents the sdr from being reset
+    if (delta_offset == 0) return 0;
+	// Apply the new BFO offset delta
+	long result = set_bfo_offset(delta_offset, base_freq);
+   
+    char output[500];
+	//console_init(); //playing with clearing the console...
+	sprintf(output,"BFO value = %d\n", result);
+	write_console(FONT_LOG, output);
+
+    return 0; 
+}
+
+
+
+
+
+
 
 void tx_on(int trigger){
 	char response[100];
@@ -3483,17 +3554,18 @@ void tx_on(int trigger){
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
 		printf("TX\n");
-    printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
-    printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
+    //	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
+    //	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
 
 	tx_start_time = millis();
 }
 
-gboolean check_plugin_controls(gpointer data) {/// Check for enabled plug-ins W2JON
+gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
+	struct field* qro_stat = get_field("#qro");
 
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
@@ -3520,6 +3592,15 @@ gboolean check_plugin_controls(gpointer data) {/// Check for enabled plug-ins W2
         }
     }
 
+
+	if (qro_stat) {
+        if (!strcmp(qro_stat->value, "ON")) {
+            qro_enabled = 1;
+        } else if (!strcmp(qro_stat->value, "OFF")) {
+            qro_enabled = 0;
+        }
+    }
+	
     return TRUE;  // Return TRUE to keep the timer running
 }
 
@@ -3574,7 +3655,7 @@ static int layout_handler(void* user, const char* section,
 	else if (!strcmp(name, "height"))
 		f->height = atoi(value);	
 }
-void set_ui(int id) { // Modified to include the EQ layout int he rotation
+void set_ui(int id) { // Modified to include the EQ layout in the rotation
 	struct field* f = get_field("#kbd_q"); 
 
 	if (id == LAYOUT_KBD) {
@@ -4913,7 +4994,8 @@ void do_control_action(char* cmd) {
 		spectrum_span = 10000;
 	}
 	else if (!strcmp(request, "SPAN 25K")) {
-		spectrum_span = 24985;
+		//spectrum_span = 25000;
+		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
 	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
 		change_band(request);
@@ -5146,17 +5228,30 @@ void cmd_exec(char *cmd){
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
 		write_console(FONT_LOG, buff);
 	}
-	else if (!strcmp(exec,"bfo")) {
-		//Change runtime bfo to get rid of birdies in passband
+
+	else if (!strcmp(exec, "bfo")) {
+		// Change runtime BFO to get rid of birdies in passband
+		//  bfo is additive, i.e. if bfo is 1000, set a bfo of -2000 to change to -1000
 		long freq = atol(args);
+
 		if (!strlen(args)) {
 			write_console(FONT_LOG, "Usage:\n\\bfo xxxxx (in Hz to adjust bfo, 0 to reset)\n");
+			return; 
 		}
-		//Clear offset if requested freq = 0
-		if (freq == 0){
+
+		// Clear offset if requested freq = 0
+		if (freq == 0) {
+			//set_field("#bfo_manual_offset", "0");
+
 			freq -= get_bfo_offset();
+			
 		}
 		long result = set_bfo_offset(freq, atol(get_field("r1:freq")->value));
+		
+		// Convert int_freq to string for set_field
+		char int_freq_str[20];
+		snprintf(int_freq_str, sizeof(int_freq_str), "%d", (int)get_bfo_offset());
+		set_field("#bfo_manual_offset", int_freq_str);
 		char output[500];
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
@@ -5216,7 +5311,7 @@ void ensure_single_instance(){
 	}
 }
 
-void print_eq_int(const ParametricEQ *eq) {
+void print_eq_int(const parametriceq *eq) {
     for (int i = 0; i < NUM_BANDS; ++i) {
         printf("Band %d: Frequency=%.2f, Gain=%.2f, Bandwidth=%.2f\n",
                i, eq->bands[i].frequency, eq->bands[i].gain, eq->bands[i].bandwidth);
@@ -5370,7 +5465,10 @@ int main( int argc, char* argv[] ) {
  	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
   	field_set("TUNE", "OFF");
-  
+	
+	//This does appear to work although it doesn't spit anything out in console on init....
+	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
+
   // Set up a timer to check the EQ and DSP control every 500 ms
   g_timeout_add(500, check_plugin_controls, NULL);
  
@@ -5393,7 +5491,7 @@ int main( int argc, char* argv[] ) {
 //	"  &>/dev/null &");
 
   gtk_main();
-  
+
   return 0;
 }
 

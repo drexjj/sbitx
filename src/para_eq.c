@@ -43,7 +43,7 @@ float read_value(FILE* file, const char* key, float default_value) {
     return value;
 }
 
-void init_eq(ParametricEQ* eq) {
+void init_eq(parametriceq* eq) {
     char *home = getenv("HOME");
     if (home == NULL) {
         fprintf(stderr, "Error: HOME environment variable is not set.\n");
@@ -145,7 +145,7 @@ int32_t process_sample(Biquad* filter, int32_t sample) {
     return (int32_t)result;
 }
 
-void apply_eq(ParametricEQ* eq, int32_t* samples, int num_samples, double sample_rate) {
+void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate) {
     Biquad filters[5];
     for (int i = 0; i < 5; i++) {
         calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
