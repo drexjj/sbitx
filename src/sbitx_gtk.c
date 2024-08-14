@@ -1362,7 +1362,7 @@ static int mode_id(const char *mode_str){
 		return MODE_2TONE;
 	else if (!strcmp(mode_str, "DIGITAL"))
 		return MODE_DIGITAL;
- 	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - W9JES
+ 	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - 
 		return MODE_CALIBRATE;
 	return -1;
 }
@@ -2273,7 +2273,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 	int button_width = 100;
 	switch(m_id){
 		case MODE_FT8:
-     	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 100);
 			field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-155);
 			field_move("ESC", 5, y2-47, 40, 45);
@@ -2290,14 +2290,14 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("FT8_AUTO", 550, y2-47, 50, 45);
 			field_move("TX_PITCH", 600, y2-47, 73, 45);
 			field_move("SIDETONE", 675, y2-47, 73, 45);
-		break;
+                        break;
 		case MODE_CW:
 		case MODE_CWR:
-      field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+                        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			//field_move("SPECTRUM", 360, y1, x2-365, 100);
 			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed W9JES
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed W9JES
+			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed 
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed 
 			// first line below the decoder/waterfall
 			y1 = y2 - 97;
 			field_move("ESC", 5, y1, 70, 45);
@@ -2323,9 +2323,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-
-    	case MODE_2TONE:  // W9JES
-     	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+    	        case MODE_2TONE:  // W9JES
+     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2334,15 +2333,25 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			
-      
-		break;
-
+                        break;
+                case MODE_DIGITAL:  // W9JES
+                        field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			y1 = y2 -50;
+			field_move("MIC", 5, y1, 45, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("TX", 260, y1, 95, 45);
+			field_move("RX", 360, y1, 95, 45);
+			field_move("PITCH", 460, y1, 95, 45);
+			field_move("SIDETONE", 560, y1, 95, 45);
+			break;
 		default:
-    		field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+    		        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-     		field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+     		        field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
 			y1 = y2 - 105;
 			field_move("F1", 5, y1, 90, 45);
 			field_move("F2", 100, y1, 95, 45);
@@ -2361,8 +2370,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 475, y1, 50, 45);
 			field_move("PITCH", 550, y1, 50, 45);
 			field_move("SIDETONE", 600, y1, 95, 45);
-           
-		break;	
+                        break;	
 	}
 	invalidate_rect(0,0,screen_width, screen_height);
 }
@@ -4253,8 +4261,10 @@ int get_passband_bw() {
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_NBFM:
-	case MODE_AM:
 		return field_int("BW_VOICE");
+		break;
+	case MODE_AM:
+		return field_int("BW_AM");
 		break;
 	default:
 		return field_int("BW_DIGITAL");
@@ -5218,6 +5228,7 @@ void cmd_exec(char *cmd){
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
 		write_console(FONT_LOG, buff);
 	}
+
 	else if (!strcmp(exec, "bfo")) {
 		// Change runtime BFO to get rid of birdies in passband
 		//  bfo is additive, i.e. if bfo is 1000, set a bfo of -2000 to change to -1000
@@ -5241,7 +5252,6 @@ void cmd_exec(char *cmd){
 		char int_freq_str[20];
 		snprintf(int_freq_str, sizeof(int_freq_str), "%d", (int)get_bfo_offset());
 		set_field("#bfo_manual_offset", int_freq_str);
-		
 		char output[500];
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
