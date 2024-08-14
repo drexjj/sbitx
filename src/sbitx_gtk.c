@@ -5201,8 +5201,6 @@ void cmd_exec(char *cmd){
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
 		write_console(FONT_LOG, buff);
 	}
-<<<<<<< HEAD
-=======
 	else if (!strcmp(exec, "bfo")) {
 		// Change runtime BFO to get rid of birdies in passband
 		//  bfo is additive, i.e. if bfo is 1000, set a bfo of -2000 to change to -1000
@@ -5230,8 +5228,7 @@ void cmd_exec(char *cmd){
 		char output[500];
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
-}
->>>>>>> 0c1ef8d (added bfo control to gtk)
+	}
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);
 		field_set("PITCH", args);
