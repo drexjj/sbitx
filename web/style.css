@@ -556,8 +556,7 @@ body {
 	height: 36px;
 	min-height: 36px;
 	border: solid 1px #333; 
-//	background-color: #044b59;
-	
+    /*background-color: #044b59;*/
 	font-size: 12px;
 	vertical-align:top;
 	display: inline-block;
@@ -566,10 +565,10 @@ body {
 
 .sbitxv3-selection{
 	border: 0;
-	font-size: 13px;
-	margin: 0;
+	font-size: 11px;
+	margin-left: -4px;
 	width: 48px;
-//	background-color: #044b59;
+    /*background-color: #044b59;*/
 
 /*	-webkit-appearance: none;
 	-ms-appearance: none;
@@ -738,7 +737,7 @@ body {
 }
 #linear_DRIVE, #linear_DRIVE > .linear-dropdown, #linear_DRIVE > .linear-value{
 	background-color: #bf0f0f;
-	border: solid 1px black;
+	/*border: solid 1px black;*/
 }
 
 
@@ -820,3 +819,6 @@ body {
 	zindex = -1; // this is to allow the restore button to show through
 }
 
+#FT8_controls {
+	display: inline-block;
+}

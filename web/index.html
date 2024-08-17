@@ -32,7 +32,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>sBitx</title>
     <script src="jquery.min.js"></script>
-    <script src="jquery.knob.min.js"></script>
+    <script src="jquery.knob.js"></script>
     <script src="pcm-player.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -61,6 +61,12 @@
                     <option value="DIGITAL">DIGITAL</option>
                     <option value="2TONE">2TONE</option>
                     <option value="AM">AM</option>
+                </select>
+            </div><div class="sbitxv3-control">
+                <div class="sbitxv3-label">KNOB</div>
+                <select class="sbitxv3-selection sbitx-selection" id="KNOB">
+                    <option value="ON">ON</option>
+                    <option value="OFF">OFF</option>
                 </select>
             </div><div class="sbitxv3-control" id="dial">
                 <span id="current_freq">A:00.000.000</span>
@@ -839,10 +845,24 @@
     let tuning_position_last = 0;
     var knob_resolution = 6;
 
-    function tuning_knob_handler(position_now) {
-        //avoid small movements
-        if (Math.abs(position_now - tuning_position_last) < knob_resolution)
-            return;
+function getStepSize() {
+	var step_text = el("STEP").value;
+	var step_size = 1000;
+	switch(step_text){
+		case "10H": step_size = 10; break;
+		case "100H": step_size = 100; break;
+		case "500H": step_size = 500; break;
+		case "1K": step_size = 1000; break;
+		case "10K": step_size = 10000; break;
+		case "100K": step_size = 100000; break;
+	}
+	return step_size;
+}
+
+function tuning_knob_handler(position_now){
+	//avoid small movements
+	if (Math.abs(position_now - tuning_position_last) < knob_resolution)
+		return;
 
         //calculate the relative movement of the dial knob
         var delta = 0;
@@ -854,53 +874,58 @@
         else
             delta = position_now - tuning_position_last;
 
-        tuning_position_last = position_now;
+		tuning_position_last = position_now;
+	
+		//reduce the precision of delta
+		delta = Math.round(delta / knob_resolution);
+		//tuning up or down by the step value		
+	    var step_size = getStepSize();
 
-        //reduce the precision of delta
-        delta = Math.round(delta / knob_resolution);
-        //tuning up or down by the step value
-        var step_text = el("STEP").value;
-        var step_size = 1000;
-        switch (step_text) {
-            case "10H": step_size = 10; break;
-            case "100H": step_size = 100; break;
-            case "500H": step_size = 500; break;
-            case "1K": step_size = 1000; break;
-            case "10K": step_size = 10000; break;
-            case "100K": step_size = 100000; break;
-        }
-        f = el('FREQ');
-        var freq = parseInt(f.value);
-        freq = Math.round(freq / step_size) * step_size;
-        if (delta > 0)
-            delta = step_size;
-        else
-            delta = -step_size;
-        f.value = freq + delta;
-        update_freq(f.value);
-    }
+		f = el('FREQ');
+		var freq = parseInt(f.value);
+		freq = Math.round(freq/step_size) * step_size;
+		if (delta > 0)
+			delta = step_size;
+		else
+			delta = -step_size;
+		f.value = freq + delta;
+		update_freq(f.value);	
+}
 
     //initialization code
 
-    //link the knob to the jquery code
-    $(function ($) {
-        $(".knob").knob({
-            change: function (value) {
-                tuning_knob_handler(value);
-            },
-            release: function (value) {
-                //console.log(this.$.attr('value'));
-                //console.log("release : " + value);
-            },
-            cancel: function () {
-                //console.log("cancel : ", this);
-            },
-            draw: function () {
-            }
-        });
-    });
+//link the knob to the jquery code
+$(function($) {
+	$(".knob").knob({
+  	change : function (value) {
+		tuning_knob_handler(value);
+	},
+	release : function (value) {
+		tuning_knob_handler(value); // +llh
+  	//console.log(this.$.attr('value'));
+    //console.log("release : " + value);
+ 	},
+	cancel : function () {
+		//console.log("cancel : ", this);
+	},
+  draw : function () {
+  }
+  });
+});
 
-
+function change_freq(event) {
+	event.preventDefault();
+	let f = el('FREQ');
+	var freq = parseInt(f.value);
+	var step_size = getStepSize();
+	freq = Math.round(freq/step_size) * step_size;
+	if (event.deltaY > 0)
+		freq += step_size;
+	else
+		freq -= step_size;
+	f.value = freq;
+	update_freq(f.value);	
+}
 
     /* waterfall and spectrum */
 
@@ -1612,6 +1637,8 @@
 
     // setup the html for wsjtx
     function FT8_open() {
+        el("KNOB").value = "OFF";
+        dial_show();
         el("FT8_ui").style.display = "block";
     }
 
@@ -2329,6 +2356,9 @@
     //$(".ft8-clickable").on("click", FT8_message_chosen);
 
     //specific control handler
+	//$("#knob_on").on("click", toggle_dial);
+    $("#KNOB").on("change", dial_show);
+    el("dial").addEventListener("wheel", change_freq, { passive: false });
     $("#REF").on("change", draw_meters);
     $("#MODE").on("change", mode_changed);
     $("#console-open").on("click", show_console_panel);
@@ -2398,7 +2428,7 @@
     $("#record_stop").on("click", stop_recorder);
 
     //toggle the soft dial knob
-    $("#dial").on("click", toggle_dial);
+    //$("#dial").on("click", toggle_dial);
     window.onload = ui_init();
 
     //init the state of the ui
@@ -2494,16 +2524,17 @@
             collection[i].style.display = "";
     }
 
-    function toggle_dial(event) {
+    //function toggle_dial(event) {
+    function dial_show(event) {
         var dial = el("sidebar");
         var main = el("main");
-        if (dial.style.display == "block") {
-            main.style.marginLeft = 0;
-            dial.style.display = "none";
-        }
-        else {
+        if (el("KNOB").value == "ON") {
             main.style.marginLeft = 200;
             dial.style.display = "block";
+        }
+        else {
+            main.style.marginLeft = 0;
+            dial.style.display = "none";
         }
         resize_ui();
     }
