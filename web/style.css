@@ -617,7 +617,6 @@ body {
 	color: white;
 	vertical-align:top;
 	display: inline-block;
-	line-height: 0;
 /*	margin-top: 1px;
 	margin-bottom: 1px;*/
 	padding: 7 0 7 0;
@@ -848,4 +847,28 @@ body {
 
 #FT8_controls {
 	display: block;
+}
+/* Tooltip css */
+.tooltip {
+	position: relative;
+	display: inline-block;
+	border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+  }
+  
+.tooltip .tooltiptext {
+	visibility: hidden;
+	background-color: darkgreen;
+	color: #fff;
+	text-align: center;
+	padding: 5px 0;
+	border-radius: 4px;
+	position: absolute;
+	left: 0px;
+    top: -24px;
+    font-size: small;
+	z-index: 1;
+}
+
+.tooltip:hover .tooltiptext {
+	visibility: visible;
 }

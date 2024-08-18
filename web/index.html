@@ -79,21 +79,23 @@
             prevent spaces between the elements
             -->
             <button class="sbitxv3-btn" id="10M" type="submit">
-                10M
+                10M<span id="S10" class="selband"></span>
             </button><button class="sbitxv3-btn" id="12M" type="submit">
-                12M
+                12M<span id="S12" class="selband"></span>
             </button><button class="sbitxv3-btn" id="15M" type="submit">
-                15M
+                15M<span id="S15" class="selband"></span>
             </button><button class="sbitxv3-btn" id="17M" type="submit">
-                17M
+                17M<span id="S17" class="selband"></span>
             </button><button class="sbitxv3-btn" id="20M" type="submit">
-                20M
+                20M<span id="S20" class="selband"></span>
             </button><button class="sbitxv3-btn" id="30M" type="submit">
-                30M
+                30M<span id="S30" class="selband"></span>
             </button><button class="sbitxv3-btn" id="40M" type="submit">
-                40M
+                40M<span id="S40" class="selband"></span>
+            </button><button class="sbitxv3-btn" id="60M" type="submit">
+                60M<span id="S60" class="selband"></span>
             </button><button class="sbitxv3-btn" id="80M" type="submit">
-                80M
+                80M<span id="S80" class="selband"></span>
             </button><div class="sbitxv3-control rx-control">
                 <div class="sbitxv3-label">AGC </div>
                 <select class="sbitxv3-selection sbitx-selection" id="AGC">
@@ -2265,6 +2267,14 @@ function logger_enter_qso(){
             logbook_request(-logbook_top_row_id);
     }
 
+function show_selected_band_store(args) {
+	const elts = document.querySelectorAll('.selband');
+	const ix = Math.floor(args/10);
+	const store = args%10+1;
+	for (let i = 0; i < elts.length; i++) {
+		elts[i].innerHTML = " " + ((i == (elts.length-ix-1)) ? store : ".");
+	}
+}
     function mode_set(new_mode) {
 
         var wf = el("waterfall");
@@ -2415,6 +2425,10 @@ function logger_enter_qso(){
             case 'MACRO':
                 logger_macro_changed_from_sdr(args);
                 break;
+			case 'SELBAND':
+			    FT8_lists_clear();
+				show_selected_band_store(args);
+				break;
             case 'MODE':
                 mode_set(args);
             //There is no break statement here, MODE continues to default case

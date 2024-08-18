@@ -55,6 +55,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
 void change_band (char *request);
+void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
@@ -177,6 +178,7 @@ struct font_style font_table[] = {
 	{FF_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FF_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FF_GRID,   1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FONT_FIELD_SELECTED, 0.3, 1, 0, "Mono", 15, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
 struct encoder enc_a, enc_b;
@@ -415,17 +417,20 @@ static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
 
 #define BAND80M	0
-#define BAND40M	1
-#define BAND30M 2	
-#define BAND20M 3	
-#define BAND17M 4	
-#define BAND15M 5
-#define BAND12M 6 
-#define BAND10M 7 
+#define BAND60M	1
+#define BAND40M	2
+#define BAND30M 3	
+#define BAND20M 4	
+#define BAND17M 5	
+#define BAND15M 6
+#define BAND12M 7 
+#define BAND10M 8
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_USB, MODE_CW,MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+	{"60M", 5250000, 5500000, 0, 
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
 	{"40M", 7000000,7300000, 0,
 		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
 	{"30M", 10100000, 10150000, 0,
@@ -504,32 +509,35 @@ int current_layout = LAYOUT_KBD;
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
 	/* band stack registers */
- 	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
   		"", 1,4,1,COMMON_CONTROL},
-	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 1,4,1,COMMON_CONTROL},
-	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{ "#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
-	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	// Make room for 60M button
+	//{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	//	"", 0,0, 0,COMMON_CONTROL},
+	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{ "r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
+	{ "r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
-	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	{ "tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
@@ -654,7 +662,8 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-  
+	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+    	"", 0,83,1, 0},  
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
@@ -1512,34 +1521,51 @@ static int user_settings_handler(void* user, const char* section,
 		return 1; //skip the keyboard values
 	}
     // if it is an empty section
-    else if (strlen(section) == 0){
-      sprintf(cmd, "%s", name);
-			//skip the button actions 
-			struct field *f = get_field(cmd);
-			if (f){
-				if (f->value_type != FIELD_BUTTON)
-      		set_field(cmd, new_value); 
+    else if (strlen(section) == 0) {
+		sprintf(cmd, "%s", name);
+		//skip the button actions 
+		struct field *f = get_field(cmd);
+		if (f){
+			if (f->value_type != FIELD_BUTTON)
+  				set_field(cmd, new_value); 
+			char * bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
+			char * ptr = strstr(bands, cmd);
+			if (ptr != NULL) {
+				int band = (ptr-bands)/4;
+				int ix = atoi(value)-1;
+				band_stack[band].index = ix;
+				strcpy(f->value, value);
+				settings_updated++;
 			}
+			if (!strcmp(cmd,"#selband")) {
+				int bi = atoi(value);
+				int new_band = bi/10;
+				highlight_band_field(new_band);
+			}
+		}
+		return 1;
     }
 
-		//band stacks
-		int band = -1;
-		if (!strcmp(section, "80M"))
-			band = 0;
-		else if (!strcmp(section, "40M"))
-			band = 1;
-		else if (!strcmp(section, "30M"))
-			band = 2;
-		else if (!strcmp(section, "20M"))
-			band = 3;
-		else if (!strcmp(section, "17M"))
-			band = 4;
-		else if (!strcmp(section, "15M"))
-			band = 5;
-		else if (!strcmp(section, "12M"))	
-			band = 6;
-		else if (!strcmp(section, "10M"))
-			band = 7;	
+	//band stacks
+	int band = -1;
+	if (!strcmp(section, "80M"))
+	band = BAND80M;
+	else if (!strcmp(section, "60M"))
+	band = BAND60M;
+	else if (!strcmp(section, "40M"))
+	band = BAND40M;
+	else if (!strcmp(section, "30M"))
+	band = BAND30M;
+	else if (!strcmp(section, "20M"))
+	band = BAND20M;
+	else if (!strcmp(section, "17M"))
+	band = BAND17M;
+	else if (!strcmp(section, "15M"))
+	band = BAND15M;
+	else if (!strcmp(section, "12M"))	
+	band = BAND12M;
+	else if (!strcmp(section, "10M"))
+	band = BAND10M;	
 
 	if (band != -1) {
 		//get the freq out first
@@ -4824,11 +4850,33 @@ void change_band(char *request){
 	field_set("MODE", mode_name[band_stack[new_band].mode[stack]]);	
 	update_field(get_field("r1:mode"));
 
+    highlight_band_field(new_band);
+	struct field *bandswitch = get_field_by_label(band_stack[new_band].name);
+	//printf("bandswitch %s  %s -> %d\n", bandswitch->label, bandswitch->value, band_stack[new_band].index+1);
+	sprintf(bandswitch->value, "%d", band_stack[new_band].index+1);
+	sprintf(buff, "%d", new_band*10+stack);
+	set_field("#selband", buff);
+	q_empty(&q_web);// inserted by llh 
+  console_init(); // inserted by llh 
   // this fixes bug with filter settings not being applied after a band change, not sure why it's a bug - k3ng 2022-09-03
 //  set_field("r1:low",get_field("r1:low")->value);
 //  set_field("r1:high",get_field("r1:high")->value);
 
 	abort_tx();
+	settings_updated++;
+}
+
+void highlight_band_field(int new_band) {
+	int max_bands = sizeof(band_stack)/sizeof(struct band);
+	for( int b = 0; b < max_bands; b++) {
+		struct field *band_field = get_field_by_label(band_stack[b].name);
+		if ( b == new_band) {
+			band_field->font_index = FONT_FIELD_SELECTED;
+		} else {
+			band_field->font_index = FONT_FIELD_VALUE;
+		}
+		update_field(band_field);
+	}
 }
 
 void utc_set(char *args, int update_rtc){
@@ -5056,8 +5104,16 @@ void do_control_action(char* cmd) {
 		//spectrum_span = 25000;
 		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
-	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
-		change_band(request);
+else if (!strcmp(request, "80M") || 
+		!strcmp(request, "60M") ||
+		!strcmp(request, "40M") || 
+		!strcmp(request, "30M") || 
+		!strcmp(request, "20M") || 
+		!strcmp(request, "17M") || 
+		!strcmp(request, "15M") || 
+		!strcmp(request, "12M") || 
+		!strcmp(request, "10M")){
+		change_band(request); 	
 	}
 	else if (!strcmp(request, "REC ON")) {
 		char fullpath[200];
@@ -5599,7 +5655,7 @@ int main( int argc, char* argv[] ) {
 		write_console(FONT_LOG, buff);
 	}
 	else 
-		write_console(FONT_LOG, "Set your with '\\callsign [yourcallsign]'\n"
+		write_console(FONT_LOG, "Set your callsign with '\\callsign [yourcallsign]'\n"
 		"Set your 6 letter grid with '\\grid [yourgrid]\n");
 
 	set_field("#text_in", "");
