@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <!--
     HOW IT WORKS
@@ -34,6 +35,8 @@
     <script src="jquery.min.js"></script>
     <script src="jquery.knob.js"></script>
     <script src="pcm-player.js"></script>
+	<script src="proj4.js"></script>
+    <script src="gridmap.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -47,9 +50,10 @@
     <input type="hidden" id="STATUS" value="---" />
     <input type="hidden" id="REC" value="OFF" />
     <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="" />
-    <input type="hidden" id="VFO" value="A" />
+	<input type="hidden" id="VFOx" value="A" />
     <div id="sdr_page">
         <div id="maincontrols">
+		<button class="sbitxv3-btn" id="sound_mute" type="button">Sound</button>
             <div class="sbitxv3-control">
                 <div class="sbitxv3-label">MODE</div>
                 <select class="sbitxv3-selection sbitx-selection" id="MODE">
@@ -101,7 +105,7 @@
                 </select>
             </div><div class="linear rx-control" id="linear_BW">
                 <div class="linear-label">BW</div>
-                <input type="number" id="BW" min="0" max="100" class="linear-value" />
+    	<input type="number" id="BW" min="50" max="5000" step="50" class="linear-value" />
                 <div class="linear-dropdown">
                     <input type="range" class="linear-slider"
                            id="slider_BW" max="5000" min="50" step="50" value="13" />
@@ -332,7 +336,7 @@
                     <ol size="10" class="sbitx-list-box">
                     </ol>
                 </div>
-
+			<div id="gridmap"></div>
                 <div id="FT8_controls">
                     <div class="sbitxv3-control">
                         <div class="sbitxv3-label">AUTO</div>
@@ -565,11 +569,15 @@
     var in_tx = false;
     var parser = null;
     var qrz_window = null;
+var log_window = null;
     var session_id = "nullsession";
     var macros_file = "";
     var spots = null;
     var logbook_bottom_row_id = -1;
     var logbook_top_row_id = 0;
+var sound_mute = false;
+/* oz7bx gridmap */
+GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
 
     /* a few helper functions */
     function el(element_id) {
@@ -609,12 +617,10 @@
         if (socket == null)
             return;
 
-        if (str.substring(0, 3) == "key")
-            log("got it");
-        var request = session_id + "\n" + str;
-        //	log("ws tx:[" + request + "]");
-        socket.send(request);
-    }
+	var request = session_id + "\n" + str;
+//	log("ws tx:[" + request + "]");
+	socket.send(request);
+}
 
     function on_error(event) {
         log("socket communication error, resetting now");
@@ -1525,52 +1531,143 @@ function change_freq(event) {
     var ft8_tx_on_even = true;
     var ft8_tx_message = "";
 
-    function FT8_stylize_message(text, style) {
-        //tokenize the message
-        var token_list = text.match(/\S+/g);
-        if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9) {
-            log("FT8_process_message: error parsing [" + text + "]");
-            return;
-        }
+/* old version (OZ7BX)
+function FT8_stylize_message(text, style){
+	//tokenize the message
+	var token_list = text.match(/\S+/g);
+	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
+		log("FT8_process_message: error parsing [" + text + "]");
+		return;
+	}
 
-        var index = 1;
-        var confidence_score = token_list[1];
-        var signal_strength = token_list[2];
-        var rx_frequency = token_list[3];
-        var contact_callsign = token_list[5];
-        var sender_callsign = token_list[6];
-        var message = token_list[7];
-        var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-        var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
+	var index = 1;
+	var confidence_score = token_list[1];
+	var signal_strength = token_list[2];
+	var rx_frequency = token_list[3];
+	var contact_callsign = token_list[5]; 
+	var sender_callsign = token_list[6]; 
+	var message = token_list[7];
+	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
 
-        if (style == 'Q')
-            return "sbitx-list-item wsjtx-message-queued";
-        if (contact_callsign == mycallsign)
-            return "sbitx-list-item wsjtx-message-for-me";
-        else if (sender_callsign == mycallsign)
-            return "sbitx-list-item wsjtx-mycallsign";
-        else if (sender_callsign == "CQ")
-            return "sbitx-list-item wsjtx-cq-in-message";
-        else
-            return "sbitx-list-item";
-    }
+	if(style == 'Q')
+		return "sbitx-list-item wsjtx-message-queued";
+	if (contact_callsign == mycallsign)
+		return "sbitx-list-item wsjtx-message-for-me";
+	else if (sender_callsign == mycallsign)
+		return "sbitx-list-item wsjtx-mycallsign";
+	else if (contact_callsign == "CQ")
+		return "sbitx-list-item wsjtx-cq-in-message";
+	else 
+		return "sbitx-list-item";
+} */
 
-    function FT8_list_append(list_id, text, style) {
+function deco_strip(text) {
+	return text.replace(/#./g, '');
+}
 
-        var label_position = text.search("~");
-        var label = text.substring(0, label_position);
-        if (label.length == 21)
-            label = label + '  ';
-        var message = text.substring(label_position + 1);
-        var item = document.createElement("li");
-        item.innerHTML = '<span class="ft8-label">' + label
-            + '</span><span class="ft8-message">' + message + '</span>';
-        item.className = FT8_stylize_message(text, style);
-        item.id = text;
-        item.addEventListener("click", FT8_message_chosen);
-        el(list_id).children[0].appendChild(item);
-        item.scrollIntoView({ behaviour: 'smooth', block: 'nearest', inline: 'start' });
-    }
+// Style codes of interest - if present the caller / grid is not found in the log
+const FF_MYCALL = 16;
+const FF_CALLER = 17;
+const FF_GRID = 18;
+
+function deco_get_style(text) {
+	let i = text.indexOf('#');
+	if (i >= 0 && text.length > i+1) {
+		return text.charCodeAt(i+1)-'A'.charCodeAt(0);
+	}
+	return 0;
+}
+
+function deco_to_span(text) {
+	let jclass = "";
+	switch (deco_get_style(text)) {
+		case FF_CALLER:
+			jclass = "ft8-new-caller";
+			break;
+		case FF_GRID:
+			jclass = "ft8-new-grid";
+			GRIDMAP.gridIdNotLogged(text.substring(2));
+			break;	
+		case FF_MYCALL:
+			jclass = "wsjtx-mycallsign";
+			break;
+		default:
+			if (GRIDMAP.isValidGridId(text.substring(2))) {
+				GRIDMAP.gridIdLogged(text.substring(2));
+			}
+		    jclass = "ft8-old-grid";
+			break;
+	}
+	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
+}
+
+function FT8_stylize_message_item(item, text, style) {
+	//tokenize the message
+	var token_list = text.match(/\S+/g);
+	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
+		log("FT8_process_message: error parsing [" + text + "]");
+		return;
+	}
+	var label_position = text.search("~");
+	var label = text.substring(0,label_position);
+
+	var confidence_score = token_list[1];
+	var signal_strength = token_list[2];
+	var rx_frequency = token_list[3];
+
+	var m1 = token_list[5]; 
+	var m2 = token_list[6]; 
+	var m3 = token_list[7]; 
+	var m4 = token_list[8]; 
+
+	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
+
+	if(style == 'Q') {
+		item.className = "sbitx-list-item wsjtx-message-queued";
+	}
+	else if (deco_strip(m1) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-message-for-me";
+	}
+	else if (deco_strip(m2) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-mycallsign";
+	}
+	else {
+		item.className = "sbitx-list-item";
+	}
+ 
+	var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";   
+
+	// detailed markup
+	var htmMessage = "";
+	if (deco_strip(m1) == "CQ"){
+		item.className = "sbitx-list-item wsjtx-cq-in-message";
+		if (token_list.length == 8) { // CQ sender grid
+			htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
+		} else { // CQ DX sender grid
+			htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
+		}
+	}
+	else {
+		// contact sender grid|R
+		htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
+	}
+
+	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
+}
+
+
+function FT8_list_append(list_id, text, style){
+
+	var item = document.createElement("li");
+	FT8_stylize_message_item(item, text, style);
+
+	item.id = deco_strip(text);
+	item.addEventListener("click", FT8_message_chosen);
+	el(list_id).children[0].appendChild(item);
+	item.scrollIntoView({behaviour: 'smooth', block:'nearest', inline:'start'});
+}
 
     function FT8_transmit(message) {
         websocket_send("key " + message + "\n");
@@ -1612,28 +1709,46 @@ function change_freq(event) {
 
         var contact_callsign = "";
         var sender_callsign = ""
-        //a message that I sent out, retransmit this
-        if (token_list[6] == mycallsign) {
-            contact_callsign = token_list[5];
-            FT8_transmit(message_text);
-            return;
-        }
+		
+		if (event.altKey) { // shift click
+			if (token_list.length == 9) { // cq dx call grid
+				show_in_qrz_window(token_list[7]);
+			} else { // cq call grid || to call grid 
+				show_in_qrz_window(token_list[6]);
+			}
+			//event.stopPropagation();
+			return false;
+		} else {
+        
+	        if (token_list[6] == mycallsign) {
+			    //a message that I sent out, retransmit this
+	            contact_callsign = token_list[5];
+	            FT8_transmit(message_text);
+	            return;
+			} else {
 
-        //this is the start of a new call
-        logger_wipe();
-        logger_abort();
-        FT8_list_append("wsjtx-rx", message_text);
-        websocket_send("FT8 " + message_text);
-    }
+		        //this is the start of a new call
+		        logger_wipe();
+		        logger_abort();
+		        FT8_list_append("wsjtx-rx", message_text);
+		        websocket_send("FT8 " + message_text);
+		    }
+		}
+	}
 
-    function FT8_new_message(text, style) {
-        log("ft8:" + text + ":" + style);
-        var words = text.split(' ');
-        FT8_list_append("wsjtx-activity", text, style);
-        var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-        if (words[4] == $("#FT8-rx-freq").val() || text.search(mycallsign) >= 0)
-            FT8_list_append("wsjtx-rx", text, style);
-    }
+function FT8_lists_clear() {
+	document.querySelector('#wsjtx-activity ol').innerHTML ="";
+	document.querySelector('#wsjtx-rx ol').innerHTML ="";
+}
+
+function FT8_new_message(text, style){
+	//log("ft8:" + text + ":" + style);
+	var words = text.split(' ');
+	FT8_list_append("wsjtx-activity", text, style) ;
+	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+	if (words[4] == $("#FT8-rx-freq").val() || text.search(mycallsign) >= 0)
+		FT8_list_append("wsjtx-rx", text, style);
+}
 
     // setup the html for wsjtx
     function FT8_open() {
@@ -1797,45 +1912,46 @@ function change_freq(event) {
         websocket_send("abort=1");
     }
 
-    function logger_qrz(event) {
-        if ($("#CALL").val().length < 2)
-            return;
+function show_in_qrz_window(callsign) {
+	var url = "https://www.qrz.com/db/" + callsign;
+	if (qrz_window == null || qrz_window.closed)
+		qrz_window = window.open(url, "_blank");
+	else
+		qrz_window.location = url;
+}
 
-        var url = "https://www.qrz.com/db/" + $("#CALL").val();
-        if (qrz_window == null)
-            qrz_window = window.open(url, "_blank");
-        else if (qrz_window.closed)
-            qrz_window = window.open(url, "_blank");
-        else
-            qrz.window.location = url;
-    }
+function logger_qrz(event){
+	if($("#CALL").val().length < 2)
+		return;
+	show_in_qrz_window($("#CALL").val());
+}
 
-    function logbook_open(event) {
-        //	var url = "https://www.qrz.com/db/" + $("#CALL").val();
-        var url = window.location.href + "logbook.html";
+function logbook_open(event){
+//	var url = "https://www.qrz.com/db/" + $("#CALL").val();
+	var url = window.location.origin + "/logbook.html";
 
-        if (qrz_window == null)
-            qrz_window = window.open(url, "_blank");
-        else if (qrz_window.closed)
-            qrz_window = window.open(url, "_blank");
-        else
-            qrz.window.location = url;
-    }
-    function logger_enter_qso() {
-        var contact_callsign = el("CALL").value.toUpperCase();
-        var rst_sent = el("SENT").value.toUpperCase();
-        var exchange_sent = el("NR").value.toUpperCase();
-        var rst_recv = el("RECV").value.toUpperCase();
-        var exchange_recv = el("EXCH").value.toUpperCase();
-        if (contact_callsign.length < 2 || !rst_sent.length || !rst_recv.length) {
-            alert("Fill the logger callsign, RST sent, received to save the QSO");
-            return;
-        }
-        websocket_send("qso=" + contact_callsign + "|" + rst_sent + "|" + exchange_sent
-            + "|" + rst_recv + "|" + exchange_recv);
-        logger_wipe();
-        setTimeout(logbook_reload, 500);
-    }
+	if (log_window == null)
+		log_window = window.open(url, "log");
+	else //if (log_window.closed)
+		log_window = window.open(url, "log");
+	//else
+		//log_window.location = url;
+}
+function logger_enter_qso(){
+	var contact_callsign = el("CALL").value.toUpperCase();
+	var rst_sent = el("SENT").value.toUpperCase();
+	var exchange_sent = el("NR").value.toUpperCase();
+	var rst_recv = el("RECV").value.toUpperCase();	
+	var	exchange_recv = el("EXCH").value.toUpperCase();	
+	if (contact_callsign.length < 2 || !rst_sent.length  || !rst_recv.length){
+		alert("Fill the logger callsign, RST sent, received to save the QSO");
+		return;
+	}
+	websocket_send("qso="+ contact_callsign +"|"+rst_sent+"|"+ exchange_sent 
+		+ "|" + rst_recv + "|" + exchange_recv); 
+	logger_wipe();
+	setTimeout(logbook_reload, 500);
+}
 
     function logger_trigger_macro(event) {
         websocket_send(event.id);
@@ -1950,30 +2066,30 @@ function change_freq(event) {
         item.innerHTML = qso_id;
         item.className = "logbook-field logbook-serial";
 
-        item = row.insertCell(-1);
-        item.innerHTML = token[3] + ' ' + token[4];
-        item.className = "logbook-field logbook-datestamp";
-        //frequency
-        item = row.insertCell(-1);
-        item.innerHTML = token[2];
-        item.className = "logbook-field logbook-freq";
-        //mode
-        item = row.insertCell(-1);
-        item.innerHTML = token[1];
-        item.className = "logbook-field logbook-mode";
-        //callsign
-        item = row.insertCell(-1);
-        item.innerHTML = token[8];
-        item.className = "logbook-field logbook-call";
-        //sent
-        item = row.insertCell(-1);
-        item.innerHTML = token[6] + '  ' + token[7];
-        item.className = "logbook-field logbook-sent";
-        //received
-        item = row.insertCell(-1);
-        item.innerHTML = token[9] + '  ' + token[10];
-        item.className = "logbook-field logbook-recv";
-    }
+	item = row.insertCell(-1);
+	item.innerHTML = token[3] + ' ' + token[4];
+	item.className = "logbook-field logbook-datestamp";
+	//frequency
+	item = row.insertCell(-1);
+	item.innerHTML =  token[2];
+	item.className = "logbook-field logbook-freq";
+	//mode
+	item = row.insertCell(-1);
+	item.innerHTML = token[1];
+	item.className = "logbook-field logbook-mode";
+	//callsign
+	item = row.insertCell(-1);
+	item.innerHTML = token[8];
+	item.className = "logbook-lfield logbook-call";
+	//sent
+	item = row.insertCell(-1);
+	item.innerHTML = token[6] + '  ' + token[7];		
+	item.className = "logbook-field logbook-sent";
+	//received
+	item = row.insertCell(-1);
+	item.innerHTML = token[9] + '  ' + token[10];		
+	item.className = "logbook-field logbook-recv";
+}
 
     function logbook_reset() {
         $("#logbook_table tbody")[0].innerHTML = "";
@@ -2109,8 +2225,16 @@ function change_freq(event) {
                     cw_update(data[i].innerHTML, "data_rx");
 
             var data = xml.getElementsByTagName("LOG");
-            for (var i = 0; i < data.length; i++)
-                write_console(data[i].innerHTML);
+		for (var i = 0; i < data.length; i++) {
+			let s = data[i].innerHTML;
+			write_console(s);
+			// Extract qso grid from message e.g.
+			// "Logged: F4VTG -05-JO65 -14-JN12\n;"
+			if (s.startsWith("Logged:")) { // String ends width \n 
+				s = s.substring(s.length-5,s.length-1);
+				GRIDMAP.gridIdJustLogged(s);
+			}
+		}
         }
         else
             console_update(text);
@@ -2147,45 +2271,45 @@ function change_freq(event) {
         wf.height = 100;
         sp.height = 100;
 
-        $(".mode-panel").hide();
-        switch (new_mode) {
-            case 'CW':
-            case 'CWR':
-                wf.height = 150;
-                sp.height = 100;
-                cw_open(new_mode);
-                $("#CW_ui").show();
-                logger_set_macro("CW1");
-                break;
-            case "AM":
-            case "LSB":
-            case "USB":
-            case "2TONE":
-                wf.height = 150;
-                sp.height = 100;
-                $("#Voice_ui").show();
-                logger_set_macro("CW1");
-                break;
-            case 'FT8':
-                sp.height = 50;
-                wf.height = 50;
-                FT8_open();
-                $("#FT8_ui").show();
-                logger_set_macro("FT8");
-                break;
-            default:
-                wf.height = 150;
-                var panel_name = "#" + new_mode + "_ui";
-                var active_panel = $(panel_name);
-                logger_set_macro("CW1");
-                if (active_panel.length > 0)
-                    $(panel_name).show();
-                return;
-        }
-        //	if (window[new_mode+"_open"] == undefined)
-        //		return;
-        //	window[new_mode + "_open"]();
-    }
+	$(".mode-panel").hide();
+	switch(new_mode){
+		case 'CW':
+		case 'CWR':
+			wf.height=150;
+			sp.height = 100;
+			cw_open(new_mode);
+			$("#CW_ui").show();
+			logger_set_macro("CW1");
+		break;
+		case "LSB":
+		case "USB":
+		case "2TONE":
+			wf.height=150;
+			sp.height = 100;
+			$("#Voice_ui").show();
+			logger_set_macro("CW1");
+			break;
+		case 'FT8':
+			sp.height = 50;
+			wf.height=50;
+			FT8_open();
+			$("#FT8_ui").show();
+			logger_set_macro("FT8");
+			sound_mute = true;
+			break;
+		default:
+			wf.height=150;
+			var panel_name = "#" + new_mode + "_ui";
+			var active_panel = $(panel_name);
+			logger_set_macro("CW1");
+			if (active_panel.length > 0)
+				$(panel_name).show();
+					return;
+	}
+//	if (window[new_mode+"_open"] == undefined)
+//		return;
+//	window[new_mode + "_open"]();
+}
 
     function mode_changed(event) {
         mode_set(event.currentTarget.value);
@@ -2198,26 +2322,26 @@ function change_freq(event) {
         var cmd = "";
         var args = "";
 
-        if (response instanceof Blob) {
-            f = new FileReader();
-            f.onload = () => {
-                if (player != null) {
-                    var samples = new Int16Array(f.result);
-                    var upsample = new Int16Array(samples.length * intp_factor);
-                    var j = 0;
-                    //interpolate, generating higher sampling rate
-                    for (var i = 0; i < samples.length; i++)
-                        for (var x = 0; x < intp_factor; x++) {
-                            upsample[j++] = ((prev_sample * (intp_factor - x - 1))
-                                + (samples[i] * (x + 1))) / intp_factor;
-                            prev_sample = samples[i];
-                        }
-                    player.feed(upsample);
-                }
-            }
-            f.readAsArrayBuffer(response);
-            return;
-        }
+	if (response instanceof Blob){
+		f = new FileReader();
+		f.onload = () => {
+			if (player != null && !sound_mute){
+				var samples = new Int16Array(f.result);
+				var upsample =  new Int16Array(samples.length * intp_factor);
+				var j = 0;	
+				//interpolate, generating higher sampling rate
+				for (var i = 0; i < samples.length; i++)
+					for (var x = 0; x < intp_factor; x++){
+						upsample[j++] = ((prev_sample * (intp_factor- x- 1)) 
+							+ (samples[i] * (x + 1)))/intp_factor; 
+						prev_sample = samples[i];
+					}
+				player.feed(upsample);
+			}
+		}
+		f.readAsArrayBuffer(response);
+		return;
+	}
 
         if (response.substring(0, 3) == "TX " || response.substring(0, 3) == "RX ") {
 
@@ -2358,6 +2482,7 @@ function change_freq(event) {
     //specific control handler
 	//$("#knob_on").on("click", toggle_dial);
     $("#KNOB").on("change", dial_show);
+	$("#sound_mute").on("click", () => { sound_mute = !sound_mute;});
     el("dial").addEventListener("wheel", change_freq, { passive: false });
     $("#REF").on("change", draw_meters);
     $("#MODE").on("change", mode_changed);
@@ -2427,8 +2552,6 @@ function change_freq(event) {
     $("#record_start").on("click", start_recorder);
     $("#record_stop").on("click", stop_recorder);
 
-    //toggle the soft dial knob
-    //$("#dial").on("click", toggle_dial);
     window.onload = ui_init();
 
     //init the state of the ui
@@ -2523,8 +2646,7 @@ function change_freq(event) {
         for (var i = 0; i < collection.length; i++)
             collection[i].style.display = "";
     }
-
-    //function toggle_dial(event) {
+	
     function dial_show(event) {
         var dial = el("sidebar");
         var main = el("main");

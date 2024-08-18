@@ -737,7 +737,7 @@ int ft8_message_tokenize(char *message){
 			m4[0] = 0;
 	}
 	else
-		m3[0];
+		m3[0] = 0;
 
 	return 0;
 }
@@ -776,7 +776,7 @@ void ft8_on_start_qso(char *message){
 		field_set("CALL", m2);
 		field_set("SENT", signal_strength);
 		//they might have directly sent us a signal report
-		if (isalpha(m3[0])){
+		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
 			field_set("EXCH", m3);
 			sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 		}
@@ -787,7 +787,11 @@ void ft8_on_start_qso(char *message){
 	}
 	else { //we are breaking into someone else's qso
 		field_set("CALL", m2);
-		field_set("EXCH", "");
+		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
+			field_set("EXCH", m3); // the gridId is valid - use it
+		} else {
+			field_set("EXCH", "");
+		}
 		field_set("SENT", signal_strength);
 		sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 	}

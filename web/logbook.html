@@ -31,7 +31,7 @@
 	<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>sBitx</title>
+    <title>sBitx log</title>
     <script src="jquery.min.js"></script>
     <script src="jquery.knob.min.js"></script>
     <script src="pcm-player.js"></script> 
@@ -322,7 +322,16 @@ function logger_qrz(event){
 	else if (qrz_window.closed)
 		qrz_window = window.open(url, "_blank");
 	else
-		qrz.window.location = url;
+		qrz_window.location = url;
+}
+
+function open_qrz(callsign){
+
+	var url = "https://www.qrz.com/db/" + callsign;
+	if (qrz_window == null)
+		qrz_window = window.open(url, "qrz");
+	else 
+	    qrz_window = window.open(url, "qrz");
 }
 
 function logger_enter_qso(){
@@ -471,7 +480,9 @@ function logbook_update(args){
 	//callsign
 	item = row.insertCell(-1);
 	item.innerHTML = token[8];
-	item.className = "logbook-field logbook-call";
+	item.addEventListener("click", function (e) {
+		open_qrz(this.innerHTML);   });
+	item.className = "logbook-lfield logbook-call";
 	//sent
 	item = row.insertCell(-1);
 	item.innerHTML = token[6] + '  ' + token[7];		
