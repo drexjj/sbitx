@@ -53,7 +53,6 @@
 	<input type="hidden" id="VFOx" value="A" />
     <div id="sdr_page">
         <div id="maincontrols">
-		<button class="sbitxv3-btn" id="sound_mute" type="button">Sound</button>
             <div class="sbitxv3-control">
                 <div class="sbitxv3-label">MODE</div>
                 <select class="sbitxv3-selection sbitx-selection" id="MODE">
@@ -141,7 +140,9 @@
                     <input type="range" class="linear-slider"
                            id="slider_AUDIO" max="100" min="0" step="1" value="13" />
                 </div>
-            </div><br />
+            </div><!-- It's nice to mute e.g. the FT8 sond in the browser
+            --><button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button><!--
+            --><br />
             <div class="linear" id="linear_DRIVE">
                 <div class="linear-label">DRIVE</div>
                 <input type="number" id="DRIVE" min="1" max="100" class="linear-value" />
