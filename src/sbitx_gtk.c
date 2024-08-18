@@ -18,6 +18,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <ncurses.h>
+#include <time.h>
+#include <glib.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 #include <sys/types.h>
@@ -43,6 +45,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
+#include "hist_disp.h"
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
@@ -52,6 +55,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
 void change_band (char *request);
+void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
@@ -171,6 +175,10 @@ struct font_style font_table[] = {
 	{FONT_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_GRID,   1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FONT_FIELD_SELECTED, 0.3, 1, 0, "Mono", 15, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
 struct encoder enc_a, enc_b;
@@ -255,7 +263,7 @@ GtkWidget *display_area = NULL;
 GtkWidget *text_area = NULL;
 extern void settings_ui(GtkWidget*p);
 extern void eq_ui(GtkWidget*p);
-extern int logbook_open();
+
 
 // these are callbacks called by the operating system
 static gboolean on_draw_event( GtkWidget* widget, cairo_t *cr, 
@@ -288,14 +296,36 @@ static int measure_text(cairo_t *gfx, char *text, int font_entry){
 	cairo_text_extents(gfx, text, &ext);
 	return (int) ext.x_advance;
 }
-
-static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry){
+static struct font_style * set_style(cairo_t *gfx, int font_entry){
 	struct font_style *s  = font_table + font_entry;
-  cairo_set_source_rgb( gfx, s->r, s->g, s->b);
+  	cairo_set_source_rgb( gfx, s->r, s->g, s->b);
 	cairo_select_font_face(gfx, s->name, s->type, s->weight);
 	cairo_set_font_size(gfx, s->height);
+	return s;
+}
+
+static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry){
+	struct font_style *s  = set_style(gfx, font_entry);
+
 	cairo_move_to(gfx, x, y + s->height);
-	cairo_show_text(gfx, text);
+	char * p = text;
+	char ch[2]; 
+	bool font_ready = true;
+	ch[1] = 0;
+	while (*p) {
+		ch[0]=*p;
+		if (!font_ready) {
+			s  = set_style(gfx, *p-'A');
+			font_ready = true;
+		}
+		else if (*p != '#' && font_ready ) {
+			cairo_show_text(gfx, ch);
+		} else if (*p == '#') {
+			font_ready = false;
+		}
+		p++;
+	}
+	
 }
 
 static void fill_rect(cairo_t *gfx, int x, int y, int w, int h, int color){
@@ -387,17 +417,20 @@ static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
 
 #define BAND80M	0
-#define BAND40M	1
-#define BAND30M 2	
-#define BAND20M 3	
-#define BAND17M 4	
-#define BAND15M 5
-#define BAND12M 6 
-#define BAND10M 7 
+#define BAND60M	1
+#define BAND40M	2
+#define BAND30M 3	
+#define BAND20M 4	
+#define BAND17M 5	
+#define BAND15M 6
+#define BAND12M 7 
+#define BAND10M 8
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_USB, MODE_CW,MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+	{"60M", 5250000, 5500000, 0, 
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
 	{"40M", 7000000,7300000, 0,
 		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
 	{"30M", 10100000, 10150000, 0,
@@ -476,32 +509,35 @@ int current_layout = LAYOUT_KBD;
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
 	/* band stack registers */
- 	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-  	"", 0,0,0,COMMON_CONTROL},
-	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
-	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+  		"", 1,4,1,COMMON_CONTROL},
+	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 1,4,1,COMMON_CONTROL},
+	{ "#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
-	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	// Make room for 60M button
+	//{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	//	"", 0,0, 0,COMMON_CONTROL},
+	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{ "r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
+	{ "r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
-	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	{ "tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
@@ -626,7 +662,8 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-  
+	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+    	"", 0,83,1, 0},  
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
@@ -855,9 +892,9 @@ int set_field(const char *id, const char *value){
 		char *p, *prev, *next, b[100];
 		//search the current text in the selection
 		prev = NULL;
-		if (debug)
-			printf("field selection [%s]\n");
 		strcpy(b, f->selection);
+		if (debug)
+			printf("field selection [%s] value=[%s]\n", b, value);
 		p = strtok(b, "/");
 		if (debug)
 			printf("first token [%s]\n", p);
@@ -1105,12 +1142,21 @@ void write_to_remote_app(int style, char *text){
 	remote_write("}");
 }
 
-void write_console(int style, char *text){
-	char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
+void write_console(int style, char *raw_text){
+	/*char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
 	char *path = getenv("HOME");
 	strcpy(directory, path);
 	strcat(directory, "/sbitx/data/display_log.txt");
+    */
+    //tlog("write_console", text, style);
+	char *text;
+	char decorated[1000];
+	
+	if (strlen(raw_text) == 0)
+		return;
 
+	hd_decorate(style, raw_text, decorated);
+	text = decorated;
 	web_write(style, text);
 	//move to a new line if the style has changed
 	if (style != console_style){
@@ -1135,8 +1181,6 @@ void write_console(int style, char *text){
 		}
 	}
 
-	if (strlen(text) == 0)
-		return;
 
 /*
 	//write to the scroll
@@ -1147,8 +1191,9 @@ void write_console(int style, char *text){
 		pf = NULL;
 	}
 */	
-	write_to_remote_app(style, text);
+	write_to_remote_app(style, raw_text);
 
+	int console_line_max = MIN(console_cols, MAX_LINE_LENGTH);
 	while(*text){
 		char c = *text;
 		if (c == '\n')
@@ -1156,7 +1201,13 @@ void write_console(int style, char *text){
 		else if (c < 128 && c >= ' '){
 			char *p = console_stream[console_current_line].text;
 			int len = strlen(p);
-			if(len >= console_cols - 1){
+			if (c == HD_MARKUP_CHAR) {
+				console_line_max +=2;  // markup does not count
+				if (console_line_max > MAX_LINE_LENGTH-2) {
+					len = console_line_max; // force a new Line
+				}
+			}
+			if(len >= console_line_max - 1) {
 				//start a fresh line
 				console_init_next_line();
 				p = console_stream[console_current_line].text;
@@ -1176,7 +1227,7 @@ void write_console(int style, char *text){
 }
 
 void draw_console(cairo_t *gfx, struct field *f){
-	char this_line[1000];
+	//char this_line[1000];
 	int line_height = font_table[f->font_index].height; 	
 	int n_lines = (f->height / line_height) - 1;
 
@@ -1195,7 +1246,7 @@ void draw_console(cairo_t *gfx, struct field *f){
  	for (int i = 0; i <= n_lines; i++){
 		struct console_line *l = console_stream + start_line;
 		if (start_line == console_selected_line)
-			fill_rect(gfx, f->x, y+1, f->width, font_table[l->style].height+1, SELECTED_LINE);
+			fill_rect(gfx, f->x, y+1, f->width, font_table[l->style].height+1, SELECTED_LINE);	
 		draw_text(gfx, f->x+1, y, l->text, l->style);
 		start_line++;
 		y += line_height;
@@ -1210,16 +1261,16 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	int line_height = font_table[f->font_index].height; 	
 	int n_lines = (f->height / line_height) - 1;
 	int	l = 0;
-	int start_line;
+	int start_line = console_current_line - n_lines;
 
 	switch(event){
 		case FIELD_DRAW:
+		    //tlog("do_console", "draw", n_lines);
 			draw_console(gfx, f);
 			return 1;
 		break;
 		case GDK_BUTTON_PRESS:
 		case GDK_MOTION_NOTIFY:
-			start_line = console_current_line - n_lines;
 			l = start_line + ((b - f->y)/line_height);
 			if (l < 0)
 				l += MAX_CONSOLE_LINES;
@@ -1229,12 +1280,19 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		break;
 		case GDK_BUTTON_RELEASE:
 			if (!strcmp(get_field("r1:mode")->value, "FT8")){
-				char ft8_message[100], ft8_response[100];
-				strcpy(ft8_message, console_stream[console_selected_line].text);
+				char ft8_message[300];
+				//strcpy(ft8_message, console_stream[console_selected_line].text);
+				hd_strip_decoration(ft8_message, console_stream[console_selected_line].text);
 				ft8_process(ft8_message, FT8_START_QSO);
 			}
 			f->is_dirty = 1;
 			return 1;
+		break;
+		case FIELD_EDIT:
+			if (a == MIN_KEY_UP && console_selected_line > start_line)
+				console_selected_line--;
+			else if (a == MIN_KEY_DOWN && console_selected_line < start_line + n_lines - 1)
+				console_selected_line++;
 		break;
 	}
 	return 0;	
@@ -1306,29 +1364,32 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f){
 		case FIELD_NUMBER:
 		case FIELD_TOGGLE:
 		case FIELD_BUTTON:
-			label_height = font_table[FONT_FIELD_LABEL].height;
-			width = measure_text(gfx, label, FONT_FIELD_LABEL);
+		{
+		    int font_ix = f->font_index; // FONT_FIELD_LABEL
+			label_height = font_table[font_ix].height;
+			width = measure_text(gfx, label, font_ix);
 			//skip the underscore in the label if it is too wide
 			if (width > f->width && strchr(label, '_')){
 				label = strchr(label, '_') + 1;
-				width = measure_text(gfx, label, FONT_FIELD_LABEL);
+				width = measure_text(gfx, label, font_ix);
 			}
 
 			offset_x = f->x + f->width/2 - width/2;
 			//is it a two line display or a single line?
-			if (f->value_type == FIELD_BUTTON && !f->value[0]){
+			if ((f->value_type == FIELD_BUTTON) && !f->value[0]){
 				label_y = f->y + (f->height - label_height)/2;
-				draw_text(gfx, offset_x,label_y, f->label, FONT_FIELD_LABEL);
+				draw_text(gfx, offset_x,label_y, f->label, font_ix);
 			} 
 			else {
-				value_height = font_table[FONT_FIELD_VALUE].height;
+				value_height = font_table[font_ix].height;
 				label_y = f->y + ((f->height  - label_height  - value_height)/2);
-				draw_text(gfx, offset_x, label_y, label, FONT_FIELD_LABEL);
+				draw_text(gfx, offset_x, label_y, label, font_ix);
 				width = measure_text(gfx, f->value, FONT_FIELD_VALUE);
 				label_y += font_table[FONT_FIELD_LABEL].height;
 				draw_text(gfx, f->x + f->width/2 - width/2, label_y, f->value, 
 					FONT_FIELD_VALUE);
 			}
+		}
       break;
 		case FIELD_STATIC:
 			draw_text(gfx, f->x, f->y, f->label, FONT_FIELD_LABEL);
@@ -1460,52 +1521,76 @@ static int user_settings_handler(void* user, const char* section,
 		return 1; //skip the keyboard values
 	}
     // if it is an empty section
-    else if (strlen(section) == 0){
-      sprintf(cmd, "%s", name);
-			//skip the button actions 
-			struct field *f = get_field(cmd);
-			if (f){
-				if (f->value_type != FIELD_BUTTON)
-      		set_field(cmd, new_value); 
+    else if (strlen(section) == 0) {
+		sprintf(cmd, "%s", name);
+		//skip the button actions 
+		struct field *f = get_field(cmd);
+		if (f){
+			if (f->value_type != FIELD_BUTTON)
+  				set_field(cmd, new_value); 
+			char * bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
+			char * ptr = strstr(bands, cmd);
+			if (ptr != NULL) {
+				int band = (ptr-bands)/4;
+				int ix = atoi(value)-1;
+				band_stack[band].index = ix;
+				strcpy(f->value, value);
+				settings_updated++;
 			}
+			if (!strcmp(cmd,"#selband")) {
+				int bi = atoi(value);
+				int new_band = bi/10;
+				highlight_band_field(new_band);
+			}
+		}
+		return 1;
     }
 
-		//band stacks
-		int band = -1;
-		if (!strcmp(section, "80M"))
-			band = 0;
-		else if (!strcmp(section, "40M"))
-			band = 1;
-		else if (!strcmp(section, "30M"))
-			band = 2;
-		else if (!strcmp(section, "20M"))
-			band = 3;
-		else if (!strcmp(section, "17M"))
-			band = 4;
-		else if (!strcmp(section, "15M"))
-			band = 5;
-		else if (!strcmp(section, "12M"))	
-			band = 6;
-		else if (!strcmp(section, "10M"))
-			band = 7;	
+	//band stacks
+	int band = -1;
+	if (!strcmp(section, "80M"))
+	band = BAND80M;
+	else if (!strcmp(section, "60M"))
+	band = BAND60M;
+	else if (!strcmp(section, "40M"))
+	band = BAND40M;
+	else if (!strcmp(section, "30M"))
+	band = BAND30M;
+	else if (!strcmp(section, "20M"))
+	band = BAND20M;
+	else if (!strcmp(section, "17M"))
+	band = BAND17M;
+	else if (!strcmp(section, "15M"))
+	band = BAND15M;
+	else if (!strcmp(section, "12M"))	
+	band = BAND12M;
+	else if (!strcmp(section, "10M"))
+	band = BAND10M;	
 
-		if (band >= 0  && !strcmp(name, "freq0"))
+	if (band != -1) {
+		//get the freq out first
+		if (strstr(name,"freq")) {
+			int freq = atoi(value);
+			if (freq < band_stack[band].start || band_stack[band].stop < freq)
+				return 1;
+		}
+		if (!strcmp(name, "freq0"))
 			band_stack[band].freq[0] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq1"))
+		else if (!strcmp(name, "freq1"))
 			band_stack[band].freq[1] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq2"))
+		else if (!strcmp(name, "freq2"))
 			band_stack[band].freq[2] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq3"))
+		else if (!strcmp(name, "freq3"))
 			band_stack[band].freq[3] = atoi(value);
-		else if (band >= 0 && !strcmp(name, "mode0"))
+		else if (!strcmp(name, "mode0"))
 			band_stack[band].mode[0] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode1"))
+		else if (!strcmp(name, "mode1"))
 			band_stack[band].mode[1] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode2"))
+		else if (!strcmp(name, "mode2"))
 			band_stack[band].mode[2] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode3"))
+		else if (!strcmp(name, "mode3"))
 			band_stack[band].mode[3] = atoi(value);	
-
+	}
     return 1;
 }
 /* rendering of the fields */
@@ -1585,12 +1670,12 @@ void draw_modulation(struct field *f, cairo_t *gfx){
 }
 
 static int waterfall_offset = 30;
-static int *wf = NULL;
+static int  *wf = NULL;
 GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 
-void init_waterfall() {
-    struct field *f = get_field("waterfall");
+void init_waterfall(){
+	struct field *f = get_field("waterfall");
 
     // Print dimensions for debugging -W2ON
     //printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
@@ -2603,7 +2688,7 @@ void set_operating_freq(int dial_freq, char *response){
 	}
 	else if (!strcmp(split->value, "ON")){
 		if (!in_tx)
-			sprintf(freq_request, "r1:freq=%s", vfo_b->value);
+			sprintf(freq_request, "r1:freq=%s", vfo_a->value);	// was vfo_b->value
 		else
 			sprintf(freq_request, "r1:freq=%d", dial_freq);
 	}
@@ -2713,7 +2798,7 @@ void update_titlebar(){
 	time_t now = time_sbitx();
 	struct tm *tmp = gmtime(&now);
 //	sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",  
-	sprintf(buff, "%s %s %s %04d/%02d/%02d %02d:%02d:%02dZ", 
+	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d %0 2d:%02d:%02dZ", 
 		VER_STR,get_field("#mycallsign")->value, get_field("#mygrid")->value,
 		tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec); 
  	gtk_window_set_title( GTK_WINDOW(window), buff);
@@ -3903,7 +3988,7 @@ static gboolean on_mouse_move (GtkWidget *widget, GdkEventButton *event, gpointe
 	last_mouse_x = x;
 	last_mouse_y = y;
 
-
+	return true;
 }
 
 static gboolean on_mouse_press (GtkWidget *widget, GdkEventButton *event, gpointer data) {
@@ -4631,7 +4716,7 @@ void ui_init(int argc, char *argv[]){
 	screen_height = gdk_screen_height();
 #pragma pop
 */
-	q_init(&q_web, 1000);
+	q_init(&q_web, 5000);
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
@@ -4765,11 +4850,33 @@ void change_band(char *request){
 	field_set("MODE", mode_name[band_stack[new_band].mode[stack]]);	
 	update_field(get_field("r1:mode"));
 
+    highlight_band_field(new_band);
+	struct field *bandswitch = get_field_by_label(band_stack[new_band].name);
+	//printf("bandswitch %s  %s -> %d\n", bandswitch->label, bandswitch->value, band_stack[new_band].index+1);
+	sprintf(bandswitch->value, "%d", band_stack[new_band].index+1);
+	sprintf(buff, "%d", new_band*10+stack);
+	set_field("#selband", buff);
+	q_empty(&q_web);// inserted by llh 
+  console_init(); // inserted by llh 
   // this fixes bug with filter settings not being applied after a band change, not sure why it's a bug - k3ng 2022-09-03
 //  set_field("r1:low",get_field("r1:low")->value);
 //  set_field("r1:high",get_field("r1:high")->value);
 
 	abort_tx();
+	settings_updated++;
+}
+
+void highlight_band_field(int new_band) {
+	int max_bands = sizeof(band_stack)/sizeof(struct band);
+	for( int b = 0; b < max_bands; b++) {
+		struct field *band_field = get_field_by_label(band_stack[b].name);
+		if ( b == new_band) {
+			band_field->font_index = FONT_FIELD_SELECTED;
+		} else {
+			band_field->font_index = FONT_FIELD_VALUE;
+		}
+		update_field(band_field);
+	}
 }
 
 void utc_set(char *args, int update_rtc){
@@ -4997,8 +5104,16 @@ void do_control_action(char* cmd) {
 		//spectrum_span = 25000;
 		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
-	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
-		change_band(request);
+else if (!strcmp(request, "80M") || 
+		!strcmp(request, "60M") ||
+		!strcmp(request, "40M") || 
+		!strcmp(request, "30M") || 
+		!strcmp(request, "20M") || 
+		!strcmp(request, "17M") || 
+		!strcmp(request, "15M") || 
+		!strcmp(request, "12M") || 
+		!strcmp(request, "10M")){
+		change_band(request); 	
 	}
 	else if (!strcmp(request, "REC ON")) {
 		char fullpath[200];
@@ -5061,7 +5176,90 @@ void do_control_action(char* cmd) {
 		}
 	}
 
+int get_ft8_callsign(const char* message, char* other_callsign) {
+	int i = 0, j = 0, m = 0, len, cur_field = 0;
+	char fields[4][32];
+	other_callsign[0] = 0;
+	len = (int)strlen(message);
+	const char* mycall = field_str("MYCALLSIGN");
+	while (i <= len) {
+		if (message[i] == ' ' || message[i] == '\0' || j >= 31) {
+			i++;
+			while (i < len && message[i] == ' ') { i++; }
+			if (m > 3) {
+				break;
+			}
+			fields[m][j] = '\0';
+			if (cur_field == 4) {
+				if (strcmp(fields[m], "~")) {
+					return -1;  // no tilde
+				}
+			}
+			cur_field++;
+			if (cur_field > 5) {
+				m++;
+			}
+			j = 0;
+		}
+		else {
+			fields[m][j++] = message[i];
+			i++;
+		}
 
+		if (m > 4) {
+			return -2; // to many fields
+		}
+	}
+	if (cur_field < 7) {
+		return -3; // to few fields
+	}
+	if (!strcmp(fields[0], "CQ")) {
+		if (m == 4) {
+			i = 2; // CQ xx callsign grid
+		}
+		else {
+			i = 1; // CQ callsign grid
+		}
+	}
+	else if (!strcmp(fields[0], mycall)) {
+		i = 1; // mycallsign callsign
+	}
+	else if (!strcmp(fields[1], mycall)) {
+		i = 0; // mycallsign callsign
+	}
+	else {
+		i = 1; // callsign other -the one we hear
+	}
+	strcpy(other_callsign, fields[i]);
+	return m;
+}
+
+void pre_ft8_check(char* message) {
+	char result[500];
+	char other_callsign[40];
+	
+	//printf("pre_ft8_check: message='%s'\n", message);
+	if (get_ft8_callsign(message, other_callsign) >= 0) {
+		//strcpy(result,"FT8_check_res ");
+		int cnt = logbook_prev_log(other_callsign, result);
+		char *p =strchr(message, '~');
+		if (p) {
+			strcat(result, p-1);
+		}
+
+		printf("pre_ft8_check: '%s'\n", result);
+
+		if (strlen(result) > 127 ) {
+			result[127] = 0;
+		}
+        int equal_last_check = strcmp(get_field("#ft8_check")->value, result);
+		set_field("#ft8_check", result);
+
+		if (cnt == 0 || equal_last_check == 0) {
+			ft8_process(message, FT8_START_QSO);
+		}
+	}
+}
 
 /*
 	These are user/remote entered commands.
@@ -5392,6 +5590,7 @@ int main( int argc, char* argv[] ) {
 	struct field *f;
 	f = active_layout;
 
+	hd_createGridList();
 	//initialize the modulation display
 
 	tx_mod_max = get_field("spectrum")->width;
@@ -5408,7 +5607,7 @@ int main( int argc, char* argv[] ) {
  
 	strcpy(vfo_a_mode, "USB");
 	strcpy(vfo_b_mode, "LSB");
-	set_field("#mycallsign", "VU2LCH");
+	set_field("#mycallsign", "NOBODY");
 	//vfo_a_freq = 14000000;
 	//vfo_b_freq = 7000000;
 	
@@ -5456,7 +5655,7 @@ int main( int argc, char* argv[] ) {
 		write_console(FONT_LOG, buff);
 	}
 	else 
-		write_console(FONT_LOG, "Set your with '\\callsign [yourcallsign]'\n"
+		write_console(FONT_LOG, "Set your callsign with '\\callsign [yourcallsign]'\n"
 		"Set your 6 letter grid with '\\grid [yourgrid]\n");
 
 	set_field("#text_in", "");
@@ -5495,4 +5694,14 @@ int main( int argc, char* argv[] ) {
   return 0;
 }
 
+void tlog(char * id, char * text, int p) {
+	#define SL 1000
+	char s[SL];
+	int n = strlen(text);
+	if (n > SL) n = SL-2;
+	if (n > 0 && text[n-1] == '\n')  n--;
+	strncpy(s, text, n);
+	s[n] = '\0';
+	printf("%08d %s: %s %d\n", millis(), id, s, p);
+}
 

@@ -10,6 +10,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "logbook.h"
+#include "hist_disp.h"
 
 static const char *s_listen_on = "ws://0.0.0.0:8080";
 static char s_web_root[1000];
@@ -60,7 +61,9 @@ static void do_login(struct mg_connection *c, char *key){
 		printf("passkey didn't match. Closing socket\n");
 		return;
 	}
-	
+
+	hd_createGridList(); // llh: make the list up to date at the beginning of a session
+
 	sprintf(session_cookie, "%x", rand());
 	char response[100];
 	sprintf(response, "login %s", session_cookie);

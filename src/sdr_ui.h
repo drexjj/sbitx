@@ -36,6 +36,11 @@ extern int display_freq;
 #define FONT_FT8_QUEUED 14
 #define FONT_FT8_REPLY 15
 
+#define FF_MYCALL 16
+#define FF_CALLER 17
+#define FF_GRID 18
+#define FONT_FIELD_SELECTED 19
+
 #define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32. 
 extern int ext_ptt_enable;
 void enter_qso();
@@ -50,4 +55,4 @@ void update_log_ed();
 void write_call_log();
 time_t time_sbitx();
 
-#define VER_STR "sbitx v3.1_DEV" // thanks to W9JES, W2JON, KF7YDU, and N1QM
+#define VER_STR "sbitx v3.1_DEV" // thanks to W9JES, W2JON, KF7YDU, N1QM and OZ7BX
