@@ -47,6 +47,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 
+extern int calculate_s_meter(struct rx *r);
+extern struct rx *rx_list; 
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -1897,6 +1899,67 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		draw_text(gfx, f->x + i - off , f->y+grid_height , freq_text, FONT_SMALL);
 		f_start += freq_div;
 	}
+//--- S-Meter test W2JON
+	int s_meter_value = 0;
+	struct rx *current_rx = rx_list;
+
+	s_meter_value = calculate_s_meter(current_rx); // we calculate the s-meter value (in sbitx.c)
+
+	// Lets separate the S-meter value into s-units and additional dB
+	int s_units = s_meter_value / 100;
+	int additional_db = s_meter_value % 100;
+
+	int box_width = 15; 
+	int box_height = 5; 
+	int spacing = 2; 
+	int start_x = f_spectrum->x + 5; 
+	int start_y = f_spectrum->y + 1; 
+
+	// Now we draw the s-meter boxes
+	for (int i = 0; i < 6; i++) {
+		int box_x = start_x + i * (box_width + spacing);
+		int box_y = start_y;
+
+	// Change the box colors based on the s-meter value
+		if (i < 5) {
+			// boxes (1, 3, 5, 7, 9)
+			if (s_units >= (2 * i + 1)) {
+				cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green color
+			} else {
+				cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Dark grey color
+			}
+		} else {
+			// For 20+ dB box
+			if (s_units >= 9 && additional_db > 0) {
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			} else {
+				cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Dark grey color
+			}
+		}
+
+		cairo_rectangle(gfx, box_x, box_y, box_width, box_height);
+		cairo_fill(gfx);
+	}
+
+	// Now we place the labels below the boxes
+	cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0); // white
+	cairo_move_to(gfx, start_x , start_y + box_height + 15); // x, y position
+	for (int i = 0; i < 6; i++) {
+		char label[5];
+		if (i < 5) {
+			snprintf(label, sizeof(label), "%d", 1 + 2 * i);
+		} else {
+			snprintf(label, sizeof(label), "20+");
+		}
+
+		cairo_move_to(gfx, start_x + i * (box_width + spacing), start_y + box_height + 15);
+		cairo_show_text(gfx, label);
+	}
+//---
+
+
+
+
 
 	//we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
