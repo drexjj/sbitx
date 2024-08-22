@@ -67,7 +67,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
-
+#define SCALING_TRIM 2.6 // Use this to tune your meter response 2.6 worked at 51% and my inverted L
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
 fftw_complex *fft_m;			// holds previous samples for overlap and discard convolution 
@@ -310,7 +310,6 @@ static int create_mcast_socket(){
 */
 
 // S-Meter test W2JON
-#define SCALING_TRIM 2.6 // Use this to tune your meter response 2.6 worked at 51% and my inverted L
 int calculate_s_meter(struct rx *r, double rx_gain) {
     double signal_strength = 0.0;
 
