@@ -322,25 +322,25 @@ int calculate_s_meter(struct rx *r, double rx_gain) {
     // Now average out the "signal strength"
     signal_strength /= (MAX_BINS / 2);
 
-    // Logarithmic scaling based on rx_gain percentage
-    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); // rx_gain is in percentage [0-100]
+    // Logarithmic scaling based on rx_gain setting in percentage [0-100]
+    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); 
 
     // Convert to pseudo dB
     double reference_power = 1e-4; // 0.1 mW
     double signal_power = signal_strength * signal_strength * reference_power;
-    double s_meter_db = 10 * log10(signal_power / reference_power); // S-meter in pseudo dB
+    double s_meter_db = 10 * log10(signal_power / reference_power); // pseudo dB
     
     s_meter_db += gain_scaling_factor * SCALING_TRIM; // Adjust calcs dynamically based on rx_gain * SCALING_TRIM
 
     // Calculate S-units and additional dB
     int s_units = (int)(s_meter_db / 6.0); // Each S-unit corresponds to 6 dB
-    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining dB above S9
+    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining 'dB' above S9
 
     // Ensure non-negative values
     if (s_units < 0) s_units = 0;
     if (additional_db < 0) additional_db = 0;
 
-    // Cap additional dB at 20 for simplicity
+    // Cap additional S-units at 20+ for simplicity
     if (s_units >= 9) {
         if (additional_db > 20) additional_db = 20;
     }
