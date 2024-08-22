@@ -1899,6 +1899,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		draw_text(gfx, f->x + i - off , f->y+grid_height , freq_text, FONT_SMALL);
 		f_start += freq_div;
 	}
+
 //--- S-Meter test W2JON
 	int s_meter_value = 0;
 	struct rx *current_rx = rx_list;
@@ -1956,9 +1957,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		cairo_show_text(gfx, label);
 	}
 //---
-
-
-
 
 
 	//we only plot the second half of the bins (on the lower sideband

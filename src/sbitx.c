@@ -310,40 +310,38 @@ static int create_mcast_socket(){
 */
 
 // S-Meter test W2JON
-
-#define SCALING_FACTOR 1.75 // I'm trying to figure the scaling out.. when IF is at 100 the S-meter will be close. But any lower the calculated values are low. 
-
-int calculate_s_meter(struct rx *r) {
+#define SCALING_TRIM 2.6 // Use this to tune your meter response 2.6 worked at 51% and my inverted L
+int calculate_s_meter(struct rx *r, double rx_gain) {
     double signal_strength = 0.0;
 
     // Summing up the magnitudes of the FFT output bins
-    for (int i = 0; i < MAX_BINS / 2; i++) { // here we sum up the lower half of the BINS
-	//for (int i = MAX_BINS / 2; i < MAX_BINS; i++){ // If you prefer to sum up the upper half
+    for (int i = 0; i < MAX_BINS / 2; i++) {
         double magnitude = cabs(r->fft_time[i]); // Magnitude of complex FFT output in time domain
         signal_strength += magnitude;
     }
 
-    // Average out the signal strength
+    // Now average out the "signal strength"
     signal_strength /= (MAX_BINS / 2);
 
-    // Okay lets convert to dB.
-    //double reference_power = 1e-3; // 1 mW (still trying to find a good way to scale....)
-	double reference_power = 1e-5; // 1 uW
-    double signal_power = signal_strength * signal_strength * reference_power;
-    double s_meter_db = 10 * log10(signal_power / reference_power); // s-meter in dB
+    // Logarithmic scaling based on rx_gain percentage
+    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); // rx_gain is in percentage [0-100]
 
-    // Apply scaling factor
-    s_meter_db *= SCALING_FACTOR;
+    // Convert to pseudo dB
+    double reference_power = 1e-4; // 0.1 mW
+    double signal_power = signal_strength * signal_strength * reference_power;
+    double s_meter_db = 10 * log10(signal_power / reference_power); // S-meter in pseudo dB
+    
+    s_meter_db += gain_scaling_factor * SCALING_TRIM; // Adjust calcs dynamically based on rx_gain * SCALING_TRIM
 
     // Calculate S-units and additional dB
     int s_units = (int)(s_meter_db / 6.0); // Each S-unit corresponds to 6 dB
-    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining dB above s-units
+    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining dB above S9
 
-    // Nobody wants negative values so we ensure non-negative values
+    // Ensure non-negative values
     if (s_units < 0) s_units = 0;
     if (additional_db < 0) additional_db = 0;
 
-    // Cap the additional dB to a maximum of 20 dB for simplicity
+    // Cap additional dB at 20 for simplicity
     if (s_units >= 9) {
         if (additional_db > 20) additional_db = 20;
     }
@@ -352,19 +350,6 @@ int calculate_s_meter(struct rx *r) {
     return (s_units * 100) + additional_db;
 }
 
-
-
-void signal_meter() {
-    struct rx *current_rx = rx_list; 
-
-    while (current_rx != NULL) {
-        int s_meter = calculate_s_meter(current_rx);
-        //printf("S-meter value: %d dB\n", s_meter);
-
-        current_rx = current_rx->next; //swithc to the next receiver in the list
-    }
-}
-//----
 
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
