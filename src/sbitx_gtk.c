@@ -458,7 +458,6 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -2183,7 +2182,6 @@ void menu_display(int show) {
         field_move("QRO", 460,screen_height - 140 ,95 ,45);
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
-        field_move("BFO", 350, screen_height - 90 ,45 ,45);
         field_move("BFO", 350, screen_height - 90 ,45 ,45);
        
                  
