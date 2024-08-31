@@ -1432,7 +1432,8 @@ void enter_qso(){
 		get_field("#rst_sent")->value, 
 		get_field("#exchange_sent")->value, 
 		get_field("#rst_received")->value, 
-		get_field("#exchange_received")->value);
+		get_field("#exchange_received")->value,
+		get_field("#text_in")->value);
 	char buff[100];
 	sprintf(buff, "Logged: %s %s-%s %s-%s\n", 
 		field_str("CALL"), field_str("SENT"), field_str("NR"), 
@@ -2703,6 +2704,8 @@ void call_wipe(){
 	field_set("RECV", "");
 	field_set("EXCH", "");
 	field_set("NR", "");
+	//Reset cmd/comment field
+	set_field("#text_in", "");
 }
 
 void update_titlebar(){
