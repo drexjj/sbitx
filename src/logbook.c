@@ -1050,8 +1050,8 @@ void logbook_list_open(){
 */
     // Add tree view to scrolled window
     gtk_container_add(GTK_CONTAINER(scrolled_window), tree_view);
-
-		logbook_fill(0, 10000, NULL);
+	clear_tree(list_store);
+	logbook_fill(0, 10000, NULL);
     // Connect row activation signal
 //		gtk_tree_view_set_activate_on_single_click((GtkTreeView *)tree_view, FALSE);
 //    g_signal_connect(tree_view, "row-activated", G_CALLBACK(on_row_activated), NULL);
