@@ -2591,13 +2591,8 @@ static void focus_field_without_toggle(struct field *f) {
 		update_field(f_hover);
 		update_field(prev_focus);
 		update_field(prev_hover);
-		if (f_focus->value_type == FIELD_TOGGLE)
-			edit_field(f_focus, MIN_KEY_DOWN);	
 		if (f_focus->value_type == FIELD_TEXT)
 			f_last_text = f_focus;
-		//is it a selection field?
-  		if (f_focus->value_type == FIELD_SELECTION) 
-    		edit_field(f_focus, MIN_KEY_UP);
       }
 }
 time_t time_sbitx(){
@@ -4522,10 +4517,10 @@ void handleButtonPress() {
             if (difftime(time(NULL), buttonPressTime) < 1) {
                 // Short press detected
                	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
-	        	        		focus_field(get_field("r1:mode"));
-	          		}else{
-		          		focus_field(get_field("r1:volume"));
-		            	//printf("Focus is on %s\n", f_focus->label);
+					focus_field_without_toggle(get_field("r1:mode"));
+				}else{
+					focus_field(get_field("r1:volume"));
+					//printf("Focus is on %s\n", f_focus->label);
 	  	          } 
             }
          }
