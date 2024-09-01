@@ -3511,8 +3511,8 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
    
     char output[500];
 	//console_init(); //playing with clearing the console...
-	sprintf(output,"BFO value = %d\n", result);
-	write_console(FONT_LOG, output);
+	//sprintf(output,"BFO value = %d\n", result);
+	//write_console(FONT_LOG, output);
 
     return 0; 
 }
