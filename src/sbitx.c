@@ -100,6 +100,9 @@ static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;  // W9JES
 int dsp_enabled = 0;//dsp W2JON
 int anr_enabled = 0;//anr W2JON
+int notch_enabled = 0;//notch filter W2JON
+double notch_freq = 0; // Notch frequency in Hz W2JON
+double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -789,9 +792,30 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         r->fft_freq[i] = fft_out[b];
     }
 
-    // STEP 4a: DSP noise estimation
+	// STEP 4a: BIN processing functions for a better life.
+
     if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE) {
-        // Noise Estimation
+		
+		// Notch filter
+		if (notch_enabled) {
+			int notch_center_bin, notch_bin_range;
+			
+			if (r->mode == MODE_USB) {
+				notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
+			} else if (r->mode == MODE_LSB) {
+				notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
+			}
+			notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
+
+			for (i = notch_center_bin - notch_bin_range / 2; i <= notch_center_bin + notch_bin_range / 2; i++) {
+				if (i >= 0 && i < MAX_BINS) {
+					r->fft_freq[i] *= 0.001; // Attenuate magnitude
+				}
+			}
+
+		}
+
+	    // Noise Estimation
         if (!noise_est_initialized || noise_update_counter >= noise_update_interval) {
             for (i = 0; i < MAX_BINS; i++) {
                 double current_magnitude = cabs(r->fft_freq[i]);
@@ -834,6 +858,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
                 r->fft_freq[i] *= wiener_filter;
             }
         }
+
      }
 
     // STEP 5: Zero out the other sideband

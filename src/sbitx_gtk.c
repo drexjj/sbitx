@@ -458,6 +458,7 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -640,6 +641,14 @@ struct field main_controls[] = {
   //Sub Menu Control 473,50 <- was
 	{ "#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},  
+  
+  // Notch Fiklter Controls
+	{ "#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF",0,0,0,0},
+  	{ "#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",50, 3000, 10,0}, 
+  	{ "#notch_bandwidth", do_notch_edit, 1000, -1000, 40, 40, "BNDWTH", 80, "10", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0, 1000, 10,0}, 
 
   // DSP Controls
 	{ "#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1808,7 +1817,68 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	draw_spectrum_grid(f_spectrum, gfx);
 	f = f_spectrum;
 
-  
+	// Cast notch filter display
+	double yellow_opacity = 0.5; // (0.0 - 1.0)
+	int yellow_bar_height = 57; 
+	int notch_start, notch_width;
+	int center_x = f_spectrum->x + (f_spectrum->width / 2);
+
+	if (notch_enabled) {
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")) {
+			// Calculate notch filter position and width based on mode
+			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW")) {
+				// For USB and CW mode
+				notch_start = center_x + 
+							((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
+
+				if (notch_start < f_spectrum->x) {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_start = f_spectrum->x;
+				} else {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+				}
+
+				if (notch_width + notch_start > f_spectrum->x + f_spectrum->width) {
+					notch_width = f_spectrum->x + f_spectrum->width - notch_start;
+				}
+			} else if (!strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "CWR")) {
+				// For LSB and CWR mode
+				notch_start = center_x - 
+							((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / (span * 1000));
+
+				if (notch_start + (f_spectrum->width * notch_bandwidth) / (span * 1000) > f_spectrum->x + f_spectrum->width) {
+					notch_width = (f_spectrum->x + f_spectrum->width) - notch_start;
+				} else {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+				}
+
+				if (notch_start < f_spectrum->x) {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_start = f_spectrum->x;
+				}
+			} else {
+				return;
+			}
+
+			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0);
+			cairo_rectangle(gfx, notch_start, f_spectrum->y, notch_width, f_spectrum->height);
+			cairo_fill(gfx);
+
+			// Set the color to yellow with opacity for the notch filter bar
+			cairo_set_source_rgba(gfx, 1.0, 1.0, 0.0, yellow_opacity); 
+
+			// Draw the rectangle representing the notch filter bar at the calculated position and width
+			cairo_rectangle(gfx, notch_start, f_spectrum->y, notch_width, yellow_bar_height);
+			cairo_fill(gfx); 
+		}
+	} else {
+		// Clear the notch filter area from the display if the notch is disabled
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0); // Transparent
+		cairo_rectangle(gfx, f_spectrum->x, f_spectrum->y, f_spectrum->width, f_spectrum->height);
+		cairo_fill(gfx); 
+	}
+
+
   //display active plugins
   // --- QRO plugin indicator W2JON
   const char *qro_text = "QRO";
@@ -1851,7 +1921,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   cairo_set_font_size(gfx, FONT_SMALL);
   
   // Check the dsp_enabled variable and set the text color
-  if (dsp_enabled) {
+  if (dsp_enabled || notch_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
       cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
@@ -2237,15 +2307,21 @@ void menu_display(int show) {
 		// NEW LAYOUT @ 3.027
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
-        field_move("DSP", 240, screen_height - 140, 95, 45);
-        field_move("INTVL", 240, screen_height - 90, 45, 45);
-        field_move("THSHLD", 290, screen_height - 90, 45, 45);
-        field_move("ANR", 350, screen_height - 140, 95, 45); 
-        field_move("QRO", 460,screen_height - 140 ,95 ,45);
-        field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
-        field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
-        field_move("BFO", 350, screen_height - 90 ,45 ,45);
-        field_move("BFO", 350, screen_height - 90 ,45 ,45);
+		field_move("NOTCH", 240, screen_height - 140, 95, 45);
+       	
+		field_move("NFREQ", 240, screen_height - 90, 45, 45);
+        field_move("BNDWTH", 290, screen_height - 90, 45, 45);
+       
+	    field_move("DSP",  350, screen_height - 140, 95, 45);
+        field_move("INTVL", 350, screen_height - 90, 45, 45);
+        field_move("THSHLD", 400, screen_height - 90, 45, 45);
+        field_move("ANR", 460, screen_height - 140, 95, 45); 
+        field_move("BFO", 460, screen_height - 90 ,45 ,45);
+		field_move("QRO", 570,screen_height - 140 ,95 ,45);
+        field_move("TUNE", 680, screen_height - 140 ,95 ,45); 
+        field_move("TNPWR", 680, screen_height - 90 ,45 ,45);
+        
+        
        
                  
           
@@ -3502,6 +3578,19 @@ double scaleNoiseThreshold(int control) {
     return scaled_noise_threshold;
 }
 
+int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+	if (!strcmp(field_str("NOTCH"), "ON")) {
+        struct field *notch_freq_field = get_field("#notch_freq");
+        int notch_freq_value = atoi(notch_freq_field->value);
+        notch_freq = notch_freq_value;  
+        struct field *notch_bandwidth_field = get_field("#notch_bandwidth");
+        int notch_bandwidth_value = atoi(notch_bandwidth_field->value);
+        notch_bandwidth=notch_bandwidth_value;
+    }
+
+    return 0; 
+}
+
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm
 	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
@@ -3624,6 +3713,7 @@ void tx_on(int trigger){
 
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
+	struct field* notch_stat = get_field("#notch_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
@@ -3633,6 +3723,14 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             eq_is_enabled = 1;
         } else if (!strcmp(eq_stat->value, "OFF")) {
             eq_is_enabled = 0;
+        }
+    }
+
+    if (notch_stat) {
+        if (!strcmp(notch_stat->value, "ON")) {
+            notch_enabled = 1;
+        } else if (!strcmp(notch_stat->value, "OFF")) {
+            notch_enabled = 0;
         }
     }
 
@@ -5526,6 +5624,7 @@ int main( int argc, char* argv[] ) {
  	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
   	field_set("TUNE", "OFF");
+	field_set("NOTCH", "OFF");
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
 	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
