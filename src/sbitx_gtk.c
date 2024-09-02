@@ -633,19 +633,23 @@ struct field main_controls[] = {
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
-  
-  //QRO option ON/OFF (hides/reveals menu button)
+
+  // S-Meter Option ON/OFF (hides/reveals s-meter)
+  	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,0},
+
+  // QRO option ON/OFF (hides/reveals menu button)
   	{"#qro_option", do_toggle_option, 1000, -1000, 40, 40, "QROOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
-  //QRO Enable/Bypass Control
+  // QRO Enable/Bypass Control
 	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
    
-  //Sub Menu Control 473,50 <- was
+  // Sub Menu Control 473,50 <- was
 	{ "#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},  
   
-  // Notch Fiklter Controls
+  // Notch Filter Controls
 	{ "#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
   	{ "#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -1974,6 +1978,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	}
 
 //--- S-Meter test W2JON
+if (!strcmp(field_str("SMETEROPT"), "ON")) {
 	int s_meter_value = 0;
 	struct rx *current_rx = rx_list;
 
@@ -2010,7 +2015,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 				cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Dark grey color
 			}
 		}
-
+	
 		cairo_rectangle(gfx, box_x, box_y, box_width, box_height);
 		cairo_fill(gfx);
 	}
@@ -2029,6 +2034,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		cairo_move_to(gfx, start_x + i * (box_width + spacing), start_y + box_height + 15);
 		cairo_show_text(gfx, label);
 	}
+}	
 //---
 
 
