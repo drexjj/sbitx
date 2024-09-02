@@ -509,7 +509,7 @@ struct field main_controls[] = {
 	{"#step", NULL, 560, 5 ,40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"10K/1K/500H/100H/10H", 0,0,0,COMMON_CONTROL},
 	{"#span", NULL, 560, 50 , 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"25K/10K/6K/2.5K", 0,0,0,COMMON_CONTROL},
+		"25K/10K/8K/6K/2.5K", 0,0,0,COMMON_CONTROL},
 	{"#rit", NULL, 600, 50, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50 , 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
@@ -5075,6 +5075,9 @@ void do_control_action(char* cmd) {
 	}
 	else if (!strcmp(request, "SPAN 6K")) {
 		spectrum_span = 6000;
+	}
+	else if (!strcmp(request, "SPAN 8K")) {
+		spectrum_span = 8000;
 	}
 	else if (!strcmp(request, "SPAN 10K")) {
 		spectrum_span = 10000;
