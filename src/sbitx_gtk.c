@@ -1897,10 +1897,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   // Cast qro_text to char* to avoid the warning
   int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 85;
   int qro_text_y = f_spectrum->y + 7;
-  
+  if (!strcmp(field_str("QROOPT"), "ON")) {
   cairo_move_to(gfx, qro_text_x, qro_text_y);
   cairo_show_text(gfx, qro_text);
-  
+  }
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
