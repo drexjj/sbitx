@@ -634,6 +634,9 @@ struct field main_controls[] = {
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
   
+  //QRO option ON/OFF (hides/reveals menu button)
+  	{"#qro_option", do_toggle_option, 1000, -1000, 40, 40, "QROOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,0},
   //QRO Enable/Bypass Control
 	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
@@ -646,9 +649,9 @@ struct field main_controls[] = {
 	{ "#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
   	{ "#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",50, 3000, 10,0}, 
+		"",60, 3000, 10,0}, 
   	{ "#notch_bandwidth", do_notch_edit, 1000, -1000, 40, 40, "BNDWTH", 80, "10", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0, 1000, 10,0}, 
+		"",60, 1000, 10,0}, 
 
   // DSP Controls
 	{ "#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -2274,8 +2277,6 @@ void field_move(char *field_label, int x, int y, int width, int height){
 }
 
 
-
-
 void menu_display(int show) {
     struct field* f;
 
@@ -2288,43 +2289,22 @@ void menu_display(int show) {
     if (show) {
 
         // Move each control to the appropriate position
-        //field_move("B0F", 40, screen_height - 145, 45, 45);
-        //field_move("B0G", 40, screen_height - 95, 45, 45);
-        //field_move("B0B", 95, screen_height - 145, 45, 45);
-        //field_move("B1F", 90, screen_height - 145, 45, 45);
-        //field_move("B1G", 90, screen_height - 95, 45, 45);
-        //field_move("B1B", 95, screen_height - 95, 45, 45);
-        //field_move("B2F", 140, screen_height - 145, 45, 45);
-        //field_move("B2G", 140, screen_height - 95, 45, 45);
-        //field_move("B2B", 235, screen_height - 145, 45, 45);
-        //field_move("B3F", 190, screen_height - 145, 45, 45);
-        //field_move("B3G", 190, screen_height - 95, 45, 45);
-        //field_move("B3B", 235, screen_height - 95, 45, 45);
-        //field_move("B4F", 240, screen_height - 145, 45, 45);
-        //field_move("B4G", 240, screen_height - 95, 45, 45);
-        //field_move("B4B", 375, screen_height - 145, 45, 45);
-        //field_move("TXEQ", 295, screen_height - 120, 45, 45);
-		// NEW LAYOUT @ 3.027
+ 		// NEW LAYOUT @ 3.1
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
 		field_move("NOTCH", 240, screen_height - 140, 95, 45);
-       	
-		field_move("NFREQ", 240, screen_height - 90, 45, 45);
+       	field_move("NFREQ", 240, screen_height - 90, 45, 45);
         field_move("BNDWTH", 290, screen_height - 90, 45, 45);
-       
-	    field_move("DSP",  350, screen_height - 140, 95, 45);
+        field_move("DSP",  350, screen_height - 140, 95, 45);
         field_move("INTVL", 350, screen_height - 90, 45, 45);
         field_move("THSHLD", 400, screen_height - 90, 45, 45);
         field_move("ANR", 460, screen_height - 140, 95, 45); 
         field_move("BFO", 460, screen_height - 90 ,45 ,45);
-		field_move("QRO", 570,screen_height - 140 ,95 ,45);
-        field_move("TUNE", 680, screen_height - 140 ,95 ,45); 
-        field_move("TNPWR", 680, screen_height - 90 ,45 ,45);
-        
-        
-       
-                 
-          
+		if (!strcmp(field_str("QROOPT"), "ON")) {
+		field_move("QRO", 680,screen_height - 140 ,95 ,45);
+		}
+        field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
+        field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
         
     } else {
         // Move the fields off-screen if not showing
