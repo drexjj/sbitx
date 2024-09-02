@@ -78,7 +78,7 @@
 						<option value="FT8">FT8</option>
 						<option value="PSK31">PSK31</option>
 						<option value="RTTY">RTTY</option>
-						<option value="DIGITAL">Digital</option> 
+						<option value="DIGI">DIGI</option> 
 						<option value="2TONE">2TONE</option>
 					</select>
 				</span><span class="menu-item" id="dial">
@@ -736,7 +736,7 @@ function filter_set(event){
 	var low = 300;
 	var high = 3000;
 
-	if (mode == "FT8" || mode == "FT4" || mode == "DIGITAL"){
+	if (mode == "FT8" || mode == "FT4" || mode == "DIGI"){
 		low = 0;
 		high = id;
 	}

@@ -378,7 +378,7 @@ static int tx_mod_max = 0;
 
 char*mode_name[MAX_MODES] = {
 	"USB", "LSB", "CW", "CWR", "NBFM", "AM", "FT8", "PSK31", "RTTY", 
-	"DIGITAL", "2TONE"
+	"DIGI", "2TONE"
 };
 
 static int serial_fd = -1;
@@ -519,7 +519,7 @@ struct field main_controls[] = {
  	{ "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 50, 5000, 50,COMMON_CONTROL},
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"USB/LSB/AM/CW/CWR/FT8/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
+		"USB/LSB/AM/CW/CWR/FT8/DIGI/2TONE", 0,0,0, COMMON_CONTROL},
 
 	/* logger controls */
 	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, FONT_LOG, 
@@ -1359,7 +1359,7 @@ static int mode_id(const char *mode_str){
 		return MODE_AM;
 	else if (!strcmp(mode_str, "2TONE"))
 		return MODE_2TONE;
-	else if (!strcmp(mode_str, "DIGITAL"))
+	else if (!strcmp(mode_str, "DIGI"))
 		return MODE_DIGITAL;
  	else if (!strcmp(mode_str, "TUNE"))  // Defined TUNE mode - 
 		return MODE_CALIBRATE;
@@ -2322,8 +2322,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-    	        case MODE_2TONE:  // W9JES
-     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+		case MODE_2TONE:  // W9JES
+			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2332,9 +2332,9 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-                        break;
-                case MODE_DIGITAL:  // W9JES
-                        field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			break;
+		case MODE_DIGITAL:  // W9JES
+			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2347,10 +2347,10 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("SIDETONE", 560, y1, 95, 45);
 			break;
 		default:
-    		        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-     		        field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
 			y1 = y2 - 105;
 			field_move("F1", 5, y1, 90, 45);
 			field_move("F2", 100, y1, 95, 45);
@@ -3558,7 +3558,7 @@ void tx_on(int trigger){
 			tx_mode = MODE_AM;
 		else if (!strcmp(f->value, "2TONE"))
 			tx_mode = MODE_2TONE;
-		else if (!strcmp(f->value, "DIGITAL"))
+		else if (!strcmp(f->value, "DIGI"))
 			tx_mode = MODE_DIGITAL;
  		else if (!strcmp(f->value, "TUNE"))  // Defined TUNE mode - W9JES
 			tx_mode = MODE_CALIBRATE;  

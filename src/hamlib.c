@@ -147,7 +147,7 @@ void send_mode(){
 char mode[10];
     char response[20];
     get_field_value_by_label("MODE",mode);
-    if (!strcmp(mode,"DIGITAL"))
+    if (!strcmp(mode,"DIGI"))
       strcpy(mode,"PKTUSB");
     sprintf(response,"%s\n%i\n", mode,  get_passband_bw());
     send_response(response);
@@ -172,10 +172,10 @@ void set_mode(char* f) {
         return;
     } 
     if (!strcmp(mode, "PKTUSB"))
-        strcpy(mode, "DIGITAL");
+        strcpy(mode, "DIGI");
     //printf("Mode? = '%s'\n", mode);
     const char* supported_hamlib_modes[6] = {
-    "USB", "LSB", "CW", "CWR","DIGITAL","AM"
+    "USB", "LSB", "CW", "CWR","DIGI","AM"
     };
     for (int i = 0; i < 6; i++) {
         if (!strcmp(mode, supported_hamlib_modes[i])) {
