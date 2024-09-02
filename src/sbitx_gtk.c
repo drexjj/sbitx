@@ -5103,7 +5103,8 @@ void do_control_action(char* cmd) {
 	}
 	else if (!strcmp(request, "REC OFF")) {
 		sdr_request("record", "off");
-		write_console(FONT_LOG, "Recording stopped\n");
+		if (record_start != 0)
+			write_console(FONT_LOG, "Recording stopped\n");
 		record_start = 0;
 	}
 	else if (!strcmp(request, "QRZ") && strlen(field_str("CALL")) > 0) {
