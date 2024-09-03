@@ -1899,12 +1899,32 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast qro_text to char* to avoid the warning
-  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 85;
+  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 118;
   int qro_text_y = f_spectrum->y + 7;
   if (!strcmp(field_str("QROOPT"), "ON")) {
   cairo_move_to(gfx, qro_text_x, qro_text_y);
   cairo_show_text(gfx, qro_text);
   }
+
+  // --- NOTCH plugin indicator W2JON
+  const char *notch_text = "NOTCH";
+  cairo_set_font_size(gfx, FONT_SMALL);
+  
+  // Check the notch_enabled variable and set the text color
+  if (notch_enabled) {
+      cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
+  } else {
+      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+  }
+  
+  // Cast notch_text to char* to avoid the warning
+  int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)notch_text, FONT_SMALL) - 82;
+  int notch_text_y = f_spectrum->y + 7;
+  
+  cairo_move_to(gfx, notch_text_x, notch_text_y);
+  cairo_show_text(gfx, notch_text);
+
+
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
@@ -1917,7 +1937,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast txeq_text to char* to avoid the warning
-  int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 55;
+  int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 52;
   int txeq_text_y = f_spectrum->y + 7;
   
   cairo_move_to(gfx, txeq_text_x, txeq_text_y);
@@ -1928,14 +1948,14 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   cairo_set_font_size(gfx, FONT_SMALL);
   
   // Check the dsp_enabled variable and set the text color
-  if (dsp_enabled || notch_enabled) {
+  if (dsp_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
       cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
   }
   
   // Cast dsp_text to char* to avoid the warning
-  int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)dsp_text, FONT_SMALL) - 30;
+  int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)dsp_text, FONT_SMALL) - 28;
   int dsp_text_y = f_spectrum->y + 7;
   
   cairo_move_to(gfx, dsp_text_x, dsp_text_y);
