@@ -1432,7 +1432,8 @@ void enter_qso(){
 		get_field("#rst_sent")->value, 
 		get_field("#exchange_sent")->value, 
 		get_field("#rst_received")->value, 
-		get_field("#exchange_received")->value);
+		get_field("#exchange_received")->value,
+		get_field("#text_in")->value);
 	char buff[100];
 	sprintf(buff, "Logged: %s %s-%s %s-%s\n", 
 		field_str("CALL"), field_str("SENT"), field_str("NR"), 
@@ -2577,6 +2578,23 @@ static void focus_field(struct field *f){
 				do_control_action(f->label);
 }
 
+static void focus_field_without_toggle(struct field *f) {
+	{
+		//this is an extract from focus_field()
+		//it shifts the focus to the updated field
+		//without toggling/changing the value 
+		struct field *prev_hover = f_hover;
+		struct field *prev_focus = f_focus;
+		f_focus = NULL;
+		f_focus = f_hover = f;
+		focus_since = millis();
+		update_field(f_hover);
+		update_field(prev_focus);
+		update_field(prev_hover);
+		if (f_focus->value_type == FIELD_TEXT)
+			f_last_text = f_focus;
+      }
+}
 time_t time_sbitx(){
 	if (time_delta)
 		return time(NULL);
@@ -2703,6 +2721,8 @@ void call_wipe(){
 	field_set("RECV", "");
 	field_set("EXCH", "");
 	field_set("NR", "");
+	//Reset cmd/comment field
+	set_field("#text_in", "");
 }
 
 void update_titlebar(){
@@ -3491,8 +3511,8 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
    
     char output[500];
 	//console_init(); //playing with clearing the console...
-	sprintf(output,"BFO value = %d\n", result);
-	write_console(FONT_LOG, output);
+	//sprintf(output,"BFO value = %d\n", result);
+	//write_console(FONT_LOG, output);
 
     return 0; 
 }
@@ -3721,13 +3741,78 @@ static gboolean on_key_release (GtkWidget *widget, GdkEventKey *event, gpointer 
 		control_down = 0;
 	}
 
-	if (event->keyval == MIN_KEY_TAB){
-		tx_off();
-  }
+	//Not sure why on earth we'd need this to stop TX on release of TAB key, commenting out as it wipes out text entered into TEXT field
+	//if (event->keyval == MIN_KEY_TAB){
+	//  tx_off();
+	//}
 
 }
 
 static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+	//Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
+	if (f_focus) {
+		switch(event->keyval){
+				case GDK_KEY_ISO_Left_Tab:
+				case GDK_KEY_Tab:
+				case GDK_KEY_rightarrow:
+				case GDK_KEY_leftarrow:
+				case GDK_KEY_Left:
+				case GDK_KEY_Right:
+				struct field *f;
+				int forward = 1;
+				if (event->keyval == GDK_KEY_ISO_Left_Tab | event->keyval == GDK_KEY_leftarrow | event->keyval == GDK_KEY_Left)
+					forward = 0;
+				if (!strcmp(f_focus->cmd,"#contact_callsign")) {
+					if (forward == 1)
+						f = get_field_by_label("SENT");
+					else
+						f = get_field_by_label("WIPE");
+				} else if (!strcmp(f_focus->cmd,"#rst_sent")) {
+					if (forward == 1)
+						f = get_field_by_label("RECV");
+					else
+						f = get_field_by_label("CALL");
+				} else if (!strcmp(f_focus->cmd,"#rst_received")) {
+					if (forward == 1)
+						f = get_field_by_label("EXCH");
+					else
+						f = get_field_by_label("SENT");
+				} else if (!strcmp(f_focus->cmd,"#exchange_received")) {
+					if (forward == 1)
+						f = get_field_by_label("NR");
+					else
+						f = get_field_by_label("RECV");
+				} else if (!strcmp(f_focus->cmd,"#exchange_sent")) {
+					if (forward==1)
+						f = get_field_by_label("TEXT");
+					else
+						f = get_field_by_label("EXCH");
+				} else if (!strcmp(f_focus->cmd,"#text_in")) {
+					if (forward==1)
+						f = get_field_by_label("SAVE");
+					else
+						f = get_field_by_label("NR");
+				} else if (!strcmp(f_focus->cmd,"#enter_qso")) {
+					if (forward==1)
+						f = get_field_by_label("WIPE");
+					else
+						f = get_field_by_label("TEXT");
+				} else if (!strcmp(f_focus->cmd,"#wipe")) {
+					if (forward==1)
+						f = get_field_by_label("CALL");
+					else
+						f = get_field_by_label("SAVE");
+				} else {
+					//Switch to first qso log if no match for control with current focus
+					f = get_field_by_label("CALL");
+				}
+				focus_field_without_toggle(f);
+				return FALSE;
+				break;
+			}
+	}
+	
+	
 	char request[1000], response[1000];
 
 	if (event->keyval == MIN_KEY_CONTROL){
@@ -3822,8 +3907,11 @@ static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer us
 			//printf("key_modifier set to %d\n", key_modifier);
 			break;
 		default:
-			//by default, all text goes to the text_input control
-			if (event->keyval == MIN_KEY_ENTER)
+			//If save or wipe have focus, process them seperately here if key pressed is enter or space
+			if ((event->keyval == MIN_KEY_ENTER | event->keyval == GDK_KEY_space) & (!strcmp(f_focus->label,"SAVE") || !strcmp(f_focus->label,"WIPE"))){
+				do_control_action(f_focus->label);
+			} else if (event->keyval == MIN_KEY_ENTER)
+			//Otherwise by default, all text goes to the text_input control	
 				edit_field(get_field("#text_in"), '\n');
 			else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12){
 				int fn_key = event->keyval - MIN_KEY_F1 + 1;
@@ -4429,10 +4517,10 @@ void handleButtonPress() {
             if (difftime(time(NULL), buttonPressTime) < 1) {
                 // Short press detected
                	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
-	        	        		focus_field(get_field("r1:mode"));
-	          		}else{
-		          		focus_field(get_field("r1:volume"));
-		            	//printf("Focus is on %s\n", f_focus->label);
+					focus_field_without_toggle(get_field("r1:mode"));
+				}else{
+					focus_field(get_field("r1:volume"));
+					//printf("Focus is on %s\n", f_focus->label);
 	  	          } 
             }
          }
@@ -4635,10 +4723,10 @@ void ui_init(int argc, char *argv[]){
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
   gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
   gtk_window_set_title( GTK_WINDOW(window), "sBITX" );
-	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
+  gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
 
   display_area = gtk_drawing_area_new();
-	gtk_widget_set_size_request(display_area, 500, 400);
+  gtk_widget_set_size_request(display_area, 500, 400);
   gtk_container_add( GTK_CONTAINER(window), display_area );
 
   g_signal_connect( G_OBJECT(window), "destroy", G_CALLBACK( gtk_main_quit ), NULL );
