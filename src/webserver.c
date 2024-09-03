@@ -229,10 +229,29 @@ static pthread_t webserver_thread;
 
 void webserver_start(){
 	char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
-	char *path = getenv("HOME");
-	strcpy(s_web_root, path);
-	strcat(s_web_root, "/sbitx/web");
 
+	//TODO:  Make a helper function for this path stuff - n1qm	
+	//Get symlink that points to this executables
+	int readPath = readlink("/proc/self/exe", directory, 200);
+	
+	//Find the last path seperator
+	int lastSep = 0;
+	for (int i=0;i < readPath;i++) {
+		if (directory[i] == '/')
+			lastSep=i;
+	}
+
+	//Trim string at last seperator if > 0
+	if (lastSep > 0)
+		directory[lastSep] = '\0';
+	else
+		directory[readPath]='\0';
+	//directoryPath should now be where the sbitx binary lives
+
+	//char *path = getenv("HOME");
+	strcpy(s_web_root, directory);
+	strcat(s_web_root, "/web");
+	printf("Dir %s\n",s_web_root);
 	//logbook_open();
  	pthread_create( &webserver_thread, NULL, webserver_thread_function, 
 		(void*)NULL);
