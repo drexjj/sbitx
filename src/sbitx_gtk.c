@@ -3137,7 +3137,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
       }
     }
   }
-	if (vfo_lock ==0){
+	if (vfo_lock == 0){
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
 			//Fix a compiler warning - n1qm
