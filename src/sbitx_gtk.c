@@ -60,6 +60,7 @@ struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
+int vfo_lock = 0;
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -207,6 +208,7 @@ struct Queue q_web;
 int noise_threshold = 0; // DSP 
 int noise_update_interval = 50; //DSP 
 int bfo_offset = 0;
+
 // event ids, some of them are mapped from gtk itself
 #define FIELD_DRAW 0
 #define FIELD_UPDATE 1 
@@ -463,6 +465,7 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
+
 struct field *active_layout = NULL;
 char settings_updated = 0;
 #define LAYOUT_KBD 0
@@ -629,11 +632,14 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-  
-  // EQ TX Audio Setting Controls
+   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
 
+  // VFO Lock ON/OFF
+   	{ "#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF",0,0,0,0},
+ 
   // S-Meter Option ON/OFF (hides/reveals s-meter)
   	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
@@ -2326,6 +2332,7 @@ void menu_display(int show) {
         field_move("THSHLD", 400, screen_height - 90, 45, 45);
         field_move("ANR", 460, screen_height - 140, 95, 45); 
         field_move("BFO", 460, screen_height - 90 ,45 ,45);
+		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 		if (!strcmp(field_str("QROOPT"), "ON")) {
 		field_move("QRO", 680,screen_height - 140 ,95 ,45);
 		}
@@ -2735,7 +2742,6 @@ void set_operating_freq(int dial_freq, char *response){
 	struct field *vfo_a = get_field("#vfo_a_freq");
 	struct field *vfo_b = get_field("#vfo_b_freq");
 	struct field *rit_delta = get_field("#rit_delta");
-
 	char freq_request[30];
  
 	if (!strcmp(rit->value, "ON")){
@@ -3131,7 +3137,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
       }
     }
   }
-
+	if (vfo_lock ==0){
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
 			//Fix a compiler warning - n1qm
@@ -3172,7 +3178,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 				v = (v / tuning_step - 1)*tuning_step;
 			abort_tx();
 		}
-		
+	}	
 		sprintf(f->value, "%d",  v);
 		tuning_step = temp_tuning_step;
 		//send the new frequency to the sbitx core
@@ -3194,6 +3200,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	}
 	return 0;	
 }
+
 
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	if(event == GDK_BUTTON_PRESS){
@@ -3583,7 +3590,6 @@ double scaleNoiseThreshold(int control) {
     double scaled_noise_threshold = minValue + ((double)control - controlMin) * (maxValue - minValue) / (controlMax - controlMin);
     return scaled_noise_threshold;
 }
-
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 	if (!strcmp(field_str("NOTCH"), "ON")) {
         struct field *notch_freq_field = get_field("#notch_freq");
@@ -3655,12 +3661,6 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
     return 0; 
 }
 
-
-
-
-
-
-
 void tx_on(int trigger){
 	char response[100];
 
@@ -3723,6 +3723,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
+	struct field* vfo_stat = get_field("#vfo_lock");
 
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
@@ -3764,6 +3765,14 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
         } else if (!strcmp(qro_stat->value, "OFF")) {
             qro_enabled = 0;
         }
+    }
+
+	if (vfo_stat) {
+        if (!strcmp(vfo_stat->value, "ON")) {
+            vfo_lock = 1;
+		  } else if (!strcmp(vfo_stat->value, "OFF")) {
+            vfo_lock = 0;
+		  }
     }
 	
     return TRUE;  // Return TRUE to keep the timer running
@@ -4567,7 +4576,8 @@ extern int field_set(const char *label, const char *new_value);
 static time_t buttonPressTime;
 static int buttonPressed = 0;
 
-void handleButtonPress() {
+
+void handleButton1Press() {
     static int menuVisible = 0;
     static time_t buttonPressTime = 0;
     static int buttonPressed = 0;
@@ -4605,7 +4615,48 @@ void handleButtonPress() {
          }
       } 
    }  
-   
+
+   void handleButton2Press() {
+	static int vfoLock = 0;
+    static time_t buttonPressTimeSW2 = 0;
+    static int buttonPressedSW2 = 0;
+
+    if (digitalRead(ENC2_SW) == 0) {
+        if (!buttonPressedSW2) {
+            buttonPressedSW2 = 1;
+            buttonPressTimeSW2 = time(NULL);
+        } else {
+            // Check the duration of the button press
+            time_t currentTime = time(NULL);
+            if (difftime(currentTime, buttonPressTimeSW2) >= 1) {
+                // Long press detected - Enable/Disable VFO lock
+                vfoLock = !vfoLock;
+				field_set("VFOLK", vfoLock ? "ON" : "OFF");
+				printf("VFOLock: %d\n", vfoLock);
+
+				if (vfoLock == 1){
+				write_console(FONT_LOG, "VFO Lock ON\n");
+				}
+				if (vfoLock == 0){
+				write_console(FONT_LOG, "VFO Lock OFF\n");	
+				}
+                // Wait for the button release to avoid immediate short press detection
+                while (digitalRead(ENC2_SW) == 0) {
+                    delay(100); // Adjust delay time as needed
+                }
+                buttonPressedSW2 = 0; // Reset button press state after delay
+            }
+        }
+    } else {
+        if (buttonPressedSW2) {
+            buttonPressedSW2 = 0;
+            if (difftime(time(NULL), buttonPressTimeSW2) < 1) {
+                // Short press detected - Invoke oled_toggle_band()
+                oled_toggle_band();
+            }
+        }
+    }
+}
 
 gboolean ui_tick(gpointer gook){
 	int static ticks = 0;
@@ -4647,22 +4698,19 @@ gboolean ui_tick(gpointer gook){
 	
 	// check the tuning knob
 	struct field *f = get_field("r1:freq");
-
 	while (tuning_ticks > 0){
-		edit_field(f, MIN_KEY_DOWN);
+	 	edit_field(f, MIN_KEY_DOWN);
 		tuning_ticks--;
     //sprintf(message, "tune-\r\n");
     //write_console(FONT_LOG, message);
-
 	}
 
 	while (tuning_ticks < 0){
 		edit_field(f, MIN_KEY_UP);
 		tuning_ticks++;
     //sprintf(message, "tune+\r\n");
-    //write_console(FONT_LOG, message);
+	//write_console(FONT_LOG, message);
 	}
-
 
 	if (ticks % 20 == 0){
   	modem_poll(mode_id(get_field("r1:mode")->value));
@@ -4707,10 +4755,10 @@ gboolean ui_tick(gpointer gook){
 		update_field(f);
 */
   
-   handleButtonPress(); // Call the new button press handler -W2JON
-
-		if (digitalRead(ENC2_SW) == 0)
-		oled_toggle_band();
+   handleButton1Press(); // Call the SW1 handler -W2JON
+   handleButton2Press(); // Call the SW2 handler -W2JON		
+		//if (digitalRead(ENC2_SW) == 0)
+		//oled_toggle_band();
 
 		if (record_start)
 			update_field(get_field("#record"));
@@ -5631,6 +5679,7 @@ int main( int argc, char* argv[] ) {
 	field_set("MENU", "OFF"); 
   	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
+	field_set("VFOLK" , "OFF");
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
 	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
