@@ -68,6 +68,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
 #define SCALING_TRIM 2.7 // Use this to tune your meter response 2.7 worked at 51% and my inverted L
+
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
 fftw_complex *fft_m;			// holds previous samples for overlap and discard convolution 
@@ -103,6 +104,7 @@ int anr_enabled = 0;//anr W2JON
 int notch_enabled = 0;//notch filter W2JON
 double notch_freq = 0; // Notch frequency in Hz W2JON
 double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
+
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -351,7 +353,6 @@ int calculate_s_meter(struct rx *r, double rx_gain) {
     // Return the value formatted as "S-unit * 100 + additional dB"
     return (s_units * 100) + additional_db;
 }
-
 
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
@@ -778,6 +779,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         __real__ fft_in[i] *= spectrum_window[i];
     my_fftw_execute(plan_spectrum);
     spectrum_update();
+
 	// STEP 4: Rotate the bins around by r->tuned_bin
     struct rx *r = rx_list;
     int shift = r->tuned_bin;
@@ -791,6 +793,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
             b += MAX_BINS;
         r->fft_freq[i] = fft_out[b];
     }
+
 
 	// STEP 4a: BIN processing functions for a better life.
 
@@ -858,7 +861,6 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
                 r->fft_freq[i] *= wiener_filter;
             }
         }
-
      }
 
     // STEP 5: Zero out the other sideband

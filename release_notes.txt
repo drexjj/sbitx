@@ -1,0 +1,9 @@
+v3.1 -
+Added Tune button and functions
+Added menu button
+Updated transmit equalizer with gui
+Added noise reduction and digital signal processing
+Added BFO shift
+Fixed 25khz waterfall display
+Added indicator status for button functions
+Reorganized mode displays

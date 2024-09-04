@@ -4,9 +4,9 @@
 # see which command caused the error.
 F=$@
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-sudo apt-mark unhold linux-headers-6.6.20+rpt-common-rpi linux-headers-6.6.20+rpt-rpi-2712 linux-headers-6.6.20+rpt-rpi-v8 linux-image-6.6.20+rpt-rpi-2712 linux-image-6.6.20+rpt-rpi-v8 linux-kbuild-6.6.20+rpt
 date
 cd $HOME/sbitx
+git stash --include-untracked
 git pull
 cd $HOME/sbitx/src/ft8_lib
 make

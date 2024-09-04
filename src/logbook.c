@@ -150,7 +150,8 @@ void logbook_open(){
 }
 
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
-	char *rst_recv, char *exchange_recv){
+
+	char *rst_recv, char *exchange_recv, char *comments){
 	char statement[1000], *err_msg, date_str[10], time_str[10];
 	char freq[12], log_freq[12], mode[10], mycallsign[10];
 
@@ -167,10 +168,10 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	sprintf(statement,
 		"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
-		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv) "
-		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s');",
+		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
+		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
 			log_freq, mode, date_str, time_str, mycallsign,
-			 rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv);
+			 rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv, comments);
 
 	if (db == NULL)
 		logbook_open();
@@ -1050,8 +1051,9 @@ void logbook_list_open(){
 */
     // Add tree view to scrolled window
     gtk_container_add(GTK_CONTAINER(scrolled_window), tree_view);
+	clear_tree(list_store);
+	logbook_fill(0, 10000, NULL);
 
-		logbook_fill(0, 10000, NULL);
     // Connect row activation signal
 //		gtk_tree_view_set_activate_on_single_click((GtkTreeView *)tree_view, FALSE);
 //    g_signal_connect(tree_view, "row-activated", G_CALLBACK(on_row_activated), NULL);

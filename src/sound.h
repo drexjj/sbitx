@@ -33,6 +33,7 @@ extern int input_volume;
 int get_input_volume(void);
 void check_r1_volume();
 
+
 //Notch Filter
 extern int notch_enabled;
 extern double notch_freq; 
@@ -46,5 +47,4 @@ extern int dsp_enabled;
 extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
-
 

@@ -808,7 +808,9 @@ void ft8_on_signal_report(){
 		sprintf(reply_message, "%s %s R%s", call, mycall, report_send);  	
 		ft8_tx(reply_message, tx_pitch);
 	}
-	enter_qso();
+
+	//Disabled this because of early logging - W9JES
+	//enter_qso();
 }
 
 void ft8_process(char *message, int operation){
@@ -852,6 +854,7 @@ void ft8_process(char *message, int operation){
 
 	if (!strcmp(m3, "73")){
 		ft8_abort();
+		enter_qso(); // W9JES
 		ft8_repeat = 0;
 		return;
 	}

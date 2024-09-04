@@ -1,5 +1,5 @@
-# * my callsing
-# ! other station's call sign
+# * my callsign
+# ! other station's callsign
 # @ current receive freq
 # # serial number for this QSO
 # {SENTRST}

@@ -1,0 +1,17 @@
+#!/bin/bash
+# This script restores the mouse pointer to default and does not auto hide it.
+
+# Uninstall unclutter
+sudo apt remove -y unclutter
+
+# Set autostart location
+AUTOSTART_FILE="/etc/xdg/lxsession/LXDE/autostart"
+
+# Check if the autostart file exists and remove the change
+if [ -f "$AUTOSTART_FILE" ]; then
+    # Remove the line containing "@unclutter -idle 0.1 -root"
+    sudo sed -i '/@unclutter -idle 0\.1 -root/d' "$AUTOSTART_FILE"
+    echo "Removed 'unclutter' from $AUTOSTART_FILE"
+else
+    echo "Autostart file does not exist at $AUTOSTART_FILE"
+fi

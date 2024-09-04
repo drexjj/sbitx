@@ -50,6 +50,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 extern int calculate_s_meter(struct rx *r);
 extern struct rx *rx_list; 
 
+
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
@@ -61,6 +62,7 @@ int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
 int vfo_lock = 0;
+
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -208,7 +210,6 @@ struct Queue q_web;
 int noise_threshold = 0; // DSP 
 int noise_update_interval = 50; //DSP 
 int bfo_offset = 0;
-
 // event ids, some of them are mapped from gtk itself
 #define FIELD_DRAW 0
 #define FIELD_UPDATE 1 
@@ -632,7 +633,8 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-   // EQ TX Audio Setting Controls
+
+  // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
 
@@ -1457,7 +1459,9 @@ void enter_qso(){
 		get_field("#rst_sent")->value, 
 		get_field("#exchange_sent")->value, 
 		get_field("#rst_received")->value, 
-		get_field("#exchange_received")->value);
+		get_field("#exchange_received")->value,
+		get_field("#text_in")->value);
+
 	char buff[100];
 	sprintf(buff, "Logged: %s %s-%s %s-%s\n", 
 		field_str("CALL"), field_str("SENT"), field_str("NR"), 
@@ -1905,6 +1909,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast qro_text to char* to avoid the warning
+
   int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 118;
   int qro_text_y = f_spectrum->y + 7;
   if (!strcmp(field_str("QROOPT"), "ON")) {
@@ -1930,7 +1935,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   cairo_move_to(gfx, notch_text_x, notch_text_y);
   cairo_show_text(gfx, notch_text);
 
-
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
@@ -1943,6 +1947,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast txeq_text to char* to avoid the warning
+
   int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 52;
   int txeq_text_y = f_spectrum->y + 7;
   
@@ -1961,6 +1966,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast dsp_text to char* to avoid the warning
+
   int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)dsp_text, FONT_SMALL) - 28;
   int dsp_text_y = f_spectrum->y + 7;
   
@@ -2002,6 +2008,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		draw_text(gfx, f->x + i - off , f->y+grid_height , freq_text, FONT_SMALL);
 		f_start += freq_div;
 	}
+
 
 //--- S-Meter test W2JON
 if (!strcmp(field_str("SMETEROPT"), "ON")) {
@@ -2061,8 +2068,6 @@ if (!strcmp(field_str("SMETEROPT"), "ON")) {
 		cairo_show_text(gfx, label);
 	}
 }	
-//---
-
 
 	//we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
@@ -2309,6 +2314,7 @@ void field_move(char *field_label, int x, int y, int width, int height){
 }
 
 
+
 void menu_display(int show) {
     struct field* f;
 
@@ -2321,6 +2327,7 @@ void menu_display(int show) {
     if (show) {
 
         // Move each control to the appropriate position
+
  		// NEW LAYOUT @ 3.1
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
@@ -2729,6 +2736,25 @@ static void focus_field(struct field *f){
 				do_control_action(f->label);
 }
 
+
+static void focus_field_without_toggle(struct field *f) {
+	{
+		//this is an extract from focus_field()
+		//it shifts the focus to the updated field
+		//without toggling/changing the value 
+		struct field *prev_hover = f_hover;
+		struct field *prev_focus = f_focus;
+		f_focus = NULL;
+		f_focus = f_hover = f;
+		focus_since = millis();
+		update_field(f_hover);
+		update_field(prev_focus);
+		update_field(prev_hover);
+		if (f_focus->value_type == FIELD_TEXT)
+			f_last_text = f_focus;
+      }
+}
+
 time_t time_sbitx(){
 	if (time_delta)
 		return time(NULL);
@@ -2742,6 +2768,7 @@ void set_operating_freq(int dial_freq, char *response){
 	struct field *vfo_a = get_field("#vfo_a_freq");
 	struct field *vfo_b = get_field("#vfo_b_freq");
 	struct field *rit_delta = get_field("#rit_delta");
+
 	char freq_request[30];
  
 	if (!strcmp(rit->value, "ON")){
@@ -2854,6 +2881,10 @@ void call_wipe(){
 	field_set("RECV", "");
 	field_set("EXCH", "");
 	field_set("NR", "");
+
+	//Reset cmd/comment field
+	set_field("#text_in", "");
+
 }
 
 void update_titlebar(){
@@ -3137,7 +3168,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
       }
     }
   }
+
 	if (vfo_lock == 0){
+
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
 			//Fix a compiler warning - n1qm
@@ -3179,6 +3212,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 			abort_tx();
 		}
 	}	
+
 		sprintf(f->value, "%d",  v);
 		tuning_step = temp_tuning_step;
 		//send the new frequency to the sbitx core
@@ -3200,7 +3234,6 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	}
 	return 0;	
 }
-
 
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	if(event == GDK_BUTTON_PRESS){
@@ -3590,6 +3623,7 @@ double scaleNoiseThreshold(int control) {
     double scaled_noise_threshold = minValue + ((double)control - controlMin) * (maxValue - minValue) / (controlMax - controlMin);
     return scaled_noise_threshold;
 }
+
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 	if (!strcmp(field_str("NOTCH"), "ON")) {
         struct field *notch_freq_field = get_field("#notch_freq");
@@ -3602,6 +3636,7 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
     return 0; 
 }
+
 
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm
@@ -3655,8 +3690,9 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
    
     char output[500];
 	//console_init(); //playing with clearing the console...
-	sprintf(output,"BFO value = %d\n", result);
-	write_console(FONT_LOG, output);
+	//sprintf(output,"BFO value = %d\n", result);
+	//write_console(FONT_LOG, output);
+
 
     return 0; 
 }
@@ -3719,6 +3755,7 @@ void tx_on(int trigger){
 
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
+
 	struct field* notch_stat = get_field("#notch_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
@@ -3732,6 +3769,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             eq_is_enabled = 0;
         }
     }
+
 
     if (notch_stat) {
         if (!strcmp(notch_stat->value, "ON")) {
@@ -3766,6 +3804,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             qro_enabled = 0;
         }
     }
+
 
 	if (vfo_stat) {
         if (!strcmp(vfo_stat->value, "ON")) {
@@ -3897,13 +3936,81 @@ static gboolean on_key_release (GtkWidget *widget, GdkEventKey *event, gpointer 
 		control_down = 0;
 	}
 
-	if (event->keyval == MIN_KEY_TAB){
-		tx_off();
-  }
+
+	//Not sure why on earth we'd need this to stop TX on release of TAB key, commenting out as it wipes out text entered into TEXT field
+	//if (event->keyval == MIN_KEY_TAB){
+	//  tx_off();
+	//}
+
 
 }
 
 static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+
+	//Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
+	if (f_focus) {
+		switch(event->keyval){
+				case GDK_KEY_ISO_Left_Tab:
+				case GDK_KEY_Tab:
+				case GDK_KEY_rightarrow:
+				case GDK_KEY_leftarrow:
+				case GDK_KEY_Left:
+				case GDK_KEY_Right:
+				struct field *f;
+				int forward = 1;
+				if (event->keyval == GDK_KEY_ISO_Left_Tab | event->keyval == GDK_KEY_leftarrow | event->keyval == GDK_KEY_Left)
+					forward = 0;
+				if (!strcmp(f_focus->cmd,"#contact_callsign")) {
+					if (forward == 1)
+						f = get_field_by_label("SENT");
+					else
+						f = get_field_by_label("WIPE");
+				} else if (!strcmp(f_focus->cmd,"#rst_sent")) {
+					if (forward == 1)
+						f = get_field_by_label("RECV");
+					else
+						f = get_field_by_label("CALL");
+				} else if (!strcmp(f_focus->cmd,"#rst_received")) {
+					if (forward == 1)
+						f = get_field_by_label("EXCH");
+					else
+						f = get_field_by_label("SENT");
+				} else if (!strcmp(f_focus->cmd,"#exchange_received")) {
+					if (forward == 1)
+						f = get_field_by_label("NR");
+					else
+						f = get_field_by_label("RECV");
+				} else if (!strcmp(f_focus->cmd,"#exchange_sent")) {
+					if (forward==1)
+						f = get_field_by_label("TEXT");
+					else
+						f = get_field_by_label("EXCH");
+				} else if (!strcmp(f_focus->cmd,"#text_in")) {
+					if (forward==1)
+						f = get_field_by_label("SAVE");
+					else
+						f = get_field_by_label("NR");
+				} else if (!strcmp(f_focus->cmd,"#enter_qso")) {
+					if (forward==1)
+						f = get_field_by_label("WIPE");
+					else
+						f = get_field_by_label("TEXT");
+				} else if (!strcmp(f_focus->cmd,"#wipe")) {
+					if (forward==1)
+						f = get_field_by_label("CALL");
+					else
+						f = get_field_by_label("SAVE");
+				} else {
+					//Switch to first qso log if no match for control with current focus
+					f = get_field_by_label("CALL");
+				}
+				focus_field_without_toggle(f);
+				return FALSE;
+				break;
+			}
+	}
+	
+	
 	char request[1000], response[1000];
 
 	if (event->keyval == MIN_KEY_CONTROL){
@@ -3998,8 +4105,13 @@ static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer us
 			//printf("key_modifier set to %d\n", key_modifier);
 			break;
 		default:
-			//by default, all text goes to the text_input control
-			if (event->keyval == MIN_KEY_ENTER)
+
+			//If save or wipe have focus, process them seperately here if key pressed is enter or space
+			if ((event->keyval == MIN_KEY_ENTER | event->keyval == GDK_KEY_space) & (!strcmp(f_focus->label,"SAVE") || !strcmp(f_focus->label,"WIPE"))){
+				do_control_action(f_focus->label);
+			} else if (event->keyval == MIN_KEY_ENTER)
+			//Otherwise by default, all text goes to the text_input control	
+
 				edit_field(get_field("#text_in"), '\n');
 			else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12){
 				int fn_key = event->keyval - MIN_KEY_F1 + 1;
@@ -4576,8 +4688,8 @@ extern int field_set(const char *label, const char *new_value);
 static time_t buttonPressTime;
 static int buttonPressed = 0;
 
-
 void handleButton1Press() {
+
     static int menuVisible = 0;
     static time_t buttonPressTime = 0;
     static int buttonPressed = 0;
@@ -4698,11 +4810,13 @@ gboolean ui_tick(gpointer gook){
 	
 	// check the tuning knob
 	struct field *f = get_field("r1:freq");
+
 	while (tuning_ticks > 0){
 	 	edit_field(f, MIN_KEY_DOWN);
 		tuning_ticks--;
     //sprintf(message, "tune-\r\n");
     //write_console(FONT_LOG, message);
+
 	}
 
 	while (tuning_ticks < 0){
@@ -4755,10 +4869,12 @@ gboolean ui_tick(gpointer gook){
 		update_field(f);
 */
   
+
    handleButton1Press(); // Call the SW1 handler -W2JON
    handleButton2Press(); // Call the SW2 handler -W2JON		
 		//if (digitalRead(ENC2_SW) == 0)
 		//oled_toggle_band();
+
 
 		if (record_start)
 			update_field(get_field("#record"));
@@ -4854,6 +4970,7 @@ void ui_init(int argc, char *argv[]){
 
   display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
+
   gtk_container_add( GTK_CONTAINER(window), display_area );
 
   g_signal_connect( G_OBJECT(window), "destroy", G_CALLBACK( gtk_main_quit ), NULL );
@@ -5677,9 +5794,10 @@ int main( int argc, char* argv[] ) {
 	field_set("KBD", "OFF");
  	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
-  	field_set("TUNE", "OFF");
+  field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK" , "OFF");
+
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
 	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
