@@ -808,6 +808,7 @@ void ft8_on_signal_report(){
 		sprintf(reply_message, "%s %s R%s", call, mycall, report_send);  	
 		ft8_tx(reply_message, tx_pitch);
 	}
+
 	//Disabled this because of early logging - W9JES
 	//enter_qso();
 }

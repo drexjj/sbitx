@@ -33,6 +33,12 @@ extern int input_volume;
 int get_input_volume(void);
 void check_r1_volume();
 
+
+//Notch Filter
+extern int notch_enabled;
+extern double notch_freq; 
+extern double notch_bandwidth; 
+
 //ANR (automatic noise reduction)
 extern int anr_enabled;
 

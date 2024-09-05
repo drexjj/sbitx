@@ -47,6 +47,9 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 
+extern int calculate_s_meter(struct rx *r);
+extern struct rx *rx_list; 
+
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -58,6 +61,8 @@ struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
+int vfo_lock = 0;
+
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -456,8 +461,11 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -625,18 +633,37 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-  
+
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
-  
-  //QRO Enable/Bypass Control
+
+  // VFO Lock ON/OFF
+   	{ "#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF",0,0,0,0},
+ 
+  // S-Meter Option ON/OFF (hides/reveals s-meter)
+  	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,0},
+
+  // QRO option ON/OFF (hides/reveals menu button)
+  	{"#qro_option", do_toggle_option, 1000, -1000, 40, 40, "QROOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,0},
+  // QRO Enable/Bypass Control
 	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
    
-  //Sub Menu Control 473,50 <- was
+  // Sub Menu Control 473,50 <- was
 	{ "#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},  
+  
+  // Notch Filter Controls
+	{ "#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF",0,0,0,0},
+  	{ "#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",60, 3000, 10,0}, 
+  	{ "#notch_bandwidth", do_notch_edit, 1000, -1000, 40, 40, "BNDWTH", 80, "10", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",60, 1000, 10,0}, 
 
   // DSP Controls
 	{ "#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1434,6 +1461,7 @@ void enter_qso(){
 		get_field("#rst_received")->value, 
 		get_field("#exchange_received")->value,
 		get_field("#text_in")->value);
+
 	char buff[100];
 	sprintf(buff, "Logged: %s %s-%s %s-%s\n", 
 		field_str("CALL"), field_str("SENT"), field_str("NR"), 
@@ -1806,7 +1834,68 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	draw_spectrum_grid(f_spectrum, gfx);
 	f = f_spectrum;
 
-  
+	// Cast notch filter display
+	double yellow_opacity = 0.5; // (0.0 - 1.0)
+	int yellow_bar_height = 57; 
+	int notch_start, notch_width;
+	int center_x = f_spectrum->x + (f_spectrum->width / 2);
+
+	if (notch_enabled) {
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")) {
+			// Calculate notch filter position and width based on mode
+			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW")) {
+				// For USB and CW mode
+				notch_start = center_x + 
+							((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
+
+				if (notch_start < f_spectrum->x) {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_start = f_spectrum->x;
+				} else {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+				}
+
+				if (notch_width + notch_start > f_spectrum->x + f_spectrum->width) {
+					notch_width = f_spectrum->x + f_spectrum->width - notch_start;
+				}
+			} else if (!strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "CWR")) {
+				// For LSB and CWR mode
+				notch_start = center_x - 
+							((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / (span * 1000));
+
+				if (notch_start + (f_spectrum->width * notch_bandwidth) / (span * 1000) > f_spectrum->x + f_spectrum->width) {
+					notch_width = (f_spectrum->x + f_spectrum->width) - notch_start;
+				} else {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+				}
+
+				if (notch_start < f_spectrum->x) {
+					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_start = f_spectrum->x;
+				}
+			} else {
+				return;
+			}
+
+			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0);
+			cairo_rectangle(gfx, notch_start, f_spectrum->y, notch_width, f_spectrum->height);
+			cairo_fill(gfx);
+
+			// Set the color to yellow with opacity for the notch filter bar
+			cairo_set_source_rgba(gfx, 1.0, 1.0, 0.0, yellow_opacity); 
+
+			// Draw the rectangle representing the notch filter bar at the calculated position and width
+			cairo_rectangle(gfx, notch_start, f_spectrum->y, notch_width, yellow_bar_height);
+			cairo_fill(gfx); 
+		}
+	} else {
+		// Clear the notch filter area from the display if the notch is disabled
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0); // Transparent
+		cairo_rectangle(gfx, f_spectrum->x, f_spectrum->y, f_spectrum->width, f_spectrum->height);
+		cairo_fill(gfx); 
+	}
+
+
   //display active plugins
   // --- QRO plugin indicator W2JON
   const char *qro_text = "QRO";
@@ -1820,12 +1909,32 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast qro_text to char* to avoid the warning
-  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 85;
+
+  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 118;
   int qro_text_y = f_spectrum->y + 7;
-  
+  if (!strcmp(field_str("QROOPT"), "ON")) {
   cairo_move_to(gfx, qro_text_x, qro_text_y);
   cairo_show_text(gfx, qro_text);
+  }
+
+  // --- NOTCH plugin indicator W2JON
+  const char *notch_text = "NOTCH";
+  cairo_set_font_size(gfx, FONT_SMALL);
   
+  // Check the notch_enabled variable and set the text color
+  if (notch_enabled) {
+      cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
+  } else {
+      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+  }
+  
+  // Cast notch_text to char* to avoid the warning
+  int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)notch_text, FONT_SMALL) - 82;
+  int notch_text_y = f_spectrum->y + 7;
+  
+  cairo_move_to(gfx, notch_text_x, notch_text_y);
+  cairo_show_text(gfx, notch_text);
+
   // --- TXEQ plugin indicator W2JON
   const char *txeq_text = "TXEQ";
   cairo_set_font_size(gfx, FONT_SMALL);
@@ -1838,7 +1947,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast txeq_text to char* to avoid the warning
-  int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 55;
+
+  int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)txeq_text, FONT_SMALL) - 52;
   int txeq_text_y = f_spectrum->y + 7;
   
   cairo_move_to(gfx, txeq_text_x, txeq_text_y);
@@ -1856,7 +1966,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   }
   
   // Cast dsp_text to char* to avoid the warning
-  int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)dsp_text, FONT_SMALL) - 30;
+
+  int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)dsp_text, FONT_SMALL) - 28;
   int dsp_text_y = f_spectrum->y + 7;
   
   cairo_move_to(gfx, dsp_text_x, dsp_text_y);
@@ -1897,6 +2008,66 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 		draw_text(gfx, f->x + i - off , f->y+grid_height , freq_text, FONT_SMALL);
 		f_start += freq_div;
 	}
+
+
+//--- S-Meter test W2JON
+if (!strcmp(field_str("SMETEROPT"), "ON")) {
+	int s_meter_value = 0;
+	struct rx *current_rx = rx_list;
+
+	s_meter_value = calculate_s_meter(current_rx); // we calculate the s-meter value (in sbitx.c)
+
+	// Lets separate the S-meter value into s-units and additional dB
+	int s_units = s_meter_value / 100;
+	int additional_db = s_meter_value % 100;
+
+	int box_width = 15; 
+	int box_height = 5; 
+	int spacing = 2; 
+	int start_x = f_spectrum->x + 5; 
+	int start_y = f_spectrum->y + 1; 
+
+	// Now we draw the s-meter boxes
+	for (int i = 0; i < 6; i++) {
+		int box_x = start_x + i * (box_width + spacing);
+		int box_y = start_y;
+
+	// Change the box colors based on the s-meter value
+		if (i < 5) {
+			// boxes (1, 3, 5, 7, 9)
+			if (s_units >= (2 * i + 1)) {
+				cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green color
+			} else {
+				cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Dark grey color
+			}
+		} else {
+			// For 20+ dB box
+			if (s_units >= 9 && additional_db > 0) {
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			} else {
+				cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Dark grey color
+			}
+		}
+	
+		cairo_rectangle(gfx, box_x, box_y, box_width, box_height);
+		cairo_fill(gfx);
+	}
+
+	// Now we place the labels below the boxes
+	cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0); // white
+	cairo_move_to(gfx, start_x , start_y + box_height + 15); // x, y position
+	for (int i = 0; i < 6; i++) {
+		char label[5];
+		if (i < 5) {
+			snprintf(label, sizeof(label), "%d", 1 + 2 * i);
+		} else {
+			snprintf(label, sizeof(label), "20+");
+		}
+
+		cairo_move_to(gfx, start_x + i * (box_width + spacing), start_y + box_height + 15);
+		cairo_show_text(gfx, label);
+	}
+}	
 
 	//we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
@@ -2144,7 +2315,6 @@ void field_move(char *field_label, int x, int y, int width, int height){
 
 
 
-
 void menu_display(int show) {
     struct field* f;
 
@@ -2157,36 +2327,24 @@ void menu_display(int show) {
     if (show) {
 
         // Move each control to the appropriate position
-        //field_move("B0F", 40, screen_height - 145, 45, 45);
-        //field_move("B0G", 40, screen_height - 95, 45, 45);
-        //field_move("B0B", 95, screen_height - 145, 45, 45);
-        //field_move("B1F", 90, screen_height - 145, 45, 45);
-        //field_move("B1G", 90, screen_height - 95, 45, 45);
-        //field_move("B1B", 95, screen_height - 95, 45, 45);
-        //field_move("B2F", 140, screen_height - 145, 45, 45);
-        //field_move("B2G", 140, screen_height - 95, 45, 45);
-        //field_move("B2B", 235, screen_height - 145, 45, 45);
-        //field_move("B3F", 190, screen_height - 145, 45, 45);
-        //field_move("B3G", 190, screen_height - 95, 45, 45);
-        //field_move("B3B", 235, screen_height - 95, 45, 45);
-        //field_move("B4F", 240, screen_height - 145, 45, 45);
-        //field_move("B4G", 240, screen_height - 95, 45, 45);
-        //field_move("B4B", 375, screen_height - 145, 45, 45);
-        //field_move("TXEQ", 295, screen_height - 120, 45, 45);
-		// NEW LAYOUT @ 3.027
+
+ 		// NEW LAYOUT @ 3.1
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
-        field_move("DSP", 240, screen_height - 140, 95, 45);
-        field_move("INTVL", 240, screen_height - 90, 45, 45);
-        field_move("THSHLD", 290, screen_height - 90, 45, 45);
-        field_move("ANR", 350, screen_height - 140, 95, 45); 
-        field_move("QRO", 460,screen_height - 140 ,95 ,45);
+		field_move("NOTCH", 240, screen_height - 140, 95, 45);
+       	field_move("NFREQ", 240, screen_height - 90, 45, 45);
+        field_move("BNDWTH", 290, screen_height - 90, 45, 45);
+        field_move("DSP",  350, screen_height - 140, 95, 45);
+        field_move("INTVL", 350, screen_height - 90, 45, 45);
+        field_move("THSHLD", 400, screen_height - 90, 45, 45);
+        field_move("ANR", 460, screen_height - 140, 95, 45); 
+        field_move("BFO", 460, screen_height - 90 ,45 ,45);
+		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
+		if (!strcmp(field_str("QROOPT"), "ON")) {
+		field_move("QRO", 680,screen_height - 140 ,95 ,45);
+		}
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
-        field_move("BFO", 350, screen_height - 90 ,45 ,45);
-       
-                 
-          
         
     } else {
         // Move the fields off-screen if not showing
@@ -2578,6 +2736,7 @@ static void focus_field(struct field *f){
 				do_control_action(f->label);
 }
 
+
 static void focus_field_without_toggle(struct field *f) {
 	{
 		//this is an extract from focus_field()
@@ -2595,6 +2754,7 @@ static void focus_field_without_toggle(struct field *f) {
 			f_last_text = f_focus;
       }
 }
+
 time_t time_sbitx(){
 	if (time_delta)
 		return time(NULL);
@@ -2721,8 +2881,10 @@ void call_wipe(){
 	field_set("RECV", "");
 	field_set("EXCH", "");
 	field_set("NR", "");
+
 	//Reset cmd/comment field
 	set_field("#text_in", "");
+
 }
 
 void update_titlebar(){
@@ -3007,6 +3169,8 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
     }
   }
 
+	if (vfo_lock == 0){
+
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
 			//Fix a compiler warning - n1qm
@@ -3047,7 +3211,8 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 				v = (v / tuning_step - 1)*tuning_step;
 			abort_tx();
 		}
-		
+	}	
+
 		sprintf(f->value, "%d",  v);
 		tuning_step = temp_tuning_step;
 		//send the new frequency to the sbitx core
@@ -3459,6 +3624,20 @@ double scaleNoiseThreshold(int control) {
     return scaled_noise_threshold;
 }
 
+int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+	if (!strcmp(field_str("NOTCH"), "ON")) {
+        struct field *notch_freq_field = get_field("#notch_freq");
+        int notch_freq_value = atoi(notch_freq_field->value);
+        notch_freq = notch_freq_value;  
+        struct field *notch_bandwidth_field = get_field("#notch_bandwidth");
+        int notch_bandwidth_value = atoi(notch_bandwidth_field->value);
+        notch_bandwidth=notch_bandwidth_value;
+    }
+
+    return 0; 
+}
+
+
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm
 	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
@@ -3514,14 +3693,9 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	//sprintf(output,"BFO value = %d\n", result);
 	//write_console(FONT_LOG, output);
 
+
     return 0; 
 }
-
-
-
-
-
-
 
 void tx_on(int trigger){
 	char response[100];
@@ -3581,15 +3755,27 @@ void tx_on(int trigger){
 
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
+
+	struct field* notch_stat = get_field("#notch_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
+	struct field* vfo_stat = get_field("#vfo_lock");
 
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
             eq_is_enabled = 1;
         } else if (!strcmp(eq_stat->value, "OFF")) {
             eq_is_enabled = 0;
+        }
+    }
+
+
+    if (notch_stat) {
+        if (!strcmp(notch_stat->value, "ON")) {
+            notch_enabled = 1;
+        } else if (!strcmp(notch_stat->value, "OFF")) {
+            notch_enabled = 0;
         }
     }
 
@@ -3617,6 +3803,15 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
         } else if (!strcmp(qro_stat->value, "OFF")) {
             qro_enabled = 0;
         }
+    }
+
+
+	if (vfo_stat) {
+        if (!strcmp(vfo_stat->value, "ON")) {
+            vfo_lock = 1;
+		  } else if (!strcmp(vfo_stat->value, "OFF")) {
+            vfo_lock = 0;
+		  }
     }
 	
     return TRUE;  // Return TRUE to keep the timer running
@@ -3741,14 +3936,17 @@ static gboolean on_key_release (GtkWidget *widget, GdkEventKey *event, gpointer 
 		control_down = 0;
 	}
 
+
 	//Not sure why on earth we'd need this to stop TX on release of TAB key, commenting out as it wipes out text entered into TEXT field
 	//if (event->keyval == MIN_KEY_TAB){
 	//  tx_off();
 	//}
 
+
 }
 
 static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+
 	//Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
 	if (f_focus) {
 		switch(event->keyval){
@@ -3907,11 +4105,13 @@ static gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer us
 			//printf("key_modifier set to %d\n", key_modifier);
 			break;
 		default:
+
 			//If save or wipe have focus, process them seperately here if key pressed is enter or space
 			if ((event->keyval == MIN_KEY_ENTER | event->keyval == GDK_KEY_space) & (!strcmp(f_focus->label,"SAVE") || !strcmp(f_focus->label,"WIPE"))){
 				do_control_action(f_focus->label);
 			} else if (event->keyval == MIN_KEY_ENTER)
 			//Otherwise by default, all text goes to the text_input control	
+
 				edit_field(get_field("#text_in"), '\n');
 			else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12){
 				int fn_key = event->keyval - MIN_KEY_F1 + 1;
@@ -4488,7 +4688,8 @@ extern int field_set(const char *label, const char *new_value);
 static time_t buttonPressTime;
 static int buttonPressed = 0;
 
-void handleButtonPress() {
+void handleButton1Press() {
+
     static int menuVisible = 0;
     static time_t buttonPressTime = 0;
     static int buttonPressed = 0;
@@ -4517,16 +4718,57 @@ void handleButtonPress() {
             if (difftime(time(NULL), buttonPressTime) < 1) {
                 // Short press detected
                	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
-					focus_field_without_toggle(get_field("r1:mode"));
-				}else{
-					focus_field(get_field("r1:volume"));
-					//printf("Focus is on %s\n", f_focus->label);
+	        	        		focus_field(get_field("r1:mode"));
+	          		}else{
+		          		focus_field(get_field("r1:volume"));
+		            	//printf("Focus is on %s\n", f_focus->label);
 	  	          } 
             }
          }
       } 
    }  
-   
+
+   void handleButton2Press() {
+	static int vfoLock = 0;
+    static time_t buttonPressTimeSW2 = 0;
+    static int buttonPressedSW2 = 0;
+
+    if (digitalRead(ENC2_SW) == 0) {
+        if (!buttonPressedSW2) {
+            buttonPressedSW2 = 1;
+            buttonPressTimeSW2 = time(NULL);
+        } else {
+            // Check the duration of the button press
+            time_t currentTime = time(NULL);
+            if (difftime(currentTime, buttonPressTimeSW2) >= 1) {
+                // Long press detected - Enable/Disable VFO lock
+                vfoLock = !vfoLock;
+				field_set("VFOLK", vfoLock ? "ON" : "OFF");
+				printf("VFOLock: %d\n", vfoLock);
+
+				if (vfoLock == 1){
+				write_console(FONT_LOG, "VFO Lock ON\n");
+				}
+				if (vfoLock == 0){
+				write_console(FONT_LOG, "VFO Lock OFF\n");	
+				}
+                // Wait for the button release to avoid immediate short press detection
+                while (digitalRead(ENC2_SW) == 0) {
+                    delay(100); // Adjust delay time as needed
+                }
+                buttonPressedSW2 = 0; // Reset button press state after delay
+            }
+        }
+    } else {
+        if (buttonPressedSW2) {
+            buttonPressedSW2 = 0;
+            if (difftime(time(NULL), buttonPressTimeSW2) < 1) {
+                // Short press detected - Invoke oled_toggle_band()
+                oled_toggle_band();
+            }
+        }
+    }
+}
 
 gboolean ui_tick(gpointer gook){
 	int static ticks = 0;
@@ -4570,7 +4812,7 @@ gboolean ui_tick(gpointer gook){
 	struct field *f = get_field("r1:freq");
 
 	while (tuning_ticks > 0){
-		edit_field(f, MIN_KEY_DOWN);
+	 	edit_field(f, MIN_KEY_DOWN);
 		tuning_ticks--;
     //sprintf(message, "tune-\r\n");
     //write_console(FONT_LOG, message);
@@ -4581,9 +4823,8 @@ gboolean ui_tick(gpointer gook){
 		edit_field(f, MIN_KEY_UP);
 		tuning_ticks++;
     //sprintf(message, "tune+\r\n");
-    //write_console(FONT_LOG, message);
+	//write_console(FONT_LOG, message);
 	}
-
 
 	if (ticks % 20 == 0){
   	modem_poll(mode_id(get_field("r1:mode")->value));
@@ -4628,10 +4869,12 @@ gboolean ui_tick(gpointer gook){
 		update_field(f);
 */
   
-   handleButtonPress(); // Call the new button press handler -W2JON
 
-		if (digitalRead(ENC2_SW) == 0)
-		oled_toggle_band();
+   handleButton1Press(); // Call the SW1 handler -W2JON
+   handleButton2Press(); // Call the SW2 handler -W2JON		
+		//if (digitalRead(ENC2_SW) == 0)
+		//oled_toggle_band();
+
 
 		if (record_start)
 			update_field(get_field("#record"));
@@ -4723,10 +4966,11 @@ void ui_init(int argc, char *argv[]){
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
   gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
   gtk_window_set_title( GTK_WINDOW(window), "sBITX" );
-  gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
+	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
 
   display_area = gtk_drawing_area_new();
-  gtk_widget_set_size_request(display_area, 500, 400);
+	gtk_widget_set_size_request(display_area, 500, 400);
+
   gtk_container_add( GTK_CONTAINER(window), display_area );
 
   g_signal_connect( G_OBJECT(window), "destroy", G_CALLBACK( gtk_main_quit ), NULL );
@@ -5560,7 +5804,10 @@ int main( int argc, char* argv[] ) {
 	field_set("KBD", "OFF");
  	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF"); 
-  	field_set("TUNE", "OFF");
+  field_set("TUNE", "OFF");
+	field_set("NOTCH", "OFF");
+	field_set("VFOLK" , "OFF");
+
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
 	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));

@@ -67,6 +67,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
+#define SCALING_TRIM 2.7 // Use this to tune your meter response 2.7 worked at 51% and my inverted L
 
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
@@ -100,6 +101,10 @@ static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;  // W9JES
 int dsp_enabled = 0;//dsp W2JON
 int anr_enabled = 0;//anr W2JON
+int notch_enabled = 0;//notch filter W2JON
+double notch_freq = 0; // Notch frequency in Hz W2JON
+double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
+
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -309,6 +314,45 @@ static int create_mcast_socket(){
 }
 */
 
+// S-Meter test W2JON
+int calculate_s_meter(struct rx *r, double rx_gain) {
+    double signal_strength = 0.0;
+
+    // Summing up the magnitudes of the FFT output bins
+    for (int i = 0; i < MAX_BINS / 2; i++) {
+        double magnitude = cabs(r->fft_time[i]); // Magnitude of complex FFT output in time domain
+        signal_strength += magnitude;
+    }
+
+    // Now average out the "signal strength"
+    signal_strength /= (MAX_BINS / 2);
+
+    // Logarithmic scaling based on rx_gain setting in percentage [0-100]
+    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); 
+
+    // Convert to pseudo dB
+    double reference_power = 1e-4; // 0.1 mW
+    double signal_power = signal_strength * signal_strength * reference_power;
+    double s_meter_db = 10 * log10(signal_power / reference_power); // pseudo dB
+    
+    s_meter_db += gain_scaling_factor * SCALING_TRIM; // Adjust calcs dynamically based on rx_gain * SCALING_TRIM
+
+    // Calculate S-units and additional dB
+    int s_units = (int)(s_meter_db / 6.0); // Each S-unit corresponds to 6 dB
+    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining 'dB' above S9
+
+    // Ensure non-negative values
+    if (s_units < 0) s_units = 0;
+    if (additional_db < 0) additional_db = 0;
+
+    // Cap additional S-units at 20+ for simplicity
+    if (s_units >= 9) {
+        if (additional_db > 20) additional_db = 20;
+    }
+
+    // Return the value formatted as "S-unit * 100 + additional dB"
+    return (s_units * 100) + additional_db;
+}
 
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
@@ -736,7 +780,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     my_fftw_execute(plan_spectrum);
     spectrum_update();
 
-    // STEP 4: Rotate the bins around by r->tuned_bin
+	// STEP 4: Rotate the bins around by r->tuned_bin
     struct rx *r = rx_list;
     int shift = r->tuned_bin;
     if (r->mode == MODE_AM)
@@ -750,9 +794,31 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         r->fft_freq[i] = fft_out[b];
     }
 
-    // STEP 4a: DSP noise estimation
+
+	// STEP 4a: BIN processing functions for a better life.
+
     if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE) {
-        // Noise Estimation
+		
+		// Notch filter
+		if (notch_enabled) {
+			int notch_center_bin, notch_bin_range;
+			
+			if (r->mode == MODE_USB) {
+				notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
+			} else if (r->mode == MODE_LSB) {
+				notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
+			}
+			notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
+
+			for (i = notch_center_bin - notch_bin_range / 2; i <= notch_center_bin + notch_bin_range / 2; i++) {
+				if (i >= 0 && i < MAX_BINS) {
+					r->fft_freq[i] *= 0.001; // Attenuate magnitude
+				}
+			}
+
+		}
+
+	    // Noise Estimation
         if (!noise_est_initialized || noise_update_counter >= noise_update_interval) {
             for (i = 0; i < MAX_BINS; i++) {
                 double current_magnitude = cabs(r->fft_freq[i]);
