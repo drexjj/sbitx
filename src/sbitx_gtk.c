@@ -4760,6 +4760,16 @@ void ui_init(int argc, char *argv[]){
 
 
 int get_tx_data_byte(char *c){
+	//If we are in a voice mode, don't clear the text textbox
+	switch (tx_mode){
+		case MODE_LSB:
+		case MODE_USB:
+		case MODE_AM:
+		case MODE_NBFM:
+			return 0;
+			break;
+	}
+
 	//take out the first byte and return it to the modem
 	struct field *f = get_field("#text_in");
 	int length = strlen(f->value);
