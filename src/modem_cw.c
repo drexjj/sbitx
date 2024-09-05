@@ -444,7 +444,7 @@ float cw_tx_get_sample(){
 				cw_next_symbol = CW_DASH;
 			}
 			if (cw_next_symbol == CW_IDLE && cw_last_symbol == CW_DASH && (symbol_now & CW_DOT)){
-				cw_next_symbol = CW_DASH;
+				cw_next_symbol = CW_DOT;  // WOANM
 			}
 		}
 		break;
