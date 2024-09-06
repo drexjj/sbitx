@@ -64,7 +64,7 @@ The field control can be of several types as identified by value_type field:
 
 	SELECTION: This uses a number of strings separated by '/' stored in
 	selection[] field. One of the strings is selected by scroll through 
-	the field's values. Ex: Mode: USB/LSB/CW/CWR/DIGITAL, etc.
+	the field's values. Ex: Mode: USB/LSB/CW/CWR/DIGI, etc.
 
 	TEXT: This is makes it an editable text field (for instance to enter 
 	your callsign).
