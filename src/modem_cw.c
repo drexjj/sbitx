@@ -140,10 +140,17 @@ struct morse_tx morse_tx_table[] = {
 	{'?', "..--.."},
 	{'/', "-..-."},
 	{' ', " "},
-	{'[', ".-.-."},
-	{']', ".-..."},
-	{'+', ".-.-."},
-	{'&', "-...-"},
+	{'=', "-...-"},   //BT (prosigns based upon k40/k42 keyers) W0ANM
+	{'<', ".-.-."},   //AR W0ANM
+	{'>', "...-.-"},  //SK W0ANM
+	//{'+', ".-.-."},
+	{'+', "--.- .-. .-.. ..--.."}, //qrl ?  W0ANM
+	{'(', "-.--."},   //KN
+	//{'[', ".-.-."},
+	{'[', "--.- .-. --.."},   //qrz  W0ANM
+	//{']', ".-..."},
+	{']', "--.- ... .-.."},   //qsl  W0ANM
+	{':', ".-..."},   //AS  W0ANM
 	{'\'', "--..--"},
 };
 
@@ -364,7 +371,9 @@ float cw_tx_get_sample(){
 	switch(cw_current_symbol){
 	case CW_IDLE:		//this is the start case 
 		if (symbol_now == CW_DOWN){
-			keydown_count = 2000; //add a few samples, to debounce 
+			//w0anm, 2000ms is a bit much for debouce
+			// keydown_count = 2000; //add a few samples, to debounce 
+			keydown_count = 800; //add a few samples, to debounce 
 			keyup_count = 0;
 			cw_current_symbol = CW_DOWN;
 		}
@@ -382,12 +391,19 @@ float cw_tx_get_sample(){
 		}
 		else if (symbol_now & CW_DASH_DELAY){
 			keydown_count = 0;
-			keyup_count = cw_period * 3;
+			// w0anm
+			// reduced dash delay for inter cw character spacing
+			//keyup_count = cw_period * 3.0;
+			keyup_count = cw_period * 2;
 			cw_current_symbol = CW_DOT_DELAY;
 		}
 		else if (symbol_now & CW_WORD_DELAY){
 			keydown_count = 0;
-			keyup_count = cw_period * 6;
+                        // w0anm decrease word delay
+			// this effects the word spacing when using
+			// cw macros and keyboard sending
+			//keyup_count = cw_period * 6;
+			keyup_count = cw_period * 1.5;
 			cw_current_symbol = CW_DOT_DELAY;
 		}
 		//else just continue in CW_IDLE
