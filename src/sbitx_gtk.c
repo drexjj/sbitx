@@ -62,7 +62,6 @@ int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
 int vfo_lock = 0;
-
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -464,8 +463,6 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -641,7 +638,11 @@ struct field main_controls[] = {
   // VFO Lock ON/OFF
    	{ "#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
- 
+
+  // Full Screen Waterfall Option ON/OFF
+  	{"#waterfall_option", do_toggle_option, 1000, -1000, 40, 40, "SPECT", 40, "NORM", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"FULL/NORM",0,0,0,0},
+
   // S-Meter Option ON/OFF (hides/reveals s-meter)
   	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
@@ -2345,6 +2346,8 @@ void menu_display(int show) {
 		}
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
+
+		
         
     } else {
         // Move the fields off-screen if not showing
@@ -2481,9 +2484,16 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_AM:
 		case MODE_NBFM:
 		case MODE_2TONE:  // W9JES
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+		if (!strcmp(field_str("SPECT"), "FULL")) {
+			field_move("CONSOLE", 1000, -1000, 350, y2-y1-55);
+			field_move("SPECTRUM", 5, y1, x2-7, 70);
+			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+			}else{
 			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			}
 			y1 = y2 -50;
 			field_move("MIC", 5, y1, 45, 45);
 			field_move("LOW", 60, y1, 95, 45);
@@ -2943,7 +2953,7 @@ void set_filter_high_low(int hz){
 			break;
 		case MODE_LSB:
 		case MODE_USB:
-			low = 300;
+			low = 100;
 			high = low + hz;
 			break;
 		case MODE_DIGITAL:
@@ -3430,7 +3440,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 void modify_eq_band_frequency(parametriceq *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
-//        print_eq_int(eq);
+		//print_eq_int(eq);
     } else {
         printf("Invalid Band Index Selected");
     }
@@ -3447,8 +3457,8 @@ void modify_eq_band_gain(parametriceq *eq, int band_index, double new_gain) {
             new_gain = 16.0;
         }
         eq->bands[band_index].gain = new_gain;
-//        print_eq_int(eq);
-//        fflush(stdout);
+		//print_eq_int(eq);
+		//fflush(stdout);
     } else {
          printf("Invalid Band Index Selected");
     }
@@ -3471,10 +3481,10 @@ int get_band_from_label(const char *label) {
     int band = -1;
 
     if (label) {
-//        printf("get_band_from_label> Label received: %s\n", label);
+	//printf("get_band_from_label> Label received: %s\n", label);
         if (strlen(label) >= 3 && label[0] == 'B') {
             char ending_char = label[strlen(label) - 1];
-//           printf("get_band_from_label> Ending character: %c\n", ending_char);
+	//printf("get_band_from_label> Ending character: %c\n", ending_char);
             if (ending_char == 'F' || ending_char == 'G' || ending_char == 'Q') {
                 band = label[1] - '0'; // Convert character to integer
                 if (band < 0 || band > 9) { // Additional validation
@@ -3483,10 +3493,10 @@ int get_band_from_label(const char *label) {
             }
         }
     } else {
-//     printf("get_band_from_label> Label is NULL\n");
+	//printf("get_band_from_label> Label is NULL\n");
     }
 
-//   printf("get_band_from_label> Band decoded: %d\n", band);
+	//printf("get_band_from_label> Band decoded: %d\n", band);
     return band;
 }
 
@@ -3494,7 +3504,7 @@ int get_band_from_label(const char *label) {
 int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     int band = get_band_from_label(f->label); // Extract band number from the field label
     int v = atoi(f->value);
-//  printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
+	//printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
 
     if (event == FIELD_EDIT) {
         if (a == MIN_KEY_UP && v + f->step <= f->max) {
@@ -3503,17 +3513,17 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-//      printf("do_eqf> Adjusted Value: %d\n", v);
+	//printf("do_eqf> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
 
-        // Pass the new frequency value to the EQ function
-//      printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
+    // Pass the new frequency value to the EQ function
+	//printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
         modify_eq_band_frequency(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
         sprintf(buff, "B%dF=%d", band, v);
-//        printf("do_eqf> %s\n", buff);
+	//printf("do_eqf> %s\n", buff);
      
         return 1;
     }
@@ -3524,7 +3534,7 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     int band = get_band_from_label(f->label); // Extract band number from the field label
     int v = atoi(f->value);
-//    printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
+	//printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
   
     if (event == FIELD_EDIT) {
         if (a == MIN_KEY_UP && v + f->step <= f->max) {
@@ -3533,17 +3543,17 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-//        printf("do_eqg> Adjusted Value: %d\n", v);
+	//printf("do_eqg> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
 
-        // Pass the new gain value to the EQ function
-//        printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
+    // Pass the new gain value to the EQ function
+	//printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
         modify_eq_band_gain(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
         sprintf(buff, "B%dG=%d", band, v);
-//      printf("do_eqg> %s\n", buff);
+	//printf("do_eqg> %s\n", buff);
      
         return 1;
     }
@@ -3563,17 +3573,17 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-//        printf("do_eqb> Adjusted Value: %d\n", v);
+	//printf("do_eqb> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
         
-        // Pass the new bandwidth value to the EQ function
-//        printf("do_eqb> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
+    // Pass the new bandwidth value to the EQ function
+	//printf("do_eqb> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
         modify_eq_band_bandwidth(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
         sprintf(buff, "B%dB=%d", band, v);
-//        printf("do_ebq> %s\n", buff);
+	//printf("do_ebq> %s\n", buff);
        
 
         return 1;
@@ -3583,33 +3593,33 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 }
 
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-//    printf("Entering do_eq_edit: Label = %s\n", f->label);
+	//printf("Entering do_eq_edit: Label = %s\n", f->label);
 
     int band = get_band_from_label(f->label);  // Determine band from label
-//    printf("do_eq_edit> Band ID from label: %d\n", band);
+	//printf("do_eq_edit> Band ID from label: %d\n", band);
 
     if (band != -1) {
-//        printf("do_eq_edit> Valid band found: %d\n", band);
+	//printf("do_eq_edit> Valid band found: %d\n", band);
 
-        // Depending on the event, handle adjustments for frequency, gain, or bandwidth
+    // Depending on the event, handle adjustments for frequency, gain, or bandwidth
         char suffix = f->label[strlen(f->label) - 1];
         if (suffix == 'F') {
- //           printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
+ 	//printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
             return do_eqf(f, gfx, event, a, b, c); // Frequency adjustment
         } else if (suffix == 'G') {
-//            printf("do_eq_edit> Adjusting gain for band %d...\n", band);
+	//printf("do_eq_edit> Adjusting gain for band %d...\n", band);
             return do_eqg(f, gfx, event, a, b, c); // Gain adjustment
         } else if (suffix == 'B') {
-//           printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
+	//printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
             return do_eqb(f, gfx, event, a, b, c); // Bandwidth adjustment
         } else {
- //           printf("do_eq_edit> Unknown suffix: %c\n", suffix);
+ 	//printf("do_eq_edit> Unknown suffix: %c\n", suffix);
         }
     } else {
-//        printf("do_eq_edit> Invalid band: %d\n", band);
+	//printf("do_eq_edit> Invalid band: %d\n", band);
     }
 
- //   printf("Exiting do_eq_edit\n");
+ 	//printf("Exiting do_eq_edit\n");
     return 0; 
 }
 
@@ -3755,13 +3765,12 @@ void tx_on(int trigger){
 
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
-
 	struct field* notch_stat = get_field("#notch_plugin");
     struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
 	struct field* vfo_stat = get_field("#vfo_lock");
-
+	
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
             eq_is_enabled = 1;
@@ -3813,8 +3822,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             vfo_lock = 0;
 		  }
     }
-	
-    return TRUE;  // Return TRUE to keep the timer running
+     return TRUE;  // Return TRUE to keep the timer running
 }
 
 
@@ -5228,7 +5236,7 @@ void do_control_action(char* cmd) {
 	 	eq_ui(window);
   	}
    else if (!strcmp(request, "SET")) {
-	settings_ui(window);
+		settings_ui(window);
   	}
 	else if (!strcmp(request, "LOG")) {
 		logbook_list_open();
@@ -5806,18 +5814,18 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
- 	field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+ 	field_set("QRO", "OFF"); 
 	field_set("MENU", "OFF"); 
-  field_set("TUNE", "OFF");
+ 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK" , "OFF");
-
+	//field_set("WTRFL" , "OFF");
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
 	set_bfo_offset(atoi(get_field("#bfo_manual_offset")->value), atol(get_field("r1:freq")->value));
 
-  // Set up a timer to check the EQ and DSP control every 500 ms
-  g_timeout_add(500, check_plugin_controls, NULL);
+  	// Set up a timer to check the EQ and DSP control every 500 ms
+  	g_timeout_add(500, check_plugin_controls, NULL);
  
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
