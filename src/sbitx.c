@@ -67,7 +67,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
-#define SCALING_TRIM 200.0 // Use this to tune your meter response 200.0 worked at 52 IF and my inverted L
+#define SCALING_TRIM 2.7 // Use this to tune your meter response 
 
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
@@ -332,10 +332,10 @@ int calculate_s_meter(struct rx *r, double rx_gain) {
     signal_strength /= (MAX_BINS / 2);
 
     // Logarithmic scaling based on rx_gain setting in percentage [0-100]
-    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); 
+    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0)* 60.0; 
 
     // Convert to pseudo dB
-    double reference_power = 1e-4; // 0.1 mW
+    double reference_power = 1e-5; // 1e-5 10 µW
     double signal_power = signal_strength * signal_strength * reference_power;
     double s_meter_db = 10 * log10(signal_power / reference_power); // pseudo dB
     
