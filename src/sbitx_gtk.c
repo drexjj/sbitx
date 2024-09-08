@@ -62,7 +62,7 @@ struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
-int vfo_lock = 0;
+int vfo_lock_enabled = 0;
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -1992,6 +1992,25 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   
   cairo_move_to(gfx, anr_text_x, anr_text_y);
   cairo_show_text(gfx, anr_text);
+//
+  // --- VFO LOCK indicator W2JON
+  const char *vfolk_text = "VFO LOCK";
+  cairo_set_font_size(gfx, FONT_LARGE_VALUE);
+  
+  // Check the anr_enabled variable and set the text color
+  if (vfo_lock_enabled) {
+      cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); 
+  } else {
+      cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0); 
+  }
+  
+  // Cast anr_text to char* to avoid the warning
+  int vfolk_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)vfolk_text, FONT_LARGE_VALUE) - 9;
+  int vfolk_text_y = f_spectrum->y + 30;
+  
+  cairo_move_to(gfx, vfolk_text_x, vfolk_text_y);
+  cairo_show_text(gfx, vfolk_text);
+
   cairo_stroke(gfx);
   
 
@@ -3194,7 +3213,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
     }
   }
 
-	if (vfo_lock == 0){
+	if (vfo_lock_enabled == 0){
 
 		if (a == MIN_KEY_UP && v + f->step <= f->max){
 			//this is tuning the radio
@@ -3832,9 +3851,9 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
 
 	if (vfo_stat) {
         if (!strcmp(vfo_stat->value, "ON")) {
-            vfo_lock = 1;
+            vfo_lock_enabled = 1;
 		  } else if (!strcmp(vfo_stat->value, "OFF")) {
-            vfo_lock = 0;
+            vfo_lock_enabled = 0;
 		  }
     }
      return TRUE;  // Return TRUE to keep the timer running
