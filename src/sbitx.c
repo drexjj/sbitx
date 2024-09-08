@@ -1606,6 +1606,9 @@ void sdr_request(char *request, char *response){
 			rx_list->mode = MODE_FT8;
 		else if (!strcmp(value, "AM"))
 			rx_list->mode = MODE_AM;
+		else if (!strcmp(value, "DIGI"))
+			rx_list->mode = MODE_DIGITAL;
+
 		else
 			rx_list->mode = MODE_USB;
 		
