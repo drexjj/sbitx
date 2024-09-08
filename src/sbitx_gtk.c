@@ -1841,9 +1841,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	int center_x = f_spectrum->x + (f_spectrum->width / 2);
 
 	if (notch_enabled) {
-		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")) {
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI")) {
 			// Calculate notch filter position and width based on mode
-			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW")) {
+			//Added digi to modes which can show the notch indicator - n1qm
+			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "DIGI")) {
 				// For USB and CW mode
 				notch_start = center_x + 
 							((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
@@ -3079,13 +3080,13 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-		modem_set_pitch(v);
+  		int mode = mode_id(get_field("r1:mode")->value);
+		modem_set_pitch(v,mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
 
 		//move the bandwidth accordingly
-  	int mode = mode_id(get_field("r1:mode")->value);
 		int bw = 4000;
 		switch(mode){
 			case MODE_CW:
@@ -3125,7 +3126,8 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-		modem_set_pitch(v);
+		int mode = mode_id(get_field("r1:mode")->value);
+		modem_set_pitch(v,mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
@@ -4718,11 +4720,12 @@ void handleButton1Press() {
             if (difftime(time(NULL), buttonPressTime) < 1) {
                 // Short press detected
                	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
-	        	        		focus_field(get_field("r1:mode"));
-	          		}else{
-		          		focus_field(get_field("r1:volume"));
-		            	//printf("Focus is on %s\n", f_focus->label);
-	  	          } 
+					//Switch fields without changing it's value - n1qm
+					focus_field_without_toggle(get_field("r1:mode"));
+				}else{
+					focus_field(get_field("r1:volume"));
+					//printf("Focus is on %s\n", f_focus->label);
+	  	    	} 
             }
          }
       } 

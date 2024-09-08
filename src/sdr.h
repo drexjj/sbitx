@@ -198,7 +198,7 @@ void sdr_modulation_update(int32_t *samples, int count, double scale_up);
 
 /* from modems.c */
 void modem_rx(int mode, int32_t *samples, int count);
-void	modem_set_pitch(int pitch);
+void modem_set_pitch(int pitch, int mode);
 void modem_init();
 int get_tx_data_byte(char *c);
 int	get_tx_data_length();
