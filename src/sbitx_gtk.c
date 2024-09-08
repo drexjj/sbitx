@@ -47,7 +47,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 
-extern int calculate_s_meter(struct rx *r);
+extern int get_rx_gain(void);
+extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list; 
 
 
@@ -2016,8 +2017,14 @@ if (!strcmp(field_str("SMETEROPT"), "ON")) {
 	int s_meter_value = 0;
 	struct rx *current_rx = rx_list;
 
-	s_meter_value = calculate_s_meter(current_rx); // we calculate the s-meter value (in sbitx.c)
+    // Retrieve the rx_gain value from sbitx.c using the getter function
+    double rx_gain = (double)get_rx_gain();
+	//printf("RX_GAIN %d\n", rx_gain);
 
+    // Pass the rx_gain along with the rx pointer
+    s_meter_value = calculate_s_meter(current_rx, rx_gain);
+
+	
 	// Lets separate the S-meter value into s-units and additional dB
 	int s_units = s_meter_value / 100;
 	int additional_db = s_meter_value % 100;
