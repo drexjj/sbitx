@@ -63,6 +63,7 @@ int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
+
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
