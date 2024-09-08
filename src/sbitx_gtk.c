@@ -2502,9 +2502,17 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("RX", 360, y1, 95, 45);
 			break;
 		case MODE_DIGITAL:  // W9JES
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			// N1QM
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+			if (!strcmp(field_str("SPECT"), "FULL")) {
+				field_move("CONSOLE", 1000, -1000, 350, y2-y1-55);
+				field_move("SPECTRUM", 5, y1, x2-7, 70);
+				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+			}else{
+				field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+				field_move("SPECTRUM", 360, y1, x2-365, 70);
+				field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			}
 			y1 = y2 -50;
 			field_move("MIC", 5, y1, 45, 45);
 			field_move("LOW", 60, y1, 95, 45);
