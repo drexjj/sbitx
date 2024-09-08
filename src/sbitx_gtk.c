@@ -2118,7 +2118,7 @@ if (!strcmp(field_str("SMETEROPT"), "ON")) {
   if (pitch >= f_spectrum->x){
     cairo_set_source_rgb(gfx, palette[COLOR_RX_PITCH][0],
 			palette[COLOR_RX_PITCH][1], palette[COLOR_RX_PITCH][2]);
-    if(!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")){ // for LSB and USB draw pitch line at center
+    if(!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI")){ // for LSB, USB, and DIGI draw pitch line at center
 	    cairo_move_to(gfx, f->x + (f->width/2), f->y);
 	    cairo_line_to(gfx, f->x + (f->width/2), f->y + grid_height); 
     } else {
@@ -2502,7 +2502,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			field_move("PITCH", 460, y1, 95, 45);
+			//Don't show pitch field in DIGI mode
+			//field_move("PITCH", 460, y1, 95, 45);
 			field_move("SIDETONE", 560, y1, 95, 45);
 			break;
 		default:
@@ -2948,8 +2949,8 @@ void set_filter_high_low(int hz){
 			high = low + hz;
 			break;
 		case MODE_DIGITAL:
-      low = atoi(f_pitch->value) - (hz/2);
-			high = atoi(f_pitch->value) + (hz/2);
+      		low = 50;
+			high = hz;
 			break;
 		case MODE_AM:
 		//	low = 50;
