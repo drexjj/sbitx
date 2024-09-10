@@ -484,17 +484,19 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
            decoded_hashtable[idx_hash] = &decoded[idx_hash];
            ++num_decoded;
 
-					char buff[1000];
-          sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
-						cand->score, cand->snr, freq_hz, message.text);
-
-					if (strstr(buff, mycallsign_upper)){
-						write_console(FONT_FT8_REPLY, buff);
-						ft8_process(buff, FT8_CONTINUE_QSO);
-					}
-					else 
-						write_console(FONT_FT8_RX, buff);
-					n_decodes++;
+			char buff[1000];
+            sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
+			  cand->score, cand->snr, freq_hz, message.text);
+			//For troubleshooting you can display the time offset - n1qm
+			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
+			//  cand->snr, freq_hz, message.text);
+			if (strstr(buff, mycallsign_upper)){
+				write_console(FONT_FT8_REPLY, buff);
+				ft8_process(buff, FT8_CONTINUE_QSO);
+			}
+			else 
+				write_console(FONT_FT8_RX, buff);
+			n_decodes++;
         }
     }
     //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
