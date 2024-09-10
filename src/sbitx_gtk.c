@@ -1842,9 +1842,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	int center_x = f_spectrum->x + (f_spectrum->width / 2);
 
 	if (notch_enabled) {
-		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")) {
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI")) {
 			// Calculate notch filter position and width based on mode
-			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW")) {
+			//Added digi to modes which can show the notch indicator - n1qm
+			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "DIGI")) {
 				// For USB and CW mode
 				notch_start = center_x + 
 							((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
@@ -2118,7 +2119,7 @@ if (!strcmp(field_str("SMETEROPT"), "ON")) {
   if (pitch >= f_spectrum->x){
     cairo_set_source_rgb(gfx, palette[COLOR_RX_PITCH][0],
 			palette[COLOR_RX_PITCH][1], palette[COLOR_RX_PITCH][2]);
-    if(!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")){ // for LSB and USB draw pitch line at center
+    if(!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI")){ // for LSB, USB, and DIGI draw pitch line at center
 	    cairo_move_to(gfx, f->x + (f->width/2), f->y);
 	    cairo_line_to(gfx, f->x + (f->width/2), f->y + grid_height); 
     } else {
@@ -2519,7 +2520,8 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			field_move("PITCH", 460, y1, 95, 45);
+			//Don't show pitch field in DIGI mode
+			//field_move("PITCH", 460, y1, 95, 45);
 			field_move("SIDETONE", 560, y1, 95, 45);
 			break;
 		default:
@@ -2965,8 +2967,8 @@ void set_filter_high_low(int hz){
 			high = low + hz;
 			break;
 		case MODE_DIGITAL:
-      low = atoi(f_pitch->value) - (hz/2);
-			high = atoi(f_pitch->value) + (hz/2);
+      		low = 50;
+			high = hz;
 			break;
 		case MODE_AM:
 		//	low = 50;
@@ -3097,13 +3099,13 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-		modem_set_pitch(v);
+  		int mode = mode_id(get_field("r1:mode")->value);
+		modem_set_pitch(v,mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
 
 		//move the bandwidth accordingly
-  	int mode = mode_id(get_field("r1:mode")->value);
 		int bw = 4000;
 		switch(mode){
 			case MODE_CW:
@@ -3143,7 +3145,8 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-		modem_set_pitch(v);
+		int mode = mode_id(get_field("r1:mode")->value);
+		modem_set_pitch(v,mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
@@ -4734,11 +4737,12 @@ void handleButton1Press() {
             if (difftime(time(NULL), buttonPressTime) < 1) {
                 // Short press detected
                	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
-	        	        		focus_field(get_field("r1:mode"));
-	          		}else{
-		          		focus_field(get_field("r1:volume"));
-		            	//printf("Focus is on %s\n", f_focus->label);
-	  	          } 
+					//Switch fields without changing it's value - n1qm
+					focus_field_without_toggle(get_field("r1:mode"));
+				}else{
+					focus_field(get_field("r1:volume"));
+					//printf("Focus is on %s\n", f_focus->label);
+	  	    	} 
             }
          }
       } 
