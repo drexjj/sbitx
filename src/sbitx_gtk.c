@@ -1994,19 +1994,19 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   
   cairo_move_to(gfx, anr_text_x, anr_text_y);
   cairo_show_text(gfx, anr_text);
-//
+
   // --- VFO LOCK indicator W2JON
   const char *vfolk_text = "VFO LOCK";
   cairo_set_font_size(gfx, FONT_LARGE_VALUE);
   
-  // Check the anr_enabled variable and set the text color
+  // Check the vfo_lock_enabled variable and set the text color
   if (vfo_lock_enabled) {
       cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); 
   } else {
       cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.0); 
   }
   
-  // Cast anr_text to char* to avoid the warning
+  // Cast vfolk_text to char* to avoid the warning
   int vfolk_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)vfolk_text, FONT_LARGE_VALUE) - 9;
   int vfolk_text_y = f_spectrum->y + 30;
   
