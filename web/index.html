@@ -32,8 +32,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>sBitx</title>
     <script src="jquery.min.js"></script>
-    <script src="jquery.knob.min.js"></script>
+    <script src="jquery.knob.js"></script>
     <script src="pcm-player.js"></script>
+	<script src="proj4.js"></script>
+    <script src="gridmap.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -47,7 +49,7 @@
     <input type="hidden" id="STATUS" value="---" />
     <input type="hidden" id="REC" value="OFF" />
     <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="" />
-    <input type="hidden" id="VFO" value="A" />
+	<input type="hidden" id="VFOx" value="A" /> // oz7bx: This id=VFO causes VFO switch to fail
     <div id="sdr_page">
         <div id="maincontrols">
             <div class="sbitxv3-control">
@@ -61,6 +63,12 @@
                     <option value="DIGI">DIGI</option>
                     <option value="2TONE">2TONE</option>
                     <option value="AM">AM</option>
+                </select>
+            </div><div class="sbitxv3-control">
+                <div class="sbitxv3-label">KNOB</div>
+                <select class="sbitxv3-selection sbitx-selection" id="KNOB">
+                    <option value="ON">ON</option>
+                    <option value="OFF">OFF</option>
                 </select>
             </div><div class="sbitxv3-control" id="dial">
                 <span id="current_freq">A:00.000.000</span>
@@ -95,7 +103,7 @@
                 </select>
             </div><div class="linear rx-control" id="linear_BW">
                 <div class="linear-label">BW</div>
-                <input type="number" id="BW" min="0" max="100" class="linear-value" />
+    	<input type="number" id="BW" min="50" max="5000" step="50" class="linear-value" />
                 <div class="linear-dropdown">
                     <input type="range" class="linear-slider"
                            id="slider_BW" max="5000" min="50" step="50" value="13" />
@@ -131,7 +139,9 @@
                     <input type="range" class="linear-slider"
                            id="slider_AUDIO" max="100" min="0" step="1" value="13" />
                 </div>
-            </div><br />
+            </div><!-- It's nice to mute e.g. the FT8 sond in the browser
+            --><button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button><!--
+            --><br />
             <div class="linear" id="linear_DRIVE">
                 <div class="linear-label">DRIVE</div>
                 <input type="number" id="DRIVE" min="1" max="100" class="linear-value" />
@@ -326,7 +336,7 @@
                     <ol size="10" class="sbitx-list-box">
                     </ol>
                 </div>
-
+			<div id="gridmap"></div>
                 <div id="FT8_controls">
                     <div class="sbitxv3-control">
                         <div class="sbitxv3-label">AUTO</div>
@@ -559,11 +569,15 @@
     var in_tx = false;
     var parser = null;
     var qrz_window = null;
+var log_window = null;
     var session_id = "nullsession";
     var macros_file = "";
     var spots = null;
     var logbook_bottom_row_id = -1;
     var logbook_top_row_id = 0;
+var sound_mute = false;
+/* oz7bx gridmap */
+GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
 
     /* a few helper functions */
     function el(element_id) {
@@ -603,8 +617,6 @@
         if (socket == null)
             return;
 
-        if (str.substring(0, 3) == "key")
-            log("got it");
         var request = session_id + "\n" + str;
         //	log("ws tx:[" + request + "]");
         socket.send(request);
@@ -839,6 +851,19 @@
     let tuning_position_last = 0;
     var knob_resolution = 6;
 
+function getStepSize() {
+	var step_text = el("STEP").value;
+	var step_size = 1000;
+	switch(step_text){
+		case "10H": step_size = 10; break;
+		case "100H": step_size = 100; break;
+		case "500H": step_size = 500; break;
+		case "1K": step_size = 1000; break;
+		case "10K": step_size = 10000; break;
+		case "100K": step_size = 100000; break;
+	}
+	return step_size;
+}
     function tuning_knob_handler(position_now) {
         //avoid small movements
         if (Math.abs(position_now - tuning_position_last) < knob_resolution)
@@ -859,16 +884,8 @@
         //reduce the precision of delta
         delta = Math.round(delta / knob_resolution);
         //tuning up or down by the step value
-        var step_text = el("STEP").value;
-        var step_size = 1000;
-        switch (step_text) {
-            case "10H": step_size = 10; break;
-            case "100H": step_size = 100; break;
-            case "500H": step_size = 500; break;
-            case "1K": step_size = 1000; break;
-            case "10K": step_size = 10000; break;
-            case "100K": step_size = 100000; break;
-        }
+	    var step_size = getStepSize();
+
         f = el('FREQ');
         var freq = parseInt(f.value);
         freq = Math.round(freq / step_size) * step_size;
@@ -889,6 +906,7 @@
                 tuning_knob_handler(value);
             },
             release: function (value) {
+		tuning_knob_handler(value); // +llh
                 //console.log(this.$.attr('value'));
                 //console.log("release : " + value);
             },
@@ -900,7 +918,19 @@
         });
     });
 
-
+function change_freq(event) {
+	event.preventDefault();
+	let f = el('FREQ');
+	var freq = parseInt(f.value);
+	var step_size = getStepSize();
+	freq = Math.round(freq/step_size) * step_size;
+	if (event.deltaY > 0)
+		freq += step_size;
+	else
+		freq -= step_size;
+	f.value = freq;
+	update_freq(f.value);	
+}
 
     /* waterfall and spectrum */
 
@@ -1500,6 +1530,7 @@
     var ft8_tx_on_even = true;
     var ft8_tx_message = "";
 
+/* old version (OZ7BX)
     function FT8_stylize_message(text, style) {
         //tokenize the message
         var token_list = text.match(/\S+/g);
@@ -1524,24 +1555,100 @@
             return "sbitx-list-item wsjtx-message-for-me";
         else if (sender_callsign == mycallsign)
             return "sbitx-list-item wsjtx-mycallsign";
-        else if (sender_callsign == "CQ")
+	else if (contact_callsign == "CQ")
             return "sbitx-list-item wsjtx-cq-in-message";
         else
             return "sbitx-list-item";
+} */
+function deco_strip(text) {
+	return text.replace(/#./g, '');
     }
 
-    function FT8_list_append(list_id, text, style) {
-
+// Style codes of interest - if present the caller / grid is not found in the log
+const FF_MYCALL = 16;
+const FF_CALLER = 17;
+const FF_GRID = 18;
+function deco_get_style(text) {
+	let i = text.indexOf('#');
+	if (i >= 0 && text.length > i+1) {
+		return text.charCodeAt(i+1)-'A'.charCodeAt(0);
+	}
+	return 0;
+}
+function deco_to_span(text) {
+	let jclass = "";
+	switch (deco_get_style(text)) {
+		case FF_CALLER:
+			jclass = "ft8-new-caller";
+			break;
+		case FF_GRID:
+			jclass = "ft8-new-grid";
+			GRIDMAP.gridIdNotLogged(text.substring(2));
+			break;	
+		case FF_MYCALL:
+			jclass = "wsjtx-mycallsign";
+			break;
+		default:
+			if (GRIDMAP.isValidGridId(text.substring(2))) {
+				GRIDMAP.gridIdLogged(text.substring(2));
+			}
+		    jclass = "ft8-old-grid";
+			break;
+	}
+	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
+}
+function FT8_stylize_message_item(item, text, style) {
+	//tokenize the message
+	var token_list = text.match(/\S+/g);
+	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
+		log("FT8_process_message: error parsing [" + text + "]");
+		return;
+	}
         var label_position = text.search("~");
         var label = text.substring(0, label_position);
-        if (label.length == 21)
-            label = label + '  ';
-        var message = text.substring(label_position + 1);
+
+	var confidence_score = token_list[1];
+	var signal_strength = token_list[2];
+	var rx_frequency = token_list[3];
+	var m1 = token_list[5]; 
+	var m2 = token_list[6]; 
+	var m3 = token_list[7]; 
+	var m4 = token_list[8]; 
+	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
+	if(style == 'Q') {
+		item.className = "sbitx-list-item wsjtx-message-queued";
+	}
+	else if (deco_strip(m1) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-message-for-me";
+	}
+	else if (deco_strip(m2) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-mycallsign";
+	}
+	else {
+		item.className = "sbitx-list-item";
+	}
+	var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";   
+	// detailed markup
+	var htmMessage = "";
+	if (deco_strip(m1) == "CQ"){
+		item.className = "sbitx-list-item wsjtx-cq-in-message";
+		if (token_list.length == 8) { // CQ sender grid
+			htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
+		} else { // CQ DX sender grid
+			htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
+		}
+	}
+	else {
+		// contact sender grid|R
+		htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
+	}
+	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
+}
+function FT8_list_append(list_id, text, style){
         var item = document.createElement("li");
-        item.innerHTML = '<span class="ft8-label">' + label
-            + '</span><span class="ft8-message">' + message + '</span>';
-        item.className = FT8_stylize_message(text, style);
-        item.id = text;
+	FT8_stylize_message_item(item, text, style);
+	item.id = deco_strip(text);
         item.addEventListener("click", FT8_message_chosen);
         el(list_id).children[0].appendChild(item);
         item.scrollIntoView({ behaviour: 'smooth', block: 'nearest', inline: 'start' });
@@ -1587,12 +1694,22 @@
 
         var contact_callsign = "";
         var sender_callsign = ""
-        //a message that I sent out, retransmit this
+		
+		if (event.altKey) { // shift click
+			if (token_list.length == 9) { // cq dx call grid
+				show_in_qrz_window(token_list[7]);
+			} else { // cq call grid || to call grid 
+				show_in_qrz_window(token_list[6]);
+			}
+			//event.stopPropagation();
+			return false;
+		} else {
         if (token_list[6] == mycallsign) {
+			    //a message that I sent out, retransmit this
             contact_callsign = token_list[5];
             FT8_transmit(message_text);
             return;
-        }
+			} else {
 
         //this is the start of a new call
         logger_wipe();
@@ -1600,9 +1717,15 @@
         FT8_list_append("wsjtx-rx", message_text);
         websocket_send("FT8 " + message_text);
     }
+		}
+	}
 
+function FT8_lists_clear() {
+	document.querySelector('#wsjtx-activity ol').innerHTML ="";
+	document.querySelector('#wsjtx-rx ol').innerHTML ="";
+}
     function FT8_new_message(text, style) {
-        log("ft8:" + text + ":" + style);
+	//log("ft8:" + text + ":" + style);
         var words = text.split(' ');
         FT8_list_append("wsjtx-activity", text, style);
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
@@ -1612,6 +1735,8 @@
 
     // setup the html for wsjtx
     function FT8_open() {
+        el("KNOB").value = "OFF";
+        dial_show();
         el("FT8_ui").style.display = "block";
     }
 
@@ -1770,29 +1895,30 @@
         websocket_send("abort=1");
     }
 
+function show_in_qrz_window(callsign) {
+	var url = "https://www.qrz.com/db/" + callsign;
+	if (qrz_window == null || qrz_window.closed)
+		qrz_window = window.open(url, "_blank");
+	else
+		qrz_window.location = url;
+}
     function logger_qrz(event) {
         if ($("#CALL").val().length < 2)
             return;
 
-        var url = "https://www.qrz.com/db/" + $("#CALL").val();
-        if (qrz_window == null)
-            qrz_window = window.open(url, "_blank");
-        else if (qrz_window.closed)
-            qrz_window = window.open(url, "_blank");
-        else
-            qrz.window.location = url;
+	show_in_qrz_window($("#CALL").val());
     }
 
     function logbook_open(event) {
         //	var url = "https://www.qrz.com/db/" + $("#CALL").val();
-        var url = window.location.href + "logbook.html";
+	var url = window.location.origin + "/logbook.html";
 
-        if (qrz_window == null)
-            qrz_window = window.open(url, "_blank");
-        else if (qrz_window.closed)
-            qrz_window = window.open(url, "_blank");
-        else
-            qrz.window.location = url;
+	if (log_window == null)
+		log_window = window.open(url, "log");
+	else //if (log_window.closed)
+		log_window = window.open(url, "log");
+	//else
+		//log_window.location = url;
     }
     function logger_enter_qso() {
         var contact_callsign = el("CALL").value.toUpperCase();
@@ -1937,7 +2063,7 @@
         //callsign
         item = row.insertCell(-1);
         item.innerHTML = token[8];
-        item.className = "logbook-field logbook-call";
+	item.className = "logbook-lfield logbook-call";
         //sent
         item = row.insertCell(-1);
         item.innerHTML = token[6] + '  ' + token[7];
@@ -2082,8 +2208,16 @@
                     cw_update(data[i].innerHTML, "data_rx");
 
             var data = xml.getElementsByTagName("LOG");
-            for (var i = 0; i < data.length; i++)
-                write_console(data[i].innerHTML);
+		for (var i = 0; i < data.length; i++) {
+			let s = data[i].innerHTML;
+			write_console(s);
+			// Extract qso grid from message e.g.
+			// "Logged: F4VTG -05-JO65 -14-JN12\n;"
+			if (s.startsWith("Logged:")) { // String ends width \n 
+				s = s.substring(s.length-5,s.length-1);
+				GRIDMAP.gridIdJustLogged(s);
+			}
+		}
         }
         else
             console_update(text);
@@ -2145,6 +2279,7 @@
                 FT8_open();
                 $("#FT8_ui").show();
                 logger_set_macro("FT8");
+			sound_mute = true;
                 break;
             default:
                 wf.height = 150;
@@ -2174,7 +2309,7 @@
         if (response instanceof Blob) {
             f = new FileReader();
             f.onload = () => {
-                if (player != null) {
+			if (player != null && !sound_mute){
                     var samples = new Int16Array(f.result);
                     var upsample = new Int16Array(samples.length * intp_factor);
                     var j = 0;
@@ -2263,6 +2398,9 @@
             case 'MACRO':
                 logger_macro_changed_from_sdr(args);
                 break;
+			case 'SELBAND':
+			    FT8_lists_clear();
+				break;
             case 'MODE':
                 mode_set(args);
             //There is no break statement here, MODE continues to default case
@@ -2329,6 +2467,10 @@
     //$(".ft8-clickable").on("click", FT8_message_chosen);
 
     //specific control handler
+	//$("#knob_on").on("click", toggle_dial);
+    $("#KNOB").on("change", dial_show);
+	$("#sound_mute").on("click", () => { sound_mute = !sound_mute;});
+    el("dial").addEventListener("wheel", change_freq, { passive: false });
     $("#REF").on("change", draw_meters);
     $("#MODE").on("change", mode_changed);
     $("#console-open").on("click", show_console_panel);
@@ -2397,8 +2539,6 @@
     $("#record_start").on("click", start_recorder);
     $("#record_stop").on("click", stop_recorder);
 
-    //toggle the soft dial knob
-    $("#dial").on("click", toggle_dial);
     window.onload = ui_init();
 
     //init the state of the ui
@@ -2494,16 +2634,16 @@
             collection[i].style.display = "";
     }
 
-    function toggle_dial(event) {
+    function dial_show(event) {
         var dial = el("sidebar");
         var main = el("main");
-        if (dial.style.display == "block") {
-            main.style.marginLeft = 0;
-            dial.style.display = "none";
-        }
-        else {
+        if (el("KNOB").value == "ON") {
             main.style.marginLeft = 200;
             dial.style.display = "block";
+        }
+        else {
+            main.style.marginLeft = 0;
+            dial.style.display = "none";
         }
         resize_ui();
     }

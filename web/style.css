@@ -1,5 +1,6 @@
 body {
 	overflow-x: hidden;
+	margin: 0px;
 }
 
 #sdr_page:after {
@@ -12,7 +13,7 @@ body {
 .slider-label {
 	display: inline-block;
 	width: 50px;
-	text-align: right:
+	text-align: right;
 	font-weight: bold;
 }
 
@@ -294,6 +295,13 @@ select, select option, input {
 	font-size: 9pt;
 	color: #888; 
 }
+.logbook-lfield {
+	font-size: 10pt;
+	color: white;
+	text-transform:uppercase;
+	padding-left: 10px;
+	text-align: left;
+}
 
 .logbook-field {
 	font-size: 10pt;
@@ -412,10 +420,9 @@ select, select option, input {
 	padding-bottom: 10px;
 	position: fixed;
 	left: 200px;
-	top = 0px;
+	top: 0px;
 	border: solid 1px white;
 	background-color: black; 
-	zindex = 1;
 	opacity: 1;
 	z-index: 1;
 }
@@ -451,7 +458,7 @@ select, select option, input {
 	float: right;
 	display: inline-block;
 	background-color: black;
-	font-size; 14pt;
+	font-size: 14pt;
 }
 
 .sbitx-btn-back {
@@ -476,25 +483,45 @@ select, select option, input {
 	display: inline-block;
 	font-family: courier, monspace-ui, monospace;
 	font-size: 10pt;
-	height: 235px;
-	width: 290px;
+	height: 386px;
+	width: 320px;
 	overflow: auto;
 	border: none;
 }
 
 /* styling the FT8 list */
 .ft8-label {
-	font-size: 7pt;
+	font-size: 9pt;
 	display: inline-block;
-	width: 120px;
-	color: white;
+	width: 22ch;
 }
 
 .ft8-message {
 	font-size: 9pt;
 	font-weight: bold;
+	color: white;
 }
-
+.ft8-old-grid {
+	color: rgb(47, 178, 101);
+}
+.ft8-new-caller {
+	color: rgb(217, 90, 55);
+}
+.ft8-new-grid {
+	color: rgb(247, 247, 38);
+}
+.wsjtx-message-queued {
+	color: rgb(184, 123, 38);
+}
+.wsjtx-message-for-me {
+	color: rgb(251, 129, 129);
+}
+.wsjtx-mycallsign {
+	color: rgb(71, 213, 10);
+}
+.wsjtx-cq-in-message {
+	color: rgb(251, 243, 0);
+}
 /* generic styling of ui elements */
 
 .sbitx-list-box .ui-selected {background: grey; color: white;}
@@ -556,7 +583,7 @@ body {
 	height: 36px;
 	min-height: 36px;
 	border: solid 1px #333; 
-//	background-color: #044b59;
+    /*background-color: #044b59;*/
 	
 	font-size: 12px;
 	vertical-align:top;
@@ -566,10 +593,10 @@ body {
 
 .sbitxv3-selection{
 	border: 0;
-	font-size: 13px;
-	margin: 0;
+	font-size: 11px;
+	margin-left: -4px;
 	width: 48px;
-//	background-color: #044b59;
+    /*background-color: #044b59;*/
 
 /*	-webkit-appearance: none;
 	-ms-appearance: none;
@@ -591,7 +618,6 @@ body {
 	color: white;
 	vertical-align:top;
 	display: inline-block;
-	line-height: 0;
 /*	margin-top: 1px;
 	margin-bottom: 1px;*/
 	padding: 7 0 7 0;
@@ -738,7 +764,7 @@ body {
 }
 #linear_DRIVE, #linear_DRIVE > .linear-dropdown, #linear_DRIVE > .linear-value{
 	background-color: #bf0f0f;
-	border: solid 1px black;
+	/*border: solid 1px black;*/
 }
 
 
@@ -817,6 +843,31 @@ body {
 	margin-left: 200px;
 	margin-top:90px;
 	vertical-align: top;
-	zindex = -1; // this is to allow the restore button to show through
+	z-index: -1; /* this is to allow the restore button to show through ?? */
 }
 
+#FT8_controls {
+	display: block;
+}
+/* Tooltip css */
+.tooltip {
+	position: relative;
+	display: inline-block;
+	border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+  }
+.tooltip .tooltiptext {
+	visibility: hidden;
+	background-color: darkgreen;
+	color: #fff;
+	text-align: center;
+	padding: 5px 0;
+	border-radius: 4px;
+	position: absolute;
+	left: 0px;
+    top: -24px;
+    font-size: small;
+	z-index: 1;
+}
+.tooltip:hover .tooltiptext {
+	visibility: visible;
+}
