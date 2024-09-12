@@ -1241,9 +1241,13 @@ static int hw_settings_handler(void* user, const char* section,
 	if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
-	if (!strcmp(name, "tcxo"))
+	if (!strcmp(section, "tcxo"))
+	{
+	    if (!strcmp(name, "cal"))
+	    {
+		//  printf("xtal_freq_cal = %d\n",atoi(value));
 		si5351_set_calibration(atoi(value));
-	
+	    }
 }
 
 static void read_hw_ini(){
