@@ -391,17 +391,20 @@ static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
 
 #define BAND80M	0
-#define BAND40M	1
-#define BAND30M 2	
-#define BAND20M 3	
-#define BAND17M 4	
-#define BAND15M 5
-#define BAND12M 6 
-#define BAND10M 7 
+#define BAND60M	1
+#define BAND40M	2
+#define BAND30M 3	
+#define BAND20M 4	
+#define BAND17M 5	
+#define BAND15M 6
+#define BAND12M 7 
+#define BAND10M 8
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_USB, MODE_CW,MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+	{"60M", 5250000, 5500000, 0, 
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
 	{"40M", 7000000,7300000, 0,
 		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
 	{"30M", 10100000, 10150000, 0,
@@ -494,18 +497,20 @@ struct field main_controls[] = {
 		"", 0,0,0,COMMON_CONTROL},
 	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 0,0,0,COMMON_CONTROL},
+	{ "#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
-	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	//{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	//	"", 0,0, 0,COMMON_CONTROL},
+	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{ "r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
+	{ "r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
-	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	{ "tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
@@ -1502,39 +1507,47 @@ static int user_settings_handler(void* user, const char* section,
 		//band stacks
 		int band = -1;
 		if (!strcmp(section, "80M"))
-			band = 0;
+	band = BAND80M;
+	else if (!strcmp(section, "60M"))
+	band = BAND60M;
 		else if (!strcmp(section, "40M"))
-			band = 1;
+	band = BAND40M;
 		else if (!strcmp(section, "30M"))
-			band = 2;
+	band = BAND30M;
 		else if (!strcmp(section, "20M"))
-			band = 3;
+	band = BAND20M;
 		else if (!strcmp(section, "17M"))
-			band = 4;
+	band = BAND17M;
 		else if (!strcmp(section, "15M"))
-			band = 5;
+	band = BAND15M;
 		else if (!strcmp(section, "12M"))	
-			band = 6;
+	band = BAND12M;
 		else if (!strcmp(section, "10M"))
-			band = 7;	
+	band = BAND10M;	
 
-		if (band >= 0  && !strcmp(name, "freq0"))
+	if (band != -1) {
+		if (strstr(name,"freq")) {
+			int freq = atoi(value);
+			if (freq < band_stack[band].start || band_stack[band].stop < freq)
+				return 1;
+		}
+		if (!strcmp(name, "freq0"))
 			band_stack[band].freq[0] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq1"))
+		else if (!strcmp(name, "freq1"))
 			band_stack[band].freq[1] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq2"))
+		else if (!strcmp(name, "freq2"))
 			band_stack[band].freq[2] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq3"))
+		else if (!strcmp(name, "freq3"))
 			band_stack[band].freq[3] = atoi(value);
-		else if (band >= 0 && !strcmp(name, "mode0"))
+		else if (!strcmp(name, "mode0"))
 			band_stack[band].mode[0] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode1"))
+		else if (!strcmp(name, "mode1"))
 			band_stack[band].mode[1] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode2"))
+		else if (!strcmp(name, "mode2"))
 			band_stack[band].mode[2] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode3"))
+		else if (!strcmp(name, "mode3"))
 			band_stack[band].mode[3] = atoi(value);	
-
+	}
     return 1;
 }
 /* rendering of the fields */
@@ -5356,7 +5369,15 @@ void do_control_action(char* cmd) {
 		//spectrum_span = 25000;
 		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
-	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
+else if (!strcmp(request, "80M") || 
+		!strcmp(request, "60M") ||
+		!strcmp(request, "40M") || 
+		!strcmp(request, "30M") || 
+		!strcmp(request, "20M") || 
+		!strcmp(request, "17M") || 
+		!strcmp(request, "15M") || 
+		!strcmp(request, "12M") || 
+		!strcmp(request, "10M")){
 		change_band(request);
 	}
 	else if (!strcmp(request, "REC ON")) {
