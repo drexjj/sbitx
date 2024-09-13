@@ -67,7 +67,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
-#define SCALING_TRIM 2.7 // Use this to tune your meter response 2.7 worked at 51% and my inverted L
+#define SCALING_TRIM 200.0 // Use this to tune your meter response 2.7 worked at 51% and my inverted L
 
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
@@ -105,6 +105,10 @@ int notch_enabled = 0;//notch filter W2JON
 double notch_freq = 0; // Notch frequency in Hz W2JON
 double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
 
+int get_rx_gain(void) {
+	//printf("rx_gain %d\n", rx_gain);
+    return rx_gain;
+}
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -1236,6 +1240,15 @@ static int hw_settings_handler(void* user, const char* section,
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
 	if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
+	// Add TCXO Calibration W9JES/KK4DAS
+	if (!strcmp(section, "tcxo"))
+	{
+	    if (!strcmp(name, "cal"))
+	    {
+		//  printf("xtal_freq_cal = %d\n",atoi(value));
+		si5351_set_calibration(atoi(value));
+	    }
+	}
 }
 
 static void read_hw_ini(){
