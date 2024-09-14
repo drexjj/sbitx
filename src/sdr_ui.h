@@ -55,5 +55,5 @@ void write_call_log();
 time_t time_sbitx();
 
 
-#define VER_STR "sbitx v3.2_DEV" // thanks to W9JES, W2JON, KF7YDU, and N1QM
+#define VER_STR "sbitx v3.2_DEV" // Thanks to W9JES, W2JON, N1QM, OZ7BX, and KF7YDU
 
