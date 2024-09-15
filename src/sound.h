@@ -48,3 +48,10 @@ extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
 
+// Aduio Compression tool
+extern int comp_enabled;
+extern float compression_threshold_control;
+extern float compression_ratio_control;
+extern float makeup_gain_control;
+
+void apply_compression(float *input, int num_samples);

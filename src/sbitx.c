@@ -102,6 +102,7 @@ static double ssb_val = 1.0;  // W9JES
 int dsp_enabled = 0;//dsp W2JON
 int anr_enabled = 0;//anr W2JON
 int notch_enabled = 0;//notch filter W2JON
+int comp_enabled = 0;//audio compression W2JON
 double notch_freq = 0; // Notch frequency in Hz W2JON
 double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
 
@@ -317,6 +318,48 @@ static int create_mcast_socket(){
 		return socketfd;
 }
 */
+
+// Audio Compression W2JON
+extern float compression_threshold_control;  // 0-10 scale tuned by GTK controls in sbitx_gtk.c
+extern float compression_ratio_control;      // 0-10 scale tuned by GTK controls in sbitx_gtk.c
+extern float makeup_gain_control;            // 0-10 scale tuned by GTK controls in sbitx_gtk.c
+
+void apply_compression(float *input, int num_samples) {
+    // Map GTK control values (0-10) to more usable compression settings
+    float compression_threshold = compression_threshold_control / 10.0f; // Range 0.0 - 1.0
+    float compression_ratio = 1.0f + (compression_ratio_control / 10.0f) * 9.0f; // Range 1.0 - 10.0
+    float makeup_gain = 1.0f + (makeup_gain_control / 10.0f); // Range 1.0 - 2.0
+    
+    // Minimum threshold to avoid processing near silence
+    float min_threshold = 0.001f;
+
+    for (int i = 0; i < num_samples; i++) {
+        float sample = input[i];
+
+        // Apply compression only if the sample exceeds the minimum threshold
+        if (fabs(sample) > min_threshold) {
+            // Apply compression when sample exceeds the threshold
+            if (sample > compression_threshold) {
+                sample = compression_threshold + (sample - compression_threshold) / compression_ratio;
+            } else if (sample < -compression_threshold) {
+                sample = -compression_threshold + (sample + compression_threshold) / compression_ratio;
+            }
+
+            // Apply make-up gain to restore the volume lost due to compression
+            sample *= makeup_gain;
+
+            // Ensure the sample does not clip by limiting to the range -1.0 to 1.0
+            if (sample > 1.0f) {
+                sample = 1.0f;
+            } else if (sample < -1.0f) {
+                sample = -1.0f;
+            }
+        }
+
+        // Store the processed sample back into the input buffer
+        input[i] = sample;
+    }
+}
 
 // S-Meter test W2JON
 int calculate_s_meter(struct rx *r, double rx_gain) {
@@ -987,7 +1030,37 @@ void tx_process(
     }
 
 if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE && r->mode != MODE_CW && r->mode != MODE_CWR)) {
-    if (eq_is_enabled == 1) {
+	
+    if (comp_enabled == 1) {
+        // Convert GTK control values to usable compression settings
+        float comp_thresh = (compression_threshold_control / 10.0f) * 2000000000.0f;
+        float comp_ratio = 1.0f + (compression_ratio_control / 10.0f) * 9.0f;
+        float makeup_gain = 1.0f + (makeup_gain_control / 10.0f);
+
+        // Normalize input_mic to the range expected by apply_compression (assuming 32-bit PCM to float conversion)
+        float *normalized_input_mic = malloc(n_samples * sizeof(float));
+        for (int i = 0; i < n_samples; i++) {
+            normalized_input_mic[i] = input_mic[i] / 2000000000.0f; // Normalize to -1.0 to 1.0
+        }
+
+        // Apply compression
+        apply_compression(normalized_input_mic, n_samples);
+
+        // Denormalize back to the original range and store in input_mic
+        for (int i = 0; i < n_samples; i++) {
+            normalized_input_mic[i] *= 2000000000.0f;
+            if (normalized_input_mic[i] > 2000000000.0f) {
+                normalized_input_mic[i] = 2000000000.0f;
+            } else if (normalized_input_mic[i] < -2000000000.0f) {
+                normalized_input_mic[i] = -2000000000.0f;
+            }
+            input_mic[i] = (int32_t)normalized_input_mic[i];
+        }
+
+        free(normalized_input_mic);
+    }
+		
+	if (eq_is_enabled == 1) {
         // EQ is enabled, perform EQ processing
         apply_eq(&eq, input_mic, n_samples, 48000.0);
         //printf("EQ is active on the audio chain\n");
