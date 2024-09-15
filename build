@@ -8,16 +8,35 @@ O=$2
 OPT=0
 FLAGS="-g"
 [ -z "$F" ] && {
-   echo "usage:   $0 program [o]"
+   echo "usage:   $0 program [o|g|u]"
    echo "example: $0 sbitx"
    echo "-optional 'o' argument enables compiler optimizations"
+   echo "-optional 'g' argument enables profile generation"
+   echo "-optional 'u' argument enables usage of profile to guide optimizations"
    exit 1
 }
 if [ ! -z "$O" ] && [ "$O" = "o" ] ; then
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!! Building optimized binary, most warnings can be safely ignored !!"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-	FLAGS="-O3 -flto=auto"
+	FLAGS="-march=native -O3 -flto=auto"
+	OPT=1
+	rm -f *.gcda
+fi
+if [ ! -z "$O" ] && [ "$O" = "g" ] ; then
+	rm -f *.gcda
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building profile generating binary                             !!"
+	echo "!! Run the application in your normal use case, then rerun with   !!"
+	echo "!! the u option to generate a profile guided optimized build      !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-march=native -O3 -flto=auto -fprofile-generate"
+fi
+if [ ! -z "$O" ] && [ "$O" = "u" ] ; then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building profile guided binary                                 !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-march=native -O3 -flto=auto -fprofile-use"
 	OPT=1
 fi
 WORKING_DIRECTORY=`pwd`
@@ -65,3 +84,4 @@ echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 if [ "$F" = "sbitx" ] && [ -x $F ]; then 
 	sudo setcap CAP_SYS_TIME+ep $F
 fi
+echo Build completed at $(date)
