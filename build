@@ -28,7 +28,7 @@ if [ ! -z "$O" ] && [ "$O" = "g" ] ; then
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!! Building profile generating binary                             !!"
 	echo "!! Run the application in your normal use case, then rerun with   !!"
-	echo "!! the u option to generate a profile guided optimized build		!!"
+	echo "!! the u option to generate a profile guided optimized build      !!"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	FLAGS="-march=native -O3 -flto=auto -fprofile-generate"
 fi
