@@ -32,6 +32,5 @@ extern void modify_eq_band_bandwidth(parametriceq *eq, int band_index, double ne
 extern void print_eq_int(const parametriceq *eq);
 extern void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate);
 extern int eq_is_enabled;
-gboolean check_eq_control(gpointer data);  
 
 #endif /* PARA_EQ_H_ */
