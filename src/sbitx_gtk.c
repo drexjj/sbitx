@@ -2595,7 +2595,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("RX", 360, y1, 95, 45);
 			//Don't show pitch field in DIGI mode
 			//field_move("PITCH", 460, y1, 95, 45);
-			field_move("SIDETONE", 560, y1, 95, 45);
+			//field_move("SIDETONE", 560, y1, 95, 45);
 			break;
 		default:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
