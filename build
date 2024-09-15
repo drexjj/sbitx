@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 # Note: the '-e' flag will make the script stop immediately upon error with 
 # the error reflected in the environment.  This lets one issue commands like
 # "./build sbitx && ./sbitx" to build then run if it built correctly, and not
