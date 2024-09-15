@@ -64,7 +64,7 @@ fi
 gcc $FLAGS -o $F \
 	 src/vfo.c src/si570.c src/sbitx_sound.c src/fft_filter.c src/sbitx_gtk.c src/sbitx_utils.c \
     src/i2cbb.c src/si5351v2.c src/ini.c src/hamlib.c src/queue.c src/modems.c src/logbook.c \
-		src/modem_cw.c src/settings_ui.c src/ntputil.c \
+		src/modem_cw.c src/settings_ui.c src/hist_disp.c src/ntputil.c \
 		src/telnet.c src/macros.c src/modem_ft8.c src/remote.c src/mongoose.c src/para_eq.c src/webserver.c src/eq_ui.c src/$F.c  \
 		src/ft8_lib/libft8.a  \
 	-lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lncurses -lsqlite3 -lnsl -lrt \
@@ -77,7 +77,7 @@ if [ $OPT -eq 1 ]; then
 fi
 
 
-echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, KF7YDU, and N1QM" 
+echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, N1QM, OZ7BX, and KF7YDU" 
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 # This addition is used to provide the application the capability to adjust the local system time -W2JON
 # It should probably always run last at it'll fail if the file system doesn't support it - N1QM

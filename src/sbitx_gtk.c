@@ -43,6 +43,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
+#include "hist_disp.h"
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
@@ -177,6 +178,9 @@ struct font_style font_table[] = {
 	{FONT_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FF_GRID,   1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
 struct encoder enc_a, enc_b;
@@ -261,7 +265,7 @@ GtkWidget *display_area = NULL;
 GtkWidget *text_area = NULL;
 extern void settings_ui(GtkWidget*p);
 extern void eq_ui(GtkWidget*p);
-extern int logbook_open();
+
 
 // these are callbacks called by the operating system
 static gboolean on_draw_event( GtkWidget* widget, cairo_t *cr, 
@@ -295,13 +299,33 @@ static int measure_text(cairo_t *gfx, char *text, int font_entry){
 	return (int) ext.x_advance;
 }
 
-static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry){
+static struct font_style * set_style(cairo_t *gfx, int font_entry){
 	struct font_style *s  = font_table + font_entry;
   cairo_set_source_rgb( gfx, s->r, s->g, s->b);
 	cairo_select_font_face(gfx, s->name, s->type, s->weight);
 	cairo_set_font_size(gfx, s->height);
+	return s;
+}
+static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry){
+	struct font_style *s  = set_style(gfx, font_entry);
 	cairo_move_to(gfx, x, y + s->height);
-	cairo_show_text(gfx, text);
+	char * p = text;
+	char ch[2]; 
+	bool font_ready = true;
+	ch[1] = 0;
+	while (*p) {
+		ch[0]=*p;
+		if (!font_ready) {
+			s  = set_style(gfx, *p-'A');
+			font_ready = true;
+		}
+		else if (*p != '#' && font_ready ) {
+			cairo_show_text(gfx, ch);
+		} else if (*p == '#') {
+			font_ready = false;
+		}
+		p++;
+	}
 }
 
 static void fill_rect(cairo_t *gfx, int x, int y, int w, int h, int color){
@@ -632,7 +656,8 @@ struct field main_controls[] = {
 		"",1, 10, 1,0},
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-
+	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+    	"", 0,83,1, 0},  
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
@@ -884,9 +909,9 @@ int set_field(const char *id, const char *value){
 		char *p, *prev, *next, b[100];
 		//search the current text in the selection
 		prev = NULL;
-		if (debug)
-			printf("field selection [%s]\n");
 		strcpy(b, f->selection);
+		if (debug)
+			printf("field selection [%s] value=[%s]\n", b, value);
 		p = strtok(b, "/");
 		if (debug)
 			printf("first token [%s]\n", p);
@@ -1134,12 +1159,20 @@ void write_to_remote_app(int style, char *text){
 	remote_write("}");
 }
 
-void write_console(int style, char *text){
-	char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
+void write_console(int style, char *raw_text){
+	/*char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
 	char *path = getenv("HOME");
 	strcpy(directory, path);
 	strcat(directory, "/sbitx/data/display_log.txt");
+    */
 
+	char *text;
+	char decorated[1000];
+	if (strlen(raw_text) == 0)
+		return;
+
+	hd_decorate(style, raw_text, decorated);
+	text = decorated;
 	web_write(style, text);
 	//move to a new line if the style has changed
 	if (style != console_style){
@@ -1176,8 +1209,9 @@ void write_console(int style, char *text){
 		pf = NULL;
 	}
 */	
-	write_to_remote_app(style, text);
+	write_to_remote_app(style, raw_text);
 
+	int console_line_max = MIN(console_cols, MAX_LINE_LENGTH);
 	while(*text){
 		char c = *text;
 		if (c == '\n')
@@ -1185,7 +1219,13 @@ void write_console(int style, char *text){
 		else if (c < 128 && c >= ' '){
 			char *p = console_stream[console_current_line].text;
 			int len = strlen(p);
-			if(len >= console_cols - 1){
+			if (c == HD_MARKUP_CHAR) {
+				console_line_max +=2;  // markup does not count
+				if (console_line_max > MAX_LINE_LENGTH-2) {
+					len = console_line_max; // force a new Line
+				}
+			}
+			if(len >= console_line_max - 1) {
 				//start a fresh line
 				console_init_next_line();
 				p = console_stream[console_current_line].text;
@@ -1205,7 +1245,7 @@ void write_console(int style, char *text){
 }
 
 void draw_console(cairo_t *gfx, struct field *f){
-	char this_line[1000];
+
 	int line_height = font_table[f->font_index].height; 	
 	int n_lines = (f->height / line_height) - 1;
 
@@ -1239,7 +1279,7 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	int line_height = font_table[f->font_index].height; 	
 	int n_lines = (f->height / line_height) - 1;
 	int	l = 0;
-	int start_line;
+	int start_line = console_current_line - n_lines;
 
 	switch(event){
 		case FIELD_DRAW:
@@ -1248,7 +1288,6 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		break;
 		case GDK_BUTTON_PRESS:
 		case GDK_MOTION_NOTIFY:
-			start_line = console_current_line - n_lines;
 			l = start_line + ((b - f->y)/line_height);
 			if (l < 0)
 				l += MAX_CONSOLE_LINES;
@@ -1258,12 +1297,19 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 		break;
 		case GDK_BUTTON_RELEASE:
 			if (!strcmp(get_field("r1:mode")->value, "FT8")){
-				char ft8_message[100], ft8_response[100];
-				strcpy(ft8_message, console_stream[console_selected_line].text);
+				char ft8_message[300];
+				//strcpy(ft8_message, console_stream[console_selected_line].text);
+				hd_strip_decoration(ft8_message, console_stream[console_selected_line].text);
 				ft8_process(ft8_message, FT8_START_QSO);
 			}
 			f->is_dirty = 1;
 			return 1;
+		break;
+		case FIELD_EDIT:
+			if (a == MIN_KEY_UP && console_selected_line > start_line)
+				console_selected_line--;
+			else if (a == MIN_KEY_DOWN && console_selected_line < start_line + n_lines - 1)
+				console_selected_line++;
 		break;
 	}
 	return 0;	
@@ -2940,7 +2986,7 @@ void update_titlebar(){
 	time_t now = time_sbitx();
 	struct tm *tmp = gmtime(&now);
 //	sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",  
-	sprintf(buff, "%s %s %s %04d/%02d/%02d %02d:%02d:%02dZ", 
+	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ", 
 		VER_STR,get_field("#mycallsign")->value, get_field("#mygrid")->value,
 		tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec); 
  	gtk_window_set_title( GTK_WINDOW(window), buff);
@@ -4236,7 +4282,7 @@ static gboolean on_mouse_move (GtkWidget *widget, GdkEventButton *event, gpointe
 	last_mouse_x = x;
 	last_mouse_y = y;
 
-
+	return true;
 }
 
 static gboolean on_mouse_press (GtkWidget *widget, GdkEventButton *event, gpointer data) {
@@ -5008,7 +5054,7 @@ void ui_init(int argc, char *argv[]){
 	screen_height = gdk_screen_height();
 #pragma pop
 */
-	q_init(&q_web, 1000);
+	q_init(&q_web, 5000);
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
@@ -5153,6 +5199,11 @@ void change_band(char *request){
 	field_set("MODE", mode_name[band_stack[new_band].mode[stack]]);	
 	update_field(get_field("r1:mode"));
 
+	sprintf(buff, "%d", new_band);
+	set_field("#selband", buff); // signals web app to clear lists
+	q_empty(&q_web); // Clear old messages in queue
+	console_init(); // Clear old FT8 messages 
+	
   // this fixes bug with filter settings not being applied after a band change, not sure why it's a bug - k3ng 2022-09-03
 //  set_field("r1:low",get_field("r1:low")->value);
 //  set_field("r1:high",get_field("r1:high")->value);
@@ -5453,7 +5504,63 @@ void do_control_action(char* cmd) {
 		}
 	}
 
+int get_ft8_callsign(const char* message, char* other_callsign) {
+	int i = 0, j = 0, m = 0, len, cur_field = 0;
+	char fields[4][32];
+	other_callsign[0] = 0;
+	len = (int)strlen(message);
+	const char* mycall = field_str("MYCALLSIGN");
+	while (i <= len) {
+		if (message[i] == ' ' || message[i] == '\0' || j >= 31) {
+			i++;
+			while (i < len && message[i] == ' ') { i++; }
+			if (m > 3) {
+				break;
+			}
+			fields[m][j] = '\0';
+			if (cur_field == 4) {
+				if (strcmp(fields[m], "~")) {
+					return -1;  // no tilde
+				}
+			}
+			cur_field++;
+			if (cur_field > 5) {
+				m++;
+			}
+			j = 0;
+		}
+		else {
+			fields[m][j++] = message[i];
+			i++;
+		}
 
+		if (m > 4) {
+			return -2; // to many fields
+		}
+	}
+	if (cur_field < 7) {
+		return -3; // to few fields
+	}
+	if (!strcmp(fields[0], "CQ")) {
+		if (m == 4) {
+			i = 2; // CQ xx callsign grid
+		}
+		else {
+			i = 1; // CQ callsign grid
+		}
+	}
+	else if (!strcmp(fields[0], mycall)) {
+		i = 1; // mycallsign callsign
+	}
+	else if (!strcmp(fields[1], mycall)) {
+		i = 0; // mycallsign callsign
+	}
+	else {
+		i = 1; // callsign other -the one we hear
+	}
+	strcpy(other_callsign, fields[i]);
+	return m;
+}
 
 /*
 	These are user/remote entered commands.
@@ -5784,6 +5891,7 @@ int main( int argc, char* argv[] ) {
 	struct field *f;
 	f = active_layout;
 
+	hd_createGridList();
 	//initialize the modulation display
 
 	tx_mod_max = get_field("spectrum")->width;
@@ -5800,7 +5908,7 @@ int main( int argc, char* argv[] ) {
  
 	strcpy(vfo_a_mode, "USB");
 	strcpy(vfo_b_mode, "LSB");
-	set_field("#mycallsign", "VU2LCH");
+	set_field("#mycallsign", "NOBODY");
 	//vfo_a_freq = 14000000;
 	//vfo_b_freq = 7000000;
 	
@@ -5848,7 +5956,7 @@ int main( int argc, char* argv[] ) {
 		write_console(FONT_LOG, buff);
 	}
 	else 
-		write_console(FONT_LOG, "Set your with '\\callsign [yourcallsign]'\n"
+		write_console(FONT_LOG, "Set your callsign with '\\callsign [yourcallsign]'\n"
 		"Set your 6 letter grid with '\\grid [yourgrid]\n");
 
 	set_field("#text_in", "");
