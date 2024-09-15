@@ -2986,7 +2986,7 @@ void update_titlebar(){
 	time_t now = time_sbitx();
 	struct tm *tmp = gmtime(&now);
 //	sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",  
-	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d %0 2d:%02d:%02dZ", 
+	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ", 
 		VER_STR,get_field("#mycallsign")->value, get_field("#mygrid")->value,
 		tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec); 
  	gtk_window_set_title( GTK_WINDOW(window), buff);
