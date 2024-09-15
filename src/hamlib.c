@@ -329,7 +329,7 @@ void hamlib_handler(char *data, int len){
     if (data[i] == '\n'){
       incoming_data[incoming_ptr] = 0;
       incoming_ptr = 0;
-      printf("<<<hamlib cmd %s =>", data);
+      //printf("<<<hamlib cmd %s =>", data);
       interpret_command(incoming_data);
     }
     else if (incoming_ptr < MAX_DATA){
