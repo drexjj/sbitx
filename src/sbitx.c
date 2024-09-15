@@ -1238,7 +1238,7 @@ static int hw_settings_handler(void* user, const char* section,
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
+        if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
