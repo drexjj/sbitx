@@ -55,7 +55,7 @@ UI and Other Improvements:
   - Added a selectable RX notch filter to the main GUI.
   - Added a TCXO calibration option in the `hw_settings.ini` file.
   - Added the ability to toggle the optional S-meter (relatively calibrated at IF 52) on/off using the command `\smeteropt on`.
-  - Added the ability to toggle the QRO function on/off with the command `\qroopt on`.
+  - Added the ability to toggle the optional QRO function on/off with the command `\qroopt on`.
 
 
 
