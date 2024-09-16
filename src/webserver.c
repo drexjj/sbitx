@@ -10,6 +10,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "logbook.h"
+#include "hist_disp.h"
 
 static const char *s_listen_on = "ws://0.0.0.0:8080";
 static char s_web_root[1000];
@@ -61,6 +62,7 @@ static void do_login(struct mg_connection *c, char *key){
 		return;
 	}
 	
+	hd_createGridList(); // oz7bx: Make the list up to date at the beginning of a session
 	sprintf(session_cookie, "%x", rand());
 	char response[100];
 	sprintf(response, "login %s", session_cookie);
@@ -251,7 +253,7 @@ void webserver_start(){
 	//char *path = getenv("HOME");
 	strcpy(s_web_root, directory);
 	strcat(s_web_root, "/web");
-	printf("Dir %s\n",s_web_root);
+	//printf("Dir %s\n",s_web_root);
 	//logbook_open();
  	pthread_create( &webserver_thread, NULL, webserver_thread_function, 
 		(void*)NULL);

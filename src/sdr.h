@@ -198,7 +198,7 @@ void sdr_modulation_update(int32_t *samples, int count, double scale_up);
 
 /* from modems.c */
 void modem_rx(int mode, int32_t *samples, int count);
-void	modem_set_pitch(int pitch);
+void modem_set_pitch(int pitch, int mode);
 void modem_init();
 int get_tx_data_byte(char *c);
 int	get_tx_data_length();
@@ -259,3 +259,6 @@ FILE *wav_start_writing(const char* path);
 #define MULTICAST_ADDR "224.0.0.1"
 #define MULTICAST_PORT 5005
 #define MULTICAST_MAX_BUFFER_SIZE 1024
+
+// S-Meter
+int get_rx_gain(void);

@@ -375,11 +375,20 @@ static int fldigi_tx_stop(){
 		return -1;
 }
 
-void modem_set_pitch(int pitch){
-	char response[1000];
-
-	fldigi_call_i("modem.set_carrier", pitch, response);
-//		puts("fldigi modem.set_carrier error");
+void modem_set_pitch(int pitch, int mode){
+	
+	//Sends an xmlrpc command to fldigi, so be selective of which modes we actually use it on - n1qm
+	switch (mode) {
+		case MODE_CW:
+		case MODE_CWR:
+		case MODE_FT8:
+		case MODE_PSK31:
+		case MODE_RTTY:
+			char response[1000];
+			
+			fldigi_call_i("modem.set_carrier", pitch, response);
+			break;
+	}
 }
 
 
@@ -392,7 +401,7 @@ void modem_rx(int mode, int32_t *samples, int count){
 
 	if (get_pitch() != last_pitch  
 		&& (mode == MODE_CW || mode == MODE_CWR || MODE_RTTY || MODE_PSK31))
-		modem_set_pitch(get_pitch());
+		modem_set_pitch(get_pitch(),mode);
 
 	s = samples;
 	switch(mode){
@@ -458,7 +467,7 @@ void modem_poll(int mode){
 		else if (current_mode == MODE_RTTY || current_mode == MODE_PSK31 ||
 			MODE_CWR || MODE_CW){
 			macro_load("CW1", NULL);	
-			modem_set_pitch(get_pitch());
+			modem_set_pitch(get_pitch(),current_mode);
 		}
 
 		if (current_mode == MODE_CW || current_mode == MODE_CWR)

@@ -484,17 +484,19 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
            decoded_hashtable[idx_hash] = &decoded[idx_hash];
            ++num_decoded;
 
-					char buff[1000];
-          sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
-						cand->score, cand->snr, freq_hz, message.text);
-
-					if (strstr(buff, mycallsign_upper)){
-						write_console(FONT_FT8_REPLY, buff);
-						ft8_process(buff, FT8_CONTINUE_QSO);
-					}
-					else 
-						write_console(FONT_FT8_RX, buff);
-					n_decodes++;
+			char buff[1000];
+            sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
+			  cand->score, cand->snr, freq_hz, message.text);
+			//For troubleshooting you can display the time offset - n1qm
+			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
+			//  cand->snr, freq_hz, message.text);
+			if (strstr(buff, mycallsign_upper)){
+				write_console(FONT_FT8_REPLY, buff);
+				ft8_process(buff, FT8_CONTINUE_QSO);
+			}
+			else 
+				write_console(FONT_FT8_RX, buff);
+			n_decodes++;
         }
     }
     //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
@@ -737,7 +739,7 @@ int ft8_message_tokenize(char *message){
 			m4[0] = 0;
 	}
 	else
-		m3[0];
+		m3[0] = 0;
 
 	return 0;
 }
@@ -776,7 +778,7 @@ void ft8_on_start_qso(char *message){
 		field_set("CALL", m2);
 		field_set("SENT", signal_strength);
 		//they might have directly sent us a signal report
-		if (isalpha(m3[0])){
+		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
 			field_set("EXCH", m3);
 			sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 		}
@@ -787,7 +789,11 @@ void ft8_on_start_qso(char *message){
 	}
 	else { //we are breaking into someone else's qso
 		field_set("CALL", m2);
-		field_set("EXCH", "");
+		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
+			field_set("EXCH", m3); // the gridId is valid - use it
+		} else {
+			field_set("EXCH", "");
+		}
 		field_set("SENT", signal_strength);
 		sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 	}

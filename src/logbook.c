@@ -47,6 +47,8 @@ int logbook_query(char *query, int from_id, char *result_file){
 	sqlite3_stmt *stmt;
 	char statement[200], json[10000], param[2000];
 
+	if (db == NULL)
+		logbook_open();
 
 	//add to the bottom of the logbook
 	if (from_id > 0){
@@ -142,11 +144,151 @@ int logbook_count_dup(const char *callsign, int last_seconds){
 	return rec;
 }
 
+int logbook_get_grids(void (*f)(char *,int)) {
+	sqlite3_stmt *stmt;
+	char *statement = "SELECT exch_recv, COUNT(*) AS n FROM logbook "
+		"GROUP BY exch_recv order by exch_recv";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	int cnt = 0;
+	char grid[10];
+	int n = 0;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		int num_cols = sqlite3_column_count(stmt);
+		for (int i = 0; i < num_cols; i++){
+			char const *col_name = sqlite3_column_name(stmt, i);
+			if (!strcmp(col_name, "exch_recv")) { 
+				strcpy(grid, sqlite3_column_text(stmt, i));
+			} else
+			if (!strcmp(col_name, "n")) { 
+				n = sqlite3_column_int(stmt, i);
+			}
+		}
+		f(grid,n);
+		cnt++;
+	}
+	sqlite3_finalize(stmt);
+	return cnt;
+}
+bool logbook_caller_exists(char * id) {
+	sqlite3_stmt *stmt;
+	char * statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE callsign_recv=?)";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	if (res != SQLITE_OK) return false;
+	bool exists = false;
+	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
+	if (res == SQLITE_OK) {
+		res = sqlite3_step(stmt);
+		int i = sqlite3_column_int(stmt, 0);
+		exists = ( res == SQLITE_ROW && i != 0);
+	}
+	sqlite3_finalize(stmt);
+	return exists;
+}
+bool logbook_grid_exists(char *id) {
+	sqlite3_stmt *stmt;
+	char * statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE exch_recv=?)";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	if (res != SQLITE_OK) return false;
+	bool exists = false;
+	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
+	if (res == SQLITE_OK) {
+		res = sqlite3_step(stmt);
+		int i = sqlite3_column_int(stmt, 0);
+		exists = ( res == SQLITE_ROW && i != 0);
+	}
+	sqlite3_finalize(stmt);
+	return exists;
+}
+int logbook_prev_log(const char *callsign, char *result){
+	char statement[1000], param[2000];
+	sqlite3_stmt *stmt;
+	sprintf(statement, "select * from logbook where "
+		"callsign_recv=\"%s\" ORDER BY id DESC",
+		callsign);
+	strcpy(result, callsign);
+	strcat(result, ": ");
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	int rec = 0;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		int i;
+		int num_cols = sqlite3_column_count(stmt);
+		if (rec == 0) {
+			for (i = 0; i < num_cols; i++){
+				char const *col_name = sqlite3_column_name(stmt, i);
+			    if (!strcmp(col_name, "id")) { continue; }
+				if (!strcmp(col_name, "callsign_recv")) { continue; }
+				switch (sqlite3_column_type(stmt, i))
+				{
+				case (SQLITE3_TEXT):
+					strcpy(param, sqlite3_column_text(stmt, i));
+					break;
+				case (SQLITE_INTEGER):
+					sprintf(param, "%d", sqlite3_column_int(stmt, i));
+					break;
+				case (SQLITE_FLOAT):
+					sprintf(param, "%g", sqlite3_column_double(stmt, i));
+					break;
+				case (SQLITE_NULL):
+					break;
+				default:
+					sprintf(param, "%d", sqlite3_column_type(stmt, i));
+					break;
+				}
+				strcat(result, param);
+				if (!strcmp(col_name, "qso_date")) strcat(result, "_");
+				else strcat(result, " ");
+			}
+		}
+		rec++;
+	}
+	sqlite3_finalize(stmt);
+	sprintf(param, ": %d", rec);
+	strcat(result, param);
+	return rec;
+}
+int row_count_callback(void *data, int argc, char **argv, char **azColName) {
+    int *count = (int*)data;
+    (*count)++;
+    return 0;
+}
 void logbook_open(){
 	char db_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+    char *zErrMsg = 0;
 	sprintf(db_path, "%s/sbitx/data/sbitx.db", getenv("HOME"));
 
 	rc = sqlite3_open(db_path, &db);
+	if( rc != SQLITE_OK ){
+		fprintf(stderr, "Failed to open logbook. SQL error: %s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+		return;
+	}
+	char *sql = "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='logbook' AND name IN ('gridIx', 'callIx');";
+    int index_count = 0;
+    rc = sqlite3_exec(db, sql, row_count_callback, &index_count, &zErrMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "logbook index check failed: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+		return;
+    }
+    if (index_count == 2) {
+        printf("Logbook indexes are OK.\n");
+    } else {
+		char *sql1 = "CREATE INDEX gridIx ON logbook (exch_recv);";
+		char *sql2 = "CREATE INDEX callIx ON logbook (callsign_recv);";
+		rc = sqlite3_exec(db, sql1, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "SQL-error creating gridIx: %s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+			return;
+		}
+		rc = sqlite3_exec(db, sql2, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "SQL-error creating callIx: %s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+			return;
+		}
+		printf("Logbook indexes created.\n");
+    }
 }
 
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
