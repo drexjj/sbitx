@@ -51,10 +51,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list; 
-float compression_threshold_control = 5.0;  
-float compression_ratio_control = 5.0;      
-float makeup_gain_control = 5.0;            
-
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
@@ -66,7 +62,7 @@ int eq_is_enabled = 0;
 int qro_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
-int compression_enabled = 0;
+
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
@@ -711,14 +707,8 @@ struct field main_controls[] = {
 		"ON/OFF",0,0,0,0},
 
   // Compressor Control
-  	{ "#comp_plugin", do_toggle_option, 1000, -1000, 40, 40, "COMP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-		"ON/OFF",0,0,0,0},	
-	{ "#comp_threshold", do_comp_edit, 1000, -1000, 40, 40, "THRESH", 80, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",1, 10, 1,0}, 		
-	{ "#comp_ratio", do_comp_edit, 1000, -1000, 40, 40, "RATIO", 80, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",1, 10, 1,0},
-	{ "#comp_makeup_gain", do_comp_edit, 1000, -1000, 40, 40, "MUGAIN", 80, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",1, 10, 1,0},	 
+  	{ "#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
+		"10/9/8/7/6/5/4/3/2/1/0",0,0,0,0},	
 			
   // BFO Control
 	{ "#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -2425,11 +2415,11 @@ void menu_display(int show) {
        	field_move("NFREQ", 240, screen_height - 90, 45, 45);
         field_move("BNDWTH", 290, screen_height - 90, 45, 45);
         field_move("COMP",  350, screen_height - 140, 95, 45);
-        field_move("THRESH", 350, screen_height - 90, 45, 45);
-        field_move("RATIO", 400, screen_height - 90, 45, 45);
+       // field_move("THRESH", 350, screen_height - 90, 45, 45);//defunct
+       // field_move("RATIO", 400, screen_height - 90, 45, 45);//defunct
         //field_move("ANR", 460, screen_height - 140, 95, 45); //old position and size
-		field_move("ANR", 510, screen_height - 140, 45, 45); 
-		field_move("DSP", 460, screen_height - 140, 45, 45); 
+		field_move("ANR", 460, screen_height - 140, 95, 45); 
+		field_move("DSP", 350, screen_height - 90, 95, 45); 
         field_move("BFO", 460, screen_height - 90 ,45 ,45);
 		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 		if (!strcmp(field_str("QROOPT"), "ON")) {
@@ -3751,23 +3741,14 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 }
 
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    //Fix a compiler warning - n1qm
-	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
-	if (!strcmp(field_str("COMP"), "ON")) {
-        struct field *comp_threshold_field = get_field("#comp_threshold");
-        int comp_threshold_value = atoi(comp_threshold_field->value);
-        compression_threshold_control = comp_threshold_value;  
-        struct field *comp_ratio_field = get_field("#comp_ratio");
-		int comp_ratio_value = atoi(comp_ratio_field->value);
-		compression_ratio_control = comp_ratio_value;
-		struct field *makeup_gain_value_field = get_field("#comp_makeup_gain");
-		int makeup_gain_value = atoi(makeup_gain_value_field->value);
-		makeup_gain_control = makeup_gain_value;
-	}
+    const char *compression_control_field = field_str("COMP");
+    int compression_control_level_value = atoi(compression_control_field);
+   	compression_control_level = compression_control_level_value;	
+   
+    return 0;
+}
 
-	return 0;
-      
-    }
+
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm
 	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
@@ -3886,7 +3867,6 @@ void tx_on(int trigger){
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON
     struct field* eq_stat = get_field("#eq_plugin");
 	struct field* notch_stat = get_field("#notch_plugin");
-	struct field* comp_stat = get_field("#comp_plugin");    
 	struct field* dsp_stat = get_field("#dsp_plugin");
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
@@ -3905,14 +3885,6 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             notch_enabled = 1;
         } else if (!strcmp(notch_stat->value, "OFF")) {
             notch_enabled = 0;
-        }
-    }
-
-	if (comp_stat) {
-        if (!strcmp(comp_stat->value, "ON")) {
-            comp_enabled = 1;
-        } else if (!strcmp(comp_stat->value, "OFF")) {
-            comp_enabled = 0;
         }
     }
 
@@ -6010,7 +5982,7 @@ int main( int argc, char* argv[] ) {
  	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
-	field_set("COMP", "OFF");
+	//field_set("COMP", "OFF");
 	//field_set("WTRFL" , "OFF");
 	
 	//This does appear to work although it doesn't spit anything out in console on init....
