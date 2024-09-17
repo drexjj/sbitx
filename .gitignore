@@ -1,0 +1,13 @@
+audio/
+.vs/
+.vscode/
+data/hw_settings.ini
+data/user_settings.ini
+data/sbitx.db
+sbitx
+sbitx-fast
+sbitx_wisdom.wis
+sbitx_wisdom_f.wis
+web/grids.txt
+web/*.mc
+*.gcda
