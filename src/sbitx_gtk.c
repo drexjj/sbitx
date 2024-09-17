@@ -529,9 +529,9 @@ struct field main_controls[] = {
 		"", 0,0,0,COMMON_CONTROL},
 	{ "#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	//{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-	//	"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{ "#web", NULL, 460,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 0,0, 0,COMMON_CONTROL},
+	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
 	{ "r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
 	{ "r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
@@ -662,7 +662,9 @@ struct field main_controls[] = {
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
 	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
-    	"", 0,83,1, 0},  
+    	"", 0,83,1, 0},
+	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+                "", 0,0,0,0,COMMON_CONTROL}, // w9jes
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
@@ -2417,9 +2419,10 @@ void menu_display(int show) {
         // Move each control to the appropriate position
 
  		// NEW LAYOUT @ 3.1
+	field_move("SET",5,screen_height - 140 ,45 ,45);  // w9jes
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
-		field_move("NOTCH", 240, screen_height - 140, 95, 45);
+	field_move("NOTCH", 240, screen_height - 140, 95, 45);
        	field_move("NFREQ", 240, screen_height - 90, 45, 45);
         field_move("BNDWTH", 290, screen_height - 90, 45, 45);
         field_move("DSP",  350, screen_height - 140, 95, 45);
@@ -2427,7 +2430,7 @@ void menu_display(int show) {
         field_move("THSHLD", 400, screen_height - 90, 45, 45);
         field_move("ANR", 460, screen_height - 140, 95, 45); 
         field_move("BFO", 460, screen_height - 90 ,45 ,45);
-		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
+	field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 		if (!strcmp(field_str("QROOPT"), "ON")) {
 		field_move("QRO", 680,screen_height - 140 ,95 ,45);
 		}
