@@ -64,9 +64,6 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 
-
-
-
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -670,8 +667,7 @@ struct field main_controls[] = {
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
                 "", 0,0,0,0,COMMON_CONTROL}, // w9jes
 
-
-  // EQ TX Audio Setting Controls
+// EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
 
@@ -2458,8 +2454,8 @@ void menu_display(int show) {
 		field_move("DSP", 350, screen_height - 90, 95, 45); 
 		//field_move("DSP", 350, screen_height - 90, 45, 45); 
 		//field_move("THSHLD", 400, screen_height - 90, 45, 45);
-        field_move("BFO", 460, screen_height - 90 ,45 ,45);
-		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
+    field_move("BFO", 460, screen_height - 90 ,45 ,45);
+	  field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 		if (!strcmp(field_str("QROOPT"), "ON")) {
 		field_move("QRO", 680,screen_height - 140 ,95 ,45);
 		}

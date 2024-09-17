@@ -35,8 +35,7 @@ These are text commands that can be entered from the keyboard
     Allows adjustment of BFO during runtime; pass a value in +/- HZ
 	Passing a value of 0 will reset to default/no offset
 	An offset of +/- 3000 is usually enough to move birdies out of the passband
-	Value is saved and restored on launch
-\macro [list\<name of macro to load>]
+	Value is not saved and always 0 on a fresh launch
 10M	
 12M
 15M
