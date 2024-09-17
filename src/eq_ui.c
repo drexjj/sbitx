@@ -3,11 +3,16 @@
 #include <string.h>
 #include "eq_ui.h"
 
-
-// GTK Callback functions for TXEQ UI
+// Define or declare the parametric EQ instance
+extern parametriceq eq; // Assuming eq is defined elsewhere
 void on_gain_value_changed(GtkScale *scale, gpointer user_data) {
     gint index = GPOINTER_TO_INT(user_data);
     gdouble value = gtk_range_get_value(GTK_RANGE(scale));
+    
+    // Update the EQ band gain
+    modify_eq_band_gain(&eq, index, value);
+    
+    // Update the field value
     gchar field_name[10];
     g_snprintf(field_name, sizeof(field_name), "B%dG", index);
     gchar *value_str = g_strdup_printf("%f", value);
@@ -18,12 +23,18 @@ void on_gain_value_changed(GtkScale *scale, gpointer user_data) {
 void on_freq_value_changed(GtkScale *scale, gpointer user_data) {
     gint index = GPOINTER_TO_INT(user_data);
     gdouble value = gtk_range_get_value(GTK_RANGE(scale));
+    
+    // Update the EQ band frequency
+    modify_eq_band_frequency(&eq, index, value);
+    
+    // Update the field value
     gchar field_name[10];
     g_snprintf(field_name, sizeof(field_name), "B%dF", index);
     gchar *value_str = g_strdup_printf("%f", value);
     field_set(field_name, value_str);
     g_free(value_str);
 }
+
 
 // Callback function to hide the window
 void on_window_close(GtkWidget *widget, gpointer data) {
@@ -132,3 +143,4 @@ void eq_ui(GtkWidget* parent){
     gtk_window_move(GTK_WINDOW(window), wx + (ww-nw)/2, wy + (wh - nh)/2);//position window
 
 }
+
