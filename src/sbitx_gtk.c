@@ -5681,8 +5681,14 @@ void cmd_exec(char *cmd){
 		console_init();
 	}
 	else if(!strcmp(exec, "macro") || !strcmp(exec, "MACRO")){
-		if (!strcmp(args, "list"))
-			macro_list(NULL);
+		if (!strcmp(args, "list")){
+			char list[20000];
+			char tmplist[20000] = "Available macros: ";
+			macro_list(list);
+			strcat (tmplist,list);
+			strcat(tmplist,"\n");
+			write_console(FONT_LOG,tmplist);
+		}
 		else if (!macro_load(args, NULL)){
 			set_ui(LAYOUT_MACROS);
 			set_field("#current_macro", args);
