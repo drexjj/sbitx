@@ -60,6 +60,7 @@ struct Queue q_remote_commands;
 struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int qro_enabled = 0;
+int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 
@@ -697,7 +698,7 @@ struct field main_controls[] = {
   // DSP Controls
 	{ "#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
-  	{ "#dsp_interval", do_dsp_edit, 1000, -1000, 40, 40, "INTVL", 80, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
+  	{ "#dsp_interval", do_dsp_edit, 1000, -1000, 40, 40, "INTVL", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",20, 200, 10,0}, 
   	{ "#dsp_threshold", do_dsp_edit, 1000, -1000, 40, 40, "THSHLD", 80, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0, 100, 1,0},        
@@ -1960,17 +1961,36 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   if (qro_enabled) {
       cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Green when enabled
   } else {
-      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
   }
   
   // Cast qro_text to char* to avoid the warning
 
-  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 118;
+  int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)qro_text, FONT_SMALL) - 148;
   int qro_text_y = f_spectrum->y + 7;
   if (!strcmp(field_str("QROOPT"), "ON")) {
   cairo_move_to(gfx, qro_text_x, qro_text_y);
   cairo_show_text(gfx, qro_text);
   }
+
+   // --- Compressor plugin indicator W2JON
+  const char *comp_text = "COMP";
+  cairo_set_font_size(gfx, FONT_SMALL);
+  
+  // Check the qro_enabled variable and set the text color
+  if (comp_enabled) {
+      cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Green when enabled
+  } else {
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
+  }
+  
+  // Cast qro_text to char* to avoid the warning
+
+  int comp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char*)comp_text, FONT_SMALL) - 118;
+  int comp_text_y = f_spectrum->y + 7;
+  cairo_move_to(gfx, comp_text_x, comp_text_y);
+  cairo_show_text(gfx, comp_text);
+
 
   // --- NOTCH plugin indicator W2JON
   const char *notch_text = "NOTCH";
@@ -1980,7 +2000,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   if (notch_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
-      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
   }
   
   // Cast notch_text to char* to avoid the warning
@@ -1998,7 +2018,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   if (eq_is_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
-      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
   }
   
   // Cast txeq_text to char* to avoid the warning
@@ -2017,7 +2037,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   if (dsp_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
-      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
   }
   
   // Cast dsp_text to char* to avoid the warning
@@ -2036,7 +2056,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
   if (anr_enabled) {
       cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
   } else {
-      cairo_set_source_rgb(gfx, 0.3, 0.3, 0.3); // Gray when disabled
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
   }
   
   // Cast anr_text to char* to avoid the warning
@@ -2405,21 +2425,18 @@ void menu_display(int show) {
     for (f = active_layout; f->cmd[0]; f++) {
         if (!strncmp(f->cmd, "#eq_", 4)) { 
     if (show) {
-
-        // Move each control to the appropriate position
-
- 		// NEW LAYOUT @ 3.1
+ 		
+		// NEW LAYOUT @ 3.2
         field_move("EQSET",130,screen_height - 90 ,95 ,45);
         field_move("TXEQ", 130, screen_height - 140, 95, 45);
 		field_move("NOTCH", 240, screen_height - 140, 95, 45);
        	field_move("NFREQ", 240, screen_height - 90, 45, 45);
         field_move("BNDWTH", 290, screen_height - 90, 45, 45);
         field_move("COMP",  350, screen_height - 140, 95, 45);
-       // field_move("THRESH", 350, screen_height - 90, 45, 45);//defunct
-       // field_move("RATIO", 400, screen_height - 90, 45, 45);//defunct
-        //field_move("ANR", 460, screen_height - 140, 95, 45); //old position and size
 		field_move("ANR", 460, screen_height - 140, 95, 45); 
 		field_move("DSP", 350, screen_height - 90, 95, 45); 
+		//field_move("DSP", 350, screen_height - 90, 45, 45); 
+		//field_move("THSHLD", 400, screen_height - 90, 45, 45);
         field_move("BFO", 460, screen_height - 90 ,45 ,45);
 		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 		if (!strcmp(field_str("QROOPT"), "ON")) {
@@ -2427,10 +2444,7 @@ void menu_display(int show) {
 		}
         field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
         field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
-      //  field_move("DSP",  350, screen_height - 140, 95, 45);
-      //  field_move("INTVL", 350, screen_height - 90, 45, 45);
-      //  field_move("THSHLD", 400, screen_height - 90, 45, 45);
-		
+
         
     } else {
         // Move the fields off-screen if not showing
@@ -3744,7 +3758,11 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) 
     const char *compression_control_field = field_str("COMP");
     int compression_control_level_value = atoi(compression_control_field);
    	compression_control_level = compression_control_level_value;	
-   
+ //  if (compression_control_level_value >= 1) {
+//	   comp_enabled = 1;
+ //  } else {
+//	   comp_enabled = 0;
+ // }
     return 0;
 }
 
@@ -3871,6 +3889,7 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
     struct field* anr_stat = get_field("#anr_plugin");
 	struct field* qro_stat = get_field("#qro");
 	struct field* vfo_stat = get_field("#vfo_lock");
+	struct field* comp_stat = get_field("#comp_plugin");
 	
     if (eq_stat) {
         if (!strcmp(eq_stat->value, "ON")) {
@@ -3922,6 +3941,16 @@ gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2J
             vfo_lock_enabled = 0;
 		  }
     }
+   
+    if (comp_stat) {
+        if (atoi(comp_stat->value) != 0) {
+            comp_enabled = 1;
+        } else { 
+            comp_enabled = 0;
+        }
+    }
+
+
      return TRUE;  // Return TRUE to keep the timer running
 }
 
