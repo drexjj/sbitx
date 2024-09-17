@@ -65,6 +65,8 @@ int input_volume = 0;
 int vfo_lock_enabled = 0;
 
 
+
+
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -417,17 +419,20 @@ static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
 
 #define BAND80M	0
-#define BAND40M	1
-#define BAND30M 2	
-#define BAND20M 3	
-#define BAND17M 4	
-#define BAND15M 5
-#define BAND12M 6 
-#define BAND10M 7 
+#define BAND60M	1
+#define BAND40M	2
+#define BAND30M 3	
+#define BAND20M 4	
+#define BAND17M 5	
+#define BAND15M 6
+#define BAND12M 7 
+#define BAND10M 8
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_USB, MODE_CW,MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+	{"60M", 5250000, 5500000, 0, 
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
 	{"40M", 7000000,7300000, 0,
 		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
 	{"30M", 10100000, 10150000, 0,
@@ -522,18 +527,20 @@ struct field main_controls[] = {
 		"", 0,0,0,COMMON_CONTROL},
 	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+		"", 0,0,0,COMMON_CONTROL},
+	{ "#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{ "#web", NULL, 460,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
-	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{ "r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
+	{ "r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
-	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
+	{ "tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
@@ -659,7 +666,10 @@ struct field main_controls[] = {
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
 	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
-    	"", 0,83,1, 0},  
+    	"", 0,83,1, 0},
+	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+                "", 0,0,0,0,COMMON_CONTROL}, // w9jes
+
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
@@ -1172,7 +1182,7 @@ void write_console(int style, char *raw_text){
 	strcat(directory, "/sbitx/data/display_log.txt");
     */
 
-	char *text;
+  char *text;
 	char decorated[1000];
 	if (strlen(raw_text) == 0)
 		return;
@@ -1556,39 +1566,47 @@ static int user_settings_handler(void* user, const char* section,
 		//band stacks
 		int band = -1;
 		if (!strcmp(section, "80M"))
-			band = 0;
+	band = BAND80M;
+	else if (!strcmp(section, "60M"))
+	band = BAND60M;
 		else if (!strcmp(section, "40M"))
-			band = 1;
+	band = BAND40M;
 		else if (!strcmp(section, "30M"))
-			band = 2;
+	band = BAND30M;
 		else if (!strcmp(section, "20M"))
-			band = 3;
+	band = BAND20M;
 		else if (!strcmp(section, "17M"))
-			band = 4;
+	band = BAND17M;
 		else if (!strcmp(section, "15M"))
-			band = 5;
+	band = BAND15M;
 		else if (!strcmp(section, "12M"))	
-			band = 6;
+	band = BAND12M;
 		else if (!strcmp(section, "10M"))
-			band = 7;	
+	band = BAND10M;	
 
-		if (band >= 0  && !strcmp(name, "freq0"))
+	if (band != -1) {
+		if (strstr(name,"freq")) {
+			int freq = atoi(value);
+			if (freq < band_stack[band].start || band_stack[band].stop < freq)
+				return 1;
+		}
+		if (!strcmp(name, "freq0"))
 			band_stack[band].freq[0] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq1"))
+		else if (!strcmp(name, "freq1"))
 			band_stack[band].freq[1] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq2"))
+		else if (!strcmp(name, "freq2"))
 			band_stack[band].freq[2] = atoi(value);
-		else if (band >= 0  && !strcmp(name, "freq3"))
+		else if (!strcmp(name, "freq3"))
 			band_stack[band].freq[3] = atoi(value);
-		else if (band >= 0 && !strcmp(name, "mode0"))
+		else if (!strcmp(name, "mode0"))
 			band_stack[band].mode[0] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode1"))
+		else if (!strcmp(name, "mode1"))
 			band_stack[band].mode[1] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode2"))
+		else if (!strcmp(name, "mode2"))
 			band_stack[band].mode[2] = atoi(value);	
-		else if (band >= 0 && !strcmp(name, "mode3"))
+		else if (!strcmp(name, "mode3"))
 			band_stack[band].mode[3] = atoi(value);	
-
+	}
     return 1;
 }
 /* rendering of the fields */
@@ -2115,7 +2133,6 @@ if (!strcmp(field_str("SMETEROPT"), "ON")) {
 
     // Pass the rx_gain along with the rx pointer
     s_meter_value = calculate_s_meter(current_rx, rx_gain);
-
 	
 	// Lets separate the S-meter value into s-units and additional dB
 	int s_units = s_meter_value / 100;
@@ -2425,14 +2442,17 @@ void menu_display(int show) {
     for (f = active_layout; f->cmd[0]; f++) {
         if (!strncmp(f->cmd, "#eq_", 4)) { 
     if (show) {
- 		
+
 		// NEW LAYOUT @ 3.2
-        field_move("EQSET",130,screen_height - 90 ,95 ,45);
-        field_move("TXEQ", 130, screen_height - 140, 95, 45);
-		field_move("NOTCH", 240, screen_height - 140, 95, 45);
-       	field_move("NFREQ", 240, screen_height - 90, 45, 45);
-        field_move("BNDWTH", 290, screen_height - 90, 45, 45);
-        field_move("COMP",  350, screen_height - 140, 95, 45);
+        // Move each control to the appropriate position
+
+	  field_move("SET",5,screen_height - 140 ,45 ,45);  // w9jes
+    field_move("EQSET",130,screen_height - 90 ,95 ,45);
+    field_move("TXEQ", 130, screen_height - 140, 95, 45);
+	  field_move("NOTCH", 240, screen_height - 140, 95, 45);
+    field_move("NFREQ", 240, screen_height - 90, 45, 45);
+    field_move("BNDWTH", 290, screen_height - 90, 45, 45);
+    field_move("COMP",  350, screen_height - 140, 95, 45);
 		field_move("ANR", 460, screen_height - 140, 95, 45); 
 		field_move("DSP", 350, screen_height - 90, 95, 45); 
 		//field_move("DSP", 350, screen_height - 90, 45, 45); 
@@ -2442,8 +2462,8 @@ void menu_display(int show) {
 		if (!strcmp(field_str("QROOPT"), "ON")) {
 		field_move("QRO", 680,screen_height - 140 ,95 ,45);
 		}
-        field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
-        field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
+    field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
+    field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
 
         
     } else {
@@ -5483,7 +5503,15 @@ void do_control_action(char* cmd) {
 		//spectrum_span = 25000;
 		spectrum_span = 24980; //trimmed to prevent edge of bin artifract from showing on scope
 	}
-	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
+else if (!strcmp(request, "80M") || 
+		!strcmp(request, "60M") ||
+		!strcmp(request, "40M") || 
+		!strcmp(request, "30M") || 
+		!strcmp(request, "20M") || 
+		!strcmp(request, "17M") || 
+		!strcmp(request, "15M") || 
+		!strcmp(request, "12M") || 
+		!strcmp(request, "10M")){
 		change_band(request);
 	}
 	else if (!strcmp(request, "REC ON")) {
