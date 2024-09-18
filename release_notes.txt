@@ -1,9 +1,71 @@
+v3.2 - 
+FT8 Mode Improvements:
+  - Both the local and web apps now display decorated messages in FT8 mode.
+  - Callsigns: 
+    - Callsigns logged are displayed in green.
+    - Unlogged callsigns are displayed in red.
+  - Grids: 
+   - Logged grids are displayed in green.
+   - Unlogged grids are displayed in yellow.
+ - Band change: The console and web FT8 lists are cleared when changing bands.
+ - At startup, two new SQLite indexes for FT8 lookups are created if missing.
+
+Web App in FT8 Mode:
+- A Robinson projection world map is displayed to the right of the FT8 lists (if the window is wide enough).
+- Grid Display:
+  - By default, grids seen during the current session are plotted on the map.
+  - Logged grids are displayed in dark green, unlogged grids in yellow, and grids logged during the current session in red.
+- Toggle Controls:
+  - The "Seen" button toggles the plot on/off.
+  - The "Logged" button toggles the display of all logged grids (in green) on/off.
+- Map Controls:
+  - Zoom using the slider or mouse wheel.
+  - Change map position by dragging with the left mouse button.
+  - Mouseover displays longitude, latitude, and grid information.
+- Other UI Improvements:
+  - The "SAVE" button has been renamed to "LOG" to reflect its function (opens the log tab).
+  - Alt-click in FT8 lists opens a QRZ lookup window without starting a call.
+  - The frequency field responds to the mouse wheel for adjustments.
+  - New knob button added to show/hide the dial knob (instead of clicking the frequency field).
+  - A new "Mute" button is available to mute sound (useful in FT8 mode).
+
+CW Improvements:
+- Modified and added "prosign" characters for TX.
+- Decreased debounce to 800ms for CW spacing in TX.
+- Decreased word delay for macros and keyboard CW operation.
+- Reduced dash delay for a more natural CW sound.
+- Fixed the Iambic B key sequence issue (from dash to dot).
+
+UI and Other Improvements:
+- FLDIGI Integration: Pitch controls can now be controlled externally by FLDIGI.
+- Waterfall & Text Box:
+  - Added fullscreen waterfall mode and the option to hide the text box for voice modes.
+- VFO Enhancements:
+  - Added a VFO lock button in the menu and a corresponding indicator on the main screen.
+- UI Adjustments:
+  - Shortened "digital mode" text to DIGI.
+  - Added 8k display mode to the waterfall.
+  - Removed the text box output for BFO adjustment.
+- Recording: Fixed the recording stop function message.
+- Logging Enhancements:
+  - Ability to switch between logger input fields using the tab key.
+  - Added the ability to add comments to logs via a text field.
+  - Fixed duplicate log entries in the logbook.
+- Other New Features:
+  - Added a selectable RX notch filter to the main GUI.
+  - Added a TCXO calibration option in the `hw_settings.ini` file.
+  - Added the ability to toggle the optional S-meter (relatively calibrated at IF 52) on/off using the command `\smeteropt on`.
+  - Added the ability to toggle the optional QRO function on/off with the command `\qroopt on`.
+
+
+
 v3.1 -
-Added Tune button and functions
-Added menu button
-Updated transmit equalizer with gui
-Added noise reduction and digital signal processing
-Added BFO shift
-Fixed 25khz waterfall display
-Added indicator status for button functions
-Reorganized mode displays
+- Added Tune button and power control functions.
+- Added quick access menu button for additional controls.
+- Updated the 5 band TX equalizer with GUI.
+- Added RX noise reduction and digital signal processing.
+- Added BFO shift (move birdies out of the RX signal).
+- Fixed 25khz waterfall display alignment.
+- Added main display indicator status for various features/functions.
+- Reorganized mode displays and removed unnecessary functions
+- More Hamlib functional improvements for 3rd party apps

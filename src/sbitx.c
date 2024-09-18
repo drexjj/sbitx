@@ -104,7 +104,7 @@ int anr_enabled = 0;//anr W2JON
 int notch_enabled = 0;//notch filter W2JON
 double notch_freq = 0; // Notch frequency in Hz W2JON
 double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
-
+int compression_control_level; // Audio Compression level W2JON
 int get_rx_gain(void) {
 	//printf("rx_gain %d\n", rx_gain);
     return rx_gain;
@@ -145,6 +145,7 @@ struct power_settings {
 
 struct power_settings band_power[] ={
 	{ 3500000,  4000000, 37, 0.002},
+	{ 5251500,  5360000, 40, 0.0015},
 	{ 7000000,  7300009, 40, 0.0015},
 	{10000000, 10200000, 35, 0.0019},
 	{14000000, 14300000, 35, 0.0025},
@@ -317,6 +318,34 @@ static int create_mcast_socket(){
 		return socketfd;
 }
 */
+
+void apply_fixed_compression(float *input, int num_samples, int compression_control_value) {
+    float compression_level = compression_control_value / 10.0;
+
+    // I dont think we need to provide too many confusng controls so let's define internal fixed compression parameters
+    float internal_threshold = 0.1f; 
+    float internal_ratio = 4.0f;     
+ 
+    for (int i = 0; i < num_samples; i++) {
+        float sample = input[i];
+               
+        if (sample > internal_threshold) {
+            sample = internal_threshold + (sample - internal_threshold) / internal_ratio;
+        } else if (sample < -internal_threshold) {
+            sample = -internal_threshold + (sample + internal_threshold) / internal_ratio;
+        }
+
+        // Apply some makeup gain proportional to control level
+        sample *= 1.0 + compression_level;
+
+        // Ensure sample stays within range or we'll clip
+        if (sample > 1.0) sample = 1.0;
+        if (sample < -1.0) sample = -1.0;
+
+        // Send the processed sample back
+        input[i] = sample;
+    }
+}
 
 // S-Meter test W2JON
 int calculate_s_meter(struct rx *r, double rx_gain) {
@@ -988,12 +1017,34 @@ void tx_process(
     }
 
 if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE && r->mode != MODE_CW && r->mode != MODE_CWR)) {
+    
+	// Apply compression is the value of the dial is set to 1-10 (0 = off)
+     if (compression_control_level >= 1 && compression_control_level <= 10) {
+        float temp_input_mic[n_samples];
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Convert input_mic (int32_t) to float for compression
+        for (int i = 0; i < n_samples; i++) {
+            temp_input_mic[i] = (float)input_mic[i] / 2000000000.0; 
+        }
+
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Now we can call the apply_fixed_compression function with the parameters
+        apply_fixed_compression(temp_input_mic, n_samples, compression_control_level);
+        
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Convert back the processed data to int32_t after compression
+        for (int i = 0; i < n_samples; i++) {
+            input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+        }
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+    }
+
     if (eq_is_enabled == 1) {
-        // EQ is enabled, perform EQ processing
         apply_eq(&eq, input_mic, n_samples, 48000.0);
-        //printf("EQ is active on the audio chain\n");
-    } else {
-        // EQ is disabled, skip EQ processing
     }
 }
     
@@ -1239,7 +1290,7 @@ static int hw_settings_handler(void* user, const char* section,
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
+        if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
