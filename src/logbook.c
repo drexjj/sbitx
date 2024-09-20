@@ -431,6 +431,13 @@ int export_adif(char *path, char *start_date, char *end_date){
 				sprintf(param, "%d", sqlite3_column_type(stmt, i));
 				break;
 			}
+			//If mode is FT8; set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
+			if (i == 1)  
+				if (!strcmp("FT8",param))
+					rec = 1;
+			  else
+					rec = 0;
+
 			if (i == 2){
 				long f = atoi(param);
 				float ffreq=atof(param)/1000.0;  // convert kHz to MHz
@@ -442,7 +449,24 @@ int export_adif(char *path, char *start_date, char *end_date){
 			}
 			else if (i == 3) //it is the date
 				strip_chr(param, '-');
-	   	fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+		switch (i) {
+			case 7:
+				if (rec == 1)
+					fprintf(pf, "<%s:%d>%s\n", "MY_GRIDSQUARE", strlen(param), param);
+				else
+					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+			case 10:
+				if (rec == 1)
+					fprintf(pf, "<%s:%d>%s\n", "GRIDSQUARE", strlen(param), param);
+				else
+					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+			default:
+				fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+		}
+	   	
 		}
 		fprintf(pf, "<EOR>\n");
 		//printf("\n");
