@@ -782,8 +782,10 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 
 
     // STEP 1: First add the previous M samples
-    for (i = 0; i < MAX_BINS/2; i++)
-        fft_in[i] = fft_m[i];
+	//memcpy to replace for loop, ffts are 16 bytes
+	memcpy(fft_in,fft_m,MAX_BINS/2*8*2);
+    //for (i = 0; i < MAX_BINS/2; i++)
+    //    fft_in[i] = fft_m[i];
 
     // STEP 2: Add the new set of samples
     int m = 0;
@@ -897,17 +899,23 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
      }
 
     // STEP 5: Zero out the other sideband
-    if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
-        for (i = 0; i < MAX_BINS/2; i++) {
+	switch (r->mode) {
+		case MODE_LSB:
+		case MODE_CWR:
+			for (i = 0; i < MAX_BINS/2; i++) {
+				__real__ r->fft_freq[i] = 0;
+				__imag__ r->fft_freq[i] = 0;
+			}
+			break;
+		case MODE_AM:
+			break;
+		default:
+			for (i = MAX_BINS/2; i < MAX_BINS; i++) {
             __real__ r->fft_freq[i] = 0;
             __imag__ r->fft_freq[i] = 0;
-        }
-    } else if (r->mode != MODE_AM) {
-        for (i = MAX_BINS/2; i < MAX_BINS; i++) {
-            __real__ r->fft_freq[i] = 0;
-            __imag__ r->fft_freq[i] = 0;
-        }
-    }
+        	}
+			break;
+	}
 
     // STEP 6: Apply the FIR filter
     for (i = 0; i < MAX_BINS; i++) {
