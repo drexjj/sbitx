@@ -678,7 +678,7 @@ static unsigned long loop_counter = 0;
 
 int last_second = 0;
 int nsamples = 0;
-int	played_samples = 0;
+//int	played_samples = 0;
 int sound_loop(){
 	int32_t		*line_in, *line_out, *data_in, *data_out, 
 						*input_i, *output_i, *input_q, *output_q;
@@ -784,7 +784,7 @@ int sound_loop(){
 				input_i[samples] = input_q[samples] = q_read(&qloop);
 				//j++; 
 			}
-			played_samples += 1024;
+			//played_samples += 1024;
 		}  // end for use_virtual_cable test
 		else 
 		{
@@ -934,8 +934,8 @@ int sound_loop(){
 #if DEBUG > 0			
 			printf("Loopback PCM Write %d bytes Error %d: %s  count = %d\n", framesize, pcmreturn, snd_strerror(pcmreturn), pcm_loopback_write_error++);
 #endif
-	
-#if DEBUG <2			
+
+#if DEBUG <2
 			snd_pcm_recover(loopback_play_handle, pcmreturn, 1);		// Does not provide detailed error message
 			//printf("EPIPE in loop pcm play\n");
 #else
