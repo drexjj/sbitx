@@ -5003,7 +5003,8 @@ gboolean ui_tick(gpointer gook){
       tick_count = 50;
       break;  
 		default:
-			tick_count = 100; 
+			//tick_count = 100; 
+			tick_count = 50;
 	}
 	if (ticks >= tick_count){
 
