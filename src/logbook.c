@@ -35,8 +35,10 @@ static sqlite3 *db=NULL;
 GtkListStore *list_store=NULL;
 GtkTreeSelection *selection = NULL;
 GtkWidget *logbook_window = NULL;
+GtkWidget *tree_view = NULL;;
 
-int logbook_fill(int from_id, int count, char *query);
+int logbook_fill(int from_id, int count, const char *query);
+void logbook_refill(const char *query);
 void clear_tree(GtkListStore *list_store);
 
 /* writes the output to data/result_rows.txt
@@ -320,12 +322,23 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	sqlite3_exec(db, statement, 0,0, &err_msg);
 	
-	//refresh the list if opened
+	logbook_refill(NULL);
+}
+
+void logbook_refill(const char *query) {
+    // refresh/refill the list if opened
 	if (list_store){
+		/* Detach model from view */
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), NULL);
+
 		clear_tree(list_store);
-		logbook_fill(0,10000,NULL);
+		logbook_fill(0, 10000, query);
+
+		/* Re-attach model to view */
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(list_store)); 
 	}	
 }
+
 /*
 void import_logs(char *filename){
 	char entry_text[1000], statement[1000];
@@ -852,7 +865,7 @@ void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2,
 }
 
 
-int logbook_fill(int from_id, int count, char *query){
+int logbook_fill(int from_id, int count, const char *query){
 	sqlite3_stmt *stmt;
 	char statement[200], json[10000], param[2000];
 
@@ -885,6 +898,7 @@ int logbook_fill(int from_id, int count, char *query){
 		else 
 			sprintf(statement, "select * from logbook where id > %d ", -from_id); 
 	}
+
 	char stmt_count[100];
 	sprintf(stmt_count, "ORDER BY id DESC LIMIT %d;", count);
 	strcat(statement, stmt_count);
@@ -892,7 +906,6 @@ int logbook_fill(int from_id, int count, char *query){
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
 	int rec = 0;
-
 	char id[10], qso_time[20], qso_date[20], freq[20], mode[20], callsign[20],
 	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], comments[1000];
 
@@ -942,13 +955,7 @@ void clear_tree(GtkListStore *list_store) {
 
 void search_button_clicked(GtkWidget *entry, gpointer search_box) {
 	const gchar *search_text = gtk_entry_get_text(GTK_ENTRY(search_box));
-
-	clear_tree(list_store);
-	if (!strlen(search_text))
-		logbook_fill(0, 10000, NULL);
-	else
-		logbook_fill(0, 10000, (gchar *)search_text);
-
+	logbook_refill(strlen(search_text) == 0 ? NULL : search_text);
 }
 
 void search_update(GtkWidget *entry, gpointer search_box) {
@@ -978,12 +985,12 @@ void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
  	gtk_widget_destroy (dialog);
-  g_free(qso_id);
+	g_free(qso_id);
+	//printf("Response %d\n", response);
 
-	printf("Response %d\n", response);
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
+
 }
 
 void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
@@ -1015,19 +1022,18 @@ void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
 
-   g_free(qso_id);
-   g_free(mode);
-   g_free(freq);
-   g_free(callsign);
-   g_free(rst_sent);
-   g_free(exchange_sent);
-   g_free(rst_recv);
-   g_free(exchange_recv);
-   g_free(comment);
+	g_free(qso_id);
+	g_free(mode);
+	g_free(freq);
+	g_free(callsign);
+	g_free(rst_sent);
+	g_free(exchange_sent);
+	g_free(rst_recv);
+	g_free(exchange_recv);
+	g_free(comment);
 
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
 }
 
 
@@ -1057,19 +1063,18 @@ void on_row_activated(GtkTreeView *treeview, GtkTreePath *path, GtkTreeViewColum
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
 
-   g_free(qso_id);
-   g_free(mode);
-   g_free(freq);
-   g_free(callsign);
-   g_free(rst_sent);
-   g_free(exchange_sent);
-   g_free(rst_recv);
-   g_free(exchange_recv);
-   g_free(comment);
+	g_free(qso_id);
+	g_free(mode);
+	g_free(freq);
+	g_free(callsign);
+	g_free(rst_sent);
+	g_free(exchange_sent);
+	g_free(rst_recv);
+	g_free(exchange_recv);
+	g_free(comment);
 
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
 }
 
 // Function to handle row selection
@@ -1083,13 +1088,14 @@ void on_selection_changed(GtkTreeSelection *selection, gpointer user_data) {
 
 gboolean logbook_close(GtkWidget *widget, GdkEvent *event, gpointer data){
 	logbook_window = NULL;
+	tree_view = NULL;
 	return FALSE;
 }
 
 void logbook_list_open(){
     GtkWidget *window;
     GtkWidget *scrolled_window;
-    GtkWidget *tree_view;
+    //GtkWidget *tree_view;
 
 		if (logbook_window != NULL){
 			gtk_window_present(GTK_WINDOW(logbook_window));
@@ -1157,7 +1163,7 @@ void logbook_list_open(){
     gtk_box_pack_start(GTK_BOX(vbox), scrolled_window, TRUE, TRUE, 0);
 
     // Create a list store
-		if (!list_store)
+	if (!list_store)
     	list_store = gtk_list_store_new(10, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, 
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
