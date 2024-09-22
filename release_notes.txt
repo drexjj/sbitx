@@ -40,6 +40,7 @@ UI and Other Improvements:
 - FLDIGI Integration: Pitch controls can now be controlled externally by FLDIGI.
 - Waterfall & Text Box:
   - Added fullscreen waterfall mode and the option to hide the text box for voice modes.
+  - Changed the waterfall refresh speed
 - VFO Enhancements:
   - Added a VFO lock button in the menu and a corresponding indicator on the main screen.
 - UI Adjustments:
