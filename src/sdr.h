@@ -262,3 +262,6 @@ FILE *wav_start_writing(const char* path);
 
 // S-Meter
 int get_rx_gain(void);
+
+//Loopback play reset
+void sound_reset(int force);

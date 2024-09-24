@@ -775,32 +775,26 @@ void rx_am(int32_t *input_rx,  int32_t *input_mic,
 void rx_linear(int32_t *input_rx, int32_t *input_mic, 
     int32_t *output_speaker, int32_t *output_tx, int n_samples)
 {
-    static double noise_est[MAX_BINS] = {0};
-    static double signal_est[MAX_BINS] = {0}; // For Wiener filter
-    static int noise_est_initialized = 0;
-    static int noise_update_counter = 0;
+    int i = 0;
+    double i_sample;
+    
 
-    int i, j = 0;
-    double i_sample, q_sample;
-    double sampling_rate = 96000.0; // Sample rate
 
-    // Scale the noise_threshold value
-    double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
 
     // STEP 1: First add the previous M samples
-    for (i = 0; i < MAX_BINS/2; i++)
-        fft_in[i] = fft_m[i];
+	//memcpy to replace for loop, ffts are 16 bytes
+	memcpy(fft_in,fft_m,MAX_BINS/2*8*2);
+    //for (i = 0; i < MAX_BINS/2; i++)
+    //    fft_in[i] = fft_m[i];
 
     // STEP 2: Add the new set of samples
     int m = 0;
     for (i = MAX_BINS/2; i < MAX_BINS; i++) {
-        i_sample = (1.0 * input_rx[j]) / 200000000.0;
-        q_sample = 0;
-        j++;
+        i_sample = (1.0 * input_rx[m]) / 200000000.0;
         __real__ fft_m[m] = i_sample;
-        __imag__ fft_m[m] = q_sample;
+        __imag__ fft_m[m] = 0;
         __real__ fft_in[i] = i_sample;
-        __imag__ fft_in[i] = q_sample;
+        __imag__ fft_in[i] = 0;
         m++;
     }
 
@@ -818,8 +812,9 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     int shift = r->tuned_bin;
     if (r->mode == MODE_AM)
         shift = 0;
+	int b = 0;
     for (i = 0; i < MAX_BINS; i++) {
-        int b = i + shift;
+        b = i + shift;
         if (b >= MAX_BINS)
             b -= MAX_BINS;
         if (b < 0)
@@ -831,7 +826,14 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 	// STEP 4a: BIN processing functions for a better life.
 
     if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE) {
-		
+		double sampling_rate = 96000.0; // Sample rate
+		static double noise_est[MAX_BINS] = {0};
+		static double signal_est[MAX_BINS] = {0}; // For Wiener filter
+		static int noise_est_initialized = 0;
+		static int noise_update_counter = 0;
+		// Scale the noise_threshold value
+		double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
+
 		// Notch filter
 		if (notch_enabled) {
 			int notch_center_bin, notch_bin_range;
@@ -897,17 +899,23 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
      }
 
     // STEP 5: Zero out the other sideband
-    if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
-        for (i = 0; i < MAX_BINS/2; i++) {
+	switch (r->mode) {
+		case MODE_LSB:
+		case MODE_CWR:
+			for (i = 0; i < MAX_BINS/2; i++) {
+				__real__ r->fft_freq[i] = 0;
+				__imag__ r->fft_freq[i] = 0;
+			}
+			break;
+		case MODE_AM:
+			break;
+		default:
+			for (i = MAX_BINS/2; i < MAX_BINS; i++) {
             __real__ r->fft_freq[i] = 0;
             __imag__ r->fft_freq[i] = 0;
-        }
-    } else if (r->mode != MODE_AM) {
-        for (i = MAX_BINS/2; i < MAX_BINS; i++) {
-            __real__ r->fft_freq[i] = 0;
-            __imag__ r->fft_freq[i] = 0;
-        }
-    }
+        	}
+			break;
+	}
 
     // STEP 6: Apply the FIR filter
     for (i = 0; i < MAX_BINS; i++) {
@@ -921,7 +929,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     agc2(r);
 
     // STEP 9: Send the output
-    int is_digital = 0;
+    //int is_digital = 0;
     if (rx_list->output == 0) {
         if (r->mode == MODE_AM) {
             for (i = 0; i < MAX_BINS/2; i++) {
@@ -930,8 +938,9 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
                 output_tx[i] = 0;
             }
         } else {
+			int32_t sample;
             for (i = 0; i < MAX_BINS/2; i++) {
-                int32_t sample = cimag(r->fft_time[i + (MAX_BINS/2)]);
+                sample = cimag(r->fft_time[i + (MAX_BINS/2)]);
                 output_speaker[i] = sample;
                 output_tx[i] = 0;
             }

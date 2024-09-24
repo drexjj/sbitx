@@ -3901,6 +3901,7 @@ void tx_on(int trigger){
 	}
 
 	tx_start_time = millis();
+	sound_reset(1);
 }
 
 gboolean check_plugin_controls(gpointer data) {// Check for enabled plug-ins W2JON

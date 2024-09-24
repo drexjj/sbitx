@@ -82,6 +82,7 @@ echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 # This addition is used to provide the application the capability to adjust the local system time -W2JON
 # It should probably always run last at it'll fail if the file system doesn't support it - N1QM
 if [ "$F" = "sbitx" ] && [ -x $F ]; then 
-	sudo setcap CAP_SYS_TIME+ep $F
+	# || : is a little hack to allow the script to continue if an error occurs - n1qm
+	sudo setcap CAP_SYS_TIME+ep $F || :
 fi
 echo Build completed at $(date)

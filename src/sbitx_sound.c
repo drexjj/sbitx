@@ -11,7 +11,7 @@
 
 // Set the DEBUG define to 1 to compile in the debugging messages.
 // Set the DEBUG define to 2 to compile in detailed error reporting debugging messages.
-#define DEBUG 0
+#define DEBUG -1
 
 // Set the DISABLE_LOOPBACK define to 1 to disable the loopback processing.
 #define DISABLE_LOOPBACK 0
@@ -162,6 +162,9 @@ static int exact_rate;   /* Sample rate returned by */
 static int	sound_thread_continue = 0;
 pthread_t sound_thread, loopback_thread;
 
+static long int last_loopback_reset = 0;		//time interval of last loopback play reset - n1qm
+static int reset_loopback_interval = 300;  		// Seconds to reset loopback device
+
 #define LOOPBACK_LEVEL_DIVISOR 8				// Constant used to reduce audio level to the loopback channel (FLDIGI)
 static int pcm_capture_error = 0;				// count pcm capture errors
 static int pcm_play_write_error = 0;			// count play channel write errors
@@ -264,7 +267,9 @@ int sound_start_play(char *device){
 
 	// the buffer size is each periodsize x n_periods
 	//	snd_pcm_uframes_t  n_frames= (buff_size  * n_periods_per_buffer)/8;
-	snd_pcm_uframes_t  n_frames= (buff_size  * n_periods_per_buffer)/8*4;		// A Larger buffer - N3SB Hack
+	//A larger buffer seems to hurt performance, reset to 'normal'
+	//If a large pop occurs increase this by four (*4)
+	snd_pcm_uframes_t  n_frames= (buff_size  * n_periods_per_buffer)/8;		
 #if DEBUG > 0	
 	printf("trying for buffer size of %ld\n", n_frames);
 #endif
@@ -631,10 +636,27 @@ void sound_stop(){
 	snd_pcm_drop(pcm_capture_handle);
 	snd_pcm_drain(pcm_capture_handle);
 }
+//Reset alsa looback playback device, fixes compounding latency issues - n1qm
+//Approx .07 seconds will be lost every 5 minutes
+void sound_reset(int force){
+	static struct timespec gettime;
+	clock_gettime(CLOCK_MONOTONIC, &gettime);
+	
+	long int ltv = gettime.tv_sec; // get time
+	if (force !=1 && ltv - reset_loopback_interval < last_loopback_reset)
+		return;
+	
+	snd_pcm_reset(loopback_play_handle);
+
+	last_loopback_reset = ltv;
+#if DEBUG > 0
+	printf("%d: Resetting loopback_play_handle to deal with latency\n",ltv);
+#endif
+}
 
 static int count = 0;
 static struct timespec gettime_now;
-static long int last_time = 0;
+//static long int last_time = 0;
 static long int last_sec = 0;
 static int nframes = 0;
 int32_t	resample_in[10000];
@@ -656,7 +678,7 @@ static unsigned long loop_counter = 0;
 
 int last_second = 0;
 int nsamples = 0;
-int	played_samples = 0;
+//int	played_samples = 0;
 int sound_loop(){
 	int32_t		*line_in, *line_out, *data_in, *data_out, 
 						*input_i, *output_i, *input_q, *output_q;
@@ -695,7 +717,7 @@ int sound_loop(){
 */
 	//Note: the virtual cable samples queue should be flushed at the start of tx
  	qloop.stall = 1;
- 	
+
 // ******************************************************************************************************** The Big Loop starts here
 
   while(sound_thread_continue) {
@@ -703,23 +725,23 @@ int sound_loop(){
 		//restart the pcm capture if there is an error reading the samples
 		//this is opened as a blocking device, hence we derive accurate timing 
 
-		last_time = gettime_now.tv_nsec/1000;
+		//last_time = gettime_now.tv_nsec/1000;
 		
 		// printf("%d\n", last_time);
-		pcm_read_avail = snd_pcm_avail(pcm_capture_handle);
 		
+		
+#if DEBUG > 1	
+		pcm_read_avail = snd_pcm_avail(pcm_capture_handle);
 		tv = GetTimeStamp(); // get time
 		pcm_read_new_time= 1000000 * tv.tv_sec + tv.tv_usec; // Store time in microseconds
 		delta_time = pcm_read_new_time - pcm_read_old_time;
 		if ((delta_time > 11667) || (delta_time < 9667))	// Loop should iterate every 10667 microseconds
 		{
-#if DEBUG > 1			
 			printf("Loop Counter: %d, Loop Time: %d, Samples available: %d\n", loop_counter, delta_time, pcm_read_avail);
-#endif
 		}
 		pcm_read_old_time = pcm_read_new_time;
+#endif
 		
-
 		while ((pcmreturn = snd_pcm_readi(pcm_capture_handle, data_in, frames)) < 0)
 		{
 			result = snd_pcm_prepare(pcm_capture_handle);
@@ -753,17 +775,16 @@ int sound_loop(){
 			}
 	
 			//copy 1024 samples from the queue.
-			i = 0;
-			j = 0;
+			//i = 0;
+			//j = 0;
 
 			
 			for (int samples  = 0; samples < 1024; samples++)
 			{
-				int32_t s = q_read(&qloop);
-				input_i[j] = input_q[j] = s;
-				j++; 
+				input_i[samples] = input_q[samples] = q_read(&qloop);
+				//j++; 
 			}
-			played_samples += 1024;
+			//played_samples += 1024;
 		}  // end for use_virtual_cable test
 		else 
 		{
@@ -781,11 +802,18 @@ int sound_loop(){
 
 		i = 0; 
 		j = 0;	
-		while (i < ret_card){
-			data_out[j++] = output_i[i];
-			data_out[j++] = output_q[i++];
+		//while (i < ret_card){
+		//	data_out[j++] = output_i[i];
+		//	data_out[j++] = output_q[i++];
+		//}
+		for (int p = 0; p < ret_card; p++) {
+			//Process array for HW sound out
+			data_out[p*2] = output_i[p];
+			data_out[p*2+1] = output_q[p];
+			//Process array for alsa loop back
+			//if (p < ret_card/2)
+			//	line_out[p*2] =line_out[p*2+1] = output_i[p*2];
 		}
-
 	int framesize = ret_card;
 	int offset = 0;
 	int play_write_errors = 0;
@@ -802,13 +830,12 @@ int sound_loop(){
 		{
 			pcmreturn = snd_pcm_writei(pcm_play_handle, data_out + offset, framesize);
 		} while (pcmreturn == -11);
-		
+#if DEBUG > 0		
 		if ((pcmreturn > 0) && (pcmreturn < 1024))
 		{
-#if DEBUG > 0
 			printf("#### Partial Write ####");	// would signify that the playback channel didn't accept all the samples
-#endif
 		}
+#endif
 		// if((pcmreturn < 0) && (pcmreturn != -11))	// also ignore "temporarily unavailable" errors
 		if(pcmreturn < 0)
 		{
@@ -823,6 +850,8 @@ int sound_loop(){
 				printf("Available write buffer: %d\n", pcm_write_avail);
 #endif
 				snd_pcm_recover(pcm_play_handle, pcmreturn, 0);
+				//If buffer underruns, let's also reset the playbook loop
+				sound_reset(1);
 			}
 
 			
@@ -830,24 +859,18 @@ int sound_loop(){
 				printf("Now Available write buffer: %d\n", snd_pcm_avail(pcm_play_handle));				
 #endif			
 			
-#if DEBUG <2			
-			// snd_pcm_recover(pcm_play_handle, pcmreturn, 1);		// Does not provide detailed error message
-#else
-			// snd_pcm_recover(pcm_play_handle, pcmreturn, 0);		// Provides detailed error message
-#endif		
 		}
-		
 		if(pcmreturn >= 0)
 		{
 			// Calculate remaining number of samples to be sent and new position in sample array.
 			// If all the samples were processed by the snd_pcm_writei function then framesize will be
 			// zero and the while() loop will end.
+#if DEBUG > 0
 			if (pswitch == 1)
 			{
-#if DEBUG > 0
 				printf("%d ",pcmreturn);
-#endif
 			}				
+#endif
 			framesize -= pcmreturn;
 			if ((framesize > 0)	&& (pswitch == 0))		
 			{
@@ -859,15 +882,12 @@ int sound_loop(){
 			offset += (pcmreturn * 2);
 			samples_written += pcmreturn;
 		}
-		if (framesize == 0)
-		{
-			if (pswitch == 1)
-			{
+		if (framesize == 0 && pswitch == 1) {
 #if DEBUG > 0				
-				printf("\n");
+			printf("\n");
 #endif				
-				pswitch = 0;
-			}
+			pswitch = 0;
+			
 		}
 	}
 	// End of new pcm play write routine
@@ -877,15 +897,16 @@ int sound_loop(){
 	//decimate the line out to half, ie from 96000 to 48000
 	//play the received data (from left channel) to both of line out
 
-	int jj = 0;
-	int ii = 0;
-	while (ii < ret_card){
-		line_out[jj++] = output_i[ii] / LOOPBACK_LEVEL_DIVISOR;  // Left Channel. Reduce audio level to FLDIGI a bit
-		line_out[jj++] = output_i[ii] / LOOPBACK_LEVEL_DIVISOR;  // Right Channel. Note: FLDIGI does not use the this channel.
-			
+	i = 0;
+	j = 0;
+	
+	while (i < ret_card){
+		//line_out[jj++] = output_i[ii] / LOOPBACK_LEVEL_DIVISOR;  // Left Channel. Reduce audio level to FLDIGI a bit
+		//line_out[jj++] = output_i[ii] / LOOPBACK_LEVEL_DIVISOR;  // Right Channel. Note: FLDIGI does not use the this channel.
+		line_out[j++] = line_out[j++] = output_i[i];	
 		// The right channel can be used to output other integer values such as AGC, for capture by an
 		// application such as audacity.
-		ii += 2;	// Skip a pair of samples to account for the 96K sample to 48K sample rate change.
+		i += 2;	// Skip a pair of samples to account for the 96K sample to 48K sample rate change.
 	}
 
 
@@ -904,7 +925,7 @@ int sound_loop(){
 	
 		do
 		{	
-		pcmreturn = snd_pcm_writei(loopback_play_handle, line_out + offset, framesize);
+			pcmreturn = snd_pcm_writei(loopback_play_handle, line_out + offset, framesize);
 		} while (pcmreturn == -11);
 		
 		// if((pcmreturn < 0) && (pcmreturn != -11))	// also ignore "temporarily unavailable" errors
@@ -913,9 +934,10 @@ int sound_loop(){
 #if DEBUG > 0			
 			printf("Loopback PCM Write %d bytes Error %d: %s  count = %d\n", framesize, pcmreturn, snd_strerror(pcmreturn), pcm_loopback_write_error++);
 #endif
-	
-#if DEBUG <2			
+
+#if DEBUG <2
 			snd_pcm_recover(loopback_play_handle, pcmreturn, 1);		// Does not provide detailed error message
+			//printf("EPIPE in loop pcm play\n");
 #else
 			snd_pcm_recover(loopback_play_handle, pcmreturn, 0);		// Provides detailed error message
 #endif				
@@ -928,12 +950,12 @@ int sound_loop(){
 			// zero and the while() loop will end.	
 			framesize -= pcmreturn;
 			offset += (pcmreturn * 2);
+#if DEBUG > 0
 			if (framesize > 0)
 			{
-#if DEBUG > 0
 				printf("\nLoopback - pcmreturn = %d\n", pcmreturn);
-#endif
 			}
+#endif
 		}
 	}
 	// End of new pcm loopback write routine	
@@ -941,7 +963,9 @@ int sound_loop(){
 #endif
     
 		//played_samples += pcmreturn;
+#if DEBUG > 0
 	loop_counter++;		
+#endif
   } // End of while (sound_thread_continue) loop
 	//fclose(pf);
   printf("********Ending sound thread\n");
@@ -959,40 +983,44 @@ int loopback_loop(){
   data_in = (int32_t *)malloc(buff_size * 2);
   frames = buff_size / 8;
   snd_pcm_prepare(loopback_capture_handle);
-
+	i = 0; 
+	j = 0;
   while(sound_thread_continue) {
 
 		//restart the loopback capture if there is an error reading the samples
 		//this is opened as a blocking device, hence we derive accurate timing 
 
-		last_time = gettime_now.tv_nsec/1000;
+		//last_time = gettime_now.tv_nsec/1000;
 
 		while ((pcmreturn = snd_pcm_readi(loopback_capture_handle, data_in, frames/2)) < 0){
 			snd_pcm_prepare(loopback_capture_handle);
 			//putchar('=');
 		}
-		i = 0; 
-		j = 0;
 		// int ret_card = pcmreturn;
 
 		//fill up a local buffer, take only the left channel	
 		// i = 0; 
-		// j = 0;	
+			
 		for (i = 0; i < pcmreturn; i++){
 			q_write(&qloop, data_in[j]);
 			q_write(&qloop, data_in[j]);
 			j += 2;
 		}
-		nsamples += j;
-
+		//nsamples += j;
+		j=0;
 		clock_gettime(CLOCK_MONOTONIC, &gettime_now);
 		if (gettime_now.tv_sec != last_sec){
-			if(use_virtual_cable)
-//			printf("######sampling rate %d/%d\n", played_samples, nsamples);
 			last_sec = gettime_now.tv_sec;
-			nsamples = 0;
-			played_samples = 0;
-			count = 0;
+			//printf("Next reset in %d\n", (long)reset_loopback_interval - (last_sec - last_loopback_reset));
+			if (last_loopback_reset + (long)reset_loopback_interval < gettime_now.tv_sec)
+				sound_reset(0);
+			//if(use_virtual_cable)
+//			printf("######sampling rate %d/%d\n", played_samples, nsamples);
+			
+			//nsamples = 0;
+			//played_samples = 0;
+			//count = 0;
+			
 		}
 
   }
@@ -1037,6 +1065,10 @@ void *sound_thread_function(void *ptr){
 	 fprintf(stderr, "*Error opening PCM Play device - Aborting");
 		return NULL;
 	}
+
+	//Preset the last time the loopback was reset (now during init)
+	clock_gettime(CLOCK_MONOTONIC_RAW, &gettime_now);
+	last_loopback_reset = gettime_now.tv_sec;
 
 // Open the Loopback Play Device
 //  printf("opening loopback on plughw:1,0 sound card\n");
