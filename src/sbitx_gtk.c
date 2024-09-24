@@ -493,6 +493,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
@@ -674,6 +675,10 @@ struct field main_controls[] = {
   // EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0,0,0,0},
+
+  // TX Audio Monitor 
+	{ "#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+    	"", 0, 10, 1, 0},		
 
   // VFO Lock ON/OFF
    	{ "#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -2447,20 +2452,21 @@ void menu_display(int show) {
 		// NEW LAYOUT @ 3.2
         // Move each control to the appropriate position
 
-	  field_move("SET",5,screen_height - 140 ,45 ,45);  // w9jes
+	field_move("SET",5,screen_height - 140 ,45 ,45);  // w9jes
     field_move("EQSET",130,screen_height - 90 ,95 ,45);
-    field_move("TXEQ", 130, screen_height - 140, 95, 45);
-	  field_move("NOTCH", 240, screen_height - 140, 95, 45);
+    field_move("TXEQ", 130, screen_height - 140, 45, 45);
+	field_move("TXMON", 180, screen_height - 140, 45, 45);
+	field_move("NOTCH", 240, screen_height - 140, 95, 45);
     field_move("NFREQ", 240, screen_height - 90, 45, 45);
     field_move("BNDWTH", 290, screen_height - 90, 45, 45);
     field_move("COMP",  350, screen_height - 140, 95, 45);
-		field_move("ANR", 460, screen_height - 140, 95, 45); 
-		field_move("DSP", 350, screen_height - 90, 95, 45); 
-		//field_move("DSP", 350, screen_height - 90, 45, 45); 
-		//field_move("THSHLD", 400, screen_height - 90, 45, 45);
-        field_move("BFO", 460, screen_height - 90 ,45 ,45);
-		field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
-		if (!strcmp(field_str("QROOPT"), "ON")) {
+	field_move("ANR", 460, screen_height - 140, 95, 45); 
+	field_move("DSP", 350, screen_height - 90, 95, 45); 
+	//field_move("DSP", 350, screen_height - 90, 45, 45); 
+	//field_move("THSHLD", 400, screen_height - 90, 45, 45);
+    field_move("BFO", 460, screen_height - 90 ,45 ,45);
+	field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
+	if (!strcmp(field_str("QROOPT"), "ON")) {
 		field_move("QRO", 680,screen_height - 140 ,95 ,45);
 		}
     field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
@@ -3779,14 +3785,15 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) 
     const char *compression_control_field = field_str("COMP");
     int compression_control_level_value = atoi(compression_control_field);
    	compression_control_level = compression_control_level_value;	
- //  if (compression_control_level_value >= 1) {
-//	   comp_enabled = 1;
- //  } else {
-//	   comp_enabled = 0;
- // }
     return 0;
 }
 
+int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    const char *txmon_control_field = field_str("TXMON");
+    int txmon_control_level_value = atoi(txmon_control_field);
+   	txmon_control_level = txmon_control_level_value;	
+    return 0;
+}
 
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm

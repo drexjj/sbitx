@@ -51,3 +51,6 @@ double scaleNoiseThreshold(int control);
 // Aduio Compression tool
 extern int compression_control_level;
 void apply_fixed_compression(float *input, int num_samples, int compression_control_value);
+
+// TX Monitor tool
+extern int txmon_control_level;
