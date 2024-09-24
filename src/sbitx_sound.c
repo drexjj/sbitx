@@ -162,8 +162,8 @@ static int exact_rate;   /* Sample rate returned by */
 static int	sound_thread_continue = 0;
 pthread_t sound_thread, loopback_thread;
 
-static long int last_loopback_reset = 0;	//timeinterval of last loopback play reset - n1qm
-static int reset_loopback_intervale = 300;  //Seconds
+static long int last_loopback_reset = 0;		//time interval of last loopback play reset - n1qm
+static int reset_loopback_interval = 300;  		// Seconds to reset loopback device
 
 #define LOOPBACK_LEVEL_DIVISOR 8				// Constant used to reduce audio level to the loopback channel (FLDIGI)
 static int pcm_capture_error = 0;				// count pcm capture errors
@@ -643,7 +643,7 @@ void sound_reset(int force){
 	clock_gettime(CLOCK_MONOTONIC, &gettime);
 	
 	long int ltv = gettime.tv_sec; // get time
-	if (force !=1 && ltv - reset_loopback_intervale < last_loopback_reset)
+	if (force !=1 && ltv - reset_loopback_interval < last_loopback_reset)
 		return;
 	
 	snd_pcm_reset(loopback_play_handle);
@@ -1011,8 +1011,8 @@ int loopback_loop(){
 		clock_gettime(CLOCK_MONOTONIC, &gettime_now);
 		if (gettime_now.tv_sec != last_sec){
 			last_sec = gettime_now.tv_sec;
-			//printf("Next reset in %d\n", (long)reset_loopback_intervale - (last_sec - last_loopback_reset));
-			if (last_loopback_reset + (long)reset_loopback_intervale < gettime_now.tv_sec)
+			//printf("Next reset in %d\n", (long)reset_loopback_interval - (last_sec - last_loopback_reset));
+			if (last_loopback_reset + (long)reset_loopback_interval < gettime_now.tv_sec)
 				sound_reset(0);
 			//if(use_virtual_cable)
 //			printf("######sampling rate %d/%d\n", played_samples, nsamples);
