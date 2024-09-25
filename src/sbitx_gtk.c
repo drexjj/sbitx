@@ -586,8 +586,8 @@ struct field main_controls[] = {
 /* end of common controls */
 
 	//tx 
-	{ "tx_gain", NULL, 550, -350, 50, 50, "MIC", 40, "50", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 0, 100, 1, VOICE_CONTROL},
+	{ "tx_gain", NULL, 550, -350, 50, 50, "MIC", 40, "30", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 0, 50, 1, VOICE_CONTROL},
 
 	//{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 	//	"ON/OFF", 0,100,10, VOICE_CONTROL},
