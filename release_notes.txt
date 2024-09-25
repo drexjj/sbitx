@@ -42,7 +42,8 @@ UI and Other Improvements:
   - Added fullscreen waterfall mode and the option to hide the text box for voice modes.
   - Changed the waterfall refresh speed for smoother operation in SSB.
 - VFO Enhancements:
-  - Added a VFO lock button in the menu and a corresponding indicator on the main screen.
+  - Added a VFO lock button in the menu and a corresponding indicator on the main screen. it can be toggled by the menu or a 
+  long press of the VFO tuning knob
 - UI Adjustments:
   - Shortened "digital mode" text to DIGI.
   - Added 8k display mode to the waterfall.
