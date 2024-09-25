@@ -1,4 +1,4 @@
-v3.2 - 
+v4.0 - 
 FT8 Mode Improvements:
   - Both the local and web apps now display decorated messages in FT8 mode.
   - Callsigns: 
@@ -40,23 +40,33 @@ UI and Other Improvements:
 - FLDIGI Integration: Pitch controls can now be controlled externally by FLDIGI.
 - Waterfall & Text Box:
   - Added fullscreen waterfall mode and the option to hide the text box for voice modes.
-  - Changed the waterfall refresh speed
+  - Changed the waterfall refresh speed for smoother operation in SSB.
 - VFO Enhancements:
   - Added a VFO lock button in the menu and a corresponding indicator on the main screen.
 - UI Adjustments:
   - Shortened "digital mode" text to DIGI.
   - Added 8k display mode to the waterfall.
   - Removed the text box output for BFO adjustment.
-- Recording: Fixed the recording stop function message.
+- Recording: Fixed the duplicate recording stop function message.
 - Logging Enhancements:
   - Ability to switch between logger input fields using the tab key.
   - Added the ability to add comments to logs via a text field.
   - Fixed duplicate log entries in the logbook.
+  - Fixed sBitx crash when logbook window was open during a logging event.
+  - Fixed ADIF export for FT8 now saves exchange info (the gridsquares) in actual gridsquare fields of log.
+- Sound Enhancements:
+  - Optimizations to loopback receive process.
+  - Optimizations to rx linearity.
 - Other New Features:
   - Added a selectable RX notch filter to the main GUI.
   - Added a TCXO calibration option in the `hw_settings.ini` file.
-  - Added the ability to toggle the optional S-meter (relatively calibrated at IF 52) on/off using the command `\smeteropt on`.
+  - Added the ability to toggle the experimental S-meter (relatively calibrated at IF 52) on/off using the command `\smeteropt on`.
   - Added the ability to toggle the optional QRO function on/off with the command `\qroopt on`.
+  - Added workaround for FT8 and external digi modes for time sync decoding process.
+  - Update build script to support profile guided optimizations.
+  - Added renice script to increase priority of sbitx application if desired.
+  - TX Monitor function that allows monitoring of the transmitted signal through headphones, enabling users to hear 
+    adjustments to the TX EQ. The perceived noise in the headphones seems to be local and is not transmitted over the air.
 
 
 
