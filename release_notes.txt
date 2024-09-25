@@ -68,6 +68,7 @@ UI and Other Improvements:
   - Added renice script to increase priority of sbitx application if desired.
   - TX Monitor function that allows monitoring of the transmitted signal through headphones, enabling users to hear 
     adjustments to the TX EQ. The perceived noise in the headphones seems to be local and is not transmitted over the air.
+  - Added 60 meter band.
 
 
 
