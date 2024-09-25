@@ -105,6 +105,7 @@ int notch_enabled = 0;//notch filter W2JON
 double notch_freq = 0; // Notch frequency in Hz W2JON
 double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
+int txmon_control_level; // TX Monitor level W2JON
 int get_rx_gain(void) {
 	//printf("rx_gain %d\n", rx_gain);
     return rx_gain;
@@ -1098,15 +1099,23 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 				i_sample = voice_clip_level;
 		}
 
-		//don't echo the voice modes
+		// Don't echo the voice modes
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM 
-			|| r->mode == MODE_NBFM)
-			output_speaker[j] = 0;
-		else
-			output_speaker[j] = i_sample * sidetone;
-	  	q_sample = 0;
+ 		   || r->mode == MODE_NBFM) {
+ 		   // Unless of course you want to use the txmon control
+		    if (txmon_control_level >= 1 && txmon_control_level <= 10) {	
+ 		       output_speaker[j] = i_sample * txmon_control_level * 1000000000.0;      
+	    } else {
+ 		       output_speaker[j] = 0;
+  		  }
+   		 q_sample = 0;
+		} else {
+   		// If not in voice modes, use the sidetone
+ 		   output_speaker[j] = i_sample * sidetone;
+ 		   q_sample = 0;
+		}
 
-	  	j++;
+		j++;
 
 	  	__real__ fft_m[m] = i_sample;
 	  	__imag__ fft_m[m] = q_sample;
