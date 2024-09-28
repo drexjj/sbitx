@@ -23,7 +23,9 @@ Known issues
 #include <fftw3.h>
 #include "sdr.h"
 #include "sdr_ui.h"
-#define DEBUG 1
+
+#define DEBUG 0
+
 static int welcome_socket = -1, data_socket = -1;
 #define MAX_DATA 1000
 char incoming_data[MAX_DATA];
@@ -291,7 +293,7 @@ void interpret_command(char* cmd) {
         if (cmd[0] == 'F')
             hamlib_set_freq(cmd + 2);
         else
-            hamlib_set_freq(cmd + 10 )
+            hamlib_set_freq(cmd + 10);
     else if (check_cmd(cmd, "\\chk_vfo"))
         //Lets not default to VFO mode
         send_response("0\n");
@@ -307,7 +309,10 @@ void interpret_command(char* cmd) {
     } else if (cmd[0] == 'm' || check_cmd(cmd, "\\get_mode"))
         send_mode();
     else if (cmd[0] == 'M' || check_cmd(cmd, "\\set_mode")) {
-        set_mode(cmd + 2);
+        if (cmd[0] == 'M')
+            set_mode(cmd + 2);
+        else
+            set_mode(cmd + 10);
     } else if (cmd[0] == 'f' || check_cmd(cmd, "\\get_freq"))
         send_freq();
     else  if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
