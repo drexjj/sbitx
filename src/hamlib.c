@@ -24,6 +24,8 @@ Known issues
 #include "sdr.h"
 #include "sdr_ui.h"
 
+#define DEBUG 0
+
 static int welcome_socket = -1, data_socket = -1;
 #define MAX_DATA 1000
 char incoming_data[MAX_DATA];
@@ -129,6 +131,9 @@ int check_cmd(char *cmd, char *token){
 
 void send_response(char *response){
   int e = send(data_socket, response, strlen(response), 0);
+#if DEBUG > 0
+        printf("hamlib>>> response: [%s]\n",response);
+#endif
   //printf("[%s]", response); 
   if (e >=0) return;
   // Connection closed by client
@@ -238,6 +243,9 @@ void get_split() {
     
 }
 void hamlib_set_freq(char *f){
+#if DEBUG > 0
+    printf("hamlib_set_freq func arg: [%s]\n",f);
+#endif
   long freq;
   char cmd[50];
   if (!strncmp(f, "VFO", 3))
@@ -245,6 +253,9 @@ void hamlib_set_freq(char *f){
   else
     freq = atoi(f);
 	sprintf(cmd, "freq %d", freq);
+#if DEBUG > 0
+    printf("Send string to cmd_exec: [%s]\n",cmd);
+#endif
 	cmd_exec(cmd);
     send_response("RPRT 0\n");
 }
@@ -279,7 +290,10 @@ void interpret_command(char* cmd) {
             tx_control(1); //this is a shaky way to do it, who has the time to parse?
     } 
     else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
-        hamlib_set_freq(cmd + 2);
+        if (cmd[0] == 'F')
+            hamlib_set_freq(cmd + 2);
+        else
+            hamlib_set_freq(cmd + 10);
     else if (check_cmd(cmd, "\\chk_vfo"))
         //Lets not default to VFO mode
         send_response("0\n");
@@ -295,7 +309,10 @@ void interpret_command(char* cmd) {
     } else if (cmd[0] == 'm' || check_cmd(cmd, "\\get_mode"))
         send_mode();
     else if (cmd[0] == 'M' || check_cmd(cmd, "\\set_mode")) {
-        set_mode(cmd + 2);
+        if (cmd[0] == 'M')
+            set_mode(cmd + 2);
+        else
+            set_mode(cmd + 10);
     } else if (cmd[0] == 'f' || check_cmd(cmd, "\\get_freq"))
         send_freq();
     else  if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
@@ -329,6 +346,9 @@ void hamlib_handler(char *data, int len){
     if (data[i] == '\n'){
       incoming_data[incoming_ptr] = 0;
       incoming_ptr = 0;
+#if DEBUG > 0
+        printf("<<<hamlib cmd: [%s]\n",data);
+#endif
       //printf("<<<hamlib cmd %s =>", data);
       interpret_command(incoming_data);
     }
