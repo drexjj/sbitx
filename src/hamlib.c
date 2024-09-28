@@ -23,7 +23,7 @@ Known issues
 #include <fftw3.h>
 #include "sdr.h"
 #include "sdr_ui.h"
-
+#define DEBUG 0
 static int welcome_socket = -1, data_socket = -1;
 #define MAX_DATA 1000
 char incoming_data[MAX_DATA];
@@ -129,6 +129,9 @@ int check_cmd(char *cmd, char *token){
 
 void send_response(char *response){
   int e = send(data_socket, response, strlen(response), 0);
+#if DEBUG > 0
+        printf("hamlib>>> response: [%s]\n",response);
+#endif
   //printf("[%s]", response); 
   if (e >=0) return;
   // Connection closed by client
@@ -238,6 +241,9 @@ void get_split() {
     
 }
 void hamlib_set_freq(char *f){
+#if DEBUG > 0
+    printf("hamlib_set_freq func arg: [%s]\n",f);
+#endif
   long freq;
   char cmd[50];
   if (!strncmp(f, "VFO", 3))
@@ -245,6 +251,9 @@ void hamlib_set_freq(char *f){
   else
     freq = atoi(f);
 	sprintf(cmd, "freq %d", freq);
+#if DEBUG > 0
+    printf("Send string to cmd_exec: [%s]\n",cmd);
+#endif
 	cmd_exec(cmd);
     send_response("RPRT 0\n");
 }
@@ -329,6 +338,9 @@ void hamlib_handler(char *data, int len){
     if (data[i] == '\n'){
       incoming_data[incoming_ptr] = 0;
       incoming_ptr = 0;
+#if DEBUG > 0
+        printf("<<<hamlib cmd: [%s]\n",data);
+#endif
       //printf("<<<hamlib cmd %s =>", data);
       interpret_command(incoming_data);
     }
