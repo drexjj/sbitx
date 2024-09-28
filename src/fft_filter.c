@@ -10,6 +10,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include "sdr.h"
+#include "utils.h"
 
 // Wisdom Defines for the FFTW and FFTWF libraries
 // Options for WISDOM_MODE from least to most rigorous are FFTW_ESTIMATE, FFTW_MEASURE, FFTW_PATIENT, and FFTW_EXHAUSTIVE
@@ -18,7 +19,7 @@
 // if the Wisdom plans in the file were generated at the same or more rigorous level.
 #define WISDOM_MODE FFTW_MEASURE
 #define PLANTIME -1		// spend no more than plantime seconds finding the best FFT algorithm. -1 turns the platime cap off.
-char wisdom_file_f[] = "/home/pi/sbitx/data/sbitx_wisdom_f.wis";  // Moved to default data directory - N3SB
+
 
 // Modified Bessel function of the 0th kind, used by the Kaiser window
 const float i0(float const z){
@@ -89,10 +90,10 @@ int make_hann_window(float *window, int max_count){
 // Phase is adjusted so "time zero" (cGenter of impulse response) is at M/2
 // L and M refer to the decimated output
 int window_filter(int const L,int const M,complex float * const response,float const beta){
-
+   char* wisdom_file_f = app_cwd("data/sbitx_wisdom_f.wis");  // Moved to default data directory - N3SB
 	//total length of the convolving samples
   int const N = L + M - 1;
-
+  
   // fftw_plan can overwrite its buffers, so we're forced to make a temp. Ugh.
   complex float * const buffer = fftwf_alloc_complex(N);
 
@@ -106,7 +107,7 @@ int window_filter(int const L,int const M,complex float * const response,float c
   fftwf_plan fwd_filter_plan = fftwf_plan_dft_1d(N,buffer,buffer,FFTW_FORWARD, WISDOM_MODE); // Was FFTW_ESTIMATE N3SB
   fftwf_plan rev_filter_plan = fftwf_plan_dft_1d(N,buffer,buffer,FFTW_BACKWARD, WISDOM_MODE); // Was FFTW_ESTIMATE N3SB
   fftwf_export_wisdom_to_filename(wisdom_file_f);
-
+  free(wisdom_file_f);
   // Convert to time domain
   memcpy(buffer,response,N*sizeof(*buffer));
   fftwf_execute(rev_filter_plan);

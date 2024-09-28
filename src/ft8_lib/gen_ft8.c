@@ -183,7 +183,9 @@ int main(int argc, char** argv)
 
     // Synthesize waveform data (signal) and save it as WAV file
     synth_gfsk(tones, num_tones, frequency, symbol_bt, symbol_period, sample_rate, signal + num_silence);
-		FILE *pf = fopen("/home/pi/sbitx/ft8tx_float.raw", "w");
+    char* fullpath = app_cwd("ft8tx_float.raw");
+		FILE *pf = fopen(fullpath, "w");
+        free(fullpath);
 		fwrite(signal, sizeof(float), num_total_samples, pf);
 		fclose(pf);
     save_wav(signal, num_total_samples, sample_rate, wav_path);

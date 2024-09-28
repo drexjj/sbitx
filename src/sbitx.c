@@ -22,6 +22,7 @@
 #include "si5351.h"
 #include "ini.h"
 #include "para_eq.h"
+#include "utils.h"
 
 #define DEBUG 0
 int ext_ptt_enable = 0; //ADDED BY KF7YDU. 
@@ -1153,8 +1154,8 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 		for (i = 0; i < MAX_BINS/2; i++) {
 			__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
 		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
-		}
-
+	} 
+	
 	//now rotate to the tx_bin 
 	//rememeber the AM is already a carrier modulated at 24 KHz
 	int shift = tx_shift;
@@ -1313,16 +1314,19 @@ static int hw_settings_handler(void* user, const char* section,
 
 static void read_hw_ini(){
 	hw_init_index = 0;
-	char directory[PATH_MAX];
-	char *path = getenv("HOME");
-	strcpy(directory, path);
-	strcat(directory, "/sbitx/data/hw_settings.ini");
+	//char directory[PATH_MAX];
+	char *directory = app_cwd("data/hw_settings.ini");
+	//strcpy(directory, path);
+	//strcat(directory, "/sbitx/data/hw_settings.ini");
   if (ini_parse(directory, hw_settings_handler, NULL)<0){
     printf("Unable to load ~/sbitx/data/hw_settings.ini\nLoading default_hw_settings.ini instead\n");
-		strcpy(directory, path);
-		strcat(directory, "/sbitx/data/default_hw_settings.ini");
-  	ini_parse(directory, hw_settings_handler, NULL);
+		free(directory);
+		//strcpy(directory, path);
+		directory=app_cwd("data/default_hw_settings.ini");
+		//strcat(directory, "/sbitx/data/default_hw_settings.ini");
+  		ini_parse(directory, hw_settings_handler, NULL);
   }
+  free(directory);
 }
 
 /*

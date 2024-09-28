@@ -1,0 +1,1 @@
+char* app_cwd(const char* str1);

@@ -47,6 +47,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include "utils.h"
 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -1462,7 +1463,7 @@ static int mode_id(const char *mode_str){
 
 static void save_user_settings(int forced){
 	static int last_save_at = 0;
-	char file_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+	//char file_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
 
 	//attempt to save settings only if it has been 30 seconds since the 
 	//last time the settings were saved
@@ -1470,9 +1471,9 @@ static void save_user_settings(int forced){
 	if ((now < last_save_at + 30000 || !settings_updated) && forced == 0)
 		return;
 
-	char *path = getenv("HOME");
-	strcpy(file_path, path);
-	strcat(file_path, "/sbitx/data/user_settings.ini");
+	char* file_path = app_cwd("data/user_settings.ini");
+	//strcpy(file_path, path);
+	//strcat(file_path, "/sbitx/data/user_settings.ini");
 
 	//copy the current freq settings to the currently selected vfo
 	struct field *f_freq = get_field("r1:freq");
@@ -1482,9 +1483,10 @@ static void save_user_settings(int forced){
 	if (!f){
 		printf("Unable to save %s : %s\n", file_path, strerror(errno));
 		settings_updated = 0;  // stop repeated attempts to write if file cannot be opened.		
+		free(file_path);
 		return;
 	}
-
+	free(file_path);
   // save the field values
 	int i;
 	for (i= 0; active_layout[i].cmd[0] > 0; i++){
@@ -5127,8 +5129,9 @@ void ui_init(int argc, char *argv[]){
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
   gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
   gtk_window_set_title( GTK_WINDOW(window), "sBITX" );
-	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
-
+  char* icon = app_cwd("sbitx_icon.png");
+  gtk_window_set_icon_from_file(GTK_WINDOW(window), icon, NULL);
+  free(icon);
   display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
 
@@ -5518,16 +5521,18 @@ else if (!strcmp(request, "80M") ||
 		change_band(request);
 	}
 	else if (!strcmp(request, "REC ON")) {
-		char fullpath[200];
-		char* path = getenv("HOME");
+		//char* path = getenv("HOME");
 		time(&record_start);
 		struct tm* tmp = localtime(&record_start);
-		sprintf(fullpath, "%s/sbitx/audio/%04d%02d%02d-%02d%02d-%02d.wav", path, tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+		char audio[200];
+		sprintf(audio, "audio/%04d%02d%02d-%02d%02d-%02d.wav", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+		char* fullpath = app_cwd(audio);
 		char request[300], response[100];
 		sprintf(request, "record=%s", fullpath);
 		sdr_request(request, response);
 		sprintf(request, "Recording:%s\n", fullpath);
 		write_console(FONT_LOG, request);
+		free(fullpath);
 	}
 	else if (!strcmp(request, "REC OFF")) {
 		sdr_request("record", "off");
@@ -5703,10 +5708,12 @@ void cmd_exec(char *cmd){
 		utc_set(args, 1);
 	}
 	else if (!strcmp(exec, "logbook")){
-		char fullpath[200];	//dangerous, find the MAX_PATH and replace 200 with it
-		char *path = getenv("HOME");
-		sprintf(fullpath, "mousepad %s/sbitx/data/logbook.txt", path); 
+		//char fullpath[200];	//dangerous, find the MAX_PATH and replace 200 with it
+		char *fullpath = app_cwd("data/logbook.txt");
+
+		//sprintf(fullpath, "mousepad %s/sbitx/data/logbook.txt", path); 
 		execute_app(fullpath);
+		free(fullpath);
 	}
 	else if (!strcmp(exec, "clear")){
 		console_init();
@@ -5953,7 +5960,10 @@ int main( int argc, char* argv[] ) {
   	//ensure_single_instance();
 
 	//unlink any pending ft8 transmission
-	unlink("/home/pi/sbitx/ft8tx_float.raw");
+	char* ft8txraw = app_cwd("ft8tx_float.raw");
+	unlink(ft8txraw);
+	free(ft8txraw);
+
 	call_wipe();
 	
 	ui_init(argc, argv);
@@ -6004,18 +6014,20 @@ int main( int argc, char* argv[] ) {
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
-	char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
-	char *path = getenv("HOME");
-	strcpy(directory, path);
-	strcat(directory, "/sbitx/data/user_settings.ini");
+	char* directory = app_cwd("data/user_settings.ini");	//dangerous, find the MAX_PATH and replace 200 with it
+	//char *path = getenv("HOME");
+	//strcpy(directory, path);
+	//strcat(directory, "/sbitx/data/user_settings.ini");
   if (ini_parse(directory, user_settings_handler, NULL)<0){
-    printf("Unable to load ~/sbitx/data/user_settings.ini\n"
+    printf("Unable to load data/user_settings.ini\n"
 		"Loading default.ini instead\n");
-		strcpy(directory, path);
-		strcat(directory, "/sbitx/data/default_settings.ini");
-  	ini_parse(directory, user_settings_handler, NULL);
+	free(directory);
+	directory=app_cwd("data/default_settings.ini");
+	//strcpy(directory, path);
+	//strcat(directory, "/sbitx/data/default_settings.ini");
+	ini_parse(directory, user_settings_handler, NULL);
   }
-
+	free(directory);
 	//the logger fields may have an unfinished qso details
 	call_wipe();
 

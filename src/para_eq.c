@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include "utils.h"
 
 // Function to copy files
 int copy_file(const char *src, const char *dst) {
@@ -57,10 +58,11 @@ void init_eq(parametriceq* eq) {
         exit(EXIT_FAILURE);
     }
 
-    char user_settings_path[200];
-    char default_settings_path[200];
-    snprintf(user_settings_path, sizeof(user_settings_path), "%s/sbitx/data/user_settings.ini", home);
-    snprintf(default_settings_path, sizeof(default_settings_path), "%s/sbitx/data/default_settings.ini", home);
+    char* user_settings_path = app_cwd("data/user_settings.ini");
+
+    char* default_settings_path = app_cwd("data/default_settings.ini");
+    //snprintf(user_settings_path, sizeof(user_settings_path), "%s/sbitx/data/user_settings.ini", home);
+    //snprintf(default_settings_path, sizeof(default_settings_path), "%s/sbitx/data/default_settings.ini", home);
 
     FILE *file = fopen(user_settings_path, "r");
     if (file == NULL) {
@@ -77,7 +79,8 @@ void init_eq(parametriceq* eq) {
             exit(EXIT_FAILURE);
         }
     }
-
+    free(user_settings_path);
+    free(default_settings_path);
     char key[10];
 
     // Default values

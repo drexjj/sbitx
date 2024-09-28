@@ -27,6 +27,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "logbook.h"
+#include "utils.h"
 
 #include <sqlite3.h>
 
@@ -83,11 +84,12 @@ int logbook_query(char *query, int from_id, char *result_file){
 	//printf("[%s]\n", statement);
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
-	char output_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
-	sprintf(output_path, "%s/sbitx/data/result_rows.txt", getenv("HOME"));
-	strcpy(result_file, output_path);
+	char* output_path = app_cwd("data/result_rows.txt");
+	//sprintf(output_path, "%s/sbitx/data/result_rows.txt", getenv("HOME"));
+	//strcpy(result_file, output_path);
 	
 	FILE *pf = fopen(output_path, "w");
+	free(output_path);
 	if (!pf)
 		return -1;
 
@@ -254,11 +256,12 @@ int row_count_callback(void *data, int argc, char **argv, char **azColName) {
     return 0;
 }
 void logbook_open(){
-	char db_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+	char* db_path = app_cwd("data/sbitx.db");
     char *zErrMsg = 0;
-	sprintf(db_path, "%s/sbitx/data/sbitx.db", getenv("HOME"));
+	//sprintf(db_path, "%s/sbitx/data/sbitx.db", getenv("HOME"));
 
 	rc = sqlite3_open(db_path, &db);
+	free(db_path);
 	if( rc != SQLITE_OK ){
 		fprintf(stderr, "Failed to open logbook. SQL error: %s\n", zErrMsg);
 		sqlite3_free(zErrMsg);
@@ -503,7 +506,9 @@ int get_filename(char *path) {
     chooser = GTK_FILE_CHOOSER(dialog);
 
     // Set default folder, filename, and file filter
-    gtk_file_chooser_set_current_folder(chooser, "/home/pi/sbitx/data");
+	char* fullpath = app_cwd("data");
+    gtk_file_chooser_set_current_folder(chooser,fullpath);
+	free(fullpath);
     gtk_file_chooser_set_current_name(chooser, "Untitled.adi");
     gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
     GtkFileFilter *filter = gtk_file_filter_new();
