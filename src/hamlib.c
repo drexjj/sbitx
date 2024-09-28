@@ -23,7 +23,7 @@ Known issues
 #include <fftw3.h>
 #include "sdr.h"
 #include "sdr_ui.h"
-#define DEBUG 0
+#define DEBUG 1
 static int welcome_socket = -1, data_socket = -1;
 #define MAX_DATA 1000
 char incoming_data[MAX_DATA];
@@ -288,7 +288,10 @@ void interpret_command(char* cmd) {
             tx_control(1); //this is a shaky way to do it, who has the time to parse?
     } 
     else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
-        hamlib_set_freq(cmd + 2);
+        if (cmd[0] == 'F')
+            hamlib_set_freq(cmd + 2);
+        else
+            hamlib_set_freq(cmd + 10 )
     else if (check_cmd(cmd, "\\chk_vfo"))
         //Lets not default to VFO mode
         send_response("0\n");
