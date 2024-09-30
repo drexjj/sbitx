@@ -89,20 +89,17 @@ else
     echo "user_settings.ini not found"
 fi
 
-# Check if the 60 meter band section is present in hw_settings.ini
+# Check if the 60m band settings are missing in hw_settings.ini, and add if necessary
 if [ -f "$HOME/sbitx/data/hw_settings.ini" ]; then
-    echo "Checking hw_settings.ini for the [tx_band] section"
-    if ! grep -q "\[tx_band\]" "$HOME/sbitx/data/hw_settings.ini" | grep -q "f_start=5250000" | grep -q "f_stop=5450000" | grep -q "scale=0.0033"; then
-        echo "Adding [tx_band] section to hw_settings.ini"
-        cat <<EOL >> "$HOME/sbitx/data/hw_settings.ini"
-
-[tx_band]
-f_start=5250000
-f_stop=5450000
-scale=0.0033
-EOL
+    echo "Adding 60 meters to hw_settings.ini"
+    if ! grep -q 'f_start=5250000' "$HOME/sbitx/data/hw_settings.ini"; then
+        sed -i '/f_start=3500000/{n;/f_stop=4000000/{n;/scale=0.0042/a\
+[tx_band]\
+f_start=5250000\
+f_stop=5450000\
+scale=0.0033' "$HOME/sbitx/data/hw_settings.ini"
     else
-        echo "60 meter band section already exists in hw_settings.ini"
+        echo "60m band settings already exist"
     fi
 else
     echo "hw_settings.ini not found"
