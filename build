@@ -76,12 +76,36 @@ if [ $OPT -eq 1 ]; then
 	strip $F
 fi
 
-# Open the user_settings.ini file, search for #40m= then and add #60m= after it
+# Open the user_settings.ini file, search for #60m=, and add it if missing
 if [ -f "$HOME/sbitx/data/user_settings.ini" ]; then
-    echo "Adding 60 meter definition to the user_settings.ini file"
-    sed -i '/#40m=/a\#60m=' "$HOME/sbitx/data/user_settings.ini"
+    echo "Checking user_settings.ini for #60m="
+    if ! grep -q "^#60m=" "$HOME/sbitx/data/user_settings.ini"; then
+        echo "Adding 60 meter band to user_settings.ini"
+        sed -i '/#40m=/a\#60m=' "$HOME/sbitx/data/user_settings.ini"
+    else
+        echo "60 meter band already exists in user_settings.ini"
+    fi
 else
     echo "user_settings.ini not found"
+fi
+
+# Check if the 60 meter band section is present in hw_settings.ini
+if [ -f "$HOME/sbitx/data/hw_settings.ini" ]; then
+    echo "Checking hw_settings.ini for the [tx_band] section"
+    if ! grep -q "\[tx_band\]" "$HOME/sbitx/data/hw_settings.ini" | grep -q "f_start=5250000" | grep -q "f_stop=5450000" | grep -q "scale=0.0033"; then
+        echo "Adding [tx_band] section to hw_settings.ini"
+        cat <<EOL >> "$HOME/sbitx/data/hw_settings.ini"
+
+[tx_band]
+f_start=5250000
+f_stop=5450000
+scale=0.0033
+EOL
+    else
+        echo "60 meter band section already exists in hw_settings.ini"
+    fi
+else
+    echo "hw_settings.ini not found"
 fi
 
 echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, N1QM, OZ7BX, and KF7YDU" 
