@@ -90,22 +90,6 @@ else
     echo "user_settings.ini not found"
 fi
 
-# Check if the 60m band settings are missing in hw_settings.ini, and add if necessary
-if [ -f "$HOME/sbitx/data/hw_settings.ini" ]; then
-    echo "Adding 60 meters to hw_settings.ini"
-    if ! grep -q 'f_start=5250000' "$HOME/sbitx/data/hw_settings.ini"; then
-        sed -i '/f_start=3500000/{n;/f_stop=4000000/{n;/scale=0.0042/a\
-[tx_band]\
-f_start=5250000\
-f_stop=5450000\
-scale=0.0033' "$HOME/sbitx/data/hw_settings.ini"
-    else
-        echo "60m band settings already exist"
-    fi
-else
-    echo "hw_settings.ini not found"
-fi
-
 echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, N1QM, OZ7BX, and KF7YDU" 
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 # This addition is used to provide the application the capability to adjust the local system time -W2JON
