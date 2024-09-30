@@ -1,3 +1,4 @@
+
 #!/bin/sh -e
 # Note: the '-e' flag will make the script stop immediately upon error with 
 # the error reflected in the environment.  This lets one issue commands like
@@ -78,7 +79,7 @@ fi
 
 # Open the user_settings.ini file, search for #60m=, and add it if missing
 if [ -f "$HOME/sbitx/data/user_settings.ini" ]; then
-    echo "Checking user_settings.ini for 60 meter band"
+    echo "Checking user_settings.ini for #60m="
     if ! grep -q "^#60m=" "$HOME/sbitx/data/user_settings.ini"; then
         echo "Adding 60 meter band to user_settings.ini"
         sed -i '/#40m=/a\#60m=' "$HOME/sbitx/data/user_settings.ini"
@@ -99,7 +100,7 @@ f_start=5250000\
 f_stop=5450000\
 scale=0.0033' "$HOME/sbitx/data/hw_settings.ini"
     else
-        echo "60m band settings already exist in hw_settings.ini"
+        echo "60m band settings already exist"
     fi
 else
     echo "hw_settings.ini not found"
