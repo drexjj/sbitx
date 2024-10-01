@@ -90,6 +90,27 @@ else
     echo "user_settings.ini not found"
 fi
 
+# Update hw_settings.ini to add 60m band configuration
+if [ -f "$HOME/sbitx/data/hw_settings.ini" ]; then
+    echo "Checking hw_settings.ini for 60m band"
+    if grep -q "f_start=5250000" "$HOME/sbitx/data/hw_settings.ini"; then
+        echo "60m band already exists in hw_settings.ini"
+    else
+        echo "Adding 60m band to hw_settings.ini"
+        awk '{
+          print $0
+        } /f_start=3500000/ {
+          found=1
+        } found && /scale=/ {
+          print ""
+          print "[tx_band]\nf_start=5250000\nf_stop=5450000\nscale=0.0033"
+          found=0
+        }' $HOME/sbitx/data/hw_settings.ini > temp.ini && mv temp.ini $HOME/sbitx/data/hw_settings.ini
+    fi
+else
+    echo "hw_settings.ini not found"
+fi
+
 echo "Brought to you by the sBitx 64 bit project team - W9JES, W2JON, N1QM, OZ7BX, and KF7YDU" 
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 # This addition is used to provide the application the capability to adjust the local system time -W2JON
