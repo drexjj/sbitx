@@ -79,7 +79,7 @@ fi
 
 # Open the user_settings.ini file, search for #60m=, and add it if missing
 if [ -f "$HOME/sbitx/data/user_settings.ini" ]; then
-    echo "Checking user_settings.ini for #60m="
+    echo "Checking user_settings.ini for 60 meters"
     if ! grep -q "^#60m=" "$HOME/sbitx/data/user_settings.ini"; then
         echo "Adding 60 meter band to user_settings.ini"
         sed -i '/#40m=/a\#60m=' "$HOME/sbitx/data/user_settings.ini"
