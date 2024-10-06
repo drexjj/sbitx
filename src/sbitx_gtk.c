@@ -5842,6 +5842,22 @@ void cmd_exec(char *cmd){
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
 	}
+	//'Band scale' setting to adjust scale for easier adjustment for tuning power output - n1qm
+	else if (!strcmp(exec, "bs")){
+		//printf("In band power+\n");
+		char responsejnk[20];
+		if (args[0] == '+')
+			sdr_request("bandscale+=0",responsejnk);
+		else if (args[0] == '-')
+			sdr_request("bandscale-=0",responsejnk);
+		else {
+			if (isdigit(args[0]) && sizeof(band_stack)/sizeof(struct band) > atoi(args)) {
+				char sdrrequest[200];
+				sprintf(sdrrequest,"adjustbsband=%s",args);
+				sdr_request(sdrrequest,responsejnk);
+			}
+		}
+	}
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);
 		field_set("PITCH", args);

@@ -24,6 +24,8 @@
 #include "para_eq.h"
 
 #define DEBUG 0
+
+int bandtweak = 4;		//Band power array index the \bs command will target -n1qm
 int ext_ptt_enable = 0; //ADDED BY KF7YDU. 
 char audio_card[32];
 static int tx_shift = 512;
@@ -1844,7 +1846,16 @@ void sdr_request(char *request, char *response){
 		tx_cal();
 	else if (!strcmp(cmd, "tx_compress")){
 		tx_compress = atoi(value);
-	}else{}
+	}else if (!strcmp(cmd, "bandscale+")){
+		band_power[bandtweak].scale += .00025;
+		printf("Band %i scale now at %f\n",band_power[bandtweak].f_start,band_power[bandtweak].scale);
+	} else if (!strcmp(cmd, "bandscale-")){
+		band_power[bandtweak].scale -= .00025;
+		printf("Band %i scale now at %f\n",band_power[bandtweak].f_start,band_power[bandtweak].scale);
+	} else if (!strcmp(cmd, "adjustbsband")){
+		bandtweak=atoi(value);
+		printf("Now adjusting band %i scale is currently: %f\n",band_power[bandtweak].f_start,band_power[bandtweak].scale);
+	}
 		
   /* else
 		printf("*Error request[%s] not accepted\n", request); */
