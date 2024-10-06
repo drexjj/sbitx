@@ -1709,7 +1709,7 @@ void sdr_request(char *request, char *response){
 		// Effectively, if a signal moves up, so does the second IF
    
 		if (rx_list->mode == MODE_AM){
-			puts("\n\n\ntx am filter ");
+			//puts("\n\n\ntx am filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * 19000)/96000.0, 
 				(1.0 * 29000)/96000.0 , 
@@ -1721,7 +1721,7 @@ void sdr_request(char *request, char *response){
 		} 
 
 		else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR){
-			puts("\n\n\ntx LSB filter ");
+			//puts("\n\n\ntx LSB filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * -3500)/96000.0, 
 				(1.0 * -100)/96000.0 , 
@@ -1732,7 +1732,7 @@ void sdr_request(char *request, char *response){
 				5);
 		}
 		else { 
-			puts("\n\n\ntx USB filter ");
+			//puts("\n\n\ntx USB filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * 300)/96000.0, 
 				(1.0 * 3500)/96000.0 , 
