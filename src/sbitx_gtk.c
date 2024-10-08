@@ -385,6 +385,9 @@ struct band {
 	int index;
 	int	freq[STACK_DEPTH];
 	int mode[STACK_DEPTH];
+	//Make drive and IF band specific - n1qm
+	int if_gain;
+	int drive;
 };
 
 struct cmd {
@@ -430,23 +433,23 @@ static int tx_mode = MODE_USB;
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB},50,50},
 	{"60M", 5250000, 5500000, 0, 
-		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB},50,50},
 	{"40M", 7000000,7300000, 0,
-		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
+		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB},50,50},
 	{"30M", 10100000, 10150000, 0,
-		{10100000, 10100000, 10136000, 10150000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{10100000, 10100000, 10136000, 10150000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"20M", 14000000, 14400000, 0,
-		{14010000, 14040000, 14074000, 14200000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{14010000, 14040000, 14074000, 14200000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"17M", 18068000, 18168000, 0,
-		{18068000, 18100000, 18110000, 18160000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{18068000, 18100000, 18110000, 18160000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"15M", 21000000, 21500000, 0,
-		{21010000, 21040000, 21074000, 21250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{21010000, 21040000, 21074000, 21250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"12M", 24890000, 24990000, 0,
-		{24890000, 24910000, 24950000, 24990000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{24890000, 24910000, 24950000, 24990000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"10M", 28000000, 29700000, 0,
-		{28000000, 28040000, 28074000, 28250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{28000000, 28040000, 28074000, 28250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 };
 
 
@@ -1498,7 +1501,8 @@ static void save_user_settings(int forced){
 
 	//now save the band stack
 	for (int i = 0; i < sizeof(band_stack)/sizeof(struct band); i++){
-		fprintf(f, "\n[%s]\n", band_stack[i].name);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\n", band_stack[i].name,band_stack[i].drive,band_stack[i].if_gain);
+		
 		//fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
 			fprintf(f, "freq%d=%d\nmode%d=%d\n", j, band_stack[i].freq[j], j, band_stack[i].mode[j]);
@@ -1549,7 +1553,7 @@ static int user_settings_handler(void* user, const char* section,
     strcpy(new_value, value);
     if (!strcmp(section, "r1")){
       sprintf(cmd, "%s:%s", section, name);
-      set_field(cmd, new_value);
+	set_field(cmd, new_value);
     }
     else if (!strcmp(section, "tx")){
       strcpy(cmd, name);
@@ -1612,6 +1616,10 @@ static int user_settings_handler(void* user, const char* section,
 			band_stack[band].mode[2] = atoi(value);	
 		else if (!strcmp(name, "mode3"))
 			band_stack[band].mode[3] = atoi(value);	
+		else if (!strcmp(name, "gain"))
+			band_stack[band].if_gain = atoi(value);	
+		else if (!strcmp(name, "drive"))
+			band_stack[band].drive = atoi(value);	
 	}
     return 1;
 }
@@ -5282,6 +5290,10 @@ void change_band(char *request){
 //  set_field("r1:high",get_field("r1:high")->value);
 
 	abort_tx();
+	sprintf(buff,"%i",band_stack[new_band].if_gain);
+	field_set("IF",buff);
+	sprintf(buff,"%i",band_stack[new_band].drive);
+	field_set("DRIVE",buff);
 }
 
 void utc_set(char *args, int update_rtc){
@@ -5545,6 +5557,21 @@ else if (!strcmp(request, "80M") ||
 		qrz(field_str("CALL"));
 	}
 	else {
+			if (!strncmp(request,"IF ", 3)) {
+				//Update band stack info of current band with new gain value - n1qm
+				char ti[4];
+				strncpy(ti,request + 3,3);
+				band_stack[atoi(get_field_by_label("SELBAND")->value)].if_gain=atoi(ti);
+				settings_updated++;
+			}
+			if (!strncmp(request,"DRIVE ", 6)) {
+				//Update band stack info of current band with new drive value - n1qm
+				char ti[4];
+				strncpy(ti,request + 6,3);
+				band_stack[atoi(get_field_by_label("SELBAND")->value)].drive=atoi(ti);
+				settings_updated++;
+			}
+
 			// Send this to the radio core
 			char args[MAX_FIELD_LENGTH];
 			char exec[20];
@@ -5841,6 +5868,22 @@ void cmd_exec(char *cmd){
 		char output[500];
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
+	}
+	//'Band scale' setting to adjust scale for easier adjustment for tuning power output - n1qm
+	else if (!strcmp(exec, "bs")){
+		//printf("In band power+\n");
+		char responsejnk[20];
+		if (args[0] == '+')
+			sdr_request("bandscale+=0",responsejnk);
+		else if (args[0] == '-')
+			sdr_request("bandscale-=0",responsejnk);
+		else {
+			if (isdigit(args[0]) && sizeof(band_stack)/sizeof(struct band) > atoi(args)) {
+				char sdrrequest[200];
+				sprintf(sdrrequest,"adjustbsband=%s",args);
+				sdr_request(sdrrequest,responsejnk);
+			}
+		}
 	}
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);

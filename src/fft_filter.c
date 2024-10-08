@@ -196,7 +196,7 @@ int filter_tune(struct filter *f, float const low,float const high,float const k
   if(isnan(low) || isnan(high) || isnan(kaiser_beta))
     return -1;
 
-	printf("filter set from %g to %g\n", low, high);
+	//printf("filter set from %g to %g\n", low, high);
   //assert(fabs(low) <= 0.5);
   //assert(fabs(high) <= 0.5);
 
