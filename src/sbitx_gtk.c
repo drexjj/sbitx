@@ -1920,10 +1920,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	int center_x = f_spectrum->x + (f_spectrum->width / 2);
 
 	if (notch_enabled) {
-		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI")) {
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB")) {
 			// Calculate notch filter position and width based on mode
-			//Added digi to modes which can show the notch indicator - n1qm
-			if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "DIGI")) {
+				if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "CW")) {
 				// For USB and CW mode
 				notch_start = center_x + 
 							((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));

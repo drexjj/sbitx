@@ -839,9 +839,9 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		if (notch_enabled) {
 			int notch_center_bin, notch_bin_range;
 			
-			if (r->mode == MODE_USB) {
+			if (r->mode == MODE_USB || r->mode == MODE_CW) {
 				notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
-			} else if (r->mode == MODE_LSB) {
+			} else if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
 				notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
 			}
 			notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
