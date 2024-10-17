@@ -623,6 +623,11 @@ body {
 	padding: 7 0 7 0;
 }
 
+.selband {
+	font-family: monospace;
+	display: block;
+}
+
 .sbitxv3-macro {
 	text-align: left;
 	width: 75px;

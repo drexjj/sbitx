@@ -2249,6 +2249,15 @@ function show_in_qrz_window(callsign) {
             logbook_request(-logbook_top_row_id);
     }
 
+    function show_selected_band_store(args) {
+        const elts = document.querySelectorAll('.selband');
+        const ix = Math.floor(args/10);
+		store = ["=---","-=--","--=-","---="][args%10];
+        for (let i = 0; i < elts.length; i++) {
+            elts[i].innerHTML = " " + ((i == (elts.length-ix-1)) ? store : "&nbsp;");
+        }
+    }
+    
     function mode_set(new_mode) {
 
         var wf = el("waterfall");
@@ -2402,6 +2411,9 @@ function show_in_qrz_window(callsign) {
                 break;
 			case 'SELBAND':
 			    FT8_lists_clear();
+                if (args >= 0) {
+				    show_selected_band_store(args);
+                }
 				break;
             case 'MODE':
                 mode_set(args);
