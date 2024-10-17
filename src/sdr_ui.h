@@ -39,6 +39,7 @@ extern int display_freq;
 #define FF_MYCALL 16
 #define FF_CALLER 17
 #define FF_GRID 18
+#define FONT_BLACK 19
 
 #define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32. 
 extern int ext_ptt_enable;
@@ -56,4 +57,3 @@ time_t time_sbitx();
 
 
 #define VER_STR "sbitx v4.1_DEV" // Thanks to W9JES, W2JON, N1QM, OZ7BX, and KF7YDU
-

@@ -119,7 +119,7 @@ select, select option, input {
 
 #dial {
 	background-color: #3dacbf;
-	width: 150px;
+	width: 146px;
 	padding-top: 0;
 	text-align: left;
 	height: 40px;
@@ -577,7 +577,7 @@ body {
 
 .sbitxv3-control {
 	text-align: left;
-	width: 49px;
+	min-width: 40px;
 	padding-top: 5px;
 	padding-left: 3px;
 	height: 36px;
@@ -595,7 +595,7 @@ body {
 	border: 0;
 	font-size: 11px;
 	margin-left: -4px;
-	width: 48px;
+	min-width: 40px;
     /*background-color: #044b59;*/
 
 /*	-webkit-appearance: none;
@@ -611,7 +611,7 @@ body {
 
 .sbitxv3-btn {
 	height: 43px;
-	width: 40px;
+	min-width: 30px;
 	background-color: #0c2333;
 	border: solid 1px black;
 	font-size: 12px;
@@ -621,6 +621,11 @@ body {
 /*	margin-top: 1px;
 	margin-bottom: 1px;*/
 	padding: 7 0 7 0;
+}
+
+.selband {
+	font-family: monospace;
+	display: block;
 }
 
 .sbitxv3-macro {
@@ -682,7 +687,7 @@ body {
 
 .linear{
 	text-align: left;
-	min-width: 50px;
+	min-width: 40px;
 	padding-top: 5px;
 	padding-left: 3px;
 	height: 36px;
@@ -693,6 +698,14 @@ body {
 	display: inline-block;
 	position: relative;
 	display: inline-block;
+}
+
+#IF {
+	width: 36px;
+}
+
+#AUDIO {
+	width: 40px;
 }
 
 .linear-value {
@@ -756,12 +769,11 @@ body {
 #logger-log, #wipe, #logbook-open, #qrz {
 	background-color: #049117;
 	margin-top: 2px;
+	padding-left: 2px;
+    padding-right: 2px;
 	height: 36px;
 }
 
-#logbook-open {
-	width: 45px;
-}
 #linear_DRIVE, #linear_DRIVE > .linear-dropdown, #linear_DRIVE > .linear-value{
 	background-color: #bf0f0f;
 	/*border: solid 1px black;*/
@@ -794,6 +806,7 @@ body {
 
 #qrz{
 	width: 20px;
+	min-width: 20px;
 }
 
 #console {
