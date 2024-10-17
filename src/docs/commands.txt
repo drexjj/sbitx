@@ -37,6 +37,17 @@ These are text commands that can be entered from the keyboard
 	An offset of +/- 3000 is usually enough to move birdies out of the passband
 	Value is saved and restored on launch
 \macro [list\<name of macro to load>]
+\bs [ + | - | [0-9] ]
+	Allows adjusting the band power scale (from hw_settings.ini) to fine tune output 
+	power without having to restart the app, settings are not saved, but makes the
+	process simpler
+	[0-9]:	Choose the band to edit the scale of.  Where 0=80m, 1=60m, 2=40m, 3=30m,
+			 4=20m, 5=17m, 6=15m, 7=12m, 8=10m.  The frequency start value and current
+			 scale will be printed in the terminal.  I.e. To edit 80m use \bs 0
+	+:	Increase the selected band's scale value by .00025
+	-:  Decrease the selected band's scale value by .00025
+		When increasing or decreasing the scale, the new value will be printed
+		in the terminal.  Make note of values for updating your hw_settings.ini.
 10M	
 12M
 15M
