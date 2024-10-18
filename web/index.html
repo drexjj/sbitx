@@ -578,6 +578,9 @@ var log_window = null;
     var logbook_bottom_row_id = -1;
     var logbook_top_row_id = 0;
 var sound_mute = false;
+
+var band_stack_indicators = ["", "", "", "", "", "", "", "", ""];
+
 /* oz7bx gridmap */
 GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
 
@@ -2249,6 +2252,15 @@ function show_in_qrz_window(callsign) {
             logbook_request(-logbook_top_row_id);
     }
 
+    function show_selected_band_store(args) {
+        const elts = document.querySelectorAll('.selband');
+        let store = band_stack_indicators[args];
+        let other_store = (store.length ==  0 ? "" : "&nbsp;");
+        for (let i = 0; i < elts.length; i++) {
+            elts[i].innerHTML = " " + ((i == (elts.length-args-1)) ? store : other_store); 
+        }
+    }
+    
     function mode_set(new_mode) {
 
         var wf = el("waterfall");
@@ -2400,8 +2412,36 @@ function show_in_qrz_window(callsign) {
             case 'MACRO':
                 logger_macro_changed_from_sdr(args);
                 break;
+            case '10M':
+                band_stack_indicators[8] = args;
+                break;
+            case '12M':
+                band_stack_indicators[7] = args;
+                break;
+            case '15M':
+                band_stack_indicators[6] = args;
+                break;
+            case '17M':
+                band_stack_indicators[5] = args;
+                break;
+            case '20M':
+                band_stack_indicators[4] = args;
+                break;
+            case '30M':
+                band_stack_indicators[3] = args;
+                break;
+            case '40M':
+                band_stack_indicators[2] = args;
+                break;
+            case '60M':
+                band_stack_indicators[1] = args;
+                break;
+            case '80M':
+                band_stack_indicators[0] = args;
+                break;
 			case 'SELBAND':
 			    FT8_lists_clear();
+                show_selected_band_store(args);
 				break;
             case 'MODE':
                 mode_set(args);
