@@ -57,4 +57,3 @@ time_t time_sbitx();
 
 
 #define VER_STR "sbitx v4.1_DEV" // Thanks to W9JES, W2JON, N1QM, OZ7BX, and KF7YDU
-
