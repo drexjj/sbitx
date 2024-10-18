@@ -679,7 +679,7 @@ struct field main_controls[] = {
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
 	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
-    	"", -1, 83, 1, 0},
+    	"", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
                 "", 0,0,0,0,COMMON_CONTROL}, // w9jes
 
@@ -1612,8 +1612,7 @@ static int user_settings_handler(void* user, const char* section,
 				settings_updated++;
 			}
 			if (!strcmp(cmd,"#selband")) {
-				int bi = atoi(value);
-				int new_band = bi/10;
+				int new_band = atoi(value);
 				highlight_band_field(new_band);
 			}
 
@@ -5339,11 +5338,7 @@ void change_band(char *request){
 
     highlight_band_field(new_band);
 	
-    if (!strcmp(field_str("BSTACKPOSOPT"), "ON")) {
-		sprintf(buff, "%d", new_band*10+stack);
-	} else {
-		sprintf(buff, "%d", -1);
-	}
+	sprintf(buff, "%d", new_band);
 	set_field("#selband", buff); // signals web app to clear lists
 	q_empty(&q_web); // Clear old messages in queue
 	console_init(); // Clear old FT8 messages 
