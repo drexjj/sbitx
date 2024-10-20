@@ -4,6 +4,7 @@ v4.1 -
   - This option is off by default, but can be set to ON by the user with \BSTACKPOSOPT ON in the text box.
 - Added band scale adjustment test from command line
   - Useful for adjusting band power scale in conjunction with the V3 Powercal app.
+  - Uses \bs text box command.
   - See commands.txt for usage information.
 - Added independent IF gain and power output level settings per band.
   - Saves IF and drive level in user_settings per band to recall them when switching bands.
