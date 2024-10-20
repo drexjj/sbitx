@@ -1,3 +1,22 @@
+v4.1 -
+- Added a graphical bandstack position indicator beneath the selected band.
+  - Eg -=-- meaning #2 bandstack position.
+  - This option is off by default, but can be set to ON by the user with \BSTACKPOSOPT ON in the text box.
+- Added band scale adjustment test from command line
+  - Useful for adjusting band power scale in conjunction with the V3 Powercal app.
+  - See commands.txt for usage information.
+- Added independent IF gain and power output level settings per band.
+  - Saves IF and drive level in user_settings per band to recall them when switching bands.
+  - Useful for ext PTT interface (external amp, transverter, etc)
+
+v4.02 -
+- Fixes the LPF filter switching in CW modes on DE hardware.
+- Fixes the "no audio" issue after a PTT or key event on DE hardware.
+
+v4.01 - 
+- Realigned the buttons to match the native resolution for the 7 inch screen in web gui.
+- Updated notch filter to activate in CW/CWR m0de, also remove the indicator from modes where it's inactive
+
 v4.0 - 
 FT8 Mode Improvements:
   - Both the local and web apps now display decorated messages in FT8 mode.
