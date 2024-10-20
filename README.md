@@ -1,4 +1,4 @@
-![sBitx image](SBITX40.png)
+![sBitx image](SBITX41.png)
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64 bit Raspberry Pi image that can be downloaded here. We do not support legacy, insecure, buggy, 32 bit platforms anymore.
 
