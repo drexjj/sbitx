@@ -1462,8 +1462,8 @@ void tr_switch_de(int tx_on){
 			//ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
 			if (ext_ptt_enable == 1) {
 				digitalWrite(EXT_PTT, HIGH);
+				delay(20); //this delay gives time for amp to settle before tx
 			}
-			delay(20);
 			//now switch of the signal back
 			//now ramp up after 5 msecs
 			delay(2);
@@ -1541,11 +1541,12 @@ void tr_switch_v2(int tx_on){
 			//ADDED BY KF7YDU - Check if ptt is enabled
 			if (ext_ptt_enable == 1) {
 				digitalWrite(EXT_PTT, HIGH);
+				delay(20); //this delay gives amp time to settle before tx
 			}
-				delay(20);
+
 			
 			digitalWrite(TX_LINE, HIGH);
-      delay(20);
+			delay(20);
 			set_tx_power_levels();
 			in_tx = 1;
 			prev_lpf = -1; //force this
