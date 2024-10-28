@@ -33,13 +33,15 @@ void addGridToFile(char * gridId, int cnt) {
 }
 
 void hd_createGridList() {
-	 onfFout = fopen("./web/grids.txt", "wb");
+	onfFout = fopen("./web/grids.txt", "w");
 
-		logbook_open();
-		logbook_get_grids(addGridToFile);
+	logbook_open();
+	logbook_get_grids(addGridToFile);
 
-        fwrite("\0\0", 1, 2, onfFout);
-        if (onfFout != NULL) fclose(onfFout);
+	if (onfFout != NULL) {
+		fwrite("\0\0", 1, 2, onfFout);
+		fclose(onfFout);
+	}
 }
 
 struct hd_message_struct {
