@@ -681,7 +681,7 @@ struct field main_controls[] = {
 	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
     	"", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-                "", 0,0,0,0,COMMON_CONTROL}, // w9jes
+        "", 0,0,0,0,COMMON_CONTROL}, // w9jes
 
 
   // EQ TX Audio Setting Controls
@@ -2699,7 +2699,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			field_move("RX", 360, y1, 95, 45);
 			//Don't show pitch field in DIGI mode
 			//field_move("PITCH", 460, y1, 95, 45);
-			//field_move("SIDETONE", 560, y1, 95, 45);
+			field_move("SIDETONE", 460, y1, 95, 45);  // Added back in for ext modes W9JES
 			break;
 		default:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
