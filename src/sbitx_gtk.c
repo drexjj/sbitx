@@ -2664,7 +2664,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 		case MODE_2TONE:  // W9JES
 			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
 		if (!strcmp(field_str("SPECT"), "FULL")) {
-			field_move("CONSOLE", 1000, -1000, 350, y2-y1-55);
+			field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
 			field_move("SPECTRUM", 5, y1, x2-7, 70);
 			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
 			}else{
@@ -2683,7 +2683,7 @@ if (!strcmp(field_str("MENU"), "ON")) { // W2JON
 			// N1QM
 			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
 			if (!strcmp(field_str("SPECT"), "FULL")) {
-				field_move("CONSOLE", 1000, -1000, 350, y2-y1-55);
+				field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
 				field_move("SPECTRUM", 5, y1, x2-7, 70);
 				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
 			}else{
