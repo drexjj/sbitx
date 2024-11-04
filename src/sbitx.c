@@ -1477,7 +1477,7 @@ void tr_switch(int tx_on) {
     set_tx_power_levels();      // use values for tx_power_watts, tx_gain
     if (ext_ptt_enable == 1) {  // added by KF7YDU - check if QRO is enabled
       digitalWrite(EXT_PTT, HIGH);
-      delay(20);
+      delay(20);                // gives external device time to settle
     }
     digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
     spectrum_reset();
