@@ -1,3 +1,8 @@
+V4.12 - 
+- Re-added sidetone volume adjustment for digi mode
+- Fixed onfFout initialization error - Thanks MML
+- Removed unneeded "b" flag to fopen() - Thanks MML
+
 V4.11 - 
 - Fixed QRO function delay
 
