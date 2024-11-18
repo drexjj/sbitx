@@ -1,7 +1,11 @@
+v4.2 - 
+- Support for multiple hamlib connections added
+- Waterfall gain adjustment control
+
 V4.12 - 
 - Re-added sidetone volume adjustment for digi mode
-- Fixed onfFout initialization error - Thanks MML
-- Removed unneeded "b" flag to fopen() - Thanks MML
+- Fixed onfFout initialization error
+- Removed unneeded "b" flag to fopen()
 
 V4.11 - 
 - Fixed QRO function delay
