@@ -715,7 +715,7 @@ struct field main_controls[] = {
   	{"#qro_option", do_toggle_option, 1000, -1000, 40, 40, "QROOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
   // QRO Enable/Bypass Control
-	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,0},
    
   // Sub Menu Control 473,50 <- was
@@ -2039,7 +2039,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 
   //display active plugins
   // --- QRO plugin indicator W2JON
-  const char *qro_text = "QRO";
+  const char *qro_text = "ePTT";
   cairo_set_font_size(gfx, FONT_SMALL);
   
   // Check the qro_enabled variable and set the text color
@@ -2529,7 +2529,7 @@ void menu_display(int show) {
     field_move("BFO", 460, screen_height - 90 ,45 ,45);
 	field_move("VFOLK", 510, screen_height - 90 ,45 ,45);
 	if (!strcmp(field_str("QROOPT"), "ON")) {
-		field_move("QRO", 680,screen_height - 140 ,95 ,45);
+		field_move("ePTT", 680,screen_height - 140 ,95 ,45);
 		}
     field_move("TUNE", 570, screen_height - 140 ,95 ,45); 
     field_move("TNPWR", 570, screen_height - 90 ,45 ,45);
