@@ -65,7 +65,7 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 
-static float waterfall_gain_percentage = 1.0f; // Default to 100%
+
 
 
 /* Front Panel controls */
@@ -266,9 +266,7 @@ void set_bandwidth(int hz);
 //the main app window
 GtkWidget *window;
 GtkWidget *display_area = NULL;
-GtkWidget *waterfall_gain_slider;
 GtkWidget *text_area = NULL;
-
 extern void settings_ui(GtkWidget*p);
 extern void eq_ui(GtkWidget*p);
 
@@ -503,7 +501,6 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
@@ -693,11 +690,7 @@ struct field main_controls[] = {
 
   // TX Audio Monitor 
 	{ "#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-    	"", 0, 10, 1, 0},	
-	
-  // WF Gain
-	{ "#wf_gain", do_wf_edit, 1000, -1000, 40, 40, "WF", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
-    	"", 50, 150, 1, 0},
+    	"", 0, 10, 1, 0},		
 
   // VFO Lock ON/OFF
    	{ "#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1833,7 +1826,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx){
 	int index = 0;
 	
 	for (int i = 0; i < f->width; i++){
-			int v = wf[i] * 2 * waterfall_gain_percentage;
+			int v = wf[i] * 2;
 			if (v > 100)		//we limit ourselves to 100 db range
 				v = 100;
 
@@ -2517,7 +2510,6 @@ void menu_display(int show) {
     field_move("EQSET",130,screen_height - 90 ,95 ,45);
     field_move("TXEQ", 130, screen_height - 140, 45, 45);
 	field_move("TXMON", 180, screen_height - 140, 45, 45);
-	field_move("WF", 70, screen_height - 140, 45, 45);
 	field_move("NOTCH", 240, screen_height - 140, 95, 45);
     field_move("NFREQ", 240, screen_height - 90, 45, 45);
     field_move("BNDWTH", 290, screen_height - 90, 45, 45);
@@ -3857,13 +3849,6 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
     return 0;
 }
 
-int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    const char *wf_control_field = field_str("WF");
-    int wf_control_level_value = atoi(wf_control_field);
-   	waterfall_gain_percentage = wf_control_level_value / 100.00;	
-    return 0;
-}
-
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     //Fix a compiler warning - n1qm
 	//orig: if (!strcmp(get_field("#dsp_plugin")->value, "ON")) {
@@ -5159,7 +5144,7 @@ gboolean ui_tick(gpointer gook){
   }
 	//update_field(get_field("#text_in")); //modem might have extracted some text
 
-  //hamlib_slice();
+  hamlib_slice();
 	remote_slice();
 	save_user_settings(0);
 
@@ -6042,9 +6027,6 @@ void print_eq_int(const parametriceq *eq) {
     }
 }
 
-void on_waterfall_gain_changed(GtkRange *range, gpointer user_data) {
-    waterfall_gain_percentage = gtk_range_get_value(range) / 100.0f; // Convert to a factor between 0 and 1
-}
 
 
 //Value retriever for TXEQ UI sliders
@@ -6207,8 +6189,7 @@ int main( int argc, char* argv[] ) {
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
 	
-	//hamlib_start();
-	initialize_hamlib();
+	hamlib_start();
 	remote_start();
 	rtc_read();
  

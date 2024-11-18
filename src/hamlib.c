@@ -1,3 +1,11 @@
+
+/*
+Hamlib rigcltd emulation
+example rigctl connecetion command:  rigctl -m 2 -r localhost:4532
+
+Known issues
+-Can only handle one client at once currently - n1qm
+*/
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -13,27 +21,15 @@
 #include <fcntl.h>
 #include <complex.h>
 #include <fftw3.h>
-#include <pthread.h>
 #include "sdr.h"
 #include "sdr_ui.h"
 
 #define DEBUG 0
-#define MAX_CLIENTS 10
-static int client_sockets[MAX_CLIENTS] = {0};
-static int welcome_socket = -1;
-volatile int running = 1; // Control flag for the listener thread
 
-pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-void handle_client_disconnection(int i, int sd) {
-    pthread_mutex_lock(&client_mutex);
-    if (client_sockets[i] == sd) {
-        printf("Closing client socket %d at index %d\n", sd, i);
-        close(sd);
-        client_sockets[i] = 0; // Mark as available
-    }
-    pthread_mutex_unlock(&client_mutex);
-}
+static int welcome_socket = -1, data_socket = -1;
+#define MAX_DATA 1000
+char incoming_data[MAX_DATA];
+int incoming_ptr;
 
 //copied from gqrx on github
 static char dump_state_response[] =
@@ -133,44 +129,36 @@ int check_cmd(char *cmd, char *token){
     return 0;
 }
 
-#define MAX_DATA 1000
-char incoming_data[MAX_CLIENTS][MAX_DATA];
-int incoming_ptr[MAX_CLIENTS] = {0};
-
-void send_response(int client_socket, char *response) {
-    int e = send(client_socket, response, strlen(response), 0);
+void send_response(char *response){
+  int e = send(data_socket, response, strlen(response), 0);
 #if DEBUG > 0
-    printf("hamlib>>> response: [%s]\n", response);
+        printf("hamlib>>> response: [%s]\n",response);
 #endif
-    if (e < 0) {
-        printf("Hamlib client disconnected (send). Closing socket %d.\n", client_socket);
-        close(client_socket);
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (client_sockets[i] == client_socket) {
-                client_sockets[i] = 0;
-                break;
-            }
-        }
-    }
+  //printf("[%s]", response); 
+  if (e >=0) return;
+  // Connection closed by client
+  puts("Hamlib client disconnected (send). Restarting ...");
+  close(data_socket);
+  data_socket = -1;
 }
 
-void send_freq(int client_socket){
+void send_freq(){
   //Returns the active VFO's current frequency
   char response[20];
   sprintf(response, "%d\n", get_freq());
-  send_response(client_socket, response);
+  send_response(response);
 }
-void send_mode(int client_socket){
+void send_mode(){
 char mode[10];
     char response[20];
     get_field_value_by_label("MODE",mode);
     if (!strcmp(mode,"DIGI"))
       strcpy(mode,"PKTUSB");
     sprintf(response,"%s\n%i\n", mode,  get_passband_bw());
-    send_response(client_socket, response);
+    send_response(response);
     //printf("[%s]",response);
 }
-void set_mode(int client_socket, char* f) {
+void set_mode(char* f) {
     char mode[10];
     char cmd[50];
     char passband[3];
@@ -185,7 +173,7 @@ void set_mode(int client_socket, char* f) {
         }
     } else {
         //We didn't receive what was expected
-        send_response(client_socket, "RPRT -9\n");
+        send_response("RPRT -9\n");
         return;
     } 
     if (!strcmp(mode, "PKTUSB"))
@@ -204,57 +192,57 @@ void set_mode(int client_socket, char* f) {
                 sprintf(bw_str, "%d", get_default_passband_bw());
 	            field_set("BW", bw_str);
             }
-            send_response(client_socket, "RPRT 0\n");
+            send_response("RPRT 0\n");
             return;
         }
     }
     //Unknown mode
     printf("Unknown mode passed: [%s]\n", mode);
-    send_response(client_socket, "RPRT -9\n");
+    send_response("RPRT -9\n");
 }
-void send_rfpower(int client_socket) {
+void send_rfpower() {
     char resp[3];
     float drive = (float)field_int("DRIVE") / (float)100;
     sprintf(resp, "%f\n", drive);
-    send_response(client_socket, resp);
+    send_response(resp);
 }
-void get_vfo(int client_socket) {
+void get_vfo() {
     char currVFO[2];
     get_field_value_by_label("VFO", currVFO);
     //printf("Current VFO: %s\n", currVFO);
     if (currVFO[0] == 'A') {
         //active_vfo = 0;
-        send_response(client_socket, "VFOA\n");
+        send_response("VFOA\n");
     } else {
         //active_vfo = 1;
-        send_response(client_socket, "VFOB\n");
+        send_response("VFOB\n");
     }
 }
-void set_vfo(int client_socket, char* f) {
+void set_vfo(char* f) {
     field_set("VFO", f);
     char response[5];
     sprintf(response, "VFO%s\n", f);
     //printf("[VFO%s\n]", f);
-    send_response(client_socket, "RPRT 0\n");
+    send_response("RPRT 0\n");
 
 
 }
-void get_split(int client_socket) {
+void get_split() {
     char curr_split[4];
     get_field_value_by_label("SPLIT", curr_split);
     
     if (!strcmp(curr_split,"OFF")) {
-        send_response(client_socket, "0\n");
-        get_vfo(client_socket);
+        send_response("0\n");
+        get_vfo();
     }
     else {
-        send_response(client_socket, "1\n");
+        send_response("1\n");
         //In split mode, tx vfo is always B
-        send_response(client_socket, "VFOB\n");
+        send_response("VFOB\n");
     }
     
 }
-void hamlib_set_freq(int client_socket, char *f){
+void hamlib_set_freq(char *f){
 #if DEBUG > 0
     printf("hamlib_set_freq func arg: [%s]\n",f);
 #endif
@@ -269,11 +257,11 @@ void hamlib_set_freq(int client_socket, char *f){
     printf("Send string to cmd_exec: [%s]\n",cmd);
 #endif
 	cmd_exec(cmd);
-    send_response(client_socket, "RPRT 0\n");
+    send_response("RPRT 0\n");
 }
 	
 
-void tx_control(int client_socket, int s){
+void tx_control(int s){
 	//printf("tx_control(%d)\n", s);
   if (s == 1){
     hamlib_tx(1);
@@ -285,266 +273,152 @@ void tx_control(int client_socket, int s){
       char tx_status[100];
       sdr_request("stat:tx=1", tx_status);
       if (!strcmp(tx_status, "ok on"))
-          send_response(client_socket, "1\n");
+          send_response("1\n");
       else
-          send_response(client_socket, "0\n");
+          send_response("0\n");
       return;
   }
-  send_response(client_socket, "RPRT 0\n");
+  send_response("RPRT 0\n");
 
 }
 
-void interpret_command(int client_socket, char* cmd) {
+void interpret_command(char* cmd) {
     if (cmd[0] == 'T' || check_cmd(cmd, "\\set_ptt")) {
         if (strchr(cmd, '0'))
-            tx_control(client_socket, 0); //if there is a zero in it, we are to rx
+            tx_control(0); //if there is a zero in it, we are to rx
         else
-            tx_control(client_socket, 1); //this is a shaky way to do it, who has the time to parse?
+            tx_control(1); //this is a shaky way to do it, who has the time to parse?
     } 
     else if (check_cmd(cmd, "F") || check_cmd(cmd, "\\set_freq"))
         if (cmd[0] == 'F')
-            hamlib_set_freq(client_socket, cmd + 2);
+            hamlib_set_freq(cmd + 2);
         else
-            hamlib_set_freq(client_socket, cmd + 10);
+            hamlib_set_freq(cmd + 10);
     else if (check_cmd(cmd, "\\chk_vfo"))
         //Lets not default to VFO mode
-        send_response(client_socket, "0\n");
+        send_response("0\n");
     else if (check_cmd(cmd, "\\dump_state"))
-        send_response(client_socket, dump_state_response);
+        send_response(dump_state_response);
     else if (check_cmd(cmd, "V VFOA") || check_cmd(cmd, "\\set_vfo VFOA")) {
-        set_vfo(client_socket, "A");
+        set_vfo("A");
     }
     else if (check_cmd(cmd, "V VFOB") || check_cmd(cmd, "\\set_vfo VFOB")) {
-        set_vfo(client_socket, "B");
+        set_vfo("B");
     } else if (check_cmd(cmd, "v")|| check_cmd(cmd, "\\get_vfo")) {
-        get_vfo(client_socket);
+        get_vfo();
     } else if (cmd[0] == 'm' || check_cmd(cmd, "\\get_mode"))
-        send_mode(client_socket);
+        send_mode();
     else if (cmd[0] == 'M' || check_cmd(cmd, "\\set_mode")) {
         if (cmd[0] == 'M')
-            set_mode(client_socket, cmd + 2);
+            set_mode(cmd + 2);
         else
-            set_mode(client_socket, cmd + 10);
+            set_mode(cmd + 10);
     } else if (cmd[0] == 'f' || check_cmd(cmd, "\\get_freq"))
-        send_freq(client_socket);
+        send_freq();
     else  if (cmd[0] == 's' || check_cmd(cmd, "\\get_split_vfo")) {
-        get_split(client_socket);
+        get_split();
         
     } else if (check_cmd(cmd, "t") || check_cmd(cmd, "\\get_ptt"))
-        tx_control(client_socket, -1);
+        tx_control(-1);
     else if (check_cmd(cmd, "\\get_powerstat"))
-        send_response(client_socket, "1\n");
+        send_response("1\n");
     else if (check_cmd(cmd, "\\get_lock_mode"))
-        send_response(client_socket, "0\n");
+        send_response("0\n");
     else if (check_cmd(cmd, "q") || check_cmd(cmd, "Q")) {
-        send_response(client_socket, "RPRT 0\n");
-        close(client_socket);
-        client_socket = -1;
+        send_response("RPRT 0\n");
+        close(data_socket);
+        data_socket = -1;
     }
     else if (check_cmd(cmd, "u TUNER"))
-        send_response(client_socket, "0\n");
+        send_response("0\n");
   else if (check_cmd(cmd, "l RFPOWER")) {
-        send_rfpower(client_socket);
+        send_rfpower();
   }  else { 
     printf("Hamlib: Unrecognized command [%s] '%c'\n", cmd, cmd[0]);
     //Send an unimplemented response error code
-    send_response(client_socket, "RPRT -11\n");
+    send_response("RPRT -11\n");
   }
 }
 
-void hamlib_handler(int client_socket, char *data, int len) {
-    int client_index = -1;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_sockets[i] == client_socket) {
-            client_index = i;
-            break;
-        }
-    }
-    if (client_index == -1) return;
+void hamlib_handler(char *data, int len){
 
-    for (int i = 0; i < len; i++) {
-        if (data[i] == '\n') {
-            incoming_data[client_index][incoming_ptr[client_index]] = 0;
-            incoming_ptr[client_index] = 0;
-            interpret_command(client_socket, incoming_data[client_index]);
-        } else if (incoming_ptr[client_index] < MAX_DATA) {
-            incoming_data[client_index][incoming_ptr[client_index]++] = data[i];
-        }
+  for (int i = 0; i < len; i++){
+    if (data[i] == '\n'){
+      incoming_data[incoming_ptr] = 0;
+      incoming_ptr = 0;
+#if DEBUG > 0
+        printf("<<<hamlib cmd: [%s]\n",data);
+#endif
+      //printf("<<<hamlib cmd %s =>", data);
+      interpret_command(incoming_data);
     }
+    else if (incoming_ptr < MAX_DATA){
+      incoming_data[incoming_ptr] = data[i]; 
+      incoming_ptr++;
+    }
+  }
 }
 
-void hamlib_start() {
-    struct sockaddr_in serverAddr;
-    welcome_socket = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+void hamlib_start(){
+  char buffer[MAX_DATA];
+  struct sockaddr_in serverAddr;
+  struct sockaddr_storage serverStorage;
+  socklen_t addr_size;
 
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(4532);
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-    memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
+  welcome_socket = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+  
+  serverAddr.sin_family = AF_INET;
+  serverAddr.sin_port = htons(4532);
+  //Allow connections from all interfaces
+  //Shouldn't use with a public IP
+  serverAddr.sin_addr.s_addr = INADDR_ANY;
+  memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
 
-    bind(welcome_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-    listen(welcome_socket, 5);
-    printf("Server listening on port 4532\n");
-    
+  /*---- Bind the address struct to the socket ----*/
+  bind(welcome_socket, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
+
+  /*---- Listen on the socket, with 5 max connection requests queued ----*/
+  if(listen(welcome_socket,5)!=0)
+    printf("hamlib listen() Error\n");
+  incoming_ptr = 0;
 }
 
-int get_max_sd() {
-    int max_sd = welcome_socket;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_sockets[i] > max_sd) {
-            max_sd = client_sockets[i];
-        }
+void hamlib_slice(){
+  struct sockaddr_storage server_storage;
+  socklen_t addr_size;
+  int e, len;
+  char buffer[1024];
+
+  if (data_socket == -1){
+    addr_size = sizeof server_storage;
+    e = accept(welcome_socket, (struct sockaddr *) &server_storage, &addr_size);
+    if (e == -1)
+      return;
+    puts("Accepted Hamlib client\n");
+    incoming_ptr = 0;
+    data_socket = e;
+    fcntl(data_socket, F_SETFL, fcntl(data_socket, F_GETFL) | O_NONBLOCK);
     }
-    return max_sd;
-}
-
-void *hamlib_slice(void *arg) {
-    hamlib_start(); // Initialize the server socket here in the thread
-    fd_set read_fds;
-    int sd, activity, new_socket;
-    struct sockaddr_in address;
-    socklen_t addrlen = sizeof(address);
-
-    while (running) {
-        // Clear and set up file descriptor set for select
-        FD_ZERO(&read_fds);
-        FD_SET(welcome_socket, &read_fds);
-        
-        // Recalculate max_sd before each select call
-        int max_sd = get_max_sd();
-
-        // Add all active client sockets to the set
-        pthread_mutex_lock(&client_mutex);
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            sd = client_sockets[i];
-            if (sd > 0) {
-                FD_SET(sd, &read_fds);
+        // closing blocks modified by JJ W9JES
+        else {
+        len = recv(data_socket, buffer, sizeof(buffer), 0);
+        if (len > 0) {
+            buffer[len] = '\0';
+            hamlib_handler(buffer, len);
+        } else if (len == 0) {
+            // Connection closed by client
+            puts("Hamlib client disconnected. Restarting to listen ...");
+            close(data_socket);
+            data_socket = -1;
+        } else {
+            // len < 0 indicates error
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return;
             }
-        }
-        pthread_mutex_unlock(&client_mutex);
-
-        struct timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 100000; // 100 ms timeout
-
-        // Wait for activity on one of the sockets
-        //printf("Waiting on select with max_sd: %d\n", max_sd);
-        activity = select(max_sd + 1, &read_fds, NULL, NULL, &timeout);
-        
-        if (activity < 0 && errno != EINTR) {
-            perror("select error");
-            break; // Exit loop if select fails
-        }
-
-        // Check for new connection on welcome socket
-        if (FD_ISSET(welcome_socket, &read_fds)) {
-            new_socket = accept(welcome_socket, (struct sockaddr *)&address, &addrlen);
-            if (new_socket >= 0) {
-                printf("New client connected on socket %d\n", new_socket);
-                fcntl(new_socket, F_SETFL, O_NONBLOCK);
-
-                // Add new client socket
-                pthread_mutex_lock(&client_mutex);
-                int added = 0;
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_sockets[i] == 0) {
-                        client_sockets[i] = new_socket;
-                        added = 1;
-                        break;
-                    }
-                }
-                pthread_mutex_unlock(&client_mutex);
-
-                if (!added) {
-                    printf("Too many clients connected. Rejecting new client.\n");
-                    close(new_socket);
-                }
-            }
-        }
-
-        // Process each client socket
-        pthread_mutex_lock(&client_mutex);
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            sd = client_sockets[i];
-            if (sd > 0 && FD_ISSET(sd, &read_fds)) {
-                char buffer[1024];
-                int len = recv(sd, buffer, sizeof(buffer), 0);
-
-                if (len > 0) {
-                    buffer[len] = '\0';
-                    printf("Data received from client %d: %s\n", sd, buffer);
-                    hamlib_handler(sd, buffer, len);
-                } else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
-                    printf("Client on socket %d disconnected or error occurred.\n", sd);
-                    close(sd);
-                    client_sockets[i] = 0; // Mark as available
-                    FD_CLR(sd, &read_fds); // Remove the socket from read_fds
-                }
-            }
-
-            // Additional check with getsockopt to detect disconnected sockets
-            if (sd > 0) {
-                int error = 0;
-                socklen_t len = sizeof(error);
-                int retval = getsockopt(sd, SOL_SOCKET, SO_ERROR, &error, &len);
-                if (retval != 0 || error != 0) {
-                    printf("Detected closed connection or error on socket %d\n", sd);
-                    close(sd);
-                    client_sockets[i] = 0; // Mark as available
-                    FD_CLR(sd, &read_fds); // Remove the socket from read_fds
-                }
-            }
-        }
-        pthread_mutex_unlock(&client_mutex);
+            // For other errors, close the socket
+            puts("Hamlib client dropped. Restarting to listen ...");
+            close(data_socket);
+            data_socket = -1;     
     }
-
-    // Clean up on exit
-    close(welcome_socket);
-    pthread_mutex_lock(&client_mutex);
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_sockets[i] > 0) {
-            close(client_sockets[i]);
-            client_sockets[i] = 0;
-        }
-    }
-    pthread_mutex_unlock(&client_mutex);
-
-    return NULL;
+  } 
 }
-
-
-
-// Function to start the listener thread
-void start_hamlib_listener() {
-    pthread_t listener_thread;
-    if (pthread_create(&listener_thread, NULL, hamlib_slice, NULL) != 0) {
-        perror("Failed to create listener thread");
-        exit(1);
-    }
-    pthread_detach(listener_thread); // Detach the thread to run independently
-}
-
-// Function to stop the listener thread
-void stop_hamlib_listener() {
-    running = 0; // Stop the loop in hamlib_slice
-    close(welcome_socket); // Close the server socket to exit select
-}
-
-void *start_listener_thread(void *arg) {
-    start_hamlib_listener(); // This starts the listener and runs it in the new thread
-    return NULL;
-}
-
-// Call this function in your GTK initialization code
-void initialize_hamlib() {
-    pthread_t listener_thread;
-    
-    // Start the listener thread
-    if (pthread_create(&listener_thread, NULL, start_listener_thread, NULL) != 0) {
-        perror("Failed to create listener thread");
-        exit(1);
-    }
-    
-    pthread_detach(listener_thread); // Detach to ensure it doesn't block or need to be joined
-}
-
