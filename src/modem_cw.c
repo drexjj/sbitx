@@ -783,7 +783,7 @@ void cw_poll(int bytes_available, int tx_is_on){
 	
 	if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next)) > 0){
 		tx_on(TX_SOFT);
-		millis_now = millis();
+		millis_now = sbitx_millis();
 		cw_tx_until = get_cw_delay() + millis_now;
 		cw_mode = get_cw_input_method();
 	}
