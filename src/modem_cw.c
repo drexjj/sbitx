@@ -89,7 +89,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "modem_cw.h"
-
+#include "sound.h"
 
 struct morse_tx {
 	char c;
