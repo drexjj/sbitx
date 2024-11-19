@@ -173,6 +173,7 @@ static int result = 0;							// scratch variable for storing function call resul
 // Note: Error messages appear when the sbitx program is started from the command line
 
 int use_virtual_cable = 0;
+unsigned long sound_millis = 0;
 
 struct Queue qloop;
 
@@ -679,6 +680,11 @@ static unsigned long loop_counter = 0;
 int last_second = 0;
 int nsamples = 0;
 //int	played_samples = 0;
+
+unsigned long sbitx_millis(){
+	return sound_millis;
+}
+
 int sound_loop(){
 	int32_t		*line_in, *line_out, *data_in, *data_out, 
 						*input_i, *output_i, *input_q, *output_q;
@@ -796,6 +802,8 @@ int sound_loop(){
 			}
 		}
 
+	  	clock_gettime(CLOCK_MONOTONIC, &gettime_now);
+		sound_millis = (gettime_now.tv_sec * 1000) + (gettime_now.tv_nsec/1000000);
 		// printf("\n-%d %ld %d\n", count++, nsamples, pcmreturn);
 
 		sound_process(input_i, input_q, output_i, output_q, ret_card);
