@@ -472,7 +472,7 @@ void *hamlib_slice(void *arg) {
 
                 if (len > 0) {
                     buffer[len] = '\0';
-                    printf("Data received from client %d: %s\n", sd, buffer);
+                    //printf("Data received from client %d: %s\n", sd, buffer);
                     hamlib_handler(sd, buffer, len);
                 } else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
                     printf("Client on socket %d disconnected or error occurred.\n", sd);
