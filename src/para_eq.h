@@ -25,12 +25,13 @@ typedef struct {
 extern parametriceq eq;
 
 // Function declarations
-extern void init_eq(parametriceq *eq);
+extern void init_eq(parametriceq *eq, const char *section);
 extern void modify_eq_band_frequency(parametriceq *eq, int band_index, double new_frequency);
 extern void modify_eq_band_gain(parametriceq *eq, int band_index, double new_gain);
 extern void modify_eq_band_bandwidth(parametriceq *eq, int band_index, double new_bandwidth);
-extern void print_eq_int(const parametriceq *eq);
+extern void print_eq_int(const parametriceq *eq, const char *label);
 extern void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate);
 extern int eq_is_enabled;
+extern int rx_eq_is_enabled;
 
 #endif /* PARA_EQ_H_ */

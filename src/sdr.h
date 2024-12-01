@@ -77,7 +77,7 @@ int q_length(struct Queue *p);
 int32_t q_read(struct Queue *p);
 int q_write(struct Queue *p, int w);
 void q_empty(struct Queue *p);
-
+#define SAMPLE_RATE 48000
 #define MAX_BINS 2048
 
 /*
