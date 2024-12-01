@@ -50,7 +50,7 @@ float read_value(FILE* file, const char* key, float default_value) {
 }
 
 // Function to initialize EQ parameters
-void init_eq(parametriceq* eq) {
+void init_eq(parametriceq* eq, const char* section) {
     char *home = getenv("HOME");
     if (home == NULL) {
         fprintf(stderr, "Error: HOME environment variable is not set.\n");
@@ -78,22 +78,23 @@ void init_eq(parametriceq* eq) {
         }
     }
 
-    char key[10];
+    char key[20];
 
-    // Default values
+    // Load default values for the specified section (e.g., TX or RX)
     for (int i = 0; i < NUM_BANDS; i++) {
-        snprintf(key, sizeof(key), "#eq_b%df", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%df", section, i);
         eq->bands[i].frequency = read_value(file, key, eq->bands[i].frequency);
 
-        snprintf(key, sizeof(key), "#eq_b%dg", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%dg", section, i);
         eq->bands[i].gain = read_value(file, key, eq->bands[i].gain);
 
-        snprintf(key, sizeof(key), "#eq_b%db", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%db", section, i);
         eq->bands[i].bandwidth = read_value(file, key, eq->bands[i].bandwidth);
     }
 
     fclose(file);
 }
+
 
 // Structure for Biquad filter
 typedef struct {
@@ -103,17 +104,25 @@ typedef struct {
 
 // Function to calculate filter coefficients
 void calculate_coefficients(EQBand* band, double sample_rate, Biquad* filter) {
-    double A = pow(10.0, band->gain / 40.0);
+    double clamped_gain = fmax(fmin(band->gain, 24.0), -24.0); // Clamp gain to ±24 dB
+    double A = pow(10.0, clamped_gain / 40.0);
     double omega = 2.0 * M_PI * band->frequency / sample_rate;
-    double alpha = sin(omega) * sinh(log(2.0) / 2.0 * band->bandwidth * omega / sin(omega));
+    double sin_omega = sin(omega);
+    double cos_omega = cos(omega);
+    double alpha = sin_omega * sinh(log(2.0) / 2.0 * band->bandwidth * omega / fmax(sin_omega, 1e-10));
 
-    // Ensure the filter is designed correctly
+    // Ensure the filter coefficients are stable
     filter->b0 = 1.0 + alpha * A;
-    filter->b1 = -2.0 * cos(omega);
+    filter->b1 = -2.0 * cos_omega;
     filter->b2 = 1.0 - alpha * A;
     filter->a0 = 1.0 + alpha / A;
-    filter->a1 = -2.0 * cos(omega);
+    filter->a1 = -2.0 * cos_omega;
     filter->a2 = 1.0 - alpha / A;
+
+    // Check if a0 is close to zero to prevent division by zero
+    if (fabs(filter->a0) < 1e-10) {
+        filter->a0 = 1e-10; // Prevent division by zero
+    }
 
     // Normalize the coefficients
     filter->b0 /= filter->a0;
@@ -121,6 +130,8 @@ void calculate_coefficients(EQBand* band, double sample_rate, Biquad* filter) {
     filter->b2 /= filter->a0;
     filter->a1 /= filter->a0;
     filter->a2 /= filter->a0;
+
+    // a0 should always be normalized to 1.0
     filter->a0 = 1.0;
 
     // Initialize filter states
@@ -172,27 +183,44 @@ void scale_samples(int32_t* samples, int num_samples, float gain_factor) {
 // Function to apply EQ and gain scaling
 void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate) {
     Biquad filters[NUM_BANDS];
+
+    // Step 1: Calculate coefficients for each band
     for (int i = 0; i < NUM_BANDS; i++) {
         calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
     }
 
-    // First we'll be sure to remove the DC offset
-    remove_dc_offset(samples, num_samples);
+    // Step 2: Initialize output buffer
+    int32_t output_samples[num_samples];
+    memset(output_samples, 0, sizeof(output_samples));
 
-    // Scale up input samples
-    float input_gain_factor = 1.5;  // Adjust this gain valie if your level is too high or low on the inbound side of the filter.
-    scale_samples(samples, num_samples, input_gain_factor);
+    // Step 3: Process samples for each band
+    for (int i = 0; i < NUM_BANDS; i++) {
+        double band_gain = pow(10.0, eq->bands[i].gain / 20.0); // Convert dB to linear scale
 
-    // Process each sample through EQ filters
-    for (int n = 0; n < num_samples; n++) {
-        int32_t sample = samples[n];
-        for (int i = 0; i < NUM_BANDS; i++) {
-            sample = process_sample(&filters[i], sample);
+        for (int n = 0; n < num_samples; n++) {
+            // Apply the filter to the current sample
+            double filtered_sample = process_sample(&filters[i], samples[n]);
+
+            // Accumulate the scaled filtered output
+            output_samples[n] += (int32_t)(filtered_sample * band_gain);
         }
-        samples[n] = sample;
     }
 
-    // Scale up output samples
-    float output_gain_factor = 1.0;  // Adjust this gain valie if your level is too high or low on the outbound side of the filter
-    scale_samples(samples, num_samples, output_gain_factor);
+    // Step 4: Normalize the summed output
+    for (int n = 0; n < num_samples; n++) {
+        output_samples[n] /= NUM_BANDS; // Prevent unintentional gain
+    }
+
+    // Step 5: Scale and clamp using scale_samples
+    scale_samples(output_samples, num_samples, 1.0);
+
+    // Step 6: Copy normalized output back to input buffer
+    memcpy(samples, output_samples, sizeof(int32_t) * num_samples);
 }
+
+
+
+
+
+
+
