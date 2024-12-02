@@ -65,7 +65,6 @@ int qro_enabled = 0;
 int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
-float BIN_WIDTH = SAMPLE_RATE / (MAX_BINS / 2.000f);
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -2507,7 +2506,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
@@ -2524,26 +2523,50 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	float x = 0; // Start at the leftmost edge of the screen
 	int j = 0;
 
-	for (i = starting_bin; i <= ending_bin; i++){
+	for (i = starting_bin; i <= ending_bin; i++)
+	{
 		int y;
 
-		// the center fft bin is at zero, from MAX_BINS/2 onwards,
-		// the bins are at lowest frequency (-ve frequency)
-		//y axis is the power  in db of each bin, scaled to 80 db
-		y = ((spectrum_plot[i] + waterfall_offset) * f->height)/80; 
-		// limit y inside the spectrum display box
-		if ( y <  0)
+		// Calculate the power in dB, scaled to 80 dB
+		y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
+
+		// Clamp y within display bounds
+		if (y < 0)
 			y = 0;
 		if (y > f->height)
 			y = f->height - 1;
-		//the plot should be increase upwards
-		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - y);
 
-		//fill the waterfall
+		// Plot the line
+		cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
+
+		// Calculate x_step dynamically
+		float x_step = (float)f->width / (float)(ending_bin - starting_bin);
+		if (x_step < 1.0f)
+			x_step = 1.0f;
+
+		// Fill the waterfall
 		for (int k = 0; k <= 1 + (int)x_step; k++)
-			wf[k + f->width - (int)x] = (y * 100)/grid_height;
+		{
+			int index = f->width - 1 - (int)(x + k);
+
+			// Ensure index is within bounds
+			if (index >= 0 && index < f->width)
+			{
+				wf[index] = (y * 100) / grid_height;
+
+				// Optional: Interpolation for smoother transitions
+				if (index > 0)
+				{
+					wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
+				}
+			}
+		}
+
+		// Increment x by x_step
 		x += x_step;
-		if (f->width <= x)
+
+		// Ensure x stays within bounds
+		if (x >= f->width)
 			x = f->width - 1;
 	}
 
@@ -5468,7 +5491,7 @@ int web_get_console(char *buff, int max)
 void web_get_spectrum(char *buff)
 {
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
