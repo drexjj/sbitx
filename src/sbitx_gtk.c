@@ -1954,49 +1954,79 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	draw_text(gfx, f->x + 200, f->y + 5, meter_str, FONT_FIELD_LABEL);
 }
 
-void draw_waterfall(struct field *f, cairo_t *gfx){
+void draw_waterfall(struct field *f, cairo_t *gfx)
+{
+	// Temp local variables.  To be updated by GUI later.
+	float initial_wf_min = 0.0f;
+	float initial_wf_max = 100.0f;
 
-	if (in_tx){
+	float min_db = (wf_min - 1.0f) * 100.0f;
+
+	float max_db = initial_wf_max * wf_max;
+
+	if (in_tx)
+	{
 		draw_tx_meters(f, gfx);
 		return;
 	}
-	memmove(waterfall_map + f->width * 3, waterfall_map, 
-		f->width * (f->height - 1) * 3);
+
+	// Scroll the existing waterfall data down
+	memmove(waterfall_map + f->width * 3, waterfall_map,
+			f->width * (f->height - 1) * 3);
 
 	int index = 0;
-	
-	for (int i = 0; i < f->width; i++){
-			int v = wf[i] * 2;
-			if (v > 100)		//we limit ourselves to 100 db range
-				v = 100;
 
-			if (v < 20){									// r = 0, g= 0, increase blue
-				waterfall_map[index++] = 0;
-				waterfall_map[index++] = 0;
-				waterfall_map[index++] = v * 12; 
-			}
-			else if (v < 40){							// r = 0, increase g, blue is max
-				waterfall_map[index++] = 0;
-				waterfall_map[index++] = (v - 20) * 12;
-				waterfall_map[index++] = 255; 
-			}
-			else if (v < 60){							// r = 0, g= max, decrease b
-				waterfall_map[index++] = 0;
-				waterfall_map[index++] = 255; 
-				waterfall_map[index++] = (60-v)*12; 
-			}
-			else if (v < 80){						 	// increase r, g = max, b = 0
-				waterfall_map[index++] = (v-60) * 12;
-				waterfall_map[index++] = 255;
-				waterfall_map[index++] = 0; 
-			}else {												// r = max, decrease g, b = 0
-				waterfall_map[index++] = 255;
-				waterfall_map[index++] = (100-v) * 12;
-				waterfall_map[index++] = 0; 
-			}
+	for (int i = 0; i < f->width; i++)
+	{
+		// Scale the input value (original behavior restored)
+		float scaled_value = wf[i] * 2.4;
+
+		// Normalize data to the range [0, 100] based on adjusted min/max
+		float normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
+
+		// Clamp normalized values to [0, 100]
+		if (normalized < 0)
+			normalized = 0;
+		else if (normalized > 100)
+			normalized = 100;
+
+		int v = (int)(normalized);
+
+		// Gradient mapping logic
+		if (v < 20)
+		{ // r = 0, g = 0, increase blue
+			waterfall_map[index++] = 0;
+			waterfall_map[index++] = 0;
+			waterfall_map[index++] = v * 12;
+		}
+		else if (v < 40)
+		{ // r = 0, increase g, blue is max
+			waterfall_map[index++] = 0;
+			waterfall_map[index++] = (v - 20) * 12;
+			waterfall_map[index++] = 255;
+		}
+		else if (v < 60)
+		{ // r = 0, g = max, decrease b
+			waterfall_map[index++] = 0;
+			waterfall_map[index++] = 255;
+			waterfall_map[index++] = (60 - v) * 12;
+		}
+		else if (v < 80)
+		{ // increase r, g = max, b = 0
+			waterfall_map[index++] = (v - 60) * 12;
+			waterfall_map[index++] = 255;
+			waterfall_map[index++] = 0;
+		}
+		else
+		{ // r = max, decrease g, b = 0
+			waterfall_map[index++] = 255;
+			waterfall_map[index++] = (100 - v) * 12;
+			waterfall_map[index++] = 0;
+		}
 	}
 
-	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);		
+	// Draw the updated waterfall
+	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
 	cairo_paint(gfx);
 	cairo_fill(gfx);
 }
