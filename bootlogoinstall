@@ -1,0 +1,31 @@
+#!/bin/bash
+
+SOURCE="/home/pi/sbitx/splash.png"
+DESTINATION="/usr/share/plymouth/themes/pix/splash.png"
+
+if [ ! -f "$SOURCE" ]; then
+    echo "Source file $SOURCE does not exist. Aborting."
+    exit 1
+fi
+
+if [ -f "$DESTINATION" ]; then
+    echo "Backing up the existing splash image."
+    sudo cp "$DESTINATION" "${DESTINATION}.bak"
+    if [ $? -ne 0 ]; then
+        echo "Failed to back up the existing splash image. Aborting."
+        exit 1
+    fi
+else
+    echo "No existing splash image found at $DESTINATION."
+fi
+
+echo "Replacing splash image with the new one."
+sudo cp "$SOURCE" "$DESTINATION"
+if [ $? -eq 0 ]; then
+    echo "Splash image replaced successfully."
+else
+    echo "Failed to replace the splash image. Aborting."
+    exit 1
+fi
+
+echo "Operation completed successfully!"

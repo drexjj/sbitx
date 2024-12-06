@@ -918,6 +918,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				}
 			}
 		}
+		/*
 		// Noise Estimation Original
 		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
 		{
@@ -973,8 +974,9 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				r->fft_freq[i] *= wiener_filter;
 			}
 		}
+  		*/
 
-		/* // Noise Estimation, ANR, DSP mods W4WHL
+		// Noise Estimation, ANR, DSP mods W4WHL
 		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
 		{
 			for (i = 0; i < MAX_BINS; i++)
@@ -1055,7 +1057,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 			{
 				r->fft_freq[i] = (0.8 * r->fft_freq[i]) + (0.1 * r->fft_freq[i - 1]) + (0.1 * r->fft_freq[i + 1]);
 			}
-		} */
+		}
 	}
 
 	// STEP 5: Zero out the other sideband
