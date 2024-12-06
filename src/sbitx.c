@@ -1724,10 +1724,11 @@ void tr_switch(int tx_on) {
     mute_count = 20;            // number of audio samples to zero out
     fft_reset_m_bins();         // fixes burst at start of transmission
     set_tx_power_levels();      // use values for tx_power_watts, tx_gain
-    if (ext_ptt_enable == 1) {  // added by KF7YDU - check if QRO is enabled
-      digitalWrite(EXT_PTT, HIGH);
-      delay(20);
-    }
+    // ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
+		if (ext_ptt_enable == 1) {
+			digitalWrite(EXT_PTT, HIGH);
+			delay(20); // this delay gives time for ext device to settle before tx
+		}
     digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
     spectrum_reset();
   } else {                                 // switch to receive
