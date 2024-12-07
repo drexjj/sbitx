@@ -1,7 +1,6 @@
 v4.2 - 
 - Added support for multiple hamlib connections
 - Added Independent Waterfall gain intensity adjustment control (WFMIN, WFMAX)
-- CW Sending timing enhancement (Thanks KB2ML)
 - Added RX EQ Functionality
 - Extended TX Range for 10M band to 32MHZ for use with Transverter
 - Changed QRO button indicator to ePTT (external PTT trigger) and command to \epttopt on|off
