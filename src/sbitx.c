@@ -1702,157 +1702,51 @@ void tx_cal()
 				   (void *)NULL);
 }
 
-void tr_switch_de(int tx_on)
-{
-	if (tx_on)
-	{
-		// mute it all and hang on for a millisecond
-		sound_mixer(audio_card, "Master", 0);
-		sound_mixer(audio_card, "Capture", 0);
-		delay(1);
-		// ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
-		if (ext_ptt_enable == 1)
-		{
-			digitalWrite(EXT_PTT, HIGH);
-			delay(20); // this delay gives time for ext device to settle before tx
-		}
-		// now switch of the signal back
-		// now ramp up after 5 msecs
-		delay(2);
-		digitalWrite(TX_LINE, HIGH);
-		mute_count = 20;
-		tx_process_restart = 1;
-		// give time for the reed relay to switch
-		delay(2);
-		set_tx_power_levels();
-		in_tx = 1;
-		// finally ramp up the power
-		if (tr_relay)
-		{
-			set_lpf_40mhz(freq_hdr);
-			delay(10); // debounce the lpf relays
-		}
-		digitalWrite(TX_POWER, HIGH);
-		spectrum_reset();
-	}
-	else
-	{
-		in_tx = 0;
-		// mute it all and hang on
-		sound_mixer(audio_card, "Master", 0);
-		sound_mixer(audio_card, "Capture", 0);
-		delay(1);
-		fft_reset_m_bins();
-		mute_count = MUTE_MAX;
+// tr_switch replaces separate tr_switch_de and tr_switch_v2
+// added and edited comments
+// removed several delay() calls
+// eliminated LPF switching during tr_switch
 
-		// power down the PA chain to null any gain
-		digitalWrite(TX_POWER, LOW);
-		delay(2);
-
-		if (tr_relay)
-		{
-			digitalWrite(LPF_A, LOW);
-			digitalWrite(LPF_B, LOW);
-			digitalWrite(LPF_C, LOW);
-			digitalWrite(LPF_D, LOW);
-		}
-		delay(10);
-
-		// drive the tx line low, switching the signal path
-		digitalWrite(TX_LINE, LOW);
-		digitalWrite(EXT_PTT, LOW); // ADDED by KF7YDU, shuts down ext_ptt.
-		delay(5);
-		// audio codec is back on
-		check_r1_volume();
-		initialize_rx_vol(); // added to set volume after tx -W2JON W9JES KB2ML
-		sound_mixer(audio_card, "Master", rx_vol);
-		sound_mixer(audio_card, "Capture", rx_gain);
-		spectrum_reset();
-		// rx_tx_ramp = 10;
-	}
+void tr_switch_de(int tx_on) {
+  // function replaced by tr_switch, should never be called
 }
 
-// v2 t/r switch uses the lpfs to cut the feedback during t/r transitions
-void tr_switch_v2(int tx_on)
-{
-	if (tx_on)
-	{
-
-		// first turn off the LPFs, so PA doesnt connect
-		digitalWrite(LPF_A, LOW);
-		digitalWrite(LPF_B, LOW);
-		digitalWrite(LPF_C, LOW);
-		digitalWrite(LPF_D, LOW);
-
-		// mute it all and hang on for a millisecond
-		sound_mixer(audio_card, "Master", 0);
-		sound_mixer(audio_card, "Capture", 0);
-		delay(1);
-
-		// now switch of the signal back
-		// now ramp up after 5 msecs
-		delay(2);
-		mute_count = 20;
-		tx_process_restart = 1;
-
-		// ADDED BY KF7YDU - Check if ptt is enabled
-		if (ext_ptt_enable == 1)
-		{
-			digitalWrite(EXT_PTT, HIGH);
-			delay(20); // this delay gives ext device time to settle before tx
-		}
-
-		digitalWrite(TX_LINE, HIGH);
-		delay(20);
-		set_tx_power_levels();
-		in_tx = 1;
-		prev_lpf = -1; // force this
-		set_lpf_40mhz(freq_hdr);
-		delay(10);
-		spectrum_reset();
-	}
-	else
-	{
-		in_tx = 0;
-		// mute it all and hang on
-		sound_mixer(audio_card, "Master", 0);
-		sound_mixer(audio_card, "Capture", 0);
-		delay(1);
-		fft_reset_m_bins();
-		mute_count = MUTE_MAX;
-
-		digitalWrite(LPF_A, LOW);
-		digitalWrite(LPF_B, LOW);
-		digitalWrite(LPF_C, LOW);
-		digitalWrite(LPF_D, LOW);
-		prev_lpf = -1; // force the lpf to be re-energized
-		delay(10);
-		// power down the PA chain to null any gain
-		digitalWrite(TX_LINE, LOW);
-
-		// ADDED by KF7YDU, shuts down ext_ptt.
-		digitalWrite(EXT_PTT, LOW);
-		delay(5);
-		// audio codec is back on
-		check_r1_volume();	 // added to set volume after tx -W2JON
-		initialize_rx_vol(); // added to set volume after tx -W2JON
-		sound_mixer(audio_card, "Master", rx_vol);
-		sound_mixer(audio_card, "Capture", rx_gain);
-		spectrum_reset();
-		prev_lpf = -1;
-		set_lpf_40mhz(freq_hdr);
-		// rx_tx_ramp = 10;
-	}
+void tr_switch_v2(int tx_on) {
+  // function replaced by tr_switch, should never be called
 }
 
-void tr_switch(int tx_on)
-{
-	if (sbitx_version == SBITX_DE)
-		tr_switch_de(tx_on);
-	else
-		tr_switch_v2(tx_on);
+// transmit-receive switch for both sbitx DE and V2 and newer
+void tr_switch(int tx_on) {
+  if (tx_on) {                   // switch to transmit
+    in_tx = 1;                   // raise a flag so functions see we are in transmit mode
+    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
+    sound_mixer(audio_card, "Capture", 0);
+    mute_count = 20;             // number of audio samples to zero out
+    fft_reset_m_bins();          // fixes burst at start of transmission
+    set_tx_power_levels();       // use values for tx_power_watts, tx_gain
+    //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
+			if (ext_ptt_enable == 1) {
+				digitalWrite(EXT_PTT, HIGH);
+				delay(20); //this delay gives time for ext device to settle before tx
+			}
+    digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
+    spectrum_reset();
+  } else {                       // switch to receive
+    in_tx = 0;                   // lower the transmit flag
+    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
+    sound_mixer(audio_card, "Capture", 0);
+    fft_reset_m_bins();
+    mute_count = MUTE_MAX;
+    digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
+    delay(5);
+    digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
+    check_r1_volume();           // audio codec is back on
+    initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
+    sound_mixer(audio_card, "Master", rx_vol);
+    sound_mixer(audio_card, "Capture", rx_gain);
+    spectrum_reset();
+  }
 }
-
 /*
 This is the one-time initialization code
 */
