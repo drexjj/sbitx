@@ -313,7 +313,7 @@ static uint8_t cw_get_next_symbol(){
 }
 
 
-// cw_read_key() routine is called 96000 times a second
+//cw_read_key() routine is called 96000 times a second
 //it can't poll gpio lines or text input, those are done in modem_poll()
 //and we only read the status from the variable updated by modem_poll()
 
@@ -361,11 +361,11 @@ static int cw_read_key(){
 // without changing electronic keyer function, performance or timing
 float cw_tx_get_sample() {
   float sample; // the shaped CW level (0 to 1)
-  uint8_t symbol_now
+  uint8_t symbol_now;
   sample = 0; // used in CW envelope shaping
   
   if (!keydown_count && !keyup_count) { // CW key may be going down - because it's not up
-    millis_now = sbitx_millis();        // remember time of possible keydown
+    millis_now = millis();        // remember time of possible keydown
     if (cw_tone.freq_hz != get_pitch()) // set CW pitch if needed
       vfo_start( & cw_tone, get_pitch(), 0);
   }
@@ -407,7 +407,7 @@ float cw_tx_get_sample() {
     break;
   case CW_DOWN: // the straight key is down
     if (symbol_now == CW_DOWN) { // we don't really care how long it's held down
-      keydown_count++; // but maybe one day we will check for a maximum
+      keydown_count++;           // but maybe one day we will check for a maximum
       keyup_count = 0;
     } else { // key was down but now it's up
       keydown_count = 0;
@@ -467,14 +467,14 @@ float cw_tx_get_sample() {
   if (symbol_now == CW_DOWN) {
     if (keydown_count > 0) {    // countdown for the leading edge
       if (cw_envelope < 0.999)
-        cw_envelope = ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2; // should one be positive?
-      keydown_count--;        // countdown for the leading edge
+        cw_envelope = ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2; 
+      keydown_count--;          // countdown for the leading edge
 	}
-    else { // trailing edge
+    else {                      // trailing edge
       if (cw_envelope > 0.001) 
-        cw_envelope = ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2; // and one be negative?
+        cw_envelope = 1 - ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2; 
       if (keyup_count > 0)
-          keyup_count--;         // countdown for the trailing edge
+          keyup_count--;        // countdown for the trailing edge
       }	  
 	}
 	else {  // electronic keyer
@@ -485,7 +485,7 @@ float cw_tx_get_sample() {
       }
       else { // trailing edge
         if (cw_envelope > 0.001)
-          cw_envelope = ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2;
+          cw_envelope = 1 - ((vfo_read(&cw_env) / FLOAT_SCALE) + 1) / 2;
         if (keyup_count > 0)
           keyup_count--;
         }
@@ -794,7 +794,7 @@ void cw_poll(int bytes_available, int tx_is_on){
 	
 	if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next)) > 0){
 		tx_on(TX_SOFT);
-		millis_now = sbitx_millis();
+		millis_now = millis();
 		cw_tx_until = get_cw_delay() + millis_now;
 		cw_mode = get_cw_input_method();
 	}
