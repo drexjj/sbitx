@@ -422,6 +422,8 @@ struct band
 	// Make drive and IF band specific - n1qm
 	int if_gain;
 	int drive;
+	// add tune power to band - W9JES
+	int tnpwr;
 };
 
 struct cmd
@@ -819,7 +821,7 @@ struct field main_controls[] = {
 	{"#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -3000, 3000, 50, 0},
 
-	// GLG Tune
+	// Tune Controls - W9JES
 	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 //"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -1646,7 +1648,7 @@ void save_user_settings(int forced)
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
-		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr);
 
 		// fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
@@ -1815,6 +1817,8 @@ static int user_settings_handler(void *user, const char *section,
 			band_stack[band].if_gain = atoi(value);
 		else if (!strcmp(name, "drive"))
 			band_stack[band].drive = atoi(value);
+		else if (!strcmp(name, "tnpwr"))
+			band_stack[band].tnpwr = atoi(value);
 	}
 	return 1;
 }
@@ -3590,6 +3594,9 @@ void apply_band_settings(long frequency)
 
         sprintf(buff, "%i", band_stack[new_band].drive);
         field_set("DRIVE", buff);
+		
+		sprintf(buff, "%i", band_stack[new_band].tnpwr);
+        field_set("TNPWR", buff);
 
         // Call highlight_band_field for additional consistency
         highlight_band_field(new_band);
@@ -6430,6 +6437,8 @@ void change_band(char *request)
 	field_set("IF", buff);
 	sprintf(buff, "%i", band_stack[new_band].drive);
 	field_set("DRIVE", buff);
+	sprintf(buff, "%i", band_stack[new_band].tnpwr);
+	field_set("TNPWR", buff);
 
 	settings_updated++;
 }
@@ -6556,7 +6565,7 @@ void do_control_action(char *cmd)
 		save_user_settings(1);
 		exit(0);
 	}
-	// GLG TUNE for TUNE button modified - W9JES, W2JON
+	// TUNE button modified - W9JES
 	else if (!strcmp(request, "TUNE ON"))
 	{
 		struct field *tnpwr_field = get_field("#tune_power"); // Obtain value of tune power
@@ -6601,7 +6610,7 @@ void do_control_action(char *cmd)
 		{
 			printf("TUNE OFF command received.\n");
 			do_control_action("RX");
-			tx_off();
+			tx_off(); // added to terminate tune duration - W9JES
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 			tune_on_invoked = false;
@@ -6832,6 +6841,14 @@ void do_control_action(char *cmd)
 			char ti[4];
 			strncpy(ti, request + 6, 3);
 			band_stack[atoi(get_field_by_label("SELBAND")->value)].drive = atoi(ti);
+			settings_updated++;
+		}
+		if (!strncmp(request, "TNPWR ", 6))
+		{
+			// Update band stack info of current band with new Tune Power value - W9JES
+			char ti[4];
+			strncpy(ti, request + 6, 3);
+			band_stack[atoi(get_field_by_label("SELBAND")->value)].tnpwr = atoi(ti);
 			settings_updated++;
 		}
 
