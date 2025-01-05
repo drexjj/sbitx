@@ -47,6 +47,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include <time.h>
 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -567,7 +568,7 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", NULL, 460, 5, 40, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#tune", NULL, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -818,9 +819,11 @@ struct field main_controls[] = {
 	 "", -3000, 3000, 50, 0},
 
 	// GLG Tune
-	{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, 0},
+	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 //"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 100, 1, 0},
+	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 100, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, 0},
 
 	// Settings Panel
@@ -2975,7 +2978,7 @@ void menu_display(int show)
 				field_move("ANR", 285, screen_height - 95, 45, 45);
 				field_move("COMP", 350, screen_height - 95, 45, 45);
 				field_move("TXMON", 400, screen_height - 95, 45, 45);
-				//field_move("TUNE", 530, screen_height - 95, 95, 45);
+				field_move("TNDUR", 500, screen_height - 95, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
 					field_move("ePTT", 630, screen_height - 95, 95, 45); // Rightmost
@@ -6530,6 +6533,8 @@ void meter_calibrate()
 }
 
 bool tune_on_invoked = false; // Set initial state of TUNE
+time_t tune_on_start_time;
+int tune_duration; 
 
 void do_control_action(char *cmd)
 {
@@ -6555,16 +6560,36 @@ void do_control_action(char *cmd)
 	{
 		struct field *tnpwr_field = get_field("#tune_power"); // Obtain value of tune power
 		int tunepower = atoi(tnpwr_field->value);
-		printf("TUNE ON command received with power level: %d.\n", tunepower);
+
+		// Obtain value of tune duration
+		struct field *tndur_field = get_field("#tune_duration"); // Obtain value of tune duration
+		if (tndur_field != NULL) 
+		{
+		tune_duration = atoi(tndur_field->value); // Convert to integer
+		if (tune_duration <= 0) 
+			{
+				printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
+				return; // Exit if the tune duration is not valid
+			}
+		} 
+		else 
+		{
+			printf("Tune duration field not found. Aborting TUNE ON.\n");
+			return; // Exit if the field is missing
+		}
+
+		printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
+
 		tune_on_invoked = true;
+		tune_on_start_time = time(NULL); // Record the current time
+
 		get_field_value_by_label("MODE", modestore);
 		get_field_value_by_label("DRIVE", powerstore);
 
 		char tn_power_command[50];
-		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); //  create TNPWR string
-		sdr_request(tn_power_command, response);										//  send TX with power level from 
-		
-
+		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
+		sdr_request(tn_power_command, response); // Send TX with power level from tune power
+    
 		sdr_request("r1:mode=TUNE", response);
 		delay(100);
 		tx_on(TX_SOFT);
@@ -6580,7 +6605,26 @@ void do_control_action(char *cmd)
 			tune_on_invoked = false;
 		}
 	}
+	// Automatic turn-off check (this should be called periodically)
+	if (tune_on_invoked)
+	{
+		time_t current_time = time(NULL);
 
+		// Check if the tune duration has elapsed
+		if (difftime(current_time, tune_on_start_time) >= tune_duration) 
+		{
+			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
+			printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
+
+			// Perform TUNE OFF actions safely
+			do_control_action("RX");
+			if (modestore != NULL) // Check for null before accessing or modifying
+				field_set("MODE", modestore);
+
+			if (powerstore != NULL) // Check for null before accessing or modifying
+				field_set("DRIVE", powerstore);
+		}
+	}
 	else if (!strcmp(request, "EQSET"))
 	{
 		eq_ui(window);
