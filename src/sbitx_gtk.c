@@ -6601,6 +6601,7 @@ void do_control_action(char *cmd)
 		{
 			printf("TUNE OFF command received.\n");
 			do_control_action("RX");
+			tx_off();
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 			tune_on_invoked = false;
