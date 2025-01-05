@@ -6618,6 +6618,7 @@ void do_control_action(char *cmd)
 
 			// Perform TUNE OFF actions safely
 			do_control_action("RX");
+			field_set("TUNE", "OFF");
 			if (modestore != NULL) // Check for null before accessing or modifying
 				field_set("MODE", modestore);
 
