@@ -700,6 +700,7 @@ struct field main_controls[] = {
 	 "", -16, 16, 1, 0},
 	{"#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
+	 
 	// RX EQ Controls (added)
 	{"#rx_eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "R0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 40, 160, 5, 0},
@@ -822,9 +823,9 @@ struct field main_controls[] = {
 	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 //"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 0, 100, 1, 0},
-	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 100, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 0, 100, 1, 0},
+	 "", 1, 100, 1, 0},
+	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 3, 30, 1, 0},
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL,
