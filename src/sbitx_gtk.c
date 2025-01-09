@@ -6610,6 +6610,7 @@ void do_control_action(char *cmd)
 		{
 			printf("TUNE OFF command received.\n");
 			do_control_action("RX");
+			sdr_request("tx=off", response);
 			tx_off(); // added to terminate tune duration - W9JES
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
