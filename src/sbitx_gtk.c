@@ -6635,6 +6635,7 @@ void do_control_action(char *cmd)
 			printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
 
 			// Perform TUNE OFF actions safely
+			delay(100);
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
 			if (modestore != NULL) // Check for null before accessing or modifying
