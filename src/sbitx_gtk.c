@@ -6609,8 +6609,8 @@ void do_control_action(char *cmd)
 		if (tune_on_invoked)
 		{
 			printf("TUNE OFF command received.\n");
-			do_control_action("RX");
 			tx_off(); // added to terminate tune duration - W9JES
+			do_control_action("RX");
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 			tune_on_invoked = false;
