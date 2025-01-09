@@ -6609,11 +6609,18 @@ void do_control_action(char *cmd)
 		if (tune_on_invoked)
 		{
 			printf("TUNE OFF command received.\n");
-			tx_off(); // added to terminate tune duration - W9JES
+			//tx_off(); // added to terminate tune duration - W9JES
+			//do_control_action("RX");
+			//field_set("MODE", modestore);
+			//field_set("DRIVE", powerstore);
+			//tune_on_invoked = false;
 			do_control_action("RX");
-			field_set("MODE", modestore);
-			field_set("DRIVE", powerstore);
-			tune_on_invoked = false;
+			field_set("TUNE", "OFF");
+			if (modestore != NULL) // Check for null before accessing or modifying
+				field_set("MODE", modestore);
+
+			if (powerstore != NULL) // Check for null before accessing or modifying
+				field_set("DRIVE", powerstore);
 		}
 	}
 	// Automatic turn-off check (this should be called periodically)
