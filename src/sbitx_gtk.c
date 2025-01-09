@@ -6616,11 +6616,8 @@ void do_control_action(char *cmd)
 			//tune_on_invoked = false;
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			if (modestore != NULL) // Check for null before accessing or modifying
-				field_set("MODE", modestore);
-
-			if (powerstore != NULL) // Check for null before accessing or modifying
-				field_set("DRIVE", powerstore);
+			field_set("MODE", modestore);
+                        field_set("DRIVE", powerstore);
 		}
 	}
 	// Automatic turn-off check (this should be called periodically)
