@@ -827,7 +827,7 @@ struct field main_controls[] = {
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 100, 1, 0},
 	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 3, 30, 1, 0},
+	 "", 2, 30, 1, 0},
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL,
@@ -1169,8 +1169,8 @@ int remote_update_field(int i, char *text)
 	f->update_remote = 0;
 
 	// debug on
-	//	if (!strcmp(f->cmd, "#text_in") && strlen(f->value))
-	//		printf("#text_in [%s] %d\n", f->value, update);
+	// if (!strcmp(f->cmd, "#text_in") && strlen(f->value))
+	// printf("#text_in [%s] %d\n", f->value, update);
 	// debug off
 	return update;
 }
@@ -4526,7 +4526,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	int is_rx = 0;
 	int band = get_band_and_eq_type_from_label(f->label, &is_rx); // Determine band and TX/RX
 	int v = atoi(f->value);
-	printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
+	//printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
 
 	if (event == FIELD_EDIT)
 	{
@@ -4807,7 +4807,7 @@ void tx_on(int trigger)
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		printf("TX\n");
+		//printf("TX\n");
 		//	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 		//	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
@@ -4959,7 +4959,7 @@ void tx_off()
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		printf("RX\n");
+		//printf("RX\n");
 	}
 	sound_input(0); // it is a low overhead call, might as well be sure
 }
@@ -4969,7 +4969,7 @@ static int layout_handler(void *user, const char *section,
 {
 	// the section is the field's name
 
-	printf("setting %s:%s to %d\n", section, name, atoi(value));
+	//printf("setting %s:%s to %d\n", section, name, atoi(value));
 	struct field *f = get_field(section);
 	if (!strcmp(name, "x"))
 		f->x = atoi(value);
@@ -5862,7 +5862,7 @@ void set_radio_mode(char *mode)
 	char umode[10], request[100], response[100];
 	int i;
 
-	printf("Mode: %s\n", mode);
+	//printf("Mode: %s\n", mode);
 	for (i = 0; i < sizeof(umode) - 1 && *mode; i++)
 		umode[i] = toupper(*mode++);
 	umode[i] = 0;
@@ -5991,7 +5991,7 @@ void handleButton2Press()
 				// Long press detected - Enable/Disable VFO lock
 				vfoLock = !vfoLock;
 				field_set("VFOLK", vfoLock ? "ON" : "OFF");
-				printf("VFOLock: %d\n", vfoLock);
+				//printf("VFOLock: %d\n", vfoLock);
 
 				if (vfoLock == 1)
 				{
@@ -6578,17 +6578,17 @@ void do_control_action(char *cmd)
 		tune_duration = atoi(tndur_field->value); // Convert to integer
 		if (tune_duration <= 0) 
 			{
-				printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
+				//printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
 				return; // Exit if the tune duration is not valid
 			}
 		} 
 		else 
 		{
-			printf("Tune duration field not found. Aborting TUNE ON.\n");
+			//printf("Tune duration field not found. Aborting TUNE ON.\n");
 			return; // Exit if the field is missing
 		}
 
-		printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
+		//printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
 
 		tune_on_invoked = true;
 		tune_on_start_time = time(NULL); // Record the current time
@@ -6608,12 +6608,12 @@ void do_control_action(char *cmd)
 	{
 		if (tune_on_invoked)
 		{
-			printf("TUNE OFF command received.\n");
+			//printf("TUNE OFF command received.\n");
+			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
-			tune_on_invoked = false;
 		}
 	}
 	// Automatic turn-off check (this should be called periodically)
@@ -6625,15 +6625,15 @@ void do_control_action(char *cmd)
 		if (difftime(current_time, tune_on_start_time) >= tune_duration) 
 		{
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
-			printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
+			//printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
 
 			// Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			if (modestore != NULL) // Check for null before accessing or modifying
+			//if (modestore != NULL) // Check for null before accessing or modifying
 				field_set("MODE", modestore);
 
-			if (powerstore != NULL) // Check for null before accessing or modifying
+			//if (powerstore != NULL) // Check for null before accessing or modifying
 				field_set("DRIVE", powerstore);
 		}
 	}
@@ -7431,7 +7431,7 @@ int main(int argc, char *argv[])
 	write_console(FONT_LOG, VER_STR);
 	write_console(FONT_LOG, "\r\nEnter \\help for help\r\n");
 
-	if (strcmp(get_field("#mycallsign")->value, "NOBODY"))
+	if (strcmp(get_field("#mycallsign")->value, "N0CALL"))
 	{
 		sprintf(buff, "\nWelcome %s your grid is %s\n",
 				get_field("#mycallsign")->value, get_field("#mygrid")->value);
