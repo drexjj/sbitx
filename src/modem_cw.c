@@ -322,7 +322,6 @@ static int cw_read_key(){
 
 	//preferance to the keyer activity
 	if (cw_key_state != CW_IDLE) {
-		//return cw_key_state;
 		//cw_key_state = key_poll();
 		return cw_key_state;
 	}
@@ -357,135 +356,127 @@ static int cw_read_key(){
 		return CW_IDLE;
 }
 
-float cw_tx_get_sample(){
-	float sample = 0;
+// Trying to improve CW straight-key performance (and performance with external electronic keyers)
+// without changing electronic keyer function, performance or timing
+float cw_tx_get_sample() {
+  float sample;        // the shaped CW level (0 to 1)
+  uint8_t symbol_now;
+  sample = 0;          // used in CW envelope shaping
+  
+  symbol_now = cw_read_key();
+  
+  if (!keydown_count && !keyup_count) { // CW key may be going down - because it's not up
+    millis_now = sbitx_millis();        // remember time of possible keydown
+    if (cw_tone.freq_hz != get_pitch()) // set CW pitch if needed
+      vfo_start( &cw_tone, get_pitch(), 0);
+  }
 
-	// for now, updatw time and cw pitch
-	if (!keydown_count && !keyup_count){
-		millis_now = sbitx_millis();
-		if (cw_tone.freq_hz != get_pitch())
-			vfo_start(&cw_tone, get_pitch(), 0);
-	}
+  switch (cw_current_symbol) {
+  case CW_IDLE:                   // this is the start case 
+    if (symbol_now & CW_DOWN) {   // the straight key has just gone down
+      keydown_count = 1;
+      keyup_count = 0;
+      cw_current_symbol = CW_DOWN;
+    } else if (symbol_now & CW_DOT) {
+      keydown_count = cw_period;
+      keyup_count = cw_period;
+      cw_current_symbol = CW_DOT;
+      cw_last_symbol = CW_IDLE;
+    } else if (symbol_now & CW_DASH) {
+      keydown_count = cw_period * 3;
+      keyup_count = cw_period;
+      cw_current_symbol = CW_DASH;
+      cw_last_symbol = CW_IDLE;
+    } else if (symbol_now & CW_DASH_DELAY) {
+      keydown_count = 0;
+      // w0anm
+      // reduced dash delay for inter cw character spacing
+      keyup_count = cw_period * 2;
+      cw_current_symbol = CW_DOT_DELAY;
+    } else if (symbol_now & CW_WORD_DELAY) {
+      keydown_count = 0;
+      // w0anm decrease word delay
+      // this effects the word spacing when using
+      // cw macros and keyboard sending
+      keyup_count = cw_period * 1.5;
+      cw_current_symbol = CW_DOT_DELAY;
+    }
+    break;
+  case CW_DOWN:      // the straight key is down
+    if (symbol_now & CW_DOWN) {   // we don't really care how long it's held down
+      keydown_count++;             // but maybe one day we will check for a maximum
+      keyup_count = 0;
+    } else {                       // key was down but now it's not
+      //keydown_count = 0;         // might prevent shaping?
+      keyup_count++;
+      cw_current_symbol = CW_IDLE; //go back to idle
+    }
+    break;
+  case CW_DOT:
+    if ((symbol_now & CW_DASH) && cw_next_symbol == CW_IDLE) {
+      cw_next_symbol = CW_DASH;
+    }
+    if (keydown_count == 0) {
+      keyup_count = cw_period;
+      cw_last_symbol = CW_DOT;
+      cw_current_symbol = CW_DOT_DELAY;
+    }
+    break;
+  case CW_DASH:
+    if ((symbol_now & CW_DOT) && cw_next_symbol == CW_IDLE) {
+      cw_next_symbol = CW_DOT;
+    }
+    if (keydown_count == 0) {
+      keyup_count = cw_period;
+      cw_last_symbol = CW_DASH;
+      cw_current_symbol = CW_DOT_DELAY;
+    }
+    break;
+  case CW_DASH_DELAY:
+  case CW_WORD_DELAY:
+  case CW_DOT_DELAY:
+    if (keyup_count == 0) {
+      cw_current_symbol = cw_next_symbol;
+      if (cw_current_symbol == CW_DOT) {
+        keydown_count = cw_period;
+        keyup_count = cw_period;
+      }
+      if (cw_current_symbol == CW_DASH) {
+        keydown_count = cw_period * 3;
+        keyup_count = cw_period;
+      }
+      cw_last_symbol = CW_DOT_DELAY;
+      cw_next_symbol = CW_IDLE;
+    }
+    if (cw_mode == CW_IAMBICB) {
+      if (cw_next_symbol == CW_IDLE && cw_last_symbol == CW_DOT && (symbol_now & CW_DASH)) {
+        cw_next_symbol = CW_DASH;
+      }
+      if (cw_next_symbol == CW_IDLE && cw_last_symbol == CW_DASH && (symbol_now & CW_DOT)) {
+        cw_next_symbol = CW_DOT; // WOANM
+      }
+    }
+    break;
+  }
 
-	uint8_t symbol_now = cw_read_key();
-
-	switch(cw_current_symbol){
-	case CW_IDLE:		//this is the start case 
-		if (symbol_now == CW_DOWN){
-			//w0anm, 2000ms is a bit much for debouce
-			// keydown_count = 2000; //add a few samples, to debounce 
-			keydown_count = 800; //add a few samples, to debounce 
-			keyup_count = 0;
-			cw_current_symbol = CW_DOWN;
-		}
-		else if (symbol_now & CW_DOT){
-			keydown_count = cw_period;
-			keyup_count = cw_period;
-			cw_current_symbol = CW_DOT;
-			cw_last_symbol = CW_IDLE;
-		}
-		else if (symbol_now & CW_DASH){
-			keydown_count = cw_period * 3;
-			keyup_count = cw_period;
-			cw_current_symbol = CW_DASH;
-			cw_last_symbol = CW_IDLE;
-		}
-		else if (symbol_now & CW_DASH_DELAY){
-			keydown_count = 0;
-			// w0anm
-			// reduced dash delay for inter cw character spacing
-			//keyup_count = cw_period * 3.0;
-			keyup_count = cw_period * 2;
-			cw_current_symbol = CW_DOT_DELAY;
-		}
-		else if (symbol_now & CW_WORD_DELAY){
-			keydown_count = 0;
-                        // w0anm decrease word delay
-			// this effects the word spacing when using
-			// cw macros and keyboard sending
-			//keyup_count = cw_period * 6;
-			keyup_count = cw_period * 1.5;
-			cw_current_symbol = CW_DOT_DELAY;
-		}
-		//else just continue in CW_IDLE
-		break;
-	case CW_DOWN:		//the straight key
-		if (symbol_now == CW_DOWN){ //continue, keep up the good work
-			keydown_count = 2000;
-			keyup_count = 0;
-		}
-		else{ // ok, break it up
-			keydown_count = 0;
-			keyup_count = 0;
-			cw_current_symbol = CW_IDLE;//go back to idle
-		}
-		break;
-	case CW_DOT:
-		if ((symbol_now & CW_DASH) && cw_next_symbol == CW_IDLE){
-			cw_next_symbol = CW_DASH;	
-		}
-		if (keydown_count == 0){
-			keyup_count = cw_period;
-			cw_last_symbol = CW_DOT;
-			cw_current_symbol = CW_DOT_DELAY;
-		}
-		break;
-	case CW_DASH:
-		if ((symbol_now & CW_DOT) && cw_next_symbol == CW_IDLE){
-			cw_next_symbol = CW_DOT;	
-		}
-		if (keydown_count == 0){
-			keyup_count = cw_period;
-			cw_last_symbol = CW_DASH;
-			cw_current_symbol = CW_DOT_DELAY;
-		}
-		break;
-	case CW_DASH_DELAY:
-	case CW_WORD_DELAY:
-	case CW_DOT_DELAY:
-		if (keyup_count == 0){
-			cw_current_symbol = cw_next_symbol;
-			if (cw_current_symbol == CW_DOT){
-				keydown_count = cw_period;
-				keyup_count = cw_period;
-			}
-			if (cw_current_symbol == CW_DASH){
-				keydown_count = cw_period * 3;
-				keyup_count = cw_period;
-			}
-			cw_last_symbol = CW_DOT_DELAY;
-			cw_next_symbol = CW_IDLE;
-		}
-		if (cw_mode == CW_IAMBICB){
-			if (cw_next_symbol == CW_IDLE && cw_last_symbol == CW_DOT && (symbol_now & CW_DASH)){
-				cw_next_symbol = CW_DASH;
-			}
-			if (cw_next_symbol == CW_IDLE && cw_last_symbol == CW_DASH && (symbol_now & CW_DOT)){
-				cw_next_symbol = CW_DOT;  // WOANM
-			}
-		}
-		break;
-	}
-
-	// shape the cw keying
-	if (keydown_count  > 0){
-		if(cw_envelope < 0.999)
-			cw_envelope = ((vfo_read(&cw_env)/FLOAT_SCALE) + 1)/2; 
-			keydown_count--;
-	}
-	else { //keydown_count is zero
-		if(cw_envelope > 0.001)
-			cw_envelope = ((vfo_read(&cw_env)/FLOAT_SCALE) + 1)/2; 
+  // Key the transmitter with some shaping on the leading and trailing edge
+  if (keydown_count > 0){
+	if(cw_envelope < 0.999)  // ramping up the leading edge
+		cw_envelope = ((vfo_read(&cw_env)/FLOAT_SCALE) + 1)/2; 
+	keydown_count--;
+  }
+  else { //keydown_count is zero
+		if(cw_envelope > 0.001)  // ramping down on the trailing edge
+		  cw_envelope = ((vfo_read(&cw_env)/FLOAT_SCALE) + 1)/2; 
 		if (keyup_count > 0)
-			keyup_count--;
+		  keyup_count--;
 	}
+  sample = (vfo_read(&cw_tone) / FLOAT_SCALE) * cw_envelope;
 
-	sample = (vfo_read(&cw_tone)/FLOAT_SCALE) * cw_envelope;
-
-	if (keyup_count > 0 || keydown_count > 0){
-		cw_tx_until = millis_now + get_cw_delay(); 
-	}
-	return sample / 8;
+  // keep extending 'cw_tx_until' while we're sending
+  if (symbol_now & CW_DOWN || keydown_count > 0)
+	cw_tx_until = millis_now + get_cw_delay();
+  return sample / 8;
 }
 
 

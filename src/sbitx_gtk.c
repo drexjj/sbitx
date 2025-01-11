@@ -6088,10 +6088,16 @@ gboolean ui_tick(gpointer gook)
 		// write_console(FONT_LOG, message);
 	}
 
-	if (ticks % 20 == 0)
-	{
+  // every 20 ticks call modem_poll to see if any modes need work done
+  if (ticks % 20 == 0)
+    modem_poll(mode_id(get_field("r1:mode")->value));
+  else {
+    // calling modem_poll every 20 ticks isn't enough to keep up with a fast
+    // straight key, so now we go on _every_ tick in MODE_CW or MODE_CWR
+    if ((mode_id(get_field("r1:mode")->value)) == MODE_CW || 
+	    (mode_id(get_field("r1:mode")->value)) == MODE_CWR)
 		modem_poll(mode_id(get_field("r1:mode")->value));
-	}
+  }
 
 	int tick_count = 100;
 
