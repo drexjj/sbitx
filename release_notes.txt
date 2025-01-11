@@ -4,7 +4,7 @@ v4.3 -
 - Added Adjustable bandscope controls: ScopeGain, ScopeAvg, & ScopeSize
 - Added Tune Duration (TNDUR) adjustable from 2-30 seconds with a cancel function "press TUNE to cancel the tuning function"
 - Added Tune Power level set/recall per band
-- Added colorized scope control to Web interface
+- Added colorized scope to Web interface
 - Fixed ePTT control in Web interface
 - Arranged buttons on the main screen and menu screens
 - Improved CW mode polling for internal keyer and external keyers
