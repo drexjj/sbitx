@@ -4,18 +4,18 @@ An improved version of the sBitx application designed for the sBitx hardware. Th
 
 We have an incredible devepment team collaborating on improvements for the sBitx platform. JJ - W9JES, Jon - W2JON, Alan - N1QM, Lars - OZ7BX, William - W4WHL, and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
-The files here are to designed to work on the modified, 64 bit version provided here in the *Releases* section.
+The files here are to designed to work on the modified, 64 bit version provided in the [Releases](https://github.com/drexjj/sbitx/releases) section.
 
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
 
-The stand-alone version of sBitx toolbox for 32 bit (original version from HF Signals) is available [HERE](https://github.com/drexjj/sBITX-toolbox)
+The stand-alone version of sBitx toolbox for 32 bit (factory version from HF Signals) is available [HERE](https://github.com/drexjj/sBITX-toolbox)
 
 
 ****Backup Your Data First!****
 -----
 It is important to backup your existing sbitx/data and sbitx/web folders to a safe place before installing this version. A good data backup strategy is important so you do not lose your logbook, hardware calibration, and user settings.
 
-There are two methods that you can use to perform a backup. I wrote a handy, backup utility for the original and modified versions of sBitx software. It can be installed from sBitx Toolbox and is called sBITX EZ Data. This will copy your critical, data files to a USB drive. Check it out from the links above. Or you can continue below and copy the contents to a USB drive manually.
+There are two methods that you can use to perform a backup. I wrote a handy, backup utility for the factory and 64 bit version of sBitx software. It can be installed from sBitx Toolbox and is called sBITX EZ Data. This will copy your critical, data files to a USB drive. Check it out from the links above. Or you can continue below and copy the contents to a USB drive manually.
 
 You can make a copy of your original sbitx folder in entirety by using this set of commands from terminal
 ```console
