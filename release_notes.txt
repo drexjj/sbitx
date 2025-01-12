@@ -1,7 +1,7 @@
 v4.3 - 
 - Added Menus for additional functions
 - Added Waterfall Speed Control (WFSPD)
-- Added Adjustable bandscope controls: ScopeGain, ScopeAvg, & ScopeSize
+- Added Adjustable bandscope controls: ScopeGain, ScopeAvg, ScopeSize, & Intensity
 - Added Tune Duration (TNDUR) adjustable from 2-30 seconds with a cancel function "press TUNE to cancel the tuning function"
 - Added Tune Power level set/recall per band
 - Added colorized bandscope to Web interface
