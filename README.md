@@ -1,4 +1,4 @@
-![sBitx image](SBITX42.png)
+![sBitx image](sbitx43.png)
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64 bit Raspberry Pi image that can be downloaded here.
 
@@ -29,7 +29,7 @@ cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/d
 First Time Installation and Upgrades
 -----
 
-Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-or-upgrade-your-sBitx-application)  
+Visit the Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-or-upgrade-your-sBitx-application)  
 
 
 ****Download The 64 Bit Image****
