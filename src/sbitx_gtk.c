@@ -78,6 +78,7 @@ float scope_gain = 1.0; // Default value for SCOPEGAIN
 int scope_size = 100;	// Default size
 static bool layout_needs_refresh = false;
 static int last_scope_size = -1; // Default to an invalid value initially
+float scope_alpha_plus = 0.0; // Default additional scope alpha
 
 #define AVERAGING_FRAMES 15 // Number of frames to average
 // Buffer to hold past spectrum data
@@ -160,7 +161,7 @@ float palette[][3] = {
 	{1, 1, 0},		 // SPECTRUM_PLOT
 	{0.2, 0.2, 0.2}, // SPECTRUM_NEEDLE
 	{0.5, 0.5, 0.5}, // COLOR_CONTROL_BOX
-	{0.2, 0.2, 0.2}, // SPECTRUM_BANDWIDTH
+	{0.06, 0.06, 0.06}, // SPECTRUM_BANDWIDTH
 	{0, 1, 0},		 // COLOR_RX__PITCH
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
@@ -769,6 +770,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
+
+	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, 0},	 
 
 	// VFO Lock ON/OFF
 	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -2656,11 +2660,12 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	cairo_set_antialias(gfx, CAIRO_ANTIALIAS_FAST);
 
 	// Add color stops to the gradient (blue -> yellow -> red)
-	cairo_pattern_add_color_stop_rgba(gradient, 0.0, 0.0, 0.0, 0.25, 0.5); // Dark blue
-	cairo_pattern_add_color_stop_rgba(gradient, 0.25, 0.0, 0.5, 1.0, 0.5); // Lighter blue
-	cairo_pattern_add_color_stop_rgba(gradient, 0.5, 0.5, 0.5, 0.0, 0.7);  // Greenish-yellow
-	cairo_pattern_add_color_stop_rgba(gradient, 0.75, 1.0, 1.0, 0.0, 0.8); // Bright yellow
-	cairo_pattern_add_color_stop_rgba(gradient, 1.0, 1.0, 0.0, 0.0, 0.9);  // Red at the top
+
+	cairo_pattern_add_color_stop_rgba(gradient, 0.0, 0.1, 0.0, 0.25, 0.5 + scope_alpha_plus); // Dark blue
+	cairo_pattern_add_color_stop_rgba(gradient, 0.25, 0.0, 0.5, 1.0, 0.5 + scope_alpha_plus); // Lighter blue
+	cairo_pattern_add_color_stop_rgba(gradient, 0.5, 0.5, 0.5, 0.0, 0.7 + scope_alpha_plus);  // Greenish-yellow
+	cairo_pattern_add_color_stop_rgba(gradient, 0.75, 1.0, 1.0, 0.0, 0.8 + scope_alpha_plus); // Bright yellow
+	cairo_pattern_add_color_stop_rgba(gradient, 1.0, 1.0, 0.0, 0.0, 0.9 + scope_alpha_plus);  // Red at the top
 	// Begin a new path for the filled spectrum
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
 
@@ -2976,28 +2981,28 @@ void menu_display(int show)
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 
 				// Line 1 (screen_height - 140)
-				field_move("SET", 5, screen_height - 95, 45, 45);
-				field_move("TXEQ", 70, screen_height - 95, 45, 45);
-				field_move("RXEQ", 120, screen_height - 95, 45, 45);
-				field_move("NOTCH", 185, screen_height - 95, 95, 45);
-				field_move("ANR", 285, screen_height - 95, 45, 45);
-				field_move("COMP", 350, screen_height - 95, 45, 45);
-				field_move("TXMON", 400, screen_height - 95, 45, 45);
-				field_move("TNDUR", 500, screen_height - 95, 45, 45);
+				field_move("SET", 5, screen_height - 100, 45, 45);
+				field_move("TXEQ", 70, screen_height - 100, 45, 45);
+				field_move("RXEQ", 120, screen_height - 100, 45, 45);
+				field_move("NOTCH", 185, screen_height - 100, 95, 45);
+				field_move("ANR", 285, screen_height - 100, 45, 45);
+				field_move("COMP", 350, screen_height - 100, 45, 45);
+				field_move("TXMON", 400, screen_height - 100, 45, 45);
+				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", 630, screen_height - 95, 95, 45); // Rightmost
+					field_move("ePTT", 630, screen_height - 100, 95, 45); // Rightmost
 				}
 
 				// Line 2 (screen_height - 90)
-				field_move("WEB", 5, screen_height - 45, 45, 45);
-				field_move("EQSET", 70, screen_height - 45, 95, 45);
-				field_move("NFREQ", 185, screen_height - 45, 45, 45);
-				field_move("BNDWTH", 235, screen_height - 45, 45, 45);
-				field_move("DSP", 285, screen_height - 45, 45, 45);
-				field_move("BFO", 350, screen_height - 45, 45, 45);
-				field_move("VFOLK", 400, screen_height - 45, 45, 45);
-				field_move("TNPWR", 500, screen_height - 45, 45, 45);
+				field_move("WEB", 5, screen_height - 50, 45, 45);
+				field_move("EQSET", 70, screen_height - 50, 95, 45);
+				field_move("NFREQ", 185, screen_height - 50, 45, 45);
+				field_move("BNDWTH", 235, screen_height - 50, 45, 45);
+				field_move("DSP", 285, screen_height - 50, 45, 45);
+				field_move("BFO", 350, screen_height - 50, 45, 45);
+				field_move("VFOLK", 400, screen_height - 50, 45, 45);
+				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
 
 			else
@@ -3041,12 +3046,13 @@ void menu2_display(int show)
 		// Display the waveform-related controls in a new layout
 
 		// Single line (screen_height - 140)
-		field_move("WFMIN", 5, screen_height - 95, 70, 45);
-		field_move("WFMAX", 5, screen_height - 45, 70, 45);
-		field_move("WFSPD", 80, screen_height - 95, 70, 45);
-		field_move("SCOPEGAIN", 170, screen_height - 95, 70, 45);
-		field_move("SCOPEAVG", 170, screen_height - 45, 70, 45);  // Add SCOPEAVG field
-		field_move("SCOPESIZE", 245, screen_height - 95, 70, 45); // Add SCOPESIZE field
+		field_move("WFMIN", 5, screen_height - 100, 70, 45);
+		field_move("WFMAX", 5, screen_height - 50, 70, 45);
+		field_move("WFSPD", 80, screen_height - 100, 70, 45);
+		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
+		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
+		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPESIZE field
 	}
 	else
 	{
@@ -3117,12 +3123,12 @@ static void layout_ui()
 
 	if (!strcmp(field_str("MENU"), "1"))
 	{
-		y2 = screen_height - 100;
+		y2 = screen_height - 105;
 		menu_display(1);
 	}
 	else if (!strcmp(field_str("MENU"), "2"))
 	{
-		y2 = screen_height - 100;
+		y2 = screen_height - 105;
 		menu2_display(1);
 	}
 	else
@@ -4685,6 +4691,10 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			scope_size = new_scope_size; // Update the global variable
 			layout_needs_refresh = true; // Mark layout for update
 		}
+	}
+	else if (strcmp(field_name, "INTENSITY") == 0)
+	{
+	    scope_alpha_plus = (float)field_value / 10.0 * 1.2 - 0.3; // Map 1-10 to -0.3 to +0.9
 	}
 
 	return 0;
