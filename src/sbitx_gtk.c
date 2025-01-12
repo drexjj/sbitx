@@ -161,7 +161,7 @@ float palette[][3] = {
 	{1, 1, 0},		 // SPECTRUM_PLOT
 	{0.2, 0.2, 0.2}, // SPECTRUM_NEEDLE
 	{0.5, 0.5, 0.5}, // COLOR_CONTROL_BOX
-	{0.06, 0.06, 0.06}, // SPECTRUM_BANDWIDTH
+	{0.2, 0.2, 0.2}, // SPECTRUM_BANDWIDTH
 	{0, 1, 0},		 // COLOR_RX__PITCH
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
