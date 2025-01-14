@@ -41,6 +41,24 @@ As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful t
 A new, production version is available [HERE](https://github.com/drexjj/sbitx/releases)
 
 
+🌟 Contributors & Credits
+-----
+I deeply appreciate the incredible contributions by others who have played a vital role in this project with me. I am honored that you are part of our journey. Thank you! 🚀
+
+Special Thanks To:
+Jon - W2JON
+Alan - N1QM
+Lee - W4WHL
+Lars - OZ7BX
+Jeff - KF7DYU
+Mike - KB2ML
+Chris - W0ANM
+Gyula - HA3HZ
+Pete - VK3PYE
+Mike - WD0OM
+Farhan - VU2ESE
+Paul - G0KAO
+
 
 Become A Supporter
 -----
