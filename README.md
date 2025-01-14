@@ -60,7 +60,7 @@ Farhan - VU2ESE
 Paul - G0KAO
 
 
-Become A Supporter
+🌟 Become A Supporter
 -----
 If you find these enhancements valuable or have benefited from using it, consider supporting us. Every donation, big or small, helps us keep the lights on and the code flowing.
 
