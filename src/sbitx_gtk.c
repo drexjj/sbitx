@@ -3052,7 +3052,7 @@ void menu2_display(int show)
 		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
-		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPESIZE field
+		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
 	}
 	else
 	{
