@@ -180,8 +180,8 @@
                     <option value="ON">ON</option>
                 </select>
             </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">QRO</div>
-                <select class="sbitxv3-selection sbitx-selection" id="QRO">
+                <div class="sbitxv3-label">ePTT</div>
+                <select class="sbitxv3-selection sbitx-selection" id="ePTT">
                     <option value="OFF">OFF</option>
                     <option value="ON">ON</option>
                 </select>
@@ -571,18 +571,18 @@
     var in_tx = false;
     var parser = null;
     var qrz_window = null;
-var log_window = null;
+    var log_window = null;
     var session_id = "nullsession";
     var macros_file = "";
     var spots = null;
     var logbook_bottom_row_id = -1;
     var logbook_top_row_id = 0;
-var sound_mute = false;
+    var sound_mute = false;
+    var curBand = "";
+    var band_stack_indicators = ["", "", "", "", "", "", "", "", ""];
 
-var band_stack_indicators = ["", "", "", "", "", "", "", "", ""];
-
-/* oz7bx gridmap */
-GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
+    /* oz7bx gridmap */
+    GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
 
     /* a few helper functions */
     function el(element_id) {
@@ -996,6 +996,77 @@ function change_freq(event) {
     });
     // created by OZ7BX
 
+    function calcGradientFarhan(v) {
+        if (v > 100) {
+            v = 100;
+        }
+        let clr = {};
+        if (v < 20) {
+           clr.r = 0;
+           clr.g = 0;
+           clr.b = v * 12;
+        }
+        else if (v < 40) {
+           clr.r = 0;
+           clr.g = (v - 20) * 12;
+           clr.b = 255;
+        }
+        else if (v < 60) {
+           clr.r = 0;
+           clr.g = 255;
+           clr.b = (60 - v) * 12;
+        }
+        else if (v < 80) {
+           clr.r = (v - 60) * 12;
+           clr.g = 255;
+           clr.b = 0;
+        }
+        else {
+           clr.r = 255;
+           clr.g = (100 - v) * 12;
+           clr.b = 0;
+        }
+        return clr;
+    }
+
+    function calcGradient(v) {
+        if (v > 100) {
+            v = 100;
+        }
+        let clr = {};
+        if (v < 20) {
+           const t = v / 20.0;
+           clr.r = 0;
+           clr.g = 0;
+           clr.b = Math.round(t * 255);
+        }
+        else if (v < 40) {
+           const t = (v - 20) / 20.0;
+           clr.r = 0;
+           clr.g = Math.round(t * 255);
+           clr.b = 255;
+        }
+        else if (v < 60) {
+           const t = (v - 40) / 20.0;
+           clr.r = 0;
+           clr.g = 255;
+           clr.b = Math.round((1.0 - t) * 255);
+        }
+        else if (v < 80) {
+           const t = (v - 60) / 20.0;
+           clr.r = Math.round(t * 255);
+           clr.g = 255;
+           clr.b = 0;
+        }
+        else {
+           const t = (v - 80) / 20.0;
+           clr.r = 255;
+           clr.g = Math.round((1.0 - t) * 255);
+           clr.b = 0;
+        }
+	return clr;
+    }
+
     var nbins = 0;
 
     function spectrum_update(update) {
@@ -1006,6 +1077,20 @@ function change_freq(event) {
         var height = w.height - 15;
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, w.width, w.height);
+
+	// Create linear gradient
+	const grad=ctx.createLinearGradient(0,0, 0,height);
+     /*	grad.addColorStop(0, "red");
+	grad.addColorStop(0.2, "orange");
+        grad.addColorStop(0.4, "yellow");
+        grad.addColorStop(0.6, "green");
+        grad.addColorStop(0.8, "darkcyan");
+        grad.addColorStop(1, "darkblue"); */
+
+        for ( var v = 0; v <= 100; v++) {
+            let clr = calcGradient(100-v);
+            grad.addColorStop(v/100.0, "rgb(" + clr.r + " " + clr.g + " " + clr.b + ")"); 
+        }
 
         //draw the filter block
         var bw = parseFloat(el("BW").value); // Use BW setting for bandwidth
@@ -1054,8 +1139,20 @@ function change_freq(event) {
         ctx.beginPath();
         ctx.moveTo(w.width, height - (update.charCodeAt(0) - 32));
         //we index the charcodes at an offset of 3 (the first three are status)
-        for (let x = 0; x < nbins; x++)
-            ctx.lineTo((nbins - x - 1) * scale, height - (((update.charCodeAt(x + 3) - 32) / 100) * height));
+
+        if (update.startsWith("TX")) {
+            for (let x = 0; x < nbins; x++) {
+                ctx.lineTo((nbins - x - 1) * scale, height - (((update.charCodeAt(x + 3) - 32) / 100) * height));
+            }
+        } else {
+            for (let x = 0; x < nbins; x++) {
+                const px = (nbins - x - 1) * scale;
+                const ph = - (((update.charCodeAt(x + 3) -32 ) * height * 2) / 100);
+                ctx.fillStyle = grad;
+                ctx.fillRect(px,height-1, 3,ph);
+            }
+        }
+
         ctx.strokeStyle = "#ffff00";
         ctx.stroke();
 
@@ -1065,7 +1162,9 @@ function change_freq(event) {
         ctx.fillStyle = "orange";
 
         //write the status
-        ctx.fillText(status, w.width / 2 - ctx.measureText(status).width / 2, 14);
+        //ctx.fillText(status, w.width / 2 - ctx.measureText(status).width / 2, 14);
+        ctx.fillText(status, 20, 14);
+
 
         //show spots!
         let freq = parseInt(el("FREQ").value) / 1000;
@@ -1214,46 +1313,19 @@ function change_freq(event) {
 
             //the first three are status
             var v = (update.charCodeAt(bin + 3) - 32) * 2;
-            if (v > 100)
-                v = 100;
-            var r, g, b;
-            if (v < 20) {
-                r = 0;
-                g = 0;
-                b = v * 12;
-            }
-            else if (v < 40) {
-                r = 0;
-                g = (v - 20) * 12;
-                b = 255;
-            }
-            else if (v < 60) {
-                r = 0;
-                g = 255;
-                b = (60 - v) * 12;
-            }
-            else if (v < 80) {
-                r = (v - 60) * 12;
-                g = 255;
-                b = 0;
-            }
-            else {
-                r = 255;
-                g = (100 - v) * 12;
-                b = 0;
-            }
+            let clr = calcGradient(v);
             if (x == tx_spot)
                 img.data[i++] = 255;
             else
-                img.data[i++] = r;
+                img.data[i++] = clr.r;
 
             if (x == rx_spot) {
                 img.data[i++] = 255;
                 img.data[i++] = 255;
             }
             else {
-                img.data[i++] = g;
-                img.data[i++] = b;
+                img.data[i++] = clr.g;
+                img.data[i++] = clr.b;
             }
             img.data[i++] = 255;
         }
@@ -1730,7 +1802,7 @@ function FT8_lists_clear() {
 	document.querySelector('#wsjtx-rx ol').innerHTML ="";
 }
     function FT8_new_message(text, style) {
-	//log("ft8:" + text + ":" + style);
+	log("ft8:" + text + ":" + style);
         var words = text.split(' ');
         FT8_list_append("wsjtx-activity", text, style);
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
@@ -2439,10 +2511,13 @@ function show_in_qrz_window(callsign) {
             case '80M':
                 band_stack_indicators[0] = args;
                 break;
-			case 'SELBAND':
-			    FT8_lists_clear();
+            case 'SELBAND':
+                if (curBand !== args) {
+                	FT8_lists_clear();
+		}
+		curBand = args; 
                 show_selected_band_store(args);
-				break;
+                break;
             case 'MODE':
                 mode_set(args);
             //There is no break statement here, MODE continues to default case

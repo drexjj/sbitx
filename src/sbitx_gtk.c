@@ -47,6 +47,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include <time.h>
 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -68,6 +69,25 @@ int vfo_lock_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
+
+int scope_avg = 10; // Default value for SCOPEAVG
+
+// Declare global variables for WFSPD and SCOPEGAIN
+int wf_spd = 50;		// Default value for WFSPD
+float scope_gain = 1.0; // Default value for SCOPEGAIN
+int scope_size = 100;	// Default size
+static bool layout_needs_refresh = false;
+static int last_scope_size = -1; // Default to an invalid value initially
+float scope_alpha_plus = 0.0; // Default additional scope alpha
+
+#define AVERAGING_FRAMES 15 // Number of frames to average
+// Buffer to hold past spectrum data
+static int spectrum_history[AVERAGING_FRAMES][MAX_BINS] = {0};
+
+#define MIN_WATERFALL_HEIGHT 10 // Define a minimum safe height
+
+// Index of the current frame in the history buffer
+static int current_frame_index = 0;
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7,
@@ -403,6 +423,8 @@ struct band
 	// Make drive and IF band specific - n1qm
 	int if_gain;
 	int drive;
+	// add tune power to band - W9JES
+	int tnpwr;
 };
 
 struct cmd
@@ -549,8 +571,8 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#web", NULL, 460, 5, 40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
+	{"#tune", NULL, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
@@ -566,7 +588,7 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 50, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
@@ -637,6 +659,8 @@ struct field main_controls[] = {
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
+	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, 0},
 	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -679,6 +703,7 @@ struct field main_controls[] = {
 	 "", -16, 16, 1, 0},
 	{"#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
+	 
 	// RX EQ Controls (added)
 	{"#rx_eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "R0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 40, 160, 5, 0},
@@ -734,6 +759,21 @@ struct field main_controls[] = {
 	{"#wf_max", do_wf_edit, 1000, -1000, 40, 40, "WFMAX", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 200, 1, 0},
 
+	{"#wf_spd", do_wf_edit, 150, 20, 5, 50, "WFSPD", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 20, 150, 5, 0},
+
+	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 25, 1, 0},
+
+	{"#scope_avg", do_wf_edit, 15, 1, 1, 10, "SCOPEAVG", 10, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 15, 1, 0},
+
+	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 50, 150, 5, 0},
+
+	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, 0},	 
+
 	// VFO Lock ON/OFF
 	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -754,8 +794,8 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
-	{"#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
+	{"#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
+	 "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	// Notch Filter Controls
 	{"#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -785,11 +825,13 @@ struct field main_controls[] = {
 	{"#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -3000, 3000, 50, 0},
 
-	// GLG Tune
-	{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, 0},
+	// Tune Controls - W9JES
+	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 //"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 0, 100, 1, 0},
+	 "", 1, 100, 1, 0},
+	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 2, 30, 1, 0},
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL,
@@ -1131,8 +1173,8 @@ int remote_update_field(int i, char *text)
 	f->update_remote = 0;
 
 	// debug on
-	//	if (!strcmp(f->cmd, "#text_in") && strlen(f->value))
-	//		printf("#text_in [%s] %d\n", f->value, update);
+	// if (!strcmp(f->cmd, "#text_in") && strlen(f->value))
+	// printf("#text_in [%s] %d\n", f->value, update);
 	// debug off
 	return update;
 }
@@ -1610,7 +1652,7 @@ void save_user_settings(int forced)
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
-		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr);
 
 		// fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
@@ -1779,6 +1821,8 @@ static int user_settings_handler(void *user, const char *section,
 			band_stack[band].if_gain = atoi(value);
 		else if (!strcmp(name, "drive"))
 			band_stack[band].drive = atoi(value);
+		else if (!strcmp(name, "tnpwr"))
+			band_stack[band].tnpwr = atoi(value);
 	}
 	return 1;
 }
@@ -1884,6 +1928,32 @@ void init_waterfall()
 	if (f_max)
 	{
 		wf_max = atof(f_max->value) / 100.0f; // Assuming field value is stored as a scaled integer
+	}
+
+	// Retrieve #wf_spd field and update wf_spd
+	struct field *f_spd = get_field("#wf_spd");
+	if (f_spd)
+	{
+		int original_value = atoi(f_spd->value); // Get the value from the field
+		wf_spd = 170 - original_value;			 // Invert the value
+	}
+
+	// Retrieve #scope_gain field and update scope_gain
+	struct field *f_gain = get_field("#scope_gain");
+	if (f_gain)
+	{
+		scope_gain = 1.0f + (atoi(f_gain->value) - 1) * 0.1f; // Map 1-50 to 1.0-5.0
+	}
+	// Retrieve #scope_avg field and update scope_avg
+	struct field *f_avg = get_field("#scope_avg");
+	if (f_avg)
+	{
+		scope_avg = atoi(f_avg->value); // Assuming scope_avg is an integer field
+	}
+	struct field *f_size = get_field("#scope_size");
+	if (f_size)
+	{
+		scope_size = atoi(f_size->value); // Retrieve and update scope_size
 	}
 
 	// Print dimensions for debugging -W2ON
@@ -1992,36 +2062,41 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 		int v = (int)(normalized);
 
-		// Gradient mapping logic
+		// Gradient mapping logic with smooth transitions
 		if (v < 20)
-		{ // r = 0, g = 0, increase blue
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = v * 12;
+		{ // Transition from black to blue
+			float t = v / 20.0;
+			waterfall_map[index++] = 0;				 // Red
+			waterfall_map[index++] = 0;				 // Green
+			waterfall_map[index++] = (int)(t * 255); // Blue
 		}
 		else if (v < 40)
-		{ // r = 0, increase g, blue is max
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = (v - 20) * 12;
-			waterfall_map[index++] = 255;
+		{ // Transition from blue to cyan
+			float t = (v - 20) / 20.0;
+			waterfall_map[index++] = 0;				 // Red
+			waterfall_map[index++] = (int)(t * 255); // Green
+			waterfall_map[index++] = 255;			 // Blue
 		}
 		else if (v < 60)
-		{ // r = 0, g = max, decrease b
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = 255;
-			waterfall_map[index++] = (60 - v) * 12;
+		{ // Transition from cyan to green
+			float t = (v - 40) / 20.0;
+			waterfall_map[index++] = 0;						 // Red
+			waterfall_map[index++] = 255;					 // Green
+			waterfall_map[index++] = (int)((1.0 - t) * 255); // Blue
 		}
 		else if (v < 80)
-		{ // increase r, g = max, b = 0
-			waterfall_map[index++] = (v - 60) * 12;
-			waterfall_map[index++] = 255;
-			waterfall_map[index++] = 0;
+		{ // Transition from green to yellow
+			float t = (v - 60) / 20.0;
+			waterfall_map[index++] = (int)(t * 255); // Red
+			waterfall_map[index++] = 255;			 // Green
+			waterfall_map[index++] = 0;				 // Blue
 		}
 		else
-		{ // r = max, decrease g, b = 0
-			waterfall_map[index++] = 255;
-			waterfall_map[index++] = (100 - v) * 12;
-			waterfall_map[index++] = 0;
+		{ // Transition from yellow to red
+			float t = (v - 80) / 20.0;
+			waterfall_map[index++] = 255;					 // Red
+			waterfall_map[index++] = (int)((1.0 - t) * 255); // Green
+			waterfall_map[index++] = 0;						 // Blue
 		}
 	}
 
@@ -2062,6 +2137,35 @@ void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + i, f->y + grid_height);
 	}
 	cairo_stroke(gfx);
+}
+
+void update_spectrum_history(int *current_spectrum, int n_bins)
+{
+	// Add the current spectrum data to the history buffer
+	memcpy(spectrum_history[current_frame_index], current_spectrum, n_bins * sizeof(int));
+
+	// Advance to the next frame index, wrapping around if needed
+	current_frame_index = (current_frame_index + 1) % scope_avg;
+}
+
+void compute_time_based_average(int *averaged_spectrum, int n_bins)
+{
+	memset(averaged_spectrum, 0, n_bins * sizeof(int));
+
+	// Sum the values from all frames in the history
+	for (int frame = 0; frame < scope_avg; frame++)
+	{
+		for (int bin = 0; bin < n_bins; bin++)
+		{
+			averaged_spectrum[bin] += spectrum_history[frame][bin];
+		}
+	}
+
+	// Compute the average
+	for (int bin = 0; bin < n_bins; bin++)
+	{
+		averaged_spectrum[bin] /= scope_avg;
+	}
 }
 
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
@@ -2152,7 +2256,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast notch filter display
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
-	int yellow_bar_height = 57;
+	int yellow_bar_height = scope_size - 13;
 	int notch_start, notch_width;
 	int center_x = f_spectrum->x + (f_spectrum->width / 2);
 
@@ -2503,50 +2607,127 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	//we only plot the second half of the bins (on the lower sideband
+	// we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
 	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
-	//the center frequency is at the center of the lower sideband,
-	//i.e, three-fourth way up the bins.
-	int starting_bin = (3 *MAX_BINS)/4 - n_bins/2;
-	int ending_bin = starting_bin + n_bins; 
+	// the center frequency is at the center of the lower sideband,
+	// i.e, three-fourth way up the bins.
+	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
+	int ending_bin = starting_bin + n_bins;
 
-	float x_step = (1.0 * f->width )/n_bins;
+	float x_step = (1.0 * f->width) / n_bins;
 
-	//start the plot
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0], 
-		palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
+	// start the plot
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
+						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
 
-//	float x = fmod((1.0 * spectrum_span), 46.875);
+	//	float x = fmod((1.0 * spectrum_span), 46.875);
 	float x = 0;
 	int j = 0;
 
-	for (i = starting_bin; i <= ending_bin; i++){
+	// Calculate the dynamic range
+	int min_value = INT_MAX;
+	int max_value = INT_MIN;
+
+	// Compute the time-based average spectrum
+	int averaged_spectrum[MAX_BINS];
+	compute_time_based_average(averaged_spectrum, MAX_BINS);
+
+	// Find min and max values for dynamic range computation
+	for (int i = starting_bin; i <= ending_bin; i++)
+	{
+		int raw_value = spectrum_plot[i] + waterfall_offset; // Use raw spectrum for waterfall
+		if (raw_value < min_value)
+			min_value = raw_value;
+		if (raw_value > max_value)
+			max_value = raw_value;
+	}
+
+	// Prevent division by zero in case of flat input
+	int dynamic_range = max_value - min_value;
+	if (dynamic_range == 0)
+		dynamic_range = 1;
+
+	// Define a fixed stretch factor
+	float stretch_factor = 3; // Adjust to control the stretching
+
+	// Create a linear gradient for the spectrum fill
+	cairo_pattern_t *gradient = cairo_pattern_create_linear(0, f->y + grid_height, 0, f->y);
+
+	// Set antialiasing mode for smoother rendering
+	cairo_set_antialias(gfx, CAIRO_ANTIALIAS_FAST);
+
+	// Add color stops to the gradient (blue -> yellow -> red)
+
+	cairo_pattern_add_color_stop_rgba(gradient, 0.0, 0.1, 0.0, 0.25, 0.5 + scope_alpha_plus); // Dark blue
+	cairo_pattern_add_color_stop_rgba(gradient, 0.25, 0.0, 0.5, 1.0, 0.5 + scope_alpha_plus); // Lighter blue
+	cairo_pattern_add_color_stop_rgba(gradient, 0.5, 0.5, 0.5, 0.0, 0.7 + scope_alpha_plus);  // Greenish-yellow
+	cairo_pattern_add_color_stop_rgba(gradient, 0.75, 1.0, 1.0, 0.0, 0.8 + scope_alpha_plus); // Bright yellow
+	cairo_pattern_add_color_stop_rgba(gradient, 1.0, 1.0, 0.0, 0.0, 0.9 + scope_alpha_plus);  // Red at the top
+	// Begin a new path for the filled spectrum
+	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
+
+	for (int i = starting_bin; i <= ending_bin; i++)
+	{
 		int y;
 
-		// the center fft bin is at zero, from MAX_BINS/2 onwards,
-		// the bins are at lowest frequency (-ve frequency)
-		//y axis is the power  in db of each bin, scaled to 80 db
-		y = ((spectrum_plot[i] + waterfall_offset) * f->height)/80; 
-		// limit y inside the spectrum display box
-		if ( y <  0)
+		// Original scaling for the waterfall (unchanged)
+		int raw_value = spectrum_plot[i] + waterfall_offset; // Use original data for waterfall
+		y = ((raw_value)*f->height) / 80;					 // Original linear scaling for waterfall
+
+		// Clamp y for valid range (for the waterfall)
+		if (y < 0)
 			y = 0;
 		if (y > f->height)
 			y = f->height - 1;
-		//the plot should be increase upwards
-		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - y);
 
-		//fill the waterfall
+		// Apply stretch factor to the averaged spectrum plot
+		int enhanced_y = y;												// Start with the original y
+		float averaged_value = averaged_spectrum[i] + waterfall_offset; // Use averaged data
+		if (averaged_value > 0)
+		{														 // Stretch only non-zero values
+			float stretched_value = averaged_value * scope_gain; // Apply stretch factor
+
+			// Scale stretched value to screen coordinates
+			enhanced_y = (int)((stretched_value * f->height) / 80);
+
+			// Clip enhanced_y to grid height
+			if (enhanced_y > grid_height)
+				enhanced_y = grid_height; // Limit to grid height
+		}
+
+		// Add the spectrum line point to the path
+		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
+
+		// Fill the waterfall with the original (unchanged) y value
 		for (int k = 0; k <= 1 + (int)x_step; k++)
-			wf[k + f->width - (int)x] = (y * 100)/grid_height;
+			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
+
 		x += x_step;
 		if (f->width <= x)
 			x = f->width - 1;
 	}
 
+	// Close the path to create a filled shape
+	cairo_line_to(gfx, f->x, f->y + grid_height); // Bottom-left corner
+	cairo_close_path(gfx);
+
+	// Apply the gradient as the fill
+	cairo_set_source(gfx, gradient);
+	cairo_fill(gfx);
+
+	// Clean up the gradient
+	cairo_pattern_destroy(gradient);
+
+	// Redraw the spectrum line on top
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
+						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
 	cairo_stroke(gfx);
+
+	// Update the history buffer with the current spectrum
+	update_spectrum_history(spectrum_plot, MAX_BINS);
 
 	if (pitch >= f_spectrum->x)
 	{
@@ -2795,37 +2976,38 @@ void menu_display(int show)
 		{
 			if (show)
 			{
+
 				// NEW LAYOUT @ 3.2
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 
 				// Line 1 (screen_height - 140)
-				field_move("SET", 5, screen_height - 140, 45, 45);
-				field_move("WFMIN", 70, screen_height - 140, 45, 45);
-				field_move("TXEQ", 130, screen_height - 140, 45, 45);
-				field_move("RXEQ", 180, screen_height - 140, 45, 45);
-				field_move("NOTCH", 240, screen_height - 140, 95, 45);
-				field_move("ANR", 350, screen_height - 140, 95, 45);
-				field_move("COMP", 460, screen_height - 140, 95, 45);
-				field_move("TUNE", 570, screen_height - 140, 95, 45);
+				field_move("SET", 5, screen_height - 100, 45, 45);
+				field_move("TXEQ", 70, screen_height - 100, 45, 45);
+				field_move("RXEQ", 120, screen_height - 100, 45, 45);
+				field_move("NOTCH", 185, screen_height - 100, 95, 45);
+				field_move("ANR", 285, screen_height - 100, 45, 45);
+				field_move("COMP", 350, screen_height - 100, 45, 45);
+				field_move("TXMON", 400, screen_height - 100, 45, 45);
+				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", 680, screen_height - 140, 95, 45); // Rightmost
+					field_move("ePTT", 630, screen_height - 100, 95, 45); // Rightmost
 				}
 
 				// Line 2 (screen_height - 90)
-				field_move("TXMON", 5, screen_height - 90, 45, 45);
-				field_move("WFMAX", 70, screen_height - 90, 45, 45);
-				field_move("EQSET", 130, screen_height - 90, 95, 45);
-				field_move("NFREQ", 240, screen_height - 90, 45, 45);
-				field_move("BNDWTH", 290, screen_height - 90, 45, 45);
-				field_move("DSP", 350, screen_height - 90, 95, 45);
-				field_move("BFO", 460, screen_height - 90, 45, 45);
-				field_move("VFOLK", 510, screen_height - 90, 45, 45);
-				field_move("TNPWR", 570, screen_height - 90, 45, 45);
+				field_move("WEB", 5, screen_height - 50, 45, 45);
+				field_move("EQSET", 70, screen_height - 50, 95, 45);
+				field_move("NFREQ", 185, screen_height - 50, 45, 45);
+				field_move("BNDWTH", 235, screen_height - 50, 45, 45);
+				field_move("DSP", 285, screen_height - 50, 45, 45);
+				field_move("BFO", 350, screen_height - 50, 45, 45);
+				field_move("VFOLK", 400, screen_height - 50, 45, 45);
+				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
 
 			else
 			{
+
 				// Move the fields off-screen if not showing
 				// field_move("B0F", -1000, screen_height - 150, 45, 45);
 				// field_move("B0G", -1000, screen_height - 150, 45, 45);
@@ -2851,6 +3033,40 @@ void menu_display(int show)
 		}
 	}
 }
+
+void menu2_display(int show)
+{
+	// Start the height at -200 because the first key
+	// will bump it down by a row
+	int height = screen_height - 200;
+
+	if (show)
+	{
+
+		// Display the waveform-related controls in a new layout
+
+		// Single line (screen_height - 140)
+		field_move("WFMIN", 5, screen_height - 100, 70, 45);
+		field_move("WFMAX", 5, screen_height - 50, 70, 45);
+		field_move("WFSPD", 80, screen_height - 100, 70, 45);
+		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
+		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
+		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
+	}
+	else
+	{
+
+		// Move the fields off-screen if not showing
+		// field_move("WFMIN", -1000, screen_height - 140, 70, 45);
+		// field_move("WFMAX", -1000, screen_height - 140, 70, 45);
+		// field_move("WFSPD", -1000, screen_height - 140, 70, 45);
+		// field_move("SCOPEGAIN", -1000, screen_height - 140, 70, 45);
+		// field_move("SCOPEAVG", -1000, screen_height - 140, 70, 45); // Move SCOPEAVG off-screen
+		// field_move("SCOPESIZE", -1000, screen_height - 140, 70, 45); // Move SCOPESIZE off-screen
+	}
+}
+
 // scales the ui as per current screen width from
 // the nominal 800x480 size of the original layout
 static void layout_ui()
@@ -2863,18 +3079,24 @@ static void layout_ui()
 	y1 = 100;
 	y2 = screen_height;
 
-	// first move all the controls that are not common out of sight
+	// Define standard sizes for spectrum
+	int default_spectrum_height = scope_size; // Spectrum height
+
+	// Move controls out of view if not common
 	for (f = active_layout; f->cmd[0]; f++)
+	{
 		if (!(f->section & COMMON_CONTROL))
 		{
 			update_field(f);
 			f->y = -1000;
 			update_field(f);
 		}
+	}
 
-	// locate the kbd to the right corner
+	// Locate the keyboard
 	field_move("KBD", screen_width - 47, screen_height - 47, 45, 45);
-	// now, move the main radio controls to the right
+
+	// Main radio controls
 	field_move("FREQ", x2 - 205, 0, 180, 40);
 	field_move("AUDIO", x2 - 45, 5, 40, 40);
 	field_move("IF", x2 - 45, 50, 40, 40);
@@ -2888,34 +3110,48 @@ static void layout_ui()
 	field_move("VFO", x2 - 245, 50, 40, 40);
 	field_move("SPAN", x2 - 205, 50, 40, 40);
 
+	// Adjust for keyboard/menu
 	if (!strcmp(field_str("KBD"), "ON"))
 	{
-		// take out 3 button widths from the bottom
 		y2 = screen_height - 150;
 		keyboard_display(1);
 	}
 	else
+	{
 		keyboard_display(0);
+	}
 
-	if (!strcmp(field_str("MENU"), "ON"))
-	{ // W2JON
-		// Same area as kbd. Take out 3 button widths from the bottom
-		y2 = screen_height - 150;
+	if (!strcmp(field_str("MENU"), "1"))
+	{
+		y2 = screen_height - 105;
 		menu_display(1);
+	}
+	else if (!strcmp(field_str("MENU"), "2"))
+	{
+		y2 = screen_height - 105;
+		menu2_display(1);
 	}
 	else
 	{
 		menu_display(0);
+		menu2_display(0);
 	}
 
+	// Layout adjustments per mode
 	int m_id = mode_id(field_str("MODE"));
-	int button_width = 100;
+	int waterfall_height = 10;
 	switch (m_id)
 	{
 	case MODE_FT8:
+		// Place buttons and calculate highest Y position for FT8
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 100);
-		field_move("WATERFALL", 360, y1 + 100, x2 - 365, y2 - y1 - 155);
+		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+		if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
+		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+
+		// Place FT8-specific buttons
 		field_move("ESC", 5, y2 - 47, 40, 45);
 		field_move("F1", 50, y2 - 47, 50, 45);
 		field_move("F2", 100, y2 - 47, 50, 45);
@@ -2931,14 +3167,18 @@ static void layout_ui()
 		field_move("TX_PITCH", 600, y2 - 47, 73, 45);
 		field_move("SIDETONE", 675, y2 - 47, 73, 45);
 		break;
+
 	case MODE_CW:
 	case MODE_CWR:
+		// Place buttons and calculate highest Y position for CW
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		// field_move("SPECTRUM", 360, y1, x2-365, 100);
-		// field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 70);					// fixed
-		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed
-		// first line below the decoder/waterfall
+		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
+		if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
+		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+
+		// Place CW-specific buttons
 		y1 = y2 - 97;
 		field_move("ESC", 5, y1, 70, 45);
 		field_move("WPM", 75, y1, 75, 45);
@@ -2946,7 +3186,6 @@ static void layout_ui()
 		field_move("CW_DELAY", 225, y1, 75, 45);
 		field_move("CW_INPUT", 375, y1, 75, 45);
 		field_move("SIDETONE", 450, y1, 75, 45);
-
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
 		field_move("F2", 75, y1, 75, 45);
@@ -2959,23 +3198,28 @@ static void layout_ui()
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
 		break;
+
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_AM:
 	case MODE_NBFM:
-	case MODE_2TONE: // W9JES
+	case MODE_2TONE:
+		// Place buttons and calculate highest Y position for these modes
 		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+		if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
 			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
-			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
+			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
 		}
 		else
 		{
 			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
+			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 		}
 		y1 = y2 - 50;
 		field_move("MIC", 5, y1, 45, 45);
@@ -2987,17 +3231,20 @@ static void layout_ui()
 	case MODE_DIGITAL: // W9JES
 		// N1QM
 		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+		if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
 			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
-			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
+			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
 		}
 		else
 		{
 			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
+			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 		}
 		y1 = y2 - 50;
 		field_move("MIC", 5, y1, 45, 45);
@@ -3011,31 +3258,19 @@ static void layout_ui()
 		break;
 	default:
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-		// field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed W2JON
-		y1 = y2 - 105;
-		field_move("F1", 5, y1, 90, 45);
-		field_move("F2", 100, y1, 95, 45);
-		field_move("F3", 200, y1, 100, 45);
-		field_move("F4", 300, y1, 100, 45);
-		field_move("F5", 400, y1, 100, 45);
-		field_move("F6", 500, y1, 100, 45);
-		field_move("F7", 600, y1, 100, 45);
-		field_move("F8", 700, y1, 95, 45);
-		y1 += 50;
-		field_move("F9", 5, y1, 95, 45);
-		field_move("F10", 100, y1, 100, 45);
-		field_move("F11", 200, y1, 100, 45);
-		field_move("F12", 300, y1, 95, 45);
-		field_move("LOW", 400, y1, 50, 45);
-		field_move("HIGH", 475, y1, 50, 45);
-		field_move("PITCH", 550, y1, 50, 45);
-		field_move("SIDETONE", 600, y1, 95, 45);
+		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+		if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
+		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 		break;
 	}
+
+	// Redraw entire screen
+
 	invalidate_rect(0, 0, screen_width, screen_height);
 }
+
 void dump_ui()
 {
 	FILE *pf = fopen("main_ui.ini", "w");
@@ -3282,11 +3517,104 @@ static void focus_field_without_toggle(struct field *f)
 	}
 }
 
+struct field *get_focused_field()
+{
+	return f_focus; // Return the currently focused field
+}
+
 time_t time_sbitx()
 {
 	if (time_delta)
 		return time(NULL);
 }
+struct band *get_band_by_frequency(int frequency)
+{
+	// Iterate through the band stack to find the matching band
+	for (int i = 0; i < sizeof(band_stack) / sizeof(band_stack[0]); i++)
+	{
+		// Use the start and stop fields to define the band edges
+		if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
+		{
+			return &band_stack[i]; // Return a pointer to the matching band
+		}
+	}
+	return NULL; // Return NULL if no matching band is found
+}
+
+void apply_band_settings(long frequency)
+{
+    int new_band = -1;
+    int max_bands = sizeof(band_stack) / sizeof(struct band);
+
+    // Determine the band index based on the frequency
+    for (int i = 0; i < max_bands; i++)
+    {
+        if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
+        {
+            new_band = i;
+            break;
+        }
+    }
+
+    if (new_band != -1)
+    {
+        // Check the TUNE 
+        if (in_tx)
+        {
+            // If TUNE is ON, skip updating the band settings
+            return;
+        }
+
+        // Highlight the correct button
+        struct field *current_focus = get_focused_field(); // Get the currently focused field
+
+        for (int i = 0; i < max_bands; i++)
+        {
+            struct field *band_field = get_field_by_label(band_stack[i].name);
+
+            if (band_field)
+            {
+                if (i == new_band)
+                {
+                    // Only focus the band button if the frequency adjustment field is not focused
+                    if (current_focus && strcmp(current_focus->label, "FREQ") != 0 &&
+                        strcmp(current_focus->label, "SPECTRUM") != 0)
+                    {
+                        focus_field_without_toggle(band_field);
+                    }
+                }
+            }
+            else
+            {
+                printf("Error: Field not found for name: %s\n", band_stack[i].name);
+            }
+        }
+
+        // Set additional fields to reflect the current band
+        char buff[20];
+        sprintf(buff, "%d", new_band);
+        set_field("#selband", buff); // Notify UI about band change
+
+        sprintf(buff, "%i", band_stack[new_band].if_gain);
+        field_set("IF", buff);
+
+        sprintf(buff, "%i", band_stack[new_band].drive);
+        field_set("DRIVE", buff);
+		
+		sprintf(buff, "%i", band_stack[new_band].tnpwr);
+        field_set("TNPWR", buff);
+
+        // Call highlight_band_field for additional consistency
+        highlight_band_field(new_band);
+    }
+    else
+    {
+        // Handle frequency outside all band ranges
+        printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
+    }
+}
+
+
 
 // setting the frequency is complicated by having to take care of the
 // rit/split and power levels associated with each frequency
@@ -3300,6 +3628,10 @@ void set_operating_freq(int dial_freq, char *response)
 
 	char freq_request[30];
 
+	// Apply band settings based on the dial frequency
+	apply_band_settings(dial_freq);
+
+	// Construct the frequency request string
 	if (!strcmp(rit->value, "ON"))
 	{
 		if (!in_tx)
@@ -3315,9 +3647,11 @@ void set_operating_freq(int dial_freq, char *response)
 			sprintf(freq_request, "r1:freq=%d", dial_freq);
 	}
 	else
+	{
 		sprintf(freq_request, "r1:freq=%d", dial_freq);
+	}
 
-	// get back to setting the frequency
+	// Send the SDR frequency request
 	sdr_request(freq_request, response);
 }
 
@@ -3708,7 +4042,6 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 
 	static struct timespec last_change_time, this_change_time;
-
 	int v = atoi(f->value);
 	int temp_tuning_step = tuning_step;
 
@@ -4003,7 +4336,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 		int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
 		int offset = f->width / 2 - width / 2;
-		int label_y = f->y + ((f->height - font_table[FONT_FIELD_LABEL].height - 5 - font_table[FONT_FIELD_VALUE].height) / 2);
+		int label_y = f->y + ((f->height - font_table[FONT_FIELD_LABEL].height - font_table[FONT_FIELD_VALUE].height) / 2);
 		draw_text(gfx, f->x + offset, label_y, f->label, FONT_FIELD_LABEL);
 
 		char duration[12];
@@ -4199,7 +4532,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	int is_rx = 0;
 	int band = get_band_and_eq_type_from_label(f->label, &is_rx); // Determine band and TX/RX
 	int v = atoi(f->value);
-	printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
+	//printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
 
 	if (event == FIELD_EDIT)
 	{
@@ -4337,6 +4670,33 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	{
 		wf_max = (float)field_value / 100;
 	}
+	else if (strcmp(field_name, "WFSPD") == 0)
+	{
+		wf_spd = 170 - field_value; // Invert the value for WFSPD
+	}
+	else if (strcmp(field_name, "SCOPEGAIN") == 0)
+	{
+		scope_gain = 1.0f + (atoi(field_value_str) - 1) * 0.1f; // Map 1-50 to 1.0-5.0
+	}
+	else if (strcmp(field_name, "SCOPEAVG") == 0) // Add SCOPEAVG handling
+	{
+		scope_avg = field_value;
+	}
+	else if (strcmp(field_name, "SCOPESIZE") == 0)
+	{
+		int new_scope_size = atoi(field_value_str); // Get the new value
+
+		if (new_scope_size != scope_size) // Check if the value has changed
+		{
+			scope_size = new_scope_size; // Update the global variable
+			layout_needs_refresh = true; // Mark layout for update
+		}
+	}
+	else if (strcmp(field_name, "INTENSITY") == 0)
+	{
+	    scope_alpha_plus = (float)field_value / 10.0 * 1.2 - 0.3; // Map 1-10 to -0.3 to +0.9
+	}
+
 	return 0;
 }
 
@@ -4457,7 +4817,7 @@ void tx_on(int trigger)
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		printf("TX\n");
+		//printf("TX\n");
 		//	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 		//	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
@@ -4609,7 +4969,7 @@ void tx_off()
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		printf("RX\n");
+		//printf("RX\n");
 	}
 	sound_input(0); // it is a low overhead call, might as well be sure
 }
@@ -4619,7 +4979,7 @@ static int layout_handler(void *user, const char *section,
 {
 	// the section is the field's name
 
-	printf("setting %s:%s to %d\n", section, name, atoi(value));
+	//printf("setting %s:%s to %d\n", section, name, atoi(value));
 	struct field *f = get_field(section);
 	if (!strcmp(name, "x"))
 		f->x = atoi(value);
@@ -5512,7 +5872,7 @@ void set_radio_mode(char *mode)
 	char umode[10], request[100], response[100];
 	int i;
 
-	printf("Mode: %s\n", mode);
+	//printf("Mode: %s\n", mode);
 	for (i = 0; i < sizeof(umode) - 1 && *mode; i++)
 		umode[i] = toupper(*mode++);
 	umode[i] = 0;
@@ -5584,7 +5944,9 @@ void handleButton1Press()
 			{
 				// Long press detected
 				menuVisible = !menuVisible;
-				field_set("MENU", menuVisible ? "ON" : "OFF");
+				field_set("MENU", menuVisible == 1 ? "1" : menuVisible == 2 ? "2"
+																			: "OFF");
+
 				// Wait for the button release to avoid immediate short press detection
 				while (digitalRead(ENC1_SW) == 0)
 				{
@@ -5639,7 +6001,7 @@ void handleButton2Press()
 				// Long press detected - Enable/Disable VFO lock
 				vfoLock = !vfoLock;
 				field_set("VFOLK", vfoLock ? "ON" : "OFF");
-				printf("VFOLock: %d\n", vfoLock);
+				//printf("VFOLock: %d\n", vfoLock);
 
 				if (vfoLock == 1)
 				{
@@ -5736,27 +6098,54 @@ gboolean ui_tick(gpointer gook)
 		// write_console(FONT_LOG, message);
 	}
 
-	if (ticks % 20 == 0)
-	{
+  // every 20 ticks call modem_poll to see if any modes need work done
+  if (ticks % 20 == 0)
+    modem_poll(mode_id(get_field("r1:mode")->value));
+  else {
+    // calling modem_poll every 20 ticks isn't enough to keep up with a fast
+    // straight key, so now we go on _every_ tick in MODE_CW or MODE_CWR
+    if ((mode_id(get_field("r1:mode")->value)) == MODE_CW || 
+	    (mode_id(get_field("r1:mode")->value)) == MODE_CWR)
 		modem_poll(mode_id(get_field("r1:mode")->value));
-	}
+  }
 
 	int tick_count = 100;
+
 	switch (mode_id(field_str("MODE")))
 	{
 	case MODE_CW:
 	case MODE_CWR:
-		tick_count = 50;
+		tick_count = wf_spd; // Use wf_spd for CW and CWR modes
 		break;
+
 	case MODE_FT8:
-		tick_count = 200;
+		if (wf_spd < 50)
+		{
+			tick_count = 50; // Ensure tick_count is at least 50 if wf_spd is too low
+		}
+		else
+		{
+			tick_count = wf_spd; // Use wf_spd as tick_count otherwise
+		}
 		break;
+
 	case MODE_AM:
-		tick_count = 50;
+		tick_count = wf_spd; // Use wf_spd for AM mode
 		break;
+
 	default:
-		// tick_count = 100;
-		tick_count = 50;
+		tick_count = wf_spd; // Default to wf_spd
+		break;
+	}
+
+	// Ensure tick_count is within reasonable bounds
+	if (tick_count < 1)
+	{
+		tick_count = 1; // Minimum tick_count to avoid division by zero or overly frequent updates
+	}
+	else if (tick_count > 500)
+	{
+		tick_count = 500; // Arbitrary maximum to prevent too infrequent updates
 	}
 	if (ticks >= tick_count)
 	{
@@ -5773,7 +6162,11 @@ gboolean ui_tick(gpointer gook)
 			sprintf(buff, "%d", vswr);
 			set_field("#vswr", buff);
 		}
-
+		if (layout_needs_refresh)
+		{
+			layout_ui();
+			layout_needs_refresh = false; // Reset the flag
+		}
 		struct field *f = get_field("spectrum");
 		update_field(f); // move this each time the spectrum watefall index is moved
 		f = get_field("waterfall");
@@ -6060,6 +6453,8 @@ void change_band(char *request)
 	field_set("IF", buff);
 	sprintf(buff, "%i", band_stack[new_band].drive);
 	field_set("DRIVE", buff);
+	sprintf(buff, "%i", band_stack[new_band].tnpwr);
+	field_set("TNPWR", buff);
 
 	settings_updated++;
 }
@@ -6164,6 +6559,8 @@ void meter_calibrate()
 }
 
 bool tune_on_invoked = false; // Set initial state of TUNE
+time_t tune_on_start_time;
+int tune_duration; 
 
 void do_control_action(char *cmd)
 {
@@ -6184,19 +6581,41 @@ void do_control_action(char *cmd)
 		save_user_settings(1);
 		exit(0);
 	}
-	// GLG TUNE for TUNE button modified - W9JES, W2JON
+	// TUNE button modified - W9JES
 	else if (!strcmp(request, "TUNE ON"))
 	{
 		struct field *tnpwr_field = get_field("#tune_power"); // Obtain value of tune power
 		int tunepower = atoi(tnpwr_field->value);
-		printf("TUNE ON command received with power level: %d.\n", tunepower);
+
+		// Obtain value of tune duration
+		struct field *tndur_field = get_field("#tune_duration"); // Obtain value of tune duration
+		if (tndur_field != NULL) 
+		{
+		tune_duration = atoi(tndur_field->value); // Convert to integer
+		if (tune_duration <= 0) 
+			{
+				//printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
+				return; // Exit if the tune duration is not valid
+			}
+		} 
+		else 
+		{
+			//printf("Tune duration field not found. Aborting TUNE ON.\n");
+			return; // Exit if the field is missing
+		}
+
+		//printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
+
 		tune_on_invoked = true;
+		tune_on_start_time = time(NULL); // Record the current time
+
 		get_field_value_by_label("MODE", modestore);
 		get_field_value_by_label("DRIVE", powerstore);
 
 		char tn_power_command[50];
-		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); //  create TNPWR string
-		sdr_request(tn_power_command, response);										//  send TX with power level from TNPWR
+		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
+		sdr_request(tn_power_command, response); // Send TX with power level from tune power
+    
 		sdr_request("r1:mode=TUNE", response);
 		delay(100);
 		tx_on(TX_SOFT);
@@ -6205,14 +6624,35 @@ void do_control_action(char *cmd)
 	{
 		if (tune_on_invoked)
 		{
-			printf("TUNE OFF command received.\n");
+			//printf("TUNE OFF command received.\n");
+			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
+			abort_tx(); // added to terminate tune duration - W9JES
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
-			tune_on_invoked = false;
 		}
 	}
+	// Automatic turn-off check (this should be called periodically)
+	if (tune_on_invoked)
+	{
+		time_t current_time = time(NULL);
 
+		// Check if the tune duration has elapsed
+		if (difftime(current_time, tune_on_start_time) >= tune_duration) 
+		{
+			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
+			//printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
+
+			// Perform TUNE OFF actions safely
+			do_control_action("RX");
+			field_set("TUNE", "OFF");
+			//if (modestore != NULL) // Check for null before accessing or modifying
+				field_set("MODE", modestore);
+
+			//if (powerstore != NULL) // Check for null before accessing or modifying
+				field_set("DRIVE", powerstore);
+		}
+	}
 	else if (!strcmp(request, "EQSET"))
 	{
 		eq_ui(window);
@@ -6300,7 +6740,11 @@ void do_control_action(char *cmd)
 	{
 		layout_ui();
 	}
-	else if (!strcmp(request, "MENU ON"))
+	else if (!strcmp(request, "MENU 1"))
+	{
+		layout_ui();
+	}
+	else if (!strcmp(request, "MENU 2"))
 	{
 		layout_ui();
 	}
@@ -6413,6 +6857,14 @@ void do_control_action(char *cmd)
 			char ti[4];
 			strncpy(ti, request + 6, 3);
 			band_stack[atoi(get_field_by_label("SELBAND")->value)].drive = atoi(ti);
+			settings_updated++;
+		}
+		if (!strncmp(request, "TNPWR ", 6))
+		{
+			// Update band stack info of current band with new Tune Power value - W9JES
+			char ti[4];
+			strncpy(ti, request + 6, 3);
+			band_stack[atoi(get_field_by_label("SELBAND")->value)].tnpwr = atoi(ti);
 			settings_updated++;
 		}
 
@@ -6995,7 +7447,7 @@ int main(int argc, char *argv[])
 	write_console(FONT_LOG, VER_STR);
 	write_console(FONT_LOG, "\r\nEnter \\help for help\r\n");
 
-	if (strcmp(get_field("#mycallsign")->value, "NOBODY"))
+	if (strcmp(get_field("#mycallsign")->value, "N0CALL"))
 	{
 		sprintf(buff, "\nWelcome %s your grid is %s\n",
 				get_field("#mycallsign")->value, get_field("#mygrid")->value);
