@@ -2,7 +2,7 @@
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64 bit Raspberry Pi image that can be downloaded here.
 
-We have an incredible devepment team collaborating on improvements for the sBitx platform. JJ - W9JES, Jon - W2JON, Alan - N1QM, Lars - OZ7BX, William - W4WHL, and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
+We have an incredible devepment team collaborating on improvements for the sBitx platform. JJ - W9JES, Jon - W2JON, Alan - N1QM, Lars - OZ7BX, Lee - W4WHL, and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
 The files here are to designed to work on the modified, 64 bit version provided in the [Releases](https://github.com/drexjj/sbitx/releases) section.
 
