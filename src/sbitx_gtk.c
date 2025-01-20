@@ -571,7 +571,7 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", NULL, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
