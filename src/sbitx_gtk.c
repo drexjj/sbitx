@@ -66,6 +66,7 @@ int eptt_enabled = 0;
 int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
+int has_ina260 = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -113,6 +114,14 @@ char pins[15] = {0, 2, 3, 6, 7,
 // time sync, when the NTP time is not synced, this tracks the number of seconds
 // between the system cloc and the actual time set by \utc command
 static long time_delta = 0;
+
+// INA260 I2C Address and Register Definitions
+#define INA260_ADDRESS 0x40
+#define CONFIG_REGISTER 0x00
+#define VOLTAGE_REGISTER 0x02
+#define CURRENT_REGISTER 0x01
+#define CONFIG_DEFAULT  0x6127 // Default INA260 configuration: Continuous mode, averages, etc.
+float voltage = 0.0f, current = 0.0f;
 
 // mouse/touch screen state
 static int mouse_down = 0;
@@ -571,7 +580,7 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#tune", NULL, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -791,6 +800,10 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 	// ePTT Enable/Bypass Control
 	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	
+	// INA260 Option ON/OFF (enable/disable sensor readout)
+	{"#ina260_option", do_toggle_option, 1000, -1000, 40, 40, "INA260OPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
@@ -3770,9 +3783,17 @@ void update_titlebar()
 	time_t now = time_sbitx();
 	struct tm *tmp = gmtime(&now);
 	//	sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",
+	if (has_ina260 == 1)
+	{
+	sprintf(buff, "BATT: %.2fV / %.2fA  %s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
+			voltage, current, VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
+			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+	}else{
 	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
 			VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
-			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);	
+	}	
+	
 	gtk_window_set_title(GTK_WINDOW(window), buff);
 }
 
@@ -4836,7 +4857,19 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
-
+	struct field *ina260_stat = get_field("#ina260_option");
+	if (ina260_stat)
+	{
+		if (!strcmp(ina260_stat->value, "ON"))
+		{
+			has_ina260 = 1;
+		}
+		else if (!strcmp(ina260_stat->value, "OFF"))
+		{
+			has_ina260 = 0;
+		}
+	}
+	
 	if (eq_stat)
 	{
 		if (!strcmp(eq_stat->value, "ON"))
@@ -5555,6 +5588,91 @@ void rtc_sync()
 			  t_utc->tm_hour, t_utc->tm_min, t_utc->tm_sec);
 }
 
+// Function to configure the INA260
+void configure_ina260() {
+    uint8_t config_data[2] = {
+        (uint8_t)(CONFIG_DEFAULT >> 8), // MSB
+        (uint8_t)(CONFIG_DEFAULT & 0xFF) // LSB
+    };
+    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CONFIG_REGISTER, 2, config_data) < 0) {
+        printf("Error configuring INA260\n");
+		field_set("INA260OPT", "OFF");
+
+    } else {
+        printf("INA260 configured successfully\n");
+		field_set("INA260OPT", "ON");
+    }
+}
+
+// Function to read optional INA260 voltage and current sensor
+void read_voltage_current(float *voltage, float *current) {
+    uint8_t data_buffer[2]; // Buffer to hold raw register data
+
+    // Explicitly set the register pointer to the voltage register
+    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 0, NULL) < 0) {
+        printf("Error setting voltage register pointer\n");
+        *voltage = 0.0f;
+        *current = 0.0f;
+        return;
+    }
+
+    // Read the voltage register (2 bytes)
+    int e = i2cbb_read_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 2, data_buffer);
+    if (e != 2) {
+        printf("Error reading voltage register\n");
+        *voltage = 0.0f;
+        *current = 0.0f;
+        return;
+    }
+    uint16_t raw_voltage = (data_buffer[0] << 8) | data_buffer[1];
+    //printf("Raw Voltage: 0x%04X\n", raw_voltage); // Debugging
+    *voltage = raw_voltage * 1.25e-3f; // Convert to volts (1.25 mV per LSB)
+
+    // Explicitly set the register pointer to the current register
+    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 0, NULL) < 0) {
+        printf("Error setting current register pointer\n");
+        *voltage = 0.0f;
+        *current = 0.0f;
+        return;
+    }
+
+    // Read the current register (2 bytes)
+    e = i2cbb_read_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 2, data_buffer);
+    if (e != 2) {
+        printf("Error reading current register\n");
+        *voltage = 0.0f;
+        *current = 0.0f;
+        return;
+    }
+    uint16_t raw_current = (data_buffer[0] << 8) | data_buffer[1];
+    //printf("Raw Current: 0x%04X\n", raw_current); // Debugging
+
+    // Handle saturation or invalid value
+    if (raw_current == 0xFFFF) {
+        printf("Current measurement out of range or invalid\n");
+        *current = 0.0f;
+    } else {
+        *current = raw_current * 1.25e-3f; // Convert to amps (1.25 mA per LSB)
+    }
+}
+
+void check_read_ina260_cadence(float *voltage, float *current) {
+    static time_t last_time = 0;  // Keep track of the last time the voltage/current was read
+    time_t current_time;
+    
+    // Get the current time in seconds
+    current_time = time(NULL);
+    
+    // Check if 1 second has passed since the last check
+    if (current_time - last_time >= 1) {
+        // 1 second has passed, read the voltage and current
+        read_voltage_current(voltage, current);
+        
+        // Update the last_time to the current time
+        last_time = current_time;
+    }
+}
+
 int key_poll()
 {
 	int key = CW_IDLE;
@@ -6230,6 +6348,9 @@ gboolean ui_tick(gpointer gook)
 			GdkCursor *new_cursor;
 			new_cursor = gdk_cursor_new_for_display(gdk_display_get_default(), cursor_type);
 			gdk_window_set_cursor(gdk_get_default_root_window(), new_cursor);
+		}
+		if (has_ina260 == 1){
+		check_read_ina260_cadence(&voltage,&current);
 		}
 
 		ticks = 0;
@@ -7465,6 +7586,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
+	
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
 
@@ -7481,6 +7603,17 @@ int main(int argc, char *argv[])
 	initialize_hamlib();
 	remote_start();
 	rtc_read();
+
+    // Configure the INA260
+    configure_ina260();
+
+    // Read voltage and current
+    // read_voltage_current(&voltage, &current);
+
+    // Print the results
+    // printf("Voltage: %.3f V\n", voltage);
+    // printf("Current: %.3f A\n", current);
+
 
 	// test to pass values to eq
 	//   modify_eq_band_frequency(&tx_eq, 3, 1505.0);
