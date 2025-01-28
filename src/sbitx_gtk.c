@@ -152,7 +152,7 @@ float palette[][3] = {
 	{0, 1, 1},		 // COLOR_TEXT
 	{0.5, 0.5, 0.5}, // COLOR_TEXT_MUTED
 	{1, 1, 0},		 // COLOR_SELECTED_BOX
-	{0, 0, 0},		 // COLOR_BACKGROUND
+	{0.1, 0.1, 0.1},		 // COLOR_BACKGROUND
 	{1, 1, 0},		 // COLOR_FREQ
 	{1, 0, 1},		 // COLOR_LABEL
 	// spectrum
@@ -160,11 +160,11 @@ float palette[][3] = {
 	{0.1, 0.1, 0.1}, // SPECTRUM_GRID
 	{1, 1, 0},		 // SPECTRUM_PLOT
 	{0.2, 0.2, 0.2}, // SPECTRUM_NEEDLE
-	{0.5, 0.5, 0.5}, // COLOR_CONTROL_BOX
+	{0, 0, 0}, // COLOR_CONTROL_BOX
 	{0.2, 0.2, 0.2}, // SPECTRUM_BANDWIDTH
 	{0, 1, 0},		 // COLOR_RX__PITCH
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
-	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
+	{1, 1, 1}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
 };
 
@@ -187,8 +187,8 @@ struct font_style
 guint key_modifier = 0;
 
 struct font_style font_table[] = {
-	{FONT_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FONT_FIELD_LABEL, 0, 1, 1, "Mono", 12, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FONT_FIELD_VALUE, 1, 1, 1, "Mono", 12, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_LARGE_VALUE, 1, 1, 1, "Arial", 24, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FONT_SMALL, 0, 1, 1, "Mono", 10, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -361,6 +361,41 @@ static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry)
 		}
 		p++;
 	}
+}
+
+static void fill_round_rect(cairo_t *gfx, int x, int y, int w, int h, int r, int color) {
+	double degrees = M_PI / 180.0;
+
+	cairo_save(gfx);
+	cairo_set_source_rgb(gfx, palette[color][0], palette[color][1], palette[color][2]);
+
+	x-=1;y-=1;w-=2;h-=2;
+	cairo_move_to(gfx, x+4, y); // x, y position
+	cairo_arc(gfx, x+w-r, y+r, r, -90 * degrees, 0 * degrees);
+        cairo_arc(gfx, x+w-r, y+h-r, r, 0 * degrees, 90 * degrees);
+        cairo_arc(gfx, x+r, y+h-r, r, 90 * degrees, 180 * degrees);
+        cairo_arc(gfx, x+r, y+r, r, 180 * degrees, 270 * degrees);
+	cairo_close_path(gfx);
+	cairo_fill(gfx);
+	cairo_restore(gfx);
+}
+
+static void draw_round_rect(cairo_t *gfx, int x, int y, int w, int h, int r, int color) {
+	double degrees = M_PI / 180.0;
+
+	cairo_save(gfx);
+	cairo_set_source_rgb(gfx, palette[color][0], palette[color][1], palette[color][2]);
+	cairo_set_line_width(gfx, 1);
+	x-=1;y-=1;w-=2;h-=2;
+
+	cairo_move_to(gfx, x+4, y); // x, y position
+	cairo_arc(gfx, x+w-r, y+r, r, -90 * degrees, 0 * degrees);
+        cairo_arc(gfx, x+w-r, y+h-r, r, 0 * degrees, 90 * degrees);
+        cairo_arc(gfx, x+r, y+h-r, r, 90 * degrees, 180 * degrees);
+        cairo_arc(gfx, x+r, y+r, r, 180 * degrees, 270 * degrees);
+	cairo_close_path(gfx);
+	cairo_stroke(gfx);
+	cairo_restore(gfx);
 }
 
 static void fill_rect(cairo_t *gfx, int x, int y, int w, int h, int color)
@@ -1496,17 +1531,24 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 		}
 	}
 
-	if (f_focus == f)
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
+	// if (f_focus == f)
+	//	fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
+	// else
+	if (f->value_type == FIELD_STATIC)
+		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 	else
+		fill_round_rect(gfx, f->x, f->y, f->width, f->height, 4, COLOR_CONTROL_BOX);
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 	if (f_focus == f)
-		rect(gfx, f->x, f->y, f->width - 1, f->height, SELECTED_LINE, 2);
-	else if (f_hover == f)
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 1);
-	else if (f->value_type != FIELD_STATIC)
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
-
+	//	rect(gfx, f->x, f->y, f->width - 1, f->height, SELECTED_LINE, 2);
+	// else if (f_hover == f)
+	//	rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 1);
+	// else if (f->value_type != FIELD_STATIC)
+	//	rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+		draw_round_rect(gfx, f->x, f->y, f->width - 1, f->height, 4, COLOR_FIELD_SELECTED);
+	else
+		draw_round_rect(gfx, f->x, f->y, f->width - 1, f->height, 4, COLOR_CONTROL_BOX);
+	
 	int width, offset_x, text_length, line_start, y, label_height,
 		value_height, value_font, label_font;
 	char this_line[MAX_FIELD_LENGTH];
