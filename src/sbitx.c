@@ -39,17 +39,20 @@ FILE *pf_debug = NULL;
 // unsigned int	wallclock = 0;
 
 #define TX_LINE 4
+#define RX_LINE 16
 #define TX_POWER 27
 #define BAND_SELECT 5
 #define LPF_A 5
 #define LPF_B 6
 #define LPF_C 10
 #define LPF_D 11
+#define LPF_E 26
 
 #define SBITX_DE (0)
 #define SBITX_V2 (1)
+#define SBITX_V4 (4)
 
-int sbitx_version = SBITX_V2;
+int sbitx_version = -1
 int fwdpower, vswr;
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -459,10 +462,12 @@ void set_lpf_40mhz(int frequency)
 	digitalWrite(LPF_B, LOW);
 	digitalWrite(LPF_C, LOW);
 	digitalWrite(LPF_D, LOW);
+	digitalWrite(LPF_E, LOW);
 
 #if DEBUG > 0
 	printf("################ setting %d high\n", lpf);
 #endif
+	printf("lpf = %d\n", lpf);
 	digitalWrite(lpf, HIGH);
 	prev_lpf = lpf;
 }
@@ -473,7 +478,9 @@ void set_rx1(int frequency)
 		return;
 	radio_tune_to(frequency);
 	freq_hdr = frequency;
-	set_lpf_40mhz(frequency);
+	// set_lpf_40mhz(frequency);
+	if (sbitx_version < 4)
+	    set_lpf_40mhz(frequency);
 }
 
 void set_volume(double v)
@@ -1556,6 +1563,8 @@ static int hw_settings_handler(void *user, const char *section,
 			si5351_set_calibration(atoi(value));
 		}
 	}
+	if(!strcmp(name, "hw"))
+	    sbitx_version = atoi(value);
 }
 
 static void read_hw_ini()
@@ -1714,6 +1723,16 @@ void tr_switch_de(int tx_on) {
 
 void tr_switch_v2(int tx_on) {
   // function replaced by tr_switch, should never be called
+	switch(sbitx_version){
+	case SBITX_DE:
+		tr_switch(tx_on);
+		break;
+	case SBITX_V4:
+		tr_switch_v4(tx_on);
+		break;
+	default:
+		tr_switch(tx_on);
+	}
 }
 
 // transmit-receive switch for both sbitx DE and V2 and newer
@@ -1749,6 +1768,68 @@ void tr_switch(int tx_on) {
   }
 }
 
+void tr_switch_v4(int tx_on) {
+	printf("tr_switch_v4(%d)\n", tx_on);
+	if (tx_on)
+	{
+		digitalWrite(RX_LINE, LOW);
+		// first turn off the LPFs, so PA doesnt connect
+		digitalWrite(LPF_A, LOW);
+		digitalWrite(LPF_B, LOW);
+		digitalWrite(LPF_C, LOW);
+		digitalWrite(LPF_D, LOW);
+		digitalWrite(LPF_E, LOW);
+
+		// mute it all and hang on for a millisecond
+		sound_mixer(audio_card, "Master", 0);
+		sound_mixer(audio_card, "Capture", 0);
+
+		// now switch of the signal back
+		// now ramp up after 5 msecs
+		mute_count = 20;
+		tx_process_restart = 1;
+
+		delay(20);
+		set_tx_power_levels();
+		in_tx = 1;
+		prev_lpf = -1; // force this
+		set_lpf_40mhz(freq_hdr);
+		delay(10);
+		spectrum_reset();
+		digitalWrite(TX_LINE, HIGH);
+	}
+	else
+	{
+		digitalWrite(TX_LINE, LOW);
+		in_tx = 0;
+		// mute it all and hang on
+		sound_mixer(audio_card, "Master", 0);
+		sound_mixer(audio_card, "Capture", 0);
+		delay(1);
+		fft_reset_m_bins();
+		mute_count = MUTE_MAX;
+
+		digitalWrite(LPF_A, LOW);
+		digitalWrite(LPF_B, LOW);
+		digitalWrite(LPF_C, LOW);
+		digitalWrite(LPF_D, LOW);
+		digitalWrite(LPF_E, LOW);
+		prev_lpf = -1; // force the lpf to be re-energized
+		delay(10);
+		// power down the PA chain to null any gain
+
+		// audio codec is back on
+		check_r1_volume();	 // added to set volume after tx -W2JON
+		initialize_rx_vol(); // added to set volume after tx -W2JON
+		sound_mixer(audio_card, "Master", rx_vol);
+		sound_mixer(audio_card, "Capture", rx_gain);
+		spectrum_reset();
+		prev_lpf = -1;
+		// rx_tx_ramp = 10;
+		digitalWrite(RX_LINE, HIGH);
+	}
+}
+
 /*
 This is the one-time initialization code
 */
@@ -1763,6 +1844,7 @@ void setup()
 	pinMode(TX_LINE, OUTPUT);
 	pinMode(TX_POWER, OUTPUT);
 	pinMode(EXT_PTT, OUTPUT); // ADDED BY KF7YDU
+	pinMode(RX_LINE, OUTPUT);
 	pinMode(LPF_A, OUTPUT);
 	pinMode(LPF_B, OUTPUT);
 	pinMode(LPF_C, OUTPUT);
@@ -1771,11 +1853,12 @@ void setup()
 	digitalWrite(LPF_B, LOW);
 	digitalWrite(LPF_C, LOW);
 	digitalWrite(LPF_D, LOW);
+	digitalWrite(LPF_E, LOW);
 
 	// ADDED BY KF7YDU - initialize ext_ptt to low at startup
 	digitalWrite(EXT_PTT, LOW);
-
 	digitalWrite(TX_LINE, LOW);
+	digitalWrite(RX_LINE, HIGH);
 	digitalWrite(TX_POWER, LOW);
 
 	fft_init();
@@ -1792,12 +1875,19 @@ void setup()
 	tx_init(7000000, MODE_LSB, -3000, -150);
 
 	// detect the version of sbitx
-	uint8_t response[4];
-	if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
-		sbitx_version = SBITX_DE;
-	else
-		sbitx_version = SBITX_V2;
+	// uint8_t response[4];
+	// if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
+	//	sbitx_version = SBITX_DE;
+	// else
+	//	sbitx_version = SBITX_V2;
 
+	if (sbitx_version == -1){
+		uint8_t response[4];
+		if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
+			sbitx_version = SBITX_DE;
+		else
+			sbitx_version = SBITX_V2;
+	}
 	setup_audio_codec();
 	sound_thread_start("plughw:0,0");
 
