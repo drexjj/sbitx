@@ -1,3 +1,14 @@
+v4.3 - 
+- Added Menus for additional functions
+- Added Waterfall Speed Control (WFSPD)
+- Added Adjustable bandscope controls: ScopeGain, ScopeAvg, ScopeSize, & Intensity
+- Added Tune Duration (TNDUR) adjustable from 2-30 seconds with a cancel function "press TUNE to cancel the tuning function"
+- Added Tune Power level set/recall per band
+- Added colorized bandscope to Web interface
+- Fixed ePTT control in Web interface
+- Arranged buttons on the main screen and menu screens
+- Improved CW mode polling for internal keyer and external keyers (Thanks KB2ML)
+
 v4.2 - 
 - Added support for multiple hamlib connections
 - Added Independent Waterfall gain intensity adjustment control (WFMIN, WFMAX)
@@ -6,12 +17,12 @@ v4.2 -
 - Changed QRO button indicator to ePTT (external PTT trigger) and command to \epttopt on|off
 - Rewrote DSP & ANR Audio Filters
 
-V4.12 - 
+v4.12 - 
 - Re-added sidetone volume adjustment for digi mode
 - Fixed onfFout initialization error
 - Removed unneeded "b" flag to fopen()
 
-V4.11 - 
+v4.11 - 
 - Fixed QRO function delay
 
 v4.1 -
