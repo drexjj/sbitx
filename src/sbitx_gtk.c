@@ -2669,6 +2669,13 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// Begin a new path for the filled spectrum
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
 
+	// We want the baseline of the spectrum always to be visible at the bottom
+	// of the graph.
+	// We calculate on the fly the lowest avg value and we adjust incrementally a floating offset
+	float sp_baseline = averaged_spectrum[starting_bin];
+	static float sp_baseline_offs = 0.0;
+
+
 	for (int i = starting_bin; i <= ending_bin; i++)
 	{
 		int y;
@@ -2683,20 +2690,27 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		if (y > f->height)
 			y = f->height - 1;
 
-		// Apply stretch factor to the averaged spectrum plot
+		// Apply stretch factor and floating offset to the averaged spectrum plot
 		int enhanced_y = y;												// Start with the original y
-		float averaged_value = averaged_spectrum[i] + waterfall_offset; // Use averaged data
-		if (averaged_value > 0)
-		{														 // Stretch only non-zero values
-			float stretched_value = averaged_value * scope_gain; // Apply stretch factor
+		float averaged_value = averaged_spectrum[i] - sp_baseline_offs; // Use averaged data
 
-			// Scale stretched value to screen coordinates
-			enhanced_y = (int)((stretched_value * f->height) / 80);
+		// Store the lowest value
+		if (sp_baseline > averaged_value)
+			sp_baseline = averaged_value;
 
-			// Clip enhanced_y to grid height
-			if (enhanced_y > grid_height)
-				enhanced_y = grid_height; // Limit to grid height
-		}
+
+		float stretched_value = averaged_value * scope_gain; // Apply stretch factor
+
+		// Scale stretched value to screen coordinates
+		enhanced_y = (int)((stretched_value * f->height) / 80 + 7);
+
+		// Clip enhanced_y to grid height
+		if (enhanced_y > grid_height)
+			enhanced_y = grid_height; // Limit to grid height
+
+		// Clip enhanced_y to zero
+		if (enhanced_y < 0)
+			enhanced_y = 0;
 
 		// Add the spectrum line point to the path
 		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
@@ -2709,6 +2723,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		if (f->width <= x)
 			x = f->width - 1;
 	}
+
+	// We adjust slowly the baseline offset, to keep it smoothly stable where we want it in the graph
+	sp_baseline_offs -= (sp_baseline_offs - sp_baseline) / 5;
 
 	// Close the path to create a filled shape
 	cairo_line_to(gfx, f->x, f->y + grid_height); // Bottom-left corner
