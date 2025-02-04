@@ -7209,6 +7209,7 @@ void cmd_exec(char *cmd)
 		{
 			set_ui(LAYOUT_MACROS);
 			set_field("#current_macro", args);
+			layout_needs_refresh = true; // Fixed Macro Load Screen Characters W9JES
 		}
 		else if (strlen(get_field("#current_macro")->value))
 		{
