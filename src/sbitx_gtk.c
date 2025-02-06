@@ -752,6 +752,8 @@ struct field main_controls[] = {
 	 "", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
+	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-OFF", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, 0, COMMON_CONTROL},
 
 	// EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
@@ -1839,6 +1841,35 @@ static int user_settings_handler(void *user, const char *section,
 	}
 	return 1;
 }
+
+// Prompt user to confirm Power shutdown
+static void on_shutdown_button_click(GtkWidget *widget, gpointer data) {
+    GtkWidget *parent_window = (GtkWidget *)data;
+    
+    if (!parent_window) {
+        parent_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    }
+
+    // Create confirmation dialog
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(parent_window),
+                                               GTK_DIALOG_MODAL,
+                                               GTK_MESSAGE_WARNING,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Are you sure you want to shut down?");
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    // Proceed with shutdown only if "Yes" is clicked
+    if (response == GTK_RESPONSE_YES) {
+        system("sudo /sbin/shutdown -h now");
+    }
+
+    // Destroy the temporary window if it was created
+    if (!data) {
+        gtk_widget_destroy(parent_window);
+    }
+}
+
 /* rendering of the fields */
 
 // mod disiplay holds the tx modulation time domain envelope
@@ -3066,6 +3097,7 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
+		field_move("PWR-OFF", 700, screen_height - 100, 95, 45); // Add PWR-OFF field
 	}
 	else
 	{
@@ -6782,6 +6814,10 @@ void do_control_action(char *cmd)
 	{
 		settings_ui(window);
 	}
+	else if (!strcmp(request, "PWR-OFF"))
+	{
+		on_shutdown_button_click(NULL, NULL);
+	}
 	else if (!strcmp(request, "LOG"))
 	{
 		logbook_list_open();
@@ -7032,7 +7068,6 @@ void do_control_action(char *cmd)
 		}
 	}
 }
-
 int get_ft8_callsign(const char *message, char *other_callsign)
 {
 	int i = 0, j = 0, m = 0, len, cur_field = 0;
@@ -7480,7 +7515,6 @@ void get_print_and_set_values(GtkWidget *freq_sliders[], GtkWidget *gain_sliders
 		}
 	}
 }
-
 int main(int argc, char *argv[])
 {
 
