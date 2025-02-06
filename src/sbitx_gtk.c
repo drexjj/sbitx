@@ -752,7 +752,7 @@ struct field main_controls[] = {
 	 "", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
-	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-OFF", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
 
 	// EQ TX Audio Setting Controls
@@ -1842,8 +1842,8 @@ static int user_settings_handler(void *user, const char *section,
 	return 1;
 }
 
-// Prompt user to confirm Power shutdown
-static void on_shutdown_button_click(GtkWidget *widget, gpointer data) {
+// Function to shut down with PWR-DWN button on Menu 2
+static void on_power_down_button_click(GtkWidget *widget, gpointer data) {
     GtkWidget *parent_window = (GtkWidget *)data;
     
     if (!parent_window) {
@@ -1855,20 +1855,46 @@ static void on_shutdown_button_click(GtkWidget *widget, gpointer data) {
                                                GTK_DIALOG_MODAL,
                                                GTK_MESSAGE_WARNING,
                                                GTK_BUTTONS_YES_NO,
-                                               "Are you sure you want to shut down?");
+                                               "Are you sure you want to power down?");
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 
-    // Proceed with shutdown only if "Yes" is clicked
+    // If "Yes" is clicked, show the second message and then shut down
     if (response == GTK_RESPONSE_YES) {
-        system("sudo /sbin/shutdown -h now");
+        GtkWidget *reminder_dialog = gtk_dialog_new_with_buttons("IMPORTANT NOTICE",
+                                                                 GTK_WINDOW(parent_window),
+                                                                 GTK_DIALOG_MODAL,
+                                                                 "OK", // Specify the button text as string
+                                                                 GTK_RESPONSE_OK,
+                                                                 NULL);
+
+        GtkWidget *label = gtk_label_new(NULL);
+
+        gtk_label_set_markup(GTK_LABEL(label),
+                             "<span foreground='red' size='x-large'><b>⚠ IMPORTANT ⚠</b></span>\n\n"
+                             "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
+                             "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
+
+        gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
+
+        gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(reminder_dialog))), label);
+
+        gtk_widget_show_all(reminder_dialog);
+
+        // Wait for the response (user presses OK)
+        gtk_dialog_run(GTK_DIALOG(reminder_dialog));
+        gtk_widget_destroy(reminder_dialog);
+
+        // Proceed with system shutdown
+         system("sudo /sbin/shutdown -h now");
     }
 
-    // Destroy the temporary window if it was created
+    // Destroy the temporary window 
     if (!data) {
         gtk_widget_destroy(parent_window);
     }
 }
+
 
 /* rendering of the fields */
 
@@ -3097,7 +3123,7 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-		field_move("PWR-OFF", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-OFF field
+		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 	}
 	else
 	{
@@ -6814,9 +6840,9 @@ void do_control_action(char *cmd)
 	{
 		settings_ui(window);
 	}
-	else if (!strcmp(request, "PWR-OFF"))
+	else if (!strcmp(request, "PWR-DWN"))
 	{
-		on_shutdown_button_click(NULL, NULL);
+		on_power_down_button_click(NULL, NULL);
 	}
 	else if (!strcmp(request, "LOG"))
 	{
