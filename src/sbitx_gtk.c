@@ -3097,7 +3097,7 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-		field_move("PWR-OFF", 700, screen_height - 100, 95, 45); // Add PWR-OFF field
+		field_move("PWR-OFF", screen_width - 97, screen_height - 100, 95, 45); // Add PWR-OFF field
 	}
 	else
 	{
