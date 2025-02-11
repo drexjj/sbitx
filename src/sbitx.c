@@ -51,6 +51,9 @@ FILE *pf_debug = NULL;
 
 int sbitx_version = SBITX_V2;
 int fwdpower, vswr;
+int fwdpower_calc;
+int fwdpower_cnt;
+
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
 int spectrum_plot[MAX_BINS];
@@ -1166,6 +1169,8 @@ void read_power()
 {
 	uint8_t response[4];
 	int16_t vfwd, vref;
+	int fwdpw;
+
 	char buff[20];
 
 	if (!in_tx)
@@ -1186,7 +1191,20 @@ void read_power()
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
 	int fwdvoltage = (vfwd * 40) / bridge_compensation;
-	fwdpower = (fwdvoltage * fwdvoltage) / 400;
+
+	// Implement a simple "hold" algorithm in order to show
+	// readable and meaningful power readings that should be the pep power
+	fwdpw = (fwdvoltage * fwdvoltage) / 400;
+	if (fwdpw > fwdpower_calc) {
+		fwdpower_calc = fwdpw;
+	}
+	if (!fwdpower_cnt) {
+		fwdpower = fwdpower_calc;
+		fwdpower_calc = fwdpw;
+	}
+	if (!fwdpower)
+		fwdpower = fwdpw;
+	fwdpower_cnt = ++fwdpower_cnt % 100;
 
 	int rf_v_p2p = (fwdvoltage * 126) / 400;
 	//	printf("rf volts: %d, alc %g, %d watts ", rf_v_p2p, alc_level, fwdpower/10);
@@ -1732,6 +1750,11 @@ void tr_switch(int tx_on) {
 			}
     digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
     spectrum_reset();
+    // Also reset the hold counter for showing the output power
+    fwdpower_cnt = 0;
+    fwdpower_calc = 0;
+    fwdpower = 0;
+
   } else {                       // switch to receive
     in_tx = 0;                   // lower the transmit flag
     sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive

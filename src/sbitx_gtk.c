@@ -6815,7 +6815,6 @@ void do_control_action(char *cmd)
 	if (tune_on_invoked)
 	{
 		time_t current_time = time(NULL);
-
 		// Check if the tune duration has elapsed
 		if (difftime(current_time, tune_on_start_time) >= tune_duration) 
 		{
