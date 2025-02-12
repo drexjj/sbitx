@@ -1750,10 +1750,6 @@ void tr_switch(int tx_on) {
 			}
     digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
     spectrum_reset();
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
-    fwdpower = 0;
 
   } else {                       // switch to receive
     in_tx = 0;                   // lower the transmit flag
