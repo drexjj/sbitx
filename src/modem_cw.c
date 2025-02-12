@@ -404,11 +404,11 @@ float cw_tx_get_sample() {
       keyup_count = 0;
       //modem_poll() did not detect key-up but we are going to check right now
       //(this is an experiment to try to cut off some long dots and dashes)
-	    cw_key_state = key_poll();  
-	    if (cw_key_state != CW_DOWN) {  //we got early detection of key-up!
-		    cw_current_symbol = CW_IDLE; 
-	      keydown_count = 0;
-        keyup_count = 1;}          // experiment ends here
+	    //cw_key_state = key_poll();  
+	    //if (cw_key_state != CW_DOWN) {  // early detection of key-up!
+		    //cw_current_symbol = CW_IDLE; 
+	      //keydown_count = 0;
+        //keyup_count = 1;}        // experiment ends here
     } else {                       // key was down but now it's not
       keydown_count = 0;           // this was commented out ...
       keyup_count = 1;
@@ -750,7 +750,10 @@ void cw_init(){
 	cw_rx_bin_init(&decoder.signal, INIT_TONE, N_BINS, SAMPLING_FREQ);
 	
 	//init cw tx with some reasonable values
-	vfo_start(&cw_env, 50, 49044); //start in the third quardrant, 270 degree
+  //cw_env shapes the envelope of the cw waveform
+  //frequency was at 50 (20 ms rise time), changed it to 200 (4 ms rise time)
+  //to improve cw performance at higher speeds
+	vfo_start(&cw_env, 200, 49044); //start in the third quardrant, 270 degree
 	vfo_start(&cw_tone, 700, 0);
 	cw_period = 9600; 		// At 96ksps, 0.1sec = 1 dot at 12wpm
 	cw_key_letter[0] = 0;
