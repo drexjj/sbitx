@@ -3242,12 +3242,27 @@ static void layout_ui()
 	case MODE_CW:
 	case MODE_CWR:
 		// Place buttons and calculate highest Y position for CW
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
 		if (waterfall_height < MIN_WATERFALL_HEIGHT)
 			waterfall_height = MIN_WATERFALL_HEIGHT;
+ 		if (!strcmp(field_str("SPECT"), "FULL"))
+		{
+			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
+		}
+		else
+		{
+		  field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
+		  field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+		  waterfall_height = y2 - y1 - (default_spectrum_height + 105);
+    
+		  if (waterfall_height < MIN_WATERFALL_HEIGHT)
+			waterfall_height = MIN_WATERFALL_HEIGHT;
 		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+    }
+		//field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 
 		// Place CW-specific buttons
 		y1 = y2 - 97;
@@ -3257,6 +3272,7 @@ static void layout_ui()
 		field_move("CW_DELAY", 225, y1, 75, 45);
 		field_move("CW_INPUT", 375, y1, 75, 45);
 		field_move("SIDETONE", 450, y1, 75, 45);
+		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
 		field_move("F2", 75, y1, 75, 45);
@@ -3269,7 +3285,6 @@ static void layout_ui()
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
 		break;
-
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_AM:
