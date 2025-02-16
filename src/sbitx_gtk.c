@@ -786,8 +786,7 @@ struct field main_controls[] = {
 	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
 
-	// MACRO Toggle W4WHL
-
+	// MACRO Toggle W9JES W4WHL
 	{"#current_macro", do_toggle_macro, 1000, -1000, 40, 40, "MACRO", 40, "FT8", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0},
 
@@ -3067,7 +3066,6 @@ void menu_display(int show)
 				field_move("ANR", 285, screen_height - 100, 45, 45);
 				field_move("COMP", 350, screen_height - 100, 45, 45);
 				field_move("TXMON", 400, screen_height - 100, 45, 45);
-				field_move("MACRO", 450, screen_height - 100, 45, 45); // W4WHL
 				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
@@ -3227,26 +3225,45 @@ static void layout_ui()
 		// Place buttons and calculate highest Y position for FT8
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
 		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
 		if (waterfall_height < MIN_WATERFALL_HEIGHT)
 			waterfall_height = MIN_WATERFALL_HEIGHT;
 		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 
 		// Place FT8-specific buttons
-		field_move("ESC", 5, y2 - 47, 40, 45);
-		field_move("F1", 50, y2 - 47, 50, 45);
-		field_move("F2", 100, y2 - 47, 50, 45);
-		field_move("F3", 150, y2 - 47, 50, 45);
-		field_move("F4", 200, y2 - 47, 50, 45);
-		field_move("F5", 250, y2 - 47, 50, 45);
-		field_move("F6", 300, y2 - 47, 50, 45);
-		field_move("F7", 350, y2 - 47, 50, 45);
-		field_move("F8", 400, y2 - 47, 45, 45);
-		field_move("FT8_REPEAT", 450, y2 - 47, 50, 45);
-		field_move("FT8_TX1ST", 500, y2 - 47, 50, 45);
-		field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
-		field_move("TX_PITCH", 600, y2 - 47, 73, 45);
-		field_move("SIDETONE", 675, y2 - 47, 73, 45);
+		//field_move("ESC", 5, y2 - 47, 40, 45);
+		//field_move("F1", 50, y2 - 47, 50, 45);
+		//field_move("F2", 100, y2 - 47, 50, 45);
+		//field_move("F3", 150, y2 - 47, 50, 45);
+		//field_move("F4", 200, y2 - 47, 50, 45);
+		//field_move("F5", 250, y2 - 47, 50, 45);
+		//field_move("F6", 300, y2 - 47, 50, 45);
+		//field_move("F7", 350, y2 - 47, 50, 45);
+		//field_move("F8", 400, y2 - 47, 45, 45);
+		//field_move("FT8_REPEAT", 450, y2 - 47, 50, 45);
+		//field_move("FT8_TX1ST", 500, y2 - 47, 50, 45);
+		//field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
+		//field_move("TX_PITCH", 600, y2 - 47, 73, 45);
+		//field_move("SIDETONE", 675, y2 - 47, 73, 45);
+    
+    // Reformat 2 lines for macro button  W9JES 
+		y1 = y2 - 97;
+		field_move("FT8_TX1ST", 375, y1, 75, 45);
+		field_move("FT8_AUTO", 450, y1, 75, 45);
+		field_move("TX_PITCH", 450, y1, 75, 45);
+		field_move("FT8_REPEAT", 525, y1, 75, 45);
+		field_move("MACRO", 600, y1, 75, 45);
+ 		y1 += 50;
+		field_move("F1", 5, y1, 70, 45);
+		field_move("F2", 75, y1, 75, 45);
+		field_move("F3", 150, y1, 75, 45);
+		field_move("F4", 225, y1, 75, 45);
+		field_move("F5", 300, y1, 75, 45);
+		field_move("F6", 375, y1, 75, 45);
+		field_move("F7", 450, y1, 75, 45);
+		field_move("F8", 525, y1, 75, 45);
+		field_move("SIDETONE", 600, y1, 75, 45);
+    field_move("ESC", 675, y1, 75, 45);
 		break;
 
 	case MODE_CW:
@@ -3282,6 +3299,7 @@ static void layout_ui()
 		field_move("CW_DELAY", 225, y1, 75, 45);
 		field_move("CW_INPUT", 375, y1, 75, 45);
 		field_move("SIDETONE", 450, y1, 75, 45);
+		field_move("MACRO", 525, y1, 75, 45); 
 		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
