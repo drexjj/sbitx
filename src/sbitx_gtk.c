@@ -79,7 +79,7 @@ float scope_gain = 1.0; // Default value for SCOPEGAIN
 int scope_size = 100;	// Default size
 static bool layout_needs_refresh = false;
 static int last_scope_size = -1; // Default to an invalid value initially
-float scope_alpha_plus = 0.0; // Default additional scope alpha
+float scope_alpha_plus = 0.0;	 // Default additional scope alpha
 
 #define AVERAGING_FRAMES 15 // Number of frames to average
 // Buffer to hold past spectrum data
@@ -120,7 +120,7 @@ static long time_delta = 0;
 #define CONFIG_REGISTER 0x00
 #define VOLTAGE_REGISTER 0x02
 #define CURRENT_REGISTER 0x01
-#define CONFIG_DEFAULT  0x6127 // Default INA260 configuration: Continuous mode, averages, etc.
+#define CONFIG_DEFAULT 0x6127 // Default INA260 configuration: Continuous mode, averages, etc.
 float voltage = 0.0f, current = 0.0f;
 
 // mouse/touch screen state
@@ -524,6 +524,7 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_mouse_move(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -712,7 +713,7 @@ struct field main_controls[] = {
 	 "", -16, 16, 1, 0},
 	{"#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
-	 
+
 	// RX EQ Controls (added)
 	{"#rx_eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "R0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 40, 160, 5, 0},
@@ -783,7 +784,12 @@ struct field main_controls[] = {
 	 "", 50, 150, 5, 0},
 
 	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 1, 10, 1, 0},	 
+	 "", 1, 10, 1, 0},
+
+	// MACRO Toggle W4WHL
+
+	{"#current_macro", do_toggle_macro, 1000, -1000, 40, 40, "MACRO", 40, "FT8", FIELD_SELECTION, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, 0},
 
 	// VFO Lock ON/OFF
 	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -803,7 +809,7 @@ struct field main_controls[] = {
 	// ePTT Enable/Bypass Control
 	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	
+
 	// INA260 Option ON/OFF (enable/disable sensor readout)
 	{"#ina260_option", do_toggle_option, 1000, -1000, 40, 40, "INA260OPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -842,7 +848,7 @@ struct field main_controls[] = {
 
 	// Tune Controls - W9JES
 	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-	 //"ON/OFF", 0, 0, 0, 0},
+	//"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 100, 1, 0},
 	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -876,8 +882,8 @@ struct field main_controls[] = {
 	 "", 0, 10, 1, COMMON_CONTROL},
 	{"#contest_serial", NULL, 1000, -1000, 50, 50, "CONTEST_SERIAL", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 1000000, 1, COMMON_CONTROL},
-	{"#current_macro", NULL, 1000, -1000, 400, 149, "MACRO", 70, "", FIELD_TEXT, FONT_SMALL,
-	 "", 0, 32, 1, COMMON_CONTROL},
+	//{"#current_macro", NULL, 1000, -1000, 400, 149, "MACRO", 70, "", FIELD_TEXT, FONT_SMALL,
+	// "", 0, 32, 1, COMMON_CONTROL},
 	{"#fwdpower", NULL, 1000, -1000, 50, 50, "POWER", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 10000, 1, COMMON_CONTROL},
 	{"#vswr", NULL, 1000, -1000, 50, 50, "REF", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -1843,58 +1849,61 @@ static int user_settings_handler(void *user, const char *section,
 }
 
 // Function to shut down with PWR-DWN button on Menu 2
-static void on_power_down_button_click(GtkWidget *widget, gpointer data) {
-    GtkWidget *parent_window = (GtkWidget *)data;
-    
-    if (!parent_window) {
-        parent_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    }
+static void on_power_down_button_click(GtkWidget *widget, gpointer data)
+{
+	GtkWidget *parent_window = (GtkWidget *)data;
 
-    // Create confirmation dialog
-    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(parent_window),
-                                               GTK_DIALOG_MODAL,
-                                               GTK_MESSAGE_WARNING,
-                                               GTK_BUTTONS_YES_NO,
-                                               "Are you sure you want to power down?");
-    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
+	if (!parent_window)
+	{
+		parent_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	}
 
-    // If "Yes" is clicked, show the second message and then shut down
-    if (response == GTK_RESPONSE_YES) {
-        GtkWidget *reminder_dialog = gtk_dialog_new_with_buttons("IMPORTANT NOTICE",
-                                                                 GTK_WINDOW(parent_window),
-                                                                 GTK_DIALOG_MODAL,
-                                                                 "OK", // Specify the button text as string
-                                                                 GTK_RESPONSE_OK,
-                                                                 NULL);
+	// Create confirmation dialog
+	GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(parent_window),
+											   GTK_DIALOG_MODAL,
+											   GTK_MESSAGE_WARNING,
+											   GTK_BUTTONS_YES_NO,
+											   "Are you sure you want to power down?");
+	gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
 
-        GtkWidget *label = gtk_label_new(NULL);
+	// If "Yes" is clicked, show the second message and then shut down
+	if (response == GTK_RESPONSE_YES)
+	{
+		GtkWidget *reminder_dialog = gtk_dialog_new_with_buttons("IMPORTANT NOTICE",
+																 GTK_WINDOW(parent_window),
+																 GTK_DIALOG_MODAL,
+																 "OK", // Specify the button text as string
+																 GTK_RESPONSE_OK,
+																 NULL);
 
-        gtk_label_set_markup(GTK_LABEL(label),
-                             "<span foreground='red' size='x-large'><b>⚠ IMPORTANT ⚠</b></span>\n\n"
-                             "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
-                             "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
+		GtkWidget *label = gtk_label_new(NULL);
 
-        gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
+		gtk_label_set_markup(GTK_LABEL(label),
+							 "<span foreground='red' size='x-large'><b>âš  IMPORTANT âš </b></span>\n\n"
+							 "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
+							 "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
 
-        gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(reminder_dialog))), label);
+		gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
 
-        gtk_widget_show_all(reminder_dialog);
+		gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(reminder_dialog))), label);
 
-        // Wait for the response (user presses OK)
-        gtk_dialog_run(GTK_DIALOG(reminder_dialog));
-        gtk_widget_destroy(reminder_dialog);
+		gtk_widget_show_all(reminder_dialog);
 
-        // Proceed with system shutdown
-         system("sudo /sbin/shutdown -h now");
-    }
+		// Wait for the response (user presses OK)
+		gtk_dialog_run(GTK_DIALOG(reminder_dialog));
+		gtk_widget_destroy(reminder_dialog);
 
-    // Destroy the temporary window 
-    if (!data) {
-        gtk_widget_destroy(parent_window);
-    }
+		// Proceed with system shutdown
+		system("sudo /sbin/shutdown -h now");
+	}
+
+	// Destroy the temporary window
+	if (!data)
+	{
+		gtk_widget_destroy(parent_window);
+	}
 }
-
 
 /* rendering of the fields */
 
@@ -3058,6 +3067,7 @@ void menu_display(int show)
 				field_move("ANR", 285, screen_height - 100, 45, 45);
 				field_move("COMP", 350, screen_height - 100, 45, 45);
 				field_move("TXMON", 400, screen_height - 100, 45, 45);
+				field_move("MACRO", 450, screen_height - 100, 45, 45); // W4WHL
 				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
@@ -3120,9 +3130,9 @@ void menu2_display(int show)
 		field_move("WFMAX", 5, screen_height - 50, 70, 45);
 		field_move("WFSPD", 80, screen_height - 100, 70, 45);
 		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
-		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
-		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
-		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
+		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);			   // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45);			   // Add SCOPESIZE field
+		field_move("INTENSITY", 245, screen_height - 50, 70, 45);			   // Add SCOPE ALPHA field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 	}
 	else
@@ -3246,7 +3256,7 @@ static void layout_ui()
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
 		if (waterfall_height < MIN_WATERFALL_HEIGHT)
 			waterfall_height = MIN_WATERFALL_HEIGHT;
- 		if (!strcmp(field_str("SPECT"), "FULL"))
+		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
 			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
 			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
@@ -3254,15 +3264,15 @@ static void layout_ui()
 		}
 		else
 		{
-		  field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		  field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-		  waterfall_height = y2 - y1 - (default_spectrum_height + 105);
-    
-		  if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
-    }
-		//field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
+			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+			waterfall_height = y2 - y1 - (default_spectrum_height + 105);
+
+			if (waterfall_height < MIN_WATERFALL_HEIGHT)
+				waterfall_height = MIN_WATERFALL_HEIGHT;
+			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+		}
+		// field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
 
 		// Place CW-specific buttons
 		y1 = y2 - 97;
@@ -3613,6 +3623,7 @@ time_t time_sbitx()
 	if (time_delta)
 		return time(NULL);
 }
+
 struct band *get_band_by_frequency(int frequency)
 {
 	// Iterate through the band stack to find the matching band
@@ -3629,78 +3640,76 @@ struct band *get_band_by_frequency(int frequency)
 
 void apply_band_settings(long frequency)
 {
-    int new_band = -1;
-    int max_bands = sizeof(band_stack) / sizeof(struct band);
+	int new_band = -1;
+	int max_bands = sizeof(band_stack) / sizeof(struct band);
 
-    // Determine the band index based on the frequency
-    for (int i = 0; i < max_bands; i++)
-    {
-        if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
-        {
-            new_band = i;
-            break;
-        }
-    }
+	// Determine the band index based on the frequency
+	for (int i = 0; i < max_bands; i++)
+	{
+		if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
+		{
+			new_band = i;
+			break;
+		}
+	}
 
-    if (new_band != -1)
-    {
-        // Check the TUNE 
-        if (in_tx)
-        {
-            // If TUNE is ON, skip updating the band settings
-            return;
-        }
+	if (new_band != -1)
+	{
+		// Check the TUNE
+		if (in_tx)
+		{
+			// If TUNE is ON, skip updating the band settings
+			return;
+		}
 
-        // Highlight the correct button
-        struct field *current_focus = get_focused_field(); // Get the currently focused field
+		// Highlight the correct button
+		struct field *current_focus = get_focused_field(); // Get the currently focused field
 
-        for (int i = 0; i < max_bands; i++)
-        {
-            struct field *band_field = get_field_by_label(band_stack[i].name);
+		for (int i = 0; i < max_bands; i++)
+		{
+			struct field *band_field = get_field_by_label(band_stack[i].name);
 
-            if (band_field)
-            {
-                if (i == new_band)
-                {
-                    // Only focus the band button if the frequency adjustment field is not focused
-                    if (current_focus && strcmp(current_focus->label, "FREQ") != 0 &&
-                        strcmp(current_focus->label, "SPECTRUM") != 0)
-                    {
-                        focus_field_without_toggle(band_field);
-                    }
-                }
-            }
-            else
-            {
-                printf("Error: Field not found for name: %s\n", band_stack[i].name);
-            }
-        }
+			if (band_field)
+			{
+				if (i == new_band)
+				{
+					// Only focus the band button if the frequency adjustment field is not focused
+					if (current_focus && strcmp(current_focus->label, "FREQ") != 0 &&
+						strcmp(current_focus->label, "SPECTRUM") != 0)
+					{
+						focus_field_without_toggle(band_field);
+					}
+				}
+			}
+			else
+			{
+				printf("Error: Field not found for name: %s\n", band_stack[i].name);
+			}
+		}
 
-        // Set additional fields to reflect the current band
-        char buff[20];
-        sprintf(buff, "%d", new_band);
-        set_field("#selband", buff); // Notify UI about band change
+		// Set additional fields to reflect the current band
+		char buff[20];
+		sprintf(buff, "%d", new_band);
+		set_field("#selband", buff); // Notify UI about band change
 
-        sprintf(buff, "%i", band_stack[new_band].if_gain);
-        field_set("IF", buff);
+		sprintf(buff, "%i", band_stack[new_band].if_gain);
+		field_set("IF", buff);
 
-        sprintf(buff, "%i", band_stack[new_band].drive);
-        field_set("DRIVE", buff);
-		
+		sprintf(buff, "%i", band_stack[new_band].drive);
+		field_set("DRIVE", buff);
+
 		sprintf(buff, "%i", band_stack[new_band].tnpwr);
-        field_set("TNPWR", buff);
+		field_set("TNPWR", buff);
 
-        // Call highlight_band_field for additional consistency
-        highlight_band_field(new_band);
-    }
-    else
-    {
-        // Handle frequency outside all band ranges
-        printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
-    }
+		// Call highlight_band_field for additional consistency
+		highlight_band_field(new_band);
+	}
+	else
+	{
+		// Handle frequency outside all band ranges
+		printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
+	}
 }
-
-
 
 // setting the frequency is complicated by having to take care of the
 // rit/split and power levels associated with each frequency
@@ -3858,15 +3867,17 @@ void update_titlebar()
 	//	sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",
 	if (has_ina260 == 1)
 	{
-	sprintf(buff, "BATT: %.2fV / %.2fA  %s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
-			voltage, current, VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
-			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-	}else{
-	sprintf(buff, "%s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
-			VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
-			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);	
-	}	
-	
+		sprintf(buff, "BATT: %.2fV / %.2fA  %s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
+				voltage, current, VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
+				tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+	}
+	else
+	{
+		sprintf(buff, "%s  %s  %s  %04d/%02d/%02d  %02d:%02d:%02dZ",
+				VER_STR, get_field("#mycallsign")->value, get_field("#mygrid")->value,
+				tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+	}
+
 	gtk_window_set_title(GTK_WINDOW(window), buff);
 }
 
@@ -4311,6 +4322,26 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
+int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		set_field("#toggle_kbd", "OFF");
+		focus_field(f_last_text); // this will prevent the controls from bouncing
+		if (strlen(get_field("#current_macro")->value))
+		{
+			write_console(FONT_LOG, "current macro is ");
+			write_console(FONT_LOG, get_field("#current_macro")->value);
+			write_console(FONT_LOG, "\n");
+		}
+		macro_load(get_field("#current_macro")->value, NULL);
+		layout_needs_refresh = true;
+
+		return 1;
+	}
+	return 0;
+}
+
 int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (event == GDK_BUTTON_PRESS)
@@ -4626,7 +4657,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	int is_rx = 0;
 	int band = get_band_and_eq_type_from_label(f->label, &is_rx); // Determine band and TX/RX
 	int v = atoi(f->value);
-	//printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
+	// printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
 
 	if (event == FIELD_EDIT)
 	{
@@ -4788,7 +4819,7 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	else if (strcmp(field_name, "INTENSITY") == 0)
 	{
-	    scope_alpha_plus = (float)field_value / 10.0 * 1.2 - 0.3; // Map 1-10 to -0.3 to +0.9
+		scope_alpha_plus = (float)field_value / 10.0 * 1.2 - 0.3; // Map 1-10 to -0.3 to +0.9
 	}
 
 	return 0;
@@ -4911,7 +4942,7 @@ void tx_on(int trigger)
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		//printf("TX\n");
+		// printf("TX\n");
 		//	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 		//	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
@@ -4942,7 +4973,7 @@ gboolean check_plugin_controls(gpointer data)
 			has_ina260 = 0;
 		}
 	}
-	
+
 	if (eq_stat)
 	{
 		if (!strcmp(eq_stat->value, "ON"))
@@ -5075,7 +5106,7 @@ void tx_off()
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
-		//printf("RX\n");
+		// printf("RX\n");
 	}
 	sound_input(0); // it is a low overhead call, might as well be sure
 }
@@ -5085,7 +5116,7 @@ static int layout_handler(void *user, const char *section,
 {
 	// the section is the field's name
 
-	//printf("setting %s:%s to %d\n", section, name, atoi(value));
+	// printf("setting %s:%s to %d\n", section, name, atoi(value));
 	struct field *f = get_field(section);
 	if (!strcmp(name, "x"))
 		f->x = atoi(value);
@@ -5662,88 +5693,101 @@ void rtc_sync()
 }
 
 // Function to configure the INA260
-void configure_ina260() {
-    uint8_t config_data[2] = {
-        (uint8_t)(CONFIG_DEFAULT >> 8), // MSB
-        (uint8_t)(CONFIG_DEFAULT & 0xFF) // LSB
-    };
-    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CONFIG_REGISTER, 2, config_data) < 0) {
-        printf("Error configuring INA260\n");
+void configure_ina260()
+{
+	uint8_t config_data[2] = {
+		(uint8_t)(CONFIG_DEFAULT >> 8),	 // MSB
+		(uint8_t)(CONFIG_DEFAULT & 0xFF) // LSB
+	};
+	if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CONFIG_REGISTER, 2, config_data) < 0)
+	{
+		printf("Error configuring INA260\n");
 		field_set("INA260OPT", "OFF");
-
-    } else {
-        printf("INA260 configured successfully\n");
+	}
+	else
+	{
+		printf("INA260 configured successfully\n");
 		field_set("INA260OPT", "ON");
-    }
+	}
 }
 
 // Function to read optional INA260 voltage and current sensor
-void read_voltage_current(float *voltage, float *current) {
-    uint8_t data_buffer[2]; // Buffer to hold raw register data
+void read_voltage_current(float *voltage, float *current)
+{
+	uint8_t data_buffer[2]; // Buffer to hold raw register data
 
-    // Explicitly set the register pointer to the voltage register
-    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 0, NULL) < 0) {
-        printf("Error setting voltage register pointer\n");
-        *voltage = 0.0f;
-        *current = 0.0f;
-        return;
-    }
+	// Explicitly set the register pointer to the voltage register
+	if (i2cbb_write_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 0, NULL) < 0)
+	{
+		printf("Error setting voltage register pointer\n");
+		*voltage = 0.0f;
+		*current = 0.0f;
+		return;
+	}
 
-    // Read the voltage register (2 bytes)
-    int e = i2cbb_read_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 2, data_buffer);
-    if (e != 2) {
-        printf("Error reading voltage register\n");
-        *voltage = 0.0f;
-        *current = 0.0f;
-        return;
-    }
-    uint16_t raw_voltage = (data_buffer[0] << 8) | data_buffer[1];
-    //printf("Raw Voltage: 0x%04X\n", raw_voltage); // Debugging
-    *voltage = raw_voltage * 1.25e-3f; // Convert to volts (1.25 mV per LSB)
+	// Read the voltage register (2 bytes)
+	int e = i2cbb_read_i2c_block_data(INA260_ADDRESS, VOLTAGE_REGISTER, 2, data_buffer);
+	if (e != 2)
+	{
+		printf("Error reading voltage register\n");
+		*voltage = 0.0f;
+		*current = 0.0f;
+		return;
+	}
+	uint16_t raw_voltage = (data_buffer[0] << 8) | data_buffer[1];
+	// printf("Raw Voltage: 0x%04X\n", raw_voltage); // Debugging
+	*voltage = raw_voltage * 1.25e-3f; // Convert to volts (1.25 mV per LSB)
 
-    // Explicitly set the register pointer to the current register
-    if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 0, NULL) < 0) {
-        printf("Error setting current register pointer\n");
-        *voltage = 0.0f;
-        *current = 0.0f;
-        return;
-    }
+	// Explicitly set the register pointer to the current register
+	if (i2cbb_write_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 0, NULL) < 0)
+	{
+		printf("Error setting current register pointer\n");
+		*voltage = 0.0f;
+		*current = 0.0f;
+		return;
+	}
 
-    // Read the current register (2 bytes)
-    e = i2cbb_read_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 2, data_buffer);
-    if (e != 2) {
-        printf("Error reading current register\n");
-        *voltage = 0.0f;
-        *current = 0.0f;
-        return;
-    }
-    uint16_t raw_current = (data_buffer[0] << 8) | data_buffer[1];
-    //printf("Raw Current: 0x%04X\n", raw_current); // Debugging
+	// Read the current register (2 bytes)
+	e = i2cbb_read_i2c_block_data(INA260_ADDRESS, CURRENT_REGISTER, 2, data_buffer);
+	if (e != 2)
+	{
+		printf("Error reading current register\n");
+		*voltage = 0.0f;
+		*current = 0.0f;
+		return;
+	}
+	uint16_t raw_current = (data_buffer[0] << 8) | data_buffer[1];
+	// printf("Raw Current: 0x%04X\n", raw_current); // Debugging
 
-    // Handle saturation or invalid value
-    if (raw_current == 0xFFFF) {
-        printf("Current measurement out of range or invalid\n");
-        *current = 0.0f;
-    } else {
-        *current = raw_current * 1.25e-3f; // Convert to amps (1.25 mA per LSB)
-    }
+	// Handle saturation or invalid value
+	if (raw_current == 0xFFFF)
+	{
+		printf("Current measurement out of range or invalid\n");
+		*current = 0.0f;
+	}
+	else
+	{
+		*current = raw_current * 1.25e-3f; // Convert to amps (1.25 mA per LSB)
+	}
 }
 
-void check_read_ina260_cadence(float *voltage, float *current) {
-    static time_t last_time = 0;  // Keep track of the last time the voltage/current was read
-    time_t current_time;
-    
-    // Get the current time in seconds
-    current_time = time(NULL);
-    
-    // Check if 1 second has passed since the last check
-    if (current_time - last_time >= 1) {
-        // 1 second has passed, read the voltage and current
-        read_voltage_current(voltage, current);
-        
-        // Update the last_time to the current time
-        last_time = current_time;
-    }
+void check_read_ina260_cadence(float *voltage, float *current)
+{
+	static time_t last_time = 0; // Keep track of the last time the voltage/current was read
+	time_t current_time;
+
+	// Get the current time in seconds
+	current_time = time(NULL);
+
+	// Check if 1 second has passed since the last check
+	if (current_time - last_time >= 1)
+	{
+		// 1 second has passed, read the voltage and current
+		read_voltage_current(voltage, current);
+
+		// Update the last_time to the current time
+		last_time = current_time;
+	}
 }
 
 int key_poll()
@@ -6063,7 +6107,7 @@ void set_radio_mode(char *mode)
 	char umode[10], request[100], response[100];
 	int i;
 
-	//printf("Mode: %s\n", mode);
+	// printf("Mode: %s\n", mode);
 	for (i = 0; i < sizeof(umode) - 1 && *mode; i++)
 		umode[i] = toupper(*mode++);
 	umode[i] = 0;
@@ -6081,6 +6125,7 @@ void set_radio_mode(char *mode)
 	case MODE_CW:
 	case MODE_CWR:
 		new_bandwidth = field_int("BW_CW");
+		set_field("#current_macro", "CW1");
 		break;
 	case MODE_LSB:
 	case MODE_USB:
@@ -6091,6 +6136,7 @@ void set_radio_mode(char *mode)
 		break;
 	case MODE_FT8:
 		new_bandwidth = 4000;
+		set_field("#current_macro", "FT8");
 		break;
 	default:
 		new_bandwidth = field_int("BW_DIGITAL");
@@ -6192,7 +6238,7 @@ void handleButton2Press()
 				// Long press detected - Enable/Disable VFO lock
 				vfoLock = !vfoLock;
 				field_set("VFOLK", vfoLock ? "ON" : "OFF");
-				//printf("VFOLock: %d\n", vfoLock);
+				// printf("VFOLock: %d\n", vfoLock);
 
 				if (vfoLock == 1)
 				{
@@ -6289,16 +6335,17 @@ gboolean ui_tick(gpointer gook)
 		// write_console(FONT_LOG, message);
 	}
 
-  // every 20 ticks call modem_poll to see if any modes need work done
-  if (ticks % 20 == 0)
-    modem_poll(mode_id(get_field("r1:mode")->value));
-  else {
-    // calling modem_poll every 20 ticks isn't enough to keep up with a fast
-    // straight key, so now we go on _every_ tick in MODE_CW or MODE_CWR
-    if ((mode_id(get_field("r1:mode")->value)) == MODE_CW || 
-	    (mode_id(get_field("r1:mode")->value)) == MODE_CWR)
+	// every 20 ticks call modem_poll to see if any modes need work done
+	if (ticks % 20 == 0)
 		modem_poll(mode_id(get_field("r1:mode")->value));
-  }
+	else
+	{
+		// calling modem_poll every 20 ticks isn't enough to keep up with a fast
+		// straight key, so now we go on _every_ tick in MODE_CW or MODE_CWR
+		if ((mode_id(get_field("r1:mode")->value)) == MODE_CW ||
+			(mode_id(get_field("r1:mode")->value)) == MODE_CWR)
+			modem_poll(mode_id(get_field("r1:mode")->value));
+	}
 
 	int tick_count = 100;
 
@@ -6422,8 +6469,9 @@ gboolean ui_tick(gpointer gook)
 			new_cursor = gdk_cursor_new_for_display(gdk_display_get_default(), cursor_type);
 			gdk_window_set_cursor(gdk_get_default_root_window(), new_cursor);
 		}
-		if (has_ina260 == 1){
-		check_read_ina260_cadence(&voltage,&current);
+		if (has_ina260 == 1)
+		{
+			check_read_ina260_cadence(&voltage, &current);
 		}
 
 		ticks = 0;
@@ -6754,7 +6802,7 @@ void meter_calibrate()
 
 bool tune_on_invoked = false; // Set initial state of TUNE
 time_t tune_on_start_time;
-int tune_duration; 
+int tune_duration;
 
 void do_control_action(char *cmd)
 {
@@ -6783,22 +6831,22 @@ void do_control_action(char *cmd)
 
 		// Obtain value of tune duration
 		struct field *tndur_field = get_field("#tune_duration"); // Obtain value of tune duration
-		if (tndur_field != NULL) 
+		if (tndur_field != NULL)
 		{
-		tune_duration = atoi(tndur_field->value); // Convert to integer
-		if (tune_duration <= 0) 
+			tune_duration = atoi(tndur_field->value); // Convert to integer
+			if (tune_duration <= 0)
 			{
-				//printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
+				// printf("Invalid or missing tune duration. Aborting TUNE ON.\n");
 				return; // Exit if the tune duration is not valid
 			}
-		} 
-		else 
+		}
+		else
 		{
-			//printf("Tune duration field not found. Aborting TUNE ON.\n");
+			// printf("Tune duration field not found. Aborting TUNE ON.\n");
 			return; // Exit if the field is missing
 		}
 
-		//printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
+		// printf("TUNE ON command received with power level: %d and duration: %d seconds.\n", tunepower, tune_duration);
 
 		tune_on_invoked = true;
 		tune_on_start_time = time(NULL); // Record the current time
@@ -6808,8 +6856,8 @@ void do_control_action(char *cmd)
 
 		char tn_power_command[50];
 		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
-		sdr_request(tn_power_command, response); // Send TX with power level from tune power
-    
+		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
+
 		sdr_request("r1:mode=TUNE", response);
 		delay(100);
 		tx_on(TX_SOFT);
@@ -6818,7 +6866,7 @@ void do_control_action(char *cmd)
 	{
 		if (tune_on_invoked)
 		{
-			//printf("TUNE OFF command received.\n");
+			// printf("TUNE OFF command received.\n");
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
@@ -6831,18 +6879,18 @@ void do_control_action(char *cmd)
 	{
 		time_t current_time = time(NULL);
 		// Check if the tune duration has elapsed
-		if (difftime(current_time, tune_on_start_time) >= tune_duration) 
+		if (difftime(current_time, tune_on_start_time) >= tune_duration)
 		{
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
-			//printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
-			// Perform TUNE OFF actions safely
+			// printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
+			//  Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			//if (modestore != NULL) // Check for null before accessing or modifying
-				field_set("MODE", modestore);
+			// if (modestore != NULL) // Check for null before accessing or modifying
+			field_set("MODE", modestore);
 
-			//if (powerstore != NULL) // Check for null before accessing or modifying
-				field_set("DRIVE", powerstore);
+			// if (powerstore != NULL) // Check for null before accessing or modifying
+			field_set("DRIVE", powerstore);
 		}
 	}
 	else if (!strcmp(request, "EQSET"))
@@ -7183,6 +7231,38 @@ int get_ft8_callsign(const char *message, char *other_callsign)
 	strcpy(other_callsign, fields[i]);
 	return m;
 }
+
+void initialize_macro_selection() {
+    static char macro_list_output[1000] = "";  // Buffer for macro names
+    macro_list(macro_list_output);  // Fetch macro files
+
+    // Ensure we have macros
+    if (strlen(macro_list_output) == 0) {
+        strcpy(macro_list_output, "FT8|CW1|CQWWRUN|RUN|SP");  // Default fallback
+    }
+
+    // Replace '|' with '/' but avoid trailing '/'
+    char *p = macro_list_output;
+    while (*p) {
+        if (*p == '|') {
+            if (*(p + 1) != '\0')  // Don't replace if it's the last character
+                *p = '/';
+            else
+                *p = '\0';  // Remove trailing '|'
+        }
+        p++;
+    }
+
+    // Locate `#current_macro` field and update `selection`
+    struct field *macro_field = get_field("#current_macro");
+    if (macro_field) {
+        strncpy(macro_field->selection, macro_list_output, sizeof(macro_field->selection) - 1);
+        macro_field->selection[sizeof(macro_field->selection) - 1] = '\0';  // Ensure null termination
+    }
+
+
+}
+
 
 /*
 	These are user/remote entered commands.
@@ -7660,7 +7740,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
-	
+
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
 
@@ -7678,16 +7758,17 @@ int main(int argc, char *argv[])
 	remote_start();
 	rtc_read();
 
-    // Configure the INA260
-    configure_ina260();
+	// Configure the INA260
+	configure_ina260();
 
-    // Read voltage and current
-    // read_voltage_current(&voltage, &current);
+	initialize_macro_selection();
 
-    // Print the results
-    // printf("Voltage: %.3f V\n", voltage);
-    // printf("Current: %.3f A\n", current);
+	// Read voltage and current
+	// read_voltage_current(&voltage, &current);
 
+	// Print the results
+	// printf("Voltage: %.3f V\n", voltage);
+	// printf("Current: %.3f A\n", current);
 
 	// test to pass values to eq
 	//   modify_eq_band_frequency(&tx_eq, 3, 1505.0);
