@@ -767,7 +767,7 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
     cmd_exec(cmd);
 
     if (strcmp(passband, "0") == 0 || strcmp(passband, "-1")== 0) // Special case for WSJT-X (-1 passband value)
-    { 
+    {
         char bw_str[10];
         sprintf(bw_str, "%i", get_default_passband_bw());
         field_set("BW", bw_str);
@@ -995,46 +995,46 @@ static int hamlib_set_func(int cs, int is_extended, char *argv[], int argc)
     /* For a function named argv[0] (e.g. "NB") we pass argv[1] ("1") */
     if (!sdr_radio_set_property(mapped_func_name, argv[1]))
     {
-        if (strcmp(argv[0], "AUDIO_TCP") == 0)
-        {
-            int client_index = get_client_index(cs);
-            if (client_index != -1)
-            {
-                if (is_debug)
-                    printf("Setting up sending audio_tcp to %s\n", client_ips[client_index]);
+        /*     if (strcmp(argv[0], "AUDIO_TCP") == 0)
+             {
+                 int client_index = get_client_index(cs);
+                 if (client_index != -1)
+                 {
+                     if (is_debug)
+                         printf("Setting up sending audio_tcp to %s\n", client_ips[client_index]);
 
-                if (strcmp(argv[1], "1") == 0)
-                {
-                    if (start_reflector_service(client_ips[client_index]) == 0)
-                        fprintf(stderr, "Started reflector service\n");
-                    else
-                    {
-                        fprintf(stderr, "Failed to start reflector service\n");
-                        return -1;
-                    }
-                }
-                else if (is_reflector_service_running() && strcmp(argv[1], "0") == 0)
-                {
-                    stop_reflector_service();
-                    flush_response(cs);
-                    return 0;
-                }
-            }
+                     if (strcmp(argv[1], "1") == 0)
+                     {
+                         if (start_reflector_service(client_ips[client_index]) == 0)
+                             fprintf(stderr, "Started reflector service\n");
+                         else
+                         {
+                             fprintf(stderr, "Failed to start reflector service\n");
+                             return -1;
+                         }
+                     }
+                     else if (is_reflector_service_running() && strcmp(argv[1], "0") == 0)
+                     {
+                         stop_reflector_service();
+                         flush_response(cs);
+                         return 0;
+                     }
+                 }
+             }
+             else
+             {*/
+        /* fallback to your old set_func code if you want: */
+        extern int set_func(const char *, const char *);
+        int ret = set_func(mapped_func_name, argv[1]);
+        if (ret != 0)
+        {
+            add_response(cs, (char *) "RPRT -11\n");
         }
         else
         {
-            /* fallback to your old set_func code if you want: */
-            extern int set_func(const char *, const char *);
-            int ret = set_func(mapped_func_name, argv[1]);
-            if (ret != 0)
-            {
-                add_response(cs, (char *) "RPRT -11\n");
-            }
-            else
-            {
-                if (!is_extended) add_response(cs, (char *) "RPRT 0\n");
-            }
+            if (!is_extended) add_response(cs, (char *) "RPRT 0\n");
         }
+        // }
     }
     else
     {
@@ -1635,7 +1635,7 @@ static void interpret_line(int client_socket, const char *line_in)
     strcpy(command, argv[0]); // Hold it for later
 
     command_id_t cmd_id = parse_command_name(argv[0]);
-    
+
     // Move args down for handlers that need it
     for (int i = 1; i < argc; i++)
     {
@@ -1768,20 +1768,20 @@ static void interpret_line(int client_socket, const char *line_in)
             char tmp[256];
             if(is_extended)
             { strcpy(tmp, command);
-            strcat(tmp, ":");
-            if(argc > 1)
-                for (int i = 0; i < argc; i++)
-                {
-                    strcat(tmp, " ");
-                    strcat(tmp, argv[i]);
-                }
-            strcat(tmp, "\n");
+                strcat(tmp, ":");
+                if(argc > 1)
+                    for (int i = 0; i < argc; i++)
+                    {
+                        strcat(tmp, " ");
+                        strcat(tmp, argv[i]);
+                    }
+                strcat(tmp, "\n");
             }
             strcat(tmp, "RPRT -11\n");
             add_response(client_socket, tmp);
             flush_response(client_socket); // Single packet response
             return;
-            
+
         default:
             ret = -11;
             break;
@@ -1789,7 +1789,7 @@ static void interpret_line(int client_socket, const char *line_in)
 
     if (is_extended)
     {
-       // send_rprt(client_socket, ret); /// <---- not sure if this is needed
+        // send_rprt(client_socket, ret); /// <---- not sure if this is needed
     }
     else if (ret != 0)
     {
@@ -2340,7 +2340,7 @@ void command_get_level(int client_socket, const char *level)
     }
     else if (strcmp(level, "RXGAIN") == 0)
     {
-                value = field_int("IF");
+        value = field_int("IF");
     }
     else if (strcmp(level, "TXMON") == 0)
     {
