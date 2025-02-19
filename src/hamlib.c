@@ -55,6 +55,7 @@
 #include "sdr_ui.h"
 #include <stdbool.h>
 #include "hamlib.h"
+
 #define PORT         4532
 #define PRODUCT      "SBITX v3 Hybrid SDR"
 #define VERSION      "4.3"
@@ -66,6 +67,8 @@
 //       Implemented this for get_vfo_info but no others, yet...
 
 static int client_sockets[MAX_CLIENTS] = {0};
+char client_ips[MAX_CLIENTS][INET_ADDRSTRLEN];
+
 static int welcome_socket = -1;
 static volatile int running = 1;
 static pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -75,8 +78,8 @@ int incoming_ptr[MAX_CLIENTS] = {0};
 char resp[MAX_DATA] = {0}; // Used for the large responses
 bool is_debug = DEBUG;
 bool is_locked = false; // This is used to lock the radio from changing settings. However
-                        // it is not implemented in the radio at the moment, just helps
-                        // WSJT-X with some of it's queries.
+// it is not implemented in the radio at the moment, just helps
+// WSJT-X with some of it's queries.
 
 /*****************************************************************************
  * FROM YOUR ORIGINAL CODE / EXTERNALS:
@@ -151,7 +154,9 @@ struct field
     char update_remote;
     void *data;
 };
-typedef struct {
+
+typedef struct
+{
     const char *external_name; // Hamlib property name
     const char *internal_name; // Radio's property name
 } property_mapping_t;
@@ -159,101 +164,101 @@ typedef struct {
 
 /* Example table: NB, COMP => booleans; RFPOWER => float range; etc. */
 static property_definition_t property_table[] = {
-        {"DSP",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"ANR",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"NOTCH",     PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"TUNE",      PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"REC",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"KBD",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"TXEQ",      PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"RXEQ",      PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"LOCK",      PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"VFOLK",     PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"AUTO",      PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"KBD",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"FT8_AUTO",  PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"FT8_TX1ST", PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"RIT",       PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"SPLIT",     PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"RS",        PT_BOOLEAN, 0.0f,     1.0f,    0},
-        {"TA",        PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"DSP",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"ANR",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"NOTCH",         PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"TUNE",          PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"REC",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"KBD",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"TXEQ",          PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"RXEQ",          PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"LOCK",          PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"VFOLK",         PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"AUTO",          PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"KBD",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"FT8_AUTO",      PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"FT8_TX1ST",     PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"RIT",           PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"SPLIT",         PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"RS",            PT_BOOLEAN, 0.0f,     1.0f,    0},
+        {"TA",            PT_BOOLEAN, 0.0f,     1.0f,    0},
 
 
-        {"RFPOWER",   PT_FLOAT,   0.0f,     1.0f,    0},
-        {"RFPOWER_METER", PT_FLOAT, 0.0f, 100.0f, 0},
-        {"MICGAIN",   PT_FLOAT,   0.0f,     100.0f,  0},
-        {"COMP",      PT_FLOAT,   0.0f,     100.0f,  0},
-        {"AUDIO",     PT_FLOAT,   0.0f,     100.0f,  0},
-        {"VOLUME",    PT_FLOAT,   0.0f,     100.0f,  0},
-        {"BW",        PT_FLOAT,   100.0f,   6000.0f, 0},
-        {"DRIVE",     PT_FLOAT,   0.0f,     100.0f,  0},
-        {"IF",        PT_FLOAT,   0.0f,     100.0f,  0},
-        {"MIC",       PT_FLOAT,   0.0f,     100.0f,  0},
-        {"LOWCUT",    PT_FLOAT,   50.0f,    5000.0f, 0},
-        {"HIGHCUT",   PT_FLOAT,   50.0f,    5000.0f, 0},
-        {"WFMIN",     PT_FLOAT,   0.0f,     200.0f,  0},
-        {"WFSPD",     PT_FLOAT,   20.0f,    150.0f,  0},
-        {"WFMAX",     PT_FLOAT,   0.0f,     200.0f,  0},
-        {"SCOPEGAIN", PT_FLOAT,   1.0f,     25.0f,   0},
-        {"SCOPESIZE", PT_FLOAT,   50.0f,    150.0f,  0},
-        {"INTENSITY", PT_FLOAT,   2.0f,     10.0f,   0},
-        {"NFREQ",     PT_FLOAT,   60.0f,    3000.0f, 0},
-        {"BNDWTH",    PT_FLOAT,   60.0f,    1000.0f, 0},
-        {"TNDUR",     PT_FLOAT,   2.0f,     30.0f,   0},
-        {"TNPWR",     PT_FLOAT,   0.0f,     100.0f,  0},
-        {"TXMON",     PT_FLOAT,   0.0f,     100.0f,  0},
-        {"BFO",       PT_FLOAT,   -2995.0f, 3000.0f, 0},
-        {"TX_PITCH",  PT_FLOAT,   0.0f,     5000.0f, 0},
-        {"FT8_REPEAT", PT_FLOAT,   0.0f,     10.0f,   0},
-        {"PITCH",     PT_FLOAT,   -5000.0f, 5000.0f, 0},
-        {"WPM",       PT_FLOAT,   0.0f,     100.0f,  0},
-        {"CW_DELAY",  PT_FLOAT,   0.0f,     100.0f,  0},
-        {"METER",     PT_FLOAT,   0.0f,     1500.0,  0},
-        {"STRENGTH",     PT_FLOAT,  -54.0f,  100.0,  0},
-        {"SWR",     PT_FLOAT,     0.0f,      100.0,  0},
-        {"REF",     PT_FLOAT,     0.0f,      100.0,  0},
-        {"POWER",     PT_FLOAT,   0.0f,      100.0,  0},
+        {"RFPOWER",       PT_FLOAT,   0.0f,     1.0f,    0},
+        {"RFPOWER_METER", PT_FLOAT,   0.0f,     100.0f,  0},
+        {"MICGAIN",       PT_FLOAT,   0.0f,     100.0f,  0},
+        {"COMP",          PT_FLOAT,   0.0f,     100.0f,  0},
+        {"AUDIO",         PT_FLOAT,   0.0f,     100.0f,  0},
+        {"VOLUME",        PT_FLOAT,   0.0f,     100.0f,  0},
+        {"BW",            PT_FLOAT,   100.0f,   6000.0f, 0},
+        {"DRIVE",         PT_FLOAT,   0.0f,     100.0f,  0},
+        {"IF",            PT_FLOAT,   0.0f,     100.0f,  0},
+        {"MIC",           PT_FLOAT,   0.0f,     100.0f,  0},
+        {"LOWCUT",        PT_FLOAT,   50.0f,    5000.0f, 0},
+        {"HIGHCUT",       PT_FLOAT,   50.0f,    5000.0f, 0},
+        {"WFMIN",         PT_FLOAT,   0.0f,     200.0f,  0},
+        {"WFSPD",         PT_FLOAT,   20.0f,    150.0f,  0},
+        {"WFMAX",         PT_FLOAT,   0.0f,     200.0f,  0},
+        {"SCOPEGAIN",     PT_FLOAT,   1.0f,     25.0f,   0},
+        {"SCOPESIZE",     PT_FLOAT,   50.0f,    150.0f,  0},
+        {"INTENSITY",     PT_FLOAT,   2.0f,     10.0f,   0},
+        {"NFREQ",         PT_FLOAT,   60.0f,    3000.0f, 0},
+        {"BNDWTH",        PT_FLOAT,   60.0f,    1000.0f, 0},
+        {"TNDUR",         PT_FLOAT,   2.0f,     30.0f,   0},
+        {"TNPWR",         PT_FLOAT,   0.0f,     100.0f,  0},
+        {"TXMON",         PT_FLOAT,   0.0f,     100.0f,  0},
+        {"BFO",           PT_FLOAT,   -2995.0f, 3000.0f, 0},
+        {"TX_PITCH",      PT_FLOAT,   0.0f,     5000.0f, 0},
+        {"FT8_REPEAT",    PT_FLOAT,   0.0f,     10.0f,   0},
+        {"PITCH",         PT_FLOAT,   -5000.0f, 5000.0f, 0},
+        {"WPM",           PT_FLOAT,   0.0f,     100.0f,  0},
+        {"CW_DELAY",      PT_FLOAT,   0.0f,     100.0f,  0},
+        {"METER",         PT_FLOAT,   0.0f,     1500.0,  0},
+        {"STRENGTH",      PT_FLOAT,   -54.0f,   100.0,   0},
+        {"SWR",           PT_FLOAT,   0.0f,     100.0,   0},
+        {"REF",           PT_FLOAT,   0.0f,     100.0,   0},
+        {"POWER",         PT_FLOAT,   0.0f,     100.0,   0},
 
 
-        {"AGC",       PT_STRING,  0.0f,     100.0f,  0},
- //       {"RIT",       PT_STRING,  0.0f,     100.0f,  0}, // Radio does support this... don't understand XIT usage though as not on GUI.
- //       {"XIT",       PT_STRING,  0.0f,     100.0f,  0},
-        {"STEP",      PT_STRING,  0.0f,     100.0f,  0},
-        {"MENU",      PT_STRING,  0.0f,     100.0f,  0},
-        {"SPLIT",     PT_STRING,  0.0f,     100.0f,  0},
-        {"VFO",       PT_STRING,  0.0f,     100.0f,  0},
-        {"SPAN",      PT_STRING,  0.0f,     100.0f,  0},
-        {"SPECT",     PT_STRING,  0.0f,     100.0f,  0},
-        {"MODE",      PT_STRING,  0.0f,     100.0f,  0},
-        {"CW_INPUT",  PT_STRING,  0.0f,     100.0f,  0},
-        {"CALL",      PT_STRING,  0.0f,     100.0f,  0},
-        {"SENT",      PT_STRING,  0.0f,     100.0f,  0},
-        {"RECV",      PT_STRING,  0.0f,     100.0f,  0},
-        {"EXCH",      PT_STRING,  0.0f,     100.0f,  0},
-        {"NR",        PT_STRING,  0.0f,     100.0f,  0},
-        {"MENU",      PT_STRING,  0.0f,     100.0f,  0},
-        {"F1",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F2",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F3",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F4",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F5",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F6",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F7",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F8",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F9",        PT_STRING,  0.0f,     100.0f,  0},
-        {"F10",       PT_STRING,  0.0f,     100.0f,  0},
-        {NULL,        0,          0.0f,     0.0f,    0} /* sentinel */
+        {"AGC",           PT_STRING,  0.0f,     100.0f,  0},
+        //       {"RIT",       PT_STRING,  0.0f,     100.0f,  0}, // Radio does support this... don't understand XIT usage though as not on GUI.
+        //       {"XIT",       PT_STRING,  0.0f,     100.0f,  0},
+        {"STEP",          PT_STRING,  0.0f,     100.0f,  0},
+        {"MENU",          PT_STRING,  0.0f,     100.0f,  0},
+        {"SPLIT",         PT_STRING,  0.0f,     100.0f,  0},
+        {"VFO",           PT_STRING,  0.0f,     100.0f,  0},
+        {"SPAN",          PT_STRING,  0.0f,     100.0f,  0},
+        {"SPECT",         PT_STRING,  0.0f,     100.0f,  0},
+        {"MODE",          PT_STRING,  0.0f,     100.0f,  0},
+        {"CW_INPUT",      PT_STRING,  0.0f,     100.0f,  0},
+        {"CALL",          PT_STRING,  0.0f,     100.0f,  0},
+        {"SENT",          PT_STRING,  0.0f,     100.0f,  0},
+        {"RECV",          PT_STRING,  0.0f,     100.0f,  0},
+        {"EXCH",          PT_STRING,  0.0f,     100.0f,  0},
+        {"NR",            PT_STRING,  0.0f,     100.0f,  0},
+        {"MENU",          PT_STRING,  0.0f,     100.0f,  0},
+        {"F1",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F2",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F3",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F4",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F5",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F6",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F7",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F8",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F9",            PT_STRING,  0.0f,     100.0f,  0},
+        {"F10",           PT_STRING,  0.0f,     100.0f,  0},
+        {NULL,            0,          0.0f,     0.0f,    0} /* sentinel */
 };
 
 static property_mapping_t property_mapping_table[] = {
-    {"MICGAIN", "MIC"},  // Map MICGAIN to SBITX Field MIC
-    {"LOWCUT", "LOW"},
-    {"HIGHCUT", "HIGH"},
-    {"METER", "STRENGTH"},  // This one is a function calculating in DB function
-    {"VOLUME", "AUDIO"},
-    {"NR", "ANR"},
-    {"RFPOWER_METER", "POWER"},
-    {"VOLUME", "AUDIO"}
+        {"MICGAIN",       "MIC"},  // Map MICGAIN to SBITX Field MIC
+        {"LOWCUT",        "LOW"},
+        {"HIGHCUT",       "HIGH"},
+        {"METER",         "STRENGTH"},  // This one is a function calculating in DB function
+        {"VOLUME",        "AUDIO"},
+        {"NR",            "ANR"},
+        {"RFPOWER_METER", "POWER"},
+        {"VOLUME",        "AUDIO"}
 
 };
 
@@ -277,7 +282,7 @@ const char *resolve_property_name(const char *external_name)
  *****************************************************************************/
 static bool sdr_radio_set_property(const char *prop_name, const char *value_str)
 {
-  // TODO: Optimize this eventually using a hash table or something.
+    // TODO: Optimize this eventually using a hash table or something.
 
     for (int i = 0; property_table[i].name; i++)
     {
@@ -303,7 +308,7 @@ static bool sdr_radio_set_property(const char *prop_name, const char *value_str)
                 }
                 return true;
             }
-            // Handle FLOAT
+                // Handle FLOAT
             else if (property_table[i].type == PT_FLOAT)
             {
                 float val = (float) atof(value_str);
@@ -321,7 +326,7 @@ static bool sdr_radio_set_property(const char *prop_name, const char *value_str)
                     printf("[DEBUG] Setting float property %s=%.2f\n", prop_name, val);
                 return true;
             }
-            // Handle STRING
+                // Handle STRING
             else if (property_table[i].type == PT_BOOLEAN || property_table[i].type == PT_STRING)
             {
                 /* check length, etc. */
@@ -352,32 +357,32 @@ static bool sdr_radio_get_property(const char *prop_name, char *out_buf, size_t 
             {
                 /* read if ON or OFF from field. */
                 char val[64];
-                if(get_field_value_by_label((char *) prop_name, val) == -1)
-                  return false;
+                if (get_field_value_by_label((char *) prop_name, val) == -1)
+                    return false;
                 if (!strcmp(val, "ON") || strcmp(val, "1") == 0)
                     snprintf(out_buf, out_sz, "1");
                 else
                     snprintf(out_buf, out_sz, "0");
                 return true;
             }
-            // Handle FLOAT
+                // Handle FLOAT
             else if (property_table[i].type == PT_FLOAT)
             {
                 /* read from field, parse as float. */
                 char val[64];
-                if(get_field_value_by_label((char *) prop_name, val)==-1)
-                  return false;
+                if (get_field_value_by_label((char *) prop_name, val) == -1)
+                    return false;
                 /* e.g. "50.00" => store in out_buf. */
                 snprintf(out_buf, out_sz, "%s", val);
                 return true;
             }
-            // Handle STRING
+                // Handle STRING
             else if (property_table[i].type == PT_STRING)
             {
                 /* read as string. */
                 char val[128];
-                if(get_field_value_by_label((char *) prop_name, val) == -1)
-                  return false;
+                if (get_field_value_by_label((char *) prop_name, val) == -1)
+                    return false;
                 snprintf(out_buf, out_sz, "%s", val);
                 return true;
             }
@@ -481,7 +486,10 @@ typedef enum
     CMD_GET_CLOCK,
 
     /* Q => quit */
-    CMD_QUIT
+    CMD_QUIT,
+
+    // Unknown command
+    CMD_UNKNOWN
 } command_id_t;
 
 // Parse a command name from a string to a token, e.g. "set_freq" => CMD_SET_FREQ
@@ -545,15 +553,76 @@ static command_id_t parse_command_name(const char *cmd_str)
         return CMD_GET_RIG_INFO;
     if (strcmp(cmd_str, "a") == 0 || strcasecmp(cmd_str, "get_trn") == 0)
         return CMD_GET_TRN;
-    if ( strcasecmp(cmd_str, "set_lock_mode") == 0)
+    if (strcasecmp(cmd_str, "set_lock_mode") == 0)
         return CMD_SET_LOCK;
     if (strcasecmp(cmd_str, "get_lock_mode") == 0)
         return CMD_GET_LOCK;
 
     if (strcasecmp(cmd_str, "get_clock") == 0)
         return CMD_GET_CLOCK;
-    return CMD_INVALID;
+
+    return CMD_UNKNOWN;
 }
+
+
+// One response buffer per client context.
+char client_response_buffers[MAX_CLIENTS][MAX_DATA];
+
+// Helper: Given a client socket, return its index in client_response_buffers.
+static int get_client_index(int cs)
+{
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (client_sockets[i] == cs)
+            return i;
+    }
+    return -1;  // Not found.
+}
+
+// Call this to clear the response buffer for the client.
+void begin_new_response(int cs)
+{
+    int idx = get_client_index(cs);
+    if (idx != -1)
+    {
+        client_response_buffers[idx][0] = '\0';
+    }
+}
+
+// Instead of sending immediately, add data to the client's response buffer.
+void add_response(int cs, const char *data)
+{
+    int idx = get_client_index(cs);
+    if (idx != -1)
+    {
+        strncat(client_response_buffers[idx],
+                data,
+                MAX_DATA - strlen(client_response_buffers[idx]) - 1);
+    }
+}
+
+// When done building the response, send it all at once.
+void flush_response(int cs)
+{
+    int idx = get_client_index(cs);
+    if (idx != -1)
+    {
+        int len = strlen(client_response_buffers[idx]);
+        if (len > 0)
+        {
+            if (send(cs, client_response_buffers[idx], len, 0) < 0)
+            {
+                perror("send");
+                close(cs);
+                client_sockets[idx] = 0;
+            }
+        }
+        // Clear the buffer after sending.
+        client_response_buffers[idx][0] = '\0';
+    }
+}
+
+
 
 /*****************************************************************************
  * Now the hamlib_* functions, each with rigctld doc snippet and logic.
@@ -568,13 +637,16 @@ static command_id_t parse_command_name(const char *cmd_str)
 static int hamlib_set_freq(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
+
+    begin_new_response(cs);
+
     if (is_extended)
     {
         long freq_val = atol(argv[0]);
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
                  "set_freq %ld:\nFreq: %ld\n", freq_val, freq_val);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
     {
         /* your original code: */
@@ -592,9 +664,10 @@ static int hamlib_set_freq(int cs, int is_extended, char *argv[], int argc)
 
         if (!is_extended)
         {
-            send_response(cs, (char *) "RPRT 0\n");
+            add_response(cs, (char *) "RPRT 0\n");
         }
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -604,16 +677,18 @@ static int hamlib_set_freq(int cs, int is_extended, char *argv[], int argc)
  */
 static int hamlib_get_freq(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_freq:\n");
+        add_response(cs, (char *) "get_freq:\n");
     }
     char response[20];
     if (is_extended)
         sprintf(response, "Freq: %ld\n", get_freq());
     else
         sprintf(response, "%ld\n", get_freq());
-    send_response(cs, response);
+    add_response(cs, response);
+    flush_response(cs);
 
     return 0;
 }
@@ -626,18 +701,31 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
 
+    begin_new_response(cs);
     const char *supported_modes[] = {"USB", "LSB", "CW", "CWR", "DIGI", "AM", "PKTUSB", "FT8"};
     char mode[32] = "";
     char passband[32] = "0";
 
     strcpy(mode, argv[0]);
-    if (argc > 1) strcpy(passband, argv[1]);
+
+    if (argc > 1)  // Optional
+        strcpy(passband, argv[1]);
 
     if (is_extended)
     {
-        char tmp[128];
-        snprintf(tmp, sizeof(tmp), "set_mode %s %s:\nMode: %s\nPassband: %s\n", mode, passband, mode, passband);
-        send_response(cs, tmp);
+        if(strcmp(argv[0], "?") == 0)
+        {
+
+            char tmp[128];
+            snprintf(tmp, sizeof(tmp), "set_mode: ?\n");
+            add_response(cs, tmp);
+        }
+        else
+        {
+            char tmp[128];
+            snprintf(tmp, sizeof(tmp), "set_mode: %s %s:\nMode: %s\nPassband: %s\n", mode, passband, mode, passband);
+            add_response(cs, tmp);
+        }
     }
 
     if (strcmp(argv[0], "?") == 0)
@@ -649,12 +737,14 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
             strcat(resp, " ");
         }
         strcat(resp, "\n");
-        send_response(cs, resp);
+        add_response(cs, resp);
+        flush_response(cs);
         return 0;
     }
 
     // Support for DIGI mode from programs likw WSJT-X
-    if (strcmp(mode, "PKTUSB") == 0) strcpy(mode, "DIGI");
+    if (strcmp(mode, "PKTUSB") == 0)
+        strcpy(mode, "DIGI");
 
     int found = 0;
     for (int i = 0; i < sizeof(supported_modes) / sizeof(supported_modes[0]); i++)
@@ -667,7 +757,8 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
     }
     if (!found)
     {
-        send_response(cs, (char *)"RPRT -9\n");
+        add_response(cs, (char *) "RPRT -9\n");
+        flush_response(cs);
         return -9;
     }
 
@@ -675,10 +766,10 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
     sprintf(cmd, "mode %s", mode);
     cmd_exec(cmd);
 
-    if (strcmp(passband, "0") == 0)
-    {
+    if (strcmp(passband, "0") == 0 || strcmp(passband, "-1")== 0) // Special case for WSJT-X (-1 passband value)
+    { 
         char bw_str[10];
-        sprintf(bw_str, "%d", get_default_passband_bw());
+        sprintf(bw_str, "%i", get_default_passband_bw());
         field_set("BW", bw_str);
     }
     else
@@ -688,7 +779,8 @@ static int hamlib_set_mode(int cs, int is_extended, char *argv[], int argc)
 
     if (!is_extended)
     {
-        send_response(cs, (char *)"RPRT 0\n");
+        add_response(cs, (char *) "RPRT 0\n");
+        flush_response(cs);
     }
 
     return 0;
@@ -703,10 +795,10 @@ static int hamlib_get_mode(int cs, int is_extended, char *argv[], int argc)
 {
     const char *supported_modes[] = {"USB", "LSB", "CW", "CWR", "DIGI", "AM", "PKTUSB", "FT8"};
     char mode[20], passband[20], response[50];
-
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *)"get_mode:\n");
+        add_response(cs, (char *) "get_mode:\n");
     }
 
     if (argc > 0 && strcmp(argv[0], "?") == 0)
@@ -718,20 +810,23 @@ static int hamlib_get_mode(int cs, int is_extended, char *argv[], int argc)
             strcat(resp, " ");
         }
         strcat(resp, "\n");
-        send_response(cs, resp);
+        add_response(cs, resp);
+        flush_response(cs);
         return 0;
     }
 
     get_field_value_by_label("MODE", mode);
-    get_field_value_by_label("BW", passband);
+    //  get_field_value_by_label("BW", passband);
 
     if (strcmp(mode, "DIGI") == 0)
     {
         strcpy(mode, "PKTUSB");
     }
 
-    snprintf(response, sizeof(response), is_extended ? "Mode: %s\nPassband: %s\n" : "%s\n%s\n", mode, passband);
-    send_response(cs, response);
+    snprintf(response, sizeof(response), is_extended ? "Mode: %s\nPassband: %i\n" : "%s\n%i\n", mode,
+             get_passband_bw());
+    add_response(cs, response);
+    flush_response(cs);
 
     return 0;
 }
@@ -743,12 +838,13 @@ static int hamlib_get_mode(int cs, int is_extended, char *argv[], int argc)
 static int hamlib_set_vfo(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
                  "set_vfo %s:\nVFO: %s\n", argv[0], argv[0]);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
     {
         char tmp[5];
@@ -756,9 +852,10 @@ static int hamlib_set_vfo(int cs, int is_extended, char *argv[], int argc)
         field_set("VFO", tmp);
         if (!is_extended)
         {
-            send_response(cs, (char *) "RPRT 0\n");
+            add_response(cs, (char *) "RPRT 0\n");
         }
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -768,9 +865,11 @@ static int hamlib_set_vfo(int cs, int is_extended, char *argv[], int argc)
  */
 static int hamlib_get_vfo(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_vfo:\n");
+        add_response(cs, (char *) "get_vfo:\n");
+
     }
     {
         char currVFO[2];
@@ -780,14 +879,16 @@ static int hamlib_get_vfo(int cs, int is_extended, char *argv[], int argc)
             char tmp[128];
             snprintf(tmp, sizeof(tmp),
                      "VFO: %s\n", currVFO);
-            send_response(cs, tmp);
+            add_response(cs, tmp);
+            flush_response(cs);
             return 0;
         }
         if (currVFO[0] == 'A')
-            send_response(cs, (char *) "VFOA\n");
+            add_response(cs, (char *) "VFOA\n");
         else
-            send_response(cs, (char *) "VFOB\n");
+            add_response(cs, (char *) "VFOB\n");
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -799,11 +900,12 @@ static int hamlib_set_split(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
 
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp), "set_split_vfo %s %s\n", argv[0], argc == 2 ? argv[1] : "");
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
 
     if (argc < 2 && strcmp(argv[0], "0") != 0) return -9;
@@ -820,9 +922,9 @@ static int hamlib_set_split(int cs, int is_extended, char *argv[], int argc)
 
     if (!is_extended)
     {
-        send_response(cs, "RPRT 0\n");
+        add_response(cs, "RPRT 0\n");
     }
-
+    flush_response(cs);
     return 0;
 }
 
@@ -833,37 +935,38 @@ static int hamlib_set_split(int cs, int is_extended, char *argv[], int argc)
 static int hamlib_get_split(int cs, int is_extended, char *argv[], int argc)
 {
     char curr_split[4];
+    begin_new_response(cs);
     get_field_value_by_label("SPLIT", curr_split);
 
     if (is_extended)
     {
-        send_response(cs, (char *)"get_split_vfo:\n");
+        add_response(cs, (char *) "get_split_vfo:\n");
     }
 
     if (strcmp(curr_split, "OFF") == 0)
     {
-        send_response(cs, is_extended ? (char *)"Split: 0\n" : (char *)"0\n");
+        add_response(cs, is_extended ? (char *) "Split: 0\n" : (char *) "0\n");
 
         char vfo[4];
         get_field_value_by_label("VFO", vfo);
 
         char tmp[128];
         snprintf(tmp, sizeof(tmp), is_extended ? "TX VFO: VFO%s\n" : "VFO%s\n", vfo);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
     else
     {
-        send_response(cs, (char *)"1\n");
+        add_response(cs, (char *) "1\n");
         if (is_extended)
         {
-            send_response(cs, (char *)"TX VFO: VFOB\n");
+            add_response(cs, (char *) "TX VFO: VFOB\n");
         }
         else
         {
-            send_response(cs, (char *)"VFOB\n");
+            add_response(cs, (char *) "VFOB\n");
         }
     }
-
+    flush_response(cs);
     return 0;
 }
 
@@ -878,39 +981,69 @@ static int hamlib_get_split(int cs, int is_extended, char *argv[], int argc)
 static int hamlib_set_func(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 2) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
                  "set_func %s %s:\n%s: %s\n", argv[0], argv[1], argv[0], argv[1]);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
 
     /* We can attempt to set it via the property table. If not found, fallback to your old code. */
+    const char *mapped_func_name = resolve_property_name(argv[0]);
+    /* For a function named argv[0] (e.g. "NB") we pass argv[1] ("1") */
+    if (!sdr_radio_set_property(mapped_func_name, argv[1]))
     {
-        const char *mapped_func_name = resolve_property_name(argv[0]);
-        /* For a function named argv[0] (e.g. "NB") we pass argv[1] ("1") */
-        if (!sdr_radio_set_property(mapped_func_name, argv[1]))
+        if (strcmp(argv[0], "AUDIO_TCP") == 0)
+        {
+            int client_index = get_client_index(cs);
+            if (client_index != -1)
+            {
+                if (is_debug)
+                    printf("Setting up sending audio_tcp to %s\n", client_ips[client_index]);
+
+                if (strcmp(argv[1], "1") == 0)
+                {
+                    if (start_reflector_service(client_ips[client_index]) == 0)
+                        fprintf(stderr, "Started reflector service\n");
+                    else
+                    {
+                        fprintf(stderr, "Failed to start reflector service\n");
+                        return -1;
+                    }
+                }
+                else if (is_reflector_service_running() && strcmp(argv[1], "0") == 0)
+                {
+                    stop_reflector_service();
+                    flush_response(cs);
+                    return 0;
+                }
+            }
+        }
+        else
         {
             /* fallback to your old set_func code if you want: */
             extern int set_func(const char *, const char *);
             int ret = set_func(mapped_func_name, argv[1]);
             if (ret != 0)
             {
-                send_response(cs, (char *) "RPRT -11\n");
+                add_response(cs, (char *) "RPRT -11\n");
             }
             else
             {
-                if (!is_extended) send_response(cs, (char *) "RPRT 0\n");
+                if (!is_extended) add_response(cs, (char *) "RPRT 0\n");
             }
         }
-        else
-        {
-            /* success using property table */
-            if (!is_extended)
-                send_response(cs, (char *) "RPRT 0\n");
-        }
     }
+    else
+    {
+        /* success using property table */
+        if (!is_extended)
+            add_response(cs, (char *) "RPRT 0\n");
+    }
+
+    flush_response(cs);
     return 0;
 }
 
@@ -927,7 +1060,7 @@ static int hamlib_get_func(int cs, int is_extended, char *argv[], int argc)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp), "get_func %s:\n", argv[0]);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
 
     if (strcmp(argv[0], "?") == 0)
@@ -943,7 +1076,8 @@ static int hamlib_get_func(int cs, int is_extended, char *argv[], int argc)
 
         }
         strcat(resp, "\n");
-        send_response(cs, resp);
+        add_response(cs, resp);
+        flush_response(cs);
         return 0;
     }
 
@@ -962,14 +1096,14 @@ static int hamlib_get_func(int cs, int is_extended, char *argv[], int argc)
         {
             char tmp[128];
             snprintf(tmp, sizeof(tmp), "%s: %s\n", argv[0], out_buf);
-            send_response(cs, tmp);
+            add_response(cs, tmp);
         }
         else
         {
-            send_response(cs, out_buf);
+            add_response(cs, out_buf);
         }
     }
-
+    flush_response(cs);
     return 0;
 }
 
@@ -984,12 +1118,13 @@ static int hamlib_get_func(int cs, int is_extended, char *argv[], int argc)
 static int hamlib_set_level(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 2) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
                  "set_level %s %s:\n%s: %s\n", argv[0], argv[1], argv[0], argv[1]);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
     const char *mapped_level_name = resolve_property_name(argv[0]);
 //    printf("Mapped level name is %s\n", mapped_level_name);
@@ -1003,16 +1138,16 @@ static int hamlib_set_level(int cs, int is_extended, char *argv[], int argc)
         hamlib_error_t err = command_set_level(mapped_level_name, val);
         if (err == HAMLIB_OK)
         {
-            if (!is_extended) send_response(cs, (char *) "RPRT 0\n");
+            if (!is_extended) add_response(cs, (char *) "RPRT 0\n");
         }
         else
         {
             if (err == HAMLIB_ERR_INVALID_PARAM)
-                send_response(cs, (char *) "RPRT -11\n");
+                add_response(cs, (char *) "RPRT -11\n");
             else if (err == HAMLIB_ERR_NOT_IMPLEMENTED)
-                send_response(cs, (char *) "RPRT -12\n");
+                add_response(cs, (char *) "RPRT -12\n");
             else
-                send_response(cs, (char *) "RPRT -13\n");
+                add_response(cs, (char *) "RPRT -13\n");
         }
     }
     else
@@ -1020,9 +1155,10 @@ static int hamlib_set_level(int cs, int is_extended, char *argv[], int argc)
         /* success with property table */
         if (!is_extended)
         {
-            send_response(cs, (char *) "RPRT 0\n");
+            add_response(cs, (char *) "RPRT 0\n");
         }
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -1033,12 +1169,13 @@ static int hamlib_set_level(int cs, int is_extended, char *argv[], int argc)
 static int hamlib_get_level(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
-                 "get_level %s:\n", argv[0]);
-        send_response(cs, tmp);
+                 "get_level: %s\n%s: ", argv[0], argv[0]);
+        add_response(cs, tmp);
     }
 
 
@@ -1054,13 +1191,14 @@ static int hamlib_get_level(int cs, int is_extended, char *argv[], int argc)
                 strcat(resp, " ");
             }
         }
-        strcat(resp, "\n");
-        send_response(cs, resp);
+        strcat(resp, "RPRT 0\n");
+        add_response(cs, resp);
+        flush_response(cs);
         return 0;
     }
     char out_buf[128];
     const char *mapped_level_name = resolve_property_name(argv[0]);
-    if(is_debug)printf("Mapped level name is %s\n", mapped_level_name);
+    if (is_debug)printf("Mapped level name is %s\n", mapped_level_name);
 
     if (!sdr_radio_get_property(mapped_level_name, out_buf, sizeof(out_buf)))
     {
@@ -1070,15 +1208,17 @@ static int hamlib_get_level(int cs, int is_extended, char *argv[], int argc)
     }
     else
     {
-       strcat(out_buf, "\n");
-       send_response(cs, out_buf);
-     }
+        strcat(out_buf, "\n");
+        add_response(cs, out_buf);
+    }
 
+    flush_response(cs);
     return 0;
 }
 
 void command_tx_control(int client_socket, int s)
 {
+    begin_new_response(client_socket);
     //printf("tx_control(%d)\n", s);
     if (s == 1)
     {
@@ -1093,13 +1233,13 @@ void command_tx_control(int client_socket, int s)
         char tx_status[100];
         sdr_request("stat:tx=1", (char *) tx_status);
         if (!strcmp(tx_status, "ok on"))
-            send_response(client_socket, "1\n");
+            add_response(client_socket, "1\n");
         else
-            send_response(client_socket, "0\n");
+            add_response(client_socket, "0\n");
         return;
     }
-    send_response(client_socket, "RPRT 0\n");
-
+    add_response(client_socket, "RPRT 0\n");
+    flush_response(client_socket);
 }
 /*****************************************************************************
  * T, set_ptt 'PTT' (0 or 1)
@@ -1114,17 +1254,19 @@ static int hamlib_set_ptt(int cs, int is_extended, char *argv[], int argc)
 {
     int ptt_val = 1;
     if (argc > 0) ptt_val = atoi(argv[0]);
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[64];
         snprintf(tmp, sizeof(tmp),
                  "set_ptt %d:\nPTT: %d\n", ptt_val, ptt_val);
-        send_response(cs, tmp);
+        add_response(cs, tmp);
     }
     {
         extern void command_tx_control(int client_socket, int s);
         command_tx_control(cs, ptt_val);
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -1134,15 +1276,17 @@ static int hamlib_set_ptt(int cs, int is_extended, char *argv[], int argc)
  */
 static int hamlib_get_ptt(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_ptt:\n");
+        add_response(cs, (char *) "get_ptt:\n");
     }
     {
         /* your code calls command_tx_control(cs,-1) => returns '0\n' or '1\n' */
         extern void command_tx_control(int client_socket, int s);
         command_tx_control(cs, -1);
     }
+    flush_response(cs);
     return 0;
 }
 
@@ -1179,24 +1323,27 @@ static char dump_state_response[] =
 
 static int hamlib_dump_state(int cs, int is_extended)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "dump_state:\n");
-        send_response(cs, dump_state_response);
+        add_response(cs, (char *) "dump_state:\n");
+        add_response(cs, dump_state_response);
     }
     else
     {
-        send_response(cs, dump_state_response);
-        send_response(cs, (char *) "RPRT 0\n");
+        add_response(cs, dump_state_response);
+        add_response(cs, (char *) "RPRT 0\n");
     }
+    flush_response(cs);
     return 0;
 }
 
 static int hamlib_get_rig_info(int client_socket, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(client_socket);
     if (is_extended)
     {
-        send_response(client_socket, (char *)"get_rig_info\n\n");
+        add_response(client_socket, (char *) "get_rig_info:\n");
     }
 
     char mode[10];
@@ -1211,19 +1358,19 @@ static int hamlib_get_rig_info(int client_socket, int is_extended, char *argv[],
 
     snprintf(resp, sizeof(resp), "VFO=VFOA Freq=%s Mode=%s Width=%ld RX=1 TX=1\n",
              freq, mode, get_passband_bw());
-    send_response(client_socket, resp);
+    add_response(client_socket, resp);
 
     // Get the VFO B Values
     get_field_value_by_label("VFOB", freq);
 
     snprintf(resp, sizeof(resp), "VFO=VFOB Freq=%s Mode=%s Width=%ld RX=0 TX=0\n",
              freq, mode, get_passband_bw());
-    send_response(client_socket, resp);
+    add_response(client_socket, resp);
 
     snprintf(resp, sizeof(resp), "Split=%s\nSatMode=0\nRig=%s\nVersion=%s\nApp=Hamlib\n",
              strcmp(split, "OFF") == 0 ? "0" : "1", PRODUCT, VERSION);
-    send_response(client_socket, resp);
-
+    add_response(client_socket, resp);
+    flush_response(client_socket);
     return 0;
 }
 
@@ -1232,14 +1379,17 @@ static int hamlib_get_rig_info(int client_socket, int is_extended, char *argv[],
  *****************************************************************************/
 static int hamlib_get_powerstat(int cs, int is_extended)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_powerstat:\nPower: 1\n");
+        add_response(cs, (char *) "get_powerstat:\nPower: 1\n");
     }
     else
     {
-        send_response(cs, (char *) "1\n");
+        add_response(cs, (char *) "1\n");
     }
+
+    flush_response(cs);
     return 0;
 }
 
@@ -1249,16 +1399,17 @@ static int hamlib_get_powerstat(int cs, int is_extended)
 static int hamlib_send_cmd_raw(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[256];
         if (argc > 1 && argc < 3)
             snprintf(tmp, sizeof(tmp),
-                     "send_cmd %s:\nCommand: %s\n", argv[0], argv[0]);
+                     "send_cmd: %s\nCommand: %s\n", argv[0], argv[0]);
         if (argc > 2 && argc <= 3)
             snprintf(tmp, sizeof(tmp),
-                     "send_cmd %s %s:\n%s: %s\n", argv[0], argv[1], argv[0], argv[1]);
-        send_response(cs, tmp);
+                     "send_cmd: %s %s\n%s: %s\n", argv[0], argv[1], argv[0], argv[1]);
+        add_response(cs, tmp);
     }
     {
         char combined[256] = "";
@@ -1270,57 +1421,62 @@ static int hamlib_send_cmd_raw(int cs, int is_extended, char *argv[], int argc)
         remote_execute(combined);
         if (!is_extended)
         {
-            send_response(cs, (char *) "RPRT 0\n");
+            add_response(cs, (char *) "RPRT 0\n");
         }
     }
+    flush_response(cs);
     return 0;
 }
 
 static int hamlib_get_vfo_info(int cs, int is_extended, char *argv[], int argc)
 {
-    if (false ) // turn this off
-    {
-        if (argc > 0)
-        {
-            sprintf(resp, "get_vfo_info: %s\n\n", argv[0]);
-            send_response(cs, resp);
-        }
-    }
-    {
-        char mode[10];
-        char freq[20];
-        char vfo[10];
 
-        char split[4];
-        char tx_vfo[4];
-        extern char vfo_a_mode[10];
-        extern char vfo_b_mode[10];
 
-        if (argc < 1) return -11;
-        if (argc > 0)
-            strcpy(vfo, argv[0]);
+    //Freq: 21019800
+    //Mode: CW
+    //Width: 500
+    //Split: 1
+    //SatMode: 0
 
-        get_field_value_by_label(vfo, freq);
-        get_field_value_by_label("SPLIT", split);
+    begin_new_response(cs);
 
-        /// Apparently we only have one mode... so we will just use that for both
-        get_field_value_by_label("MODE", mode);
-        // Get the mode based on which VFOA or VFOB
+    char mode[10];
+    char freq[20];
+    char vfo[10];
+    char bandwidth[10];
+
+    char split[4];
+    char tx_vfo[4];
+    extern char vfo_a_mode[10];
+    extern char vfo_b_mode[10];
+
+    if (argc < 1) return -11;
+    if (argc > 0)
+        strcpy(vfo, argv[0]);
+
+    get_field_value_by_label(vfo, freq);
+    get_field_value_by_label("SPLIT", split);
+    get_field_value_by_label("BW", bandwidth);
+
+    /// Apparently we only have one mode... so we will just use that for both
+    get_field_value_by_label("MODE", mode);
+    // Get the mode based on which VFOA or VFOB
 //        if (!strcmp(vfo, "VFOA"))
 //            strcpy(mode, vfo_a_mode);
 //        else
 //            strcpy(mode, vfo_b_mode);
 
-        if (is_extended)
-        {
-            sprintf(resp, "get_vfo_info: %s\n\nFreq: %s\nMode: %s\nVFO: %s\nSplit: %s \n\n", argv[0],freq, mode, vfo,
-                    strcmp(split, "OFF") == 0 ? "0" : "1");
-        }
-        else
-            sprintf(resp, "%s\n%s\n%s\n%s\n", freq, mode, vfo, strcmp(split, "OFF") == 0 ? "0" : "1");
-
-        send_response(cs, resp);
+    if (is_extended)
+    {
+        sprintf(resp, "get_vfo_info: %s\nFreq: %s\nMode: %s\nWidth: %s\nSplit: %s \nRPRT 0\n", argv[0], freq, mode,
+                bandwidth,
+                strcmp(split, "OFF") == 0 ? "0" : "1");
     }
+    else
+        sprintf(resp, "%s\n%s\n%s\n%s\n", freq, mode, bandwidth, strcmp(split, "OFF") == 0 ? "0" : "1");
+
+    add_response(cs, resp);
+    flush_response(cs);
     return 0;
 }
 
@@ -1330,21 +1486,24 @@ static int hamlib_get_vfo_info(int cs, int is_extended, char *argv[], int argc)
 
 static int hamlib_get_trn(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_trn:\n");
+        add_response(cs, (char *) "get_trn:\n");
     }
     sprintf(resp, "OFF\n");
-    send_response(cs, resp);
+    add_response(cs, resp);
+    flush_response(cs);
     return 0;
 }
 
 //   Gets rig clock -- note that some rigs do not handle seconds or milliseconds. Format is ISO8601 YYYY-MM-DDTHH:MM:SS.sss+ZZ where +ZZ is either -/+ UTC offset
 static int hamlib_get_clock(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     if (is_extended)
     {
-        send_response(cs, (char *) "get_clock:\n");
+        add_response(cs, (char *) "get_clock:\n");
     }
     {
         char clock[50];
@@ -1361,23 +1520,26 @@ static int hamlib_get_clock(int cs, int is_extended, char *argv[], int argc)
             char tmp[128];
             snprintf(tmp, sizeof(tmp),
                      "Clock: %s\n", clock);
-            send_response(cs, tmp);
+            add_response(cs, tmp);
         }
         else
-            send_response(cs, clock);
+            add_response(cs, clock);
     }
+
+    flush_response(cs);
     return 0;
 }
 
 static int hamlib_set_lock_mode(int cs, int is_extended, char *argv[], int argc)
 {
     if (argc < 1) return -11;
+    begin_new_response(cs);
     if (is_extended)
     {
         char tmp[128];
         snprintf(tmp, sizeof(tmp),
-                 "set_lock_mode %s:\nLock Mode: %s\n", argv[0], argv[0]);
-        send_response(cs, tmp);
+                 "set_lock_mode: %s\nLock Mode: %s\n", argv[0], argv[0]);
+        add_response(cs, tmp);
     }
     {
         if (strcmp(argv[0], "0") == 0)
@@ -1391,34 +1553,37 @@ static int hamlib_set_lock_mode(int cs, int is_extended, char *argv[], int argc)
         }
         if (!is_extended)
         {
-            send_response(cs, (char *) "RPRT 0\n");
+            add_response(cs, (char *) "RPRT 0\n");
         }
     }
+    flush_response(cs);
     return 0;
 }
 
 static int hamlib_get_lock_mode(int cs, int is_extended, char *argv[], int argc)
 {
+    begin_new_response(cs);
     char lock[4];
-   if(is_locked)
+    if (is_locked)
         strcpy(lock, "1");
     else
         strcpy(lock, "0");
 
     if (is_extended)
     {
-        send_response(cs, (char *)"get_lock_mode:\n");
+        add_response(cs, (char *) "get_lock_mode:\n");
     }
 
     if (strcmp(lock, "0") == 0)
     {
-        send_response(cs, is_extended ? (char *)"Lock Mode: 0\n" : (char *)"0\n");
+        add_response(cs, is_extended ? (char *) "Lock Mode: 0\n" : (char *) "0\n");
     }
     else
     {
-        send_response(cs, is_extended ? (char *)"Lock Mode: 1\n" : (char *)"1\n");
+        add_response(cs, is_extended ? (char *) "Lock Mode: 1\n" : (char *) "1\n");
     }
 
+    flush_response(cs);
     return 0;
 }
 
@@ -1432,6 +1597,7 @@ static int hamlib_get_lock_mode(int cs, int is_extended, char *argv[], int argc)
 static void interpret_line(int client_socket, const char *line_in)
 {
     char line[512];
+    char command[30];
     strncpy(line, line_in, sizeof(line));
     line[sizeof(line) - 1] = '\0';
 
@@ -1466,7 +1632,11 @@ static void interpret_line(int client_socket, const char *line_in)
             printf("%s ", argv[i]);
         printf("  --> ");
     }
+    strcpy(command, argv[0]); // Hold it for later
+
     command_id_t cmd_id = parse_command_name(argv[0]);
+    
+    // Move args down for handlers that need it
     for (int i = 1; i < argc; i++)
     {
         argv[i - 1] = argv[i];
@@ -1592,6 +1762,26 @@ static void interpret_line(int client_socket, const char *line_in)
         case CMD_GET_CLOCK:
             ret = hamlib_get_clock(client_socket, is_extended, argv, argc);
             break;
+        case CMD_UNKNOWN:
+            // Send an error response of the command and all of the arguments
+            // in the form: <command>: <arg1> <arg2> <arg3> ...
+            char tmp[256];
+            if(is_extended)
+            { strcpy(tmp, command);
+            strcat(tmp, ":");
+            if(argc > 1)
+                for (int i = 0; i < argc; i++)
+                {
+                    strcat(tmp, " ");
+                    strcat(tmp, argv[i]);
+                }
+            strcat(tmp, "\n");
+            }
+            strcat(tmp, "RPRT -11\n");
+            add_response(client_socket, tmp);
+            flush_response(client_socket); // Single packet response
+            return;
+            
         default:
             ret = -11;
             break;
@@ -1599,7 +1789,7 @@ static void interpret_line(int client_socket, const char *line_in)
 
     if (is_extended)
     {
-        send_rprt(client_socket, ret);
+       // send_rprt(client_socket, ret); /// <---- not sure if this is needed
     }
     else if (ret != 0)
     {
@@ -1689,7 +1879,6 @@ static void *server_thread(void *arg)
         perror("Failed to create socket");
         exit(EXIT_FAILURE);
     }
-//    printf("Socket created successfully\n");
 
     int opt = 1;
     struct linger ling;
@@ -1701,13 +1890,6 @@ static void *server_thread(void *arg)
         close(welcome_socket);
         exit(EXIT_FAILURE);
     }
-//    if (setsockopt(welcome_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
-//    {
-//        perror("setsockopt failed");
-//        close(welcome_socket);
-//        exit(EXIT_FAILURE);
-//    }
-//    printf("Socket options set successfully\n");
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(4532);
@@ -1720,7 +1902,7 @@ static void *server_thread(void *arg)
         close(welcome_socket);
         exit(EXIT_FAILURE);
     }
-  //  printf("Socket bound successfully\n");
+    //  printf("Socket bound successfully\n");
 
     if (listen(welcome_socket, 5) < 0)
     {
@@ -1774,6 +1956,14 @@ static void *server_thread(void *arg)
                     if (client_sockets[i] == 0)
                     {
                         client_sockets[i] = new_sd;
+                        if (inet_ntop(AF_INET, &client_addr.sin_addr, client_ips[i], INET_ADDRSTRLEN) == NULL)
+                        {
+                            perror("inet_ntop");
+                        }
+                        else
+                        {
+                            printf("Client IP: %s\n", client_ips[i]);
+                        }
                         assigned = 1;
                         break;
                     }
@@ -1787,7 +1977,10 @@ static void *server_thread(void *arg)
             }
             else
             {
-                perror("accept error");
+                if (errno != EAGAIN && errno != EWOULDBLOCK)
+                {
+                    perror("accept error");
+                }
             }
         }
 
@@ -1810,6 +2003,8 @@ static void *server_thread(void *arg)
                     printf("Client %d disconnected.\n", sd);
                     close(sd);
                     client_sockets[i] = 0;
+                    memset(client_ips[i], 0, INET_ADDRSTRLEN);
+
                 }
             }
         }
@@ -1842,6 +2037,7 @@ void start_hamlib_listener()
     }
     pthread_detach(tid);
 }
+
 // Stop the HAMLIB listener thread
 void stop_hamlib_listener()
 {
@@ -1867,6 +2063,7 @@ void initialize_hamlib()
     }
     pthread_detach(tid);
 }
+
 
 /*****************************************************************************
  * set_func
@@ -1941,6 +2138,7 @@ int set_func(const char *func, const char *value)
             is_debug = 0;
         return 0;
     }
+
     /* Repeat for "COMP", "RIT", etc. if you want. */
 
     // or fallback to setting a field:
@@ -1983,7 +2181,7 @@ void command_get_func(int client_socket, const char *func)
     {
         // Return a space-separated list of radio backend supported get function tokens
         // e.g. "NB COMP TUNER ANR ..."
-        send_response(client_socket, (char *) "NB COMP ANR TUNER RIT\n");
+        add_response(client_socket, (char *) "NB COMP ANR TUNER RIT\n");
         return;
     }
 
@@ -1996,20 +2194,20 @@ void command_get_func(int client_socket, const char *func)
     {
         // e.g. if toggle_value=="ON" => "1"
         sprintf(resp, "%d\n", (strcmp(toggle_value, "ON") == 0) ? 1 : 0);
-        send_response(client_socket, resp);
+        add_response(client_socket, resp);
         return;
     }
     else if (strcmp(func, "COMP") == 0)
     {
         int compression = field_int("COMP");
         sprintf(resp, "%d\n", compression > 0 ? 1 : 0);
-        send_response(client_socket, resp);
+        add_response(client_socket, resp);
         return;
     }
     else if (strcmp(func, "DEBUG") == 0)
     {
         sprintf(resp, "%d\n", is_debug);
-        send_response(client_socket, resp);
+        add_response(client_socket, resp);
         return;
     }
     /* else if (whatever) ... */
@@ -2019,12 +2217,12 @@ void command_get_func(int client_socket, const char *func)
     strcpy(field_value, "");
     if (get_field_value_by_label((char *) func, field_value) == -1)
     { // Not found :-(  RPRT -11
-        send_response(client_socket, (char *) "RPRT -11\n");
+        add_response(client_socket, (char *) "RPRT -11\n");
     }
     else
     { // Found :-)  Return the value
         sprintf(resp, "%s\n", field_value);
-        send_response(client_socket, resp);
+        add_response(client_socket, resp);
     }
 }
 
@@ -2042,7 +2240,7 @@ hamlib_error_t command_set_level(const char *level, float value)
 
     if (strcmp(level, "RFPOWER") == 0)
     {
-        snprintf(sdr_cmd, sizeof(sdr_cmd), "DRIVE %d", (int) ((float)value * 100.0));
+        snprintf(sdr_cmd, sizeof(sdr_cmd), "DRIVE %d", (int) ((float) value * 100.0));
     }
     else if (strcmp(level, "MICGAIN") == 0 || strcmp(level, "MIC") == 0)
     {
@@ -2128,8 +2326,8 @@ void command_get_level(int client_socket, const char *level)
     if (strcmp(level, "RFPOWER") == 0)
     {
         float drive = (float) field_int("DRIVE") / 100.0f;
-        snprintf(resp, sizeof(resp), "%.2f\n", drive);
-        send_response(client_socket, resp);
+        snprintf(resp, sizeof(resp), "%1.2f\n", drive);
+        add_response(client_socket, resp);
         return;
     }
     else if (strcmp(level, "MICGAIN") == 0 || strcmp(level, "MIC") == 0)
@@ -2142,7 +2340,7 @@ void command_get_level(int client_socket, const char *level)
     }
     else if (strcmp(level, "RXGAIN") == 0)
     {
-        value = field_int("IF");
+                value = field_int("IF");
     }
     else if (strcmp(level, "TXMON") == 0)
     {
@@ -2154,17 +2352,17 @@ void command_get_level(int client_socket, const char *level)
     }
     else if (strcmp(level, "SWR") == 0)
     {
-            char meter_str[100];
-            int vswr = field_int("REF");
-            int power = field_int("POWER");
+        char meter_str[100];
+        int vswr = field_int("REF");
+        int power = field_int("POWER");
 
-            // power is in 1/10th of watts and vswr is also 1/10th
-            if (power < 30)
-                vswr = 10;
+        // power is in 1/10th of watts and vswr is also 1/10th
+        if (power < 30)
+            vswr = 10;
 
-        float swr= (float)vswr/10.0;
+        float swr = (float) vswr / 10.0;
         snprintf(resp, sizeof(resp), "%.2f\n", swr);
-        send_response(client_socket, resp);
+        add_response(client_socket, resp);
         return;
 
     }
@@ -2191,14 +2389,14 @@ void command_get_level(int client_socket, const char *level)
     else if (strcmp(level, "STRENGTH") == 0)
     {
 
-        snprintf(resp, sizeof(resp), "%2.1f dB\n", get_rig_level_strength());
-        send_response(client_socket, resp);
+        snprintf(resp, sizeof(resp), "%i\n", (int) get_rig_level_strength());
+        add_response(client_socket, resp);
         return;
     }
     else if (strcmp(level, "METER") == 0)
     {
-        snprintf(resp, sizeof(resp), "%2.1f dB\n", get_rig_level_strength);
-        send_response(client_socket, resp);
+        snprintf(resp, sizeof(resp), "%2.1f\n", get_rig_level_strength);
+        add_response(client_socket, resp);
         return;
     }
     else
@@ -2207,17 +2405,17 @@ void command_get_level(int client_socket, const char *level)
         char field_value[100] = "";
         if (get_field_value_by_label((char *) level, field_value) == -1)
         {
-            send_response(client_socket, (char *) "RPRT -11\n");
+            add_response(client_socket, (char *) "RPRT -11\n");
         }
         else
         {
             snprintf(resp, sizeof(resp), "%s\n", field_value);
-            send_response(client_socket, resp);
+            add_response(client_socket, resp);
         }
         return;
     }
     printf("Got level: %d\n", value);
-  snprintf(resp, sizeof(resp), "%d\n", value);
-  send_response(client_socket, resp);
+    snprintf(resp, sizeof(resp), "%d\n", value);
+    add_response(client_socket, resp);
 }
 
