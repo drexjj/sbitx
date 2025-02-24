@@ -1879,7 +1879,7 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 		GtkWidget *label = gtk_label_new(NULL);
 
 		gtk_label_set_markup(GTK_LABEL(label),
-							 "<span foreground='red' size='x-large'><b>âš  IMPORTANT âš </b></span>\n\n"
+							 "<span foreground='red' size='x-large'><b>!!  IMPORTANT !! </b></span>\n\n"
 							 "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
 							 "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
 
@@ -3273,6 +3273,7 @@ static void layout_ui()
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
 		if (waterfall_height < MIN_WATERFALL_HEIGHT)
 			waterfall_height = MIN_WATERFALL_HEIGHT;
+      
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
 			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);

@@ -1761,7 +1761,6 @@ void tr_switch(int tx_on) {
     fwdpower_calc = 0;
     fwdpower = 0;
 
-
   } else {                       // switch to receive
     in_tx = 0;                   // lower the transmit flag
     sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
