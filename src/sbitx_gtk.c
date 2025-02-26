@@ -3250,9 +3250,9 @@ static void layout_ui()
 		y1 = y2 - 97;
 		field_move("FT8_TX1ST", 375, y1, 75, 45);
 		field_move("FT8_AUTO", 450, y1, 75, 45);
-		field_move("TX_PITCH", 450, y1, 75, 45);
 		field_move("FT8_REPEAT", 525, y1, 75, 45);
 		field_move("MACRO", 600, y1, 75, 45);
+		field_move("TX_PITCH", 675, y1, 75, 45);
  		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
 		field_move("F2", 75, y1, 75, 45);
@@ -3263,7 +3263,7 @@ static void layout_ui()
 		field_move("F7", 450, y1, 75, 45);
 		field_move("F8", 525, y1, 75, 45);
 		field_move("SIDETONE", 600, y1, 75, 45);
-    field_move("ESC", 675, y1, 75, 45);
+		field_move("ESC", 675, y1, 75, 45);
 		break;
 
 	case MODE_CW:
