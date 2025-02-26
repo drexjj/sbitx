@@ -72,6 +72,7 @@ static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
 
 int scope_avg = 10; // Default value for SCOPEAVG
+float sp_baseline = 0;
 
 // Declare global variables for WFSPD and SCOPEGAIN
 int wf_spd = 50;		// Default value for WFSPD
@@ -782,6 +783,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
+
+	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "SCOPEAUTO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
 
 	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
@@ -2123,14 +2127,21 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			f->width * (f->height - 1) * 3);
 
 	int index = 0;
-
+	static float wf_offset = 0;
 	for (int i = 0; i < f->width; i++)
 	{
 		// Scale the input value (original behavior restored)
 		float scaled_value = wf[i] * 2.4;
 
 		// Normalize data to the range [0, 100] based on adjusted min/max
-		float normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
+		float normalized = 0;
+
+		if (!strcmp(field_str("SCOPEAUTO"), "ON")) {
+			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
+		} else {
+			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
+			wf_offset = 0;
+		}
 
 		// Clamp normalized values to [0, 100]
 		if (normalized < 0)
@@ -2178,6 +2189,11 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		}
 	}
 
+	// Use the same baseline that had been calculated for the spectrum
+	// This gives good results as it's averaged, hence less noisy
+	// Smoothly adjust the waterfall offset
+	wf_offset += ((sp_baseline + 40)*2 - wf_offset) / 10;
+	
 	// Draw the updated waterfall
 	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
 	cairo_paint(gfx);
@@ -2239,10 +2255,14 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 		}
 	}
 
-	// Compute the average
+	// Compute the average and the minimum
+	sp_baseline = averaged_spectrum[0];
 	for (int bin = 0; bin < n_bins; bin++)
 	{
 		averaged_spectrum[bin] /= scope_avg;
+		// Store the lowest value for the avg
+		if ((bin == 0) || (sp_baseline > averaged_spectrum[bin]))
+			sp_baseline = averaged_spectrum[bin];
 	}
 }
 
@@ -2747,6 +2767,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// Begin a new path for the filled spectrum
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
 
+	// We want the baseline of the spectrum always to be visible at the bottom
+	// of the graph.
+	static float sp_baseline_offs = 0.0;
+
 	for (int i = starting_bin; i <= ending_bin; i++)
 	{
 		int y;
@@ -2761,20 +2785,27 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		if (y > f->height)
 			y = f->height - 1;
 
-		// Apply stretch factor to the averaged spectrum plot
+		// Apply stretch factor and floating offset to the averaged spectrum plot
 		int enhanced_y = y;												// Start with the original y
-		float averaged_value = averaged_spectrum[i] + waterfall_offset; // Use averaged data
-		if (averaged_value > 0)
-		{														 // Stretch only non-zero values
-			float stretched_value = averaged_value * scope_gain; // Apply stretch factor
+		float averaged_value = averaged_spectrum[i]; // Use averaged data
 
-			// Scale stretched value to screen coordinates
-			enhanced_y = (int)((stretched_value * f->height) / 80);
+                if (!strcmp(field_str("SCOPEAUTO"), "ON"))
+			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
+		else
+			averaged_value += waterfall_offset;
 
-			// Clip enhanced_y to grid height
-			if (enhanced_y > grid_height)
-				enhanced_y = grid_height; // Limit to grid height
-		}
+		float stretched_value = averaged_value * scope_gain; // Apply stretch factor
+
+		// Scale stretched value to screen coordinates
+		enhanced_y = (int)((stretched_value * f->height) / 80 + 1);
+
+		// Clip enhanced_y to grid height
+		if (enhanced_y > grid_height)
+			enhanced_y = grid_height; // Limit to grid height
+
+		// Clip enhanced_y to zero
+		if (enhanced_y < 0)
+			enhanced_y = 0;
 
 		// Add the spectrum line point to the path
 		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
@@ -2787,6 +2818,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		if (f->width <= x)
 			x = f->width - 1;
 	}
+
+	// We adjust slowly the baseline offset, to keep it smoothly stable where we want it in the graph
+	sp_baseline_offs -= (sp_baseline_offs - sp_baseline) / 5;
 
 	// Close the path to create a filled shape
 	cairo_line_to(gfx, f->x, f->y + grid_height); // Bottom-left corner
@@ -3128,9 +3162,10 @@ void menu2_display(int show)
 		field_move("WFMAX", 5, screen_height - 50, 70, 45);
 		field_move("WFSPD", 80, screen_height - 100, 70, 45);
 		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
-		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);			   // Add SCOPEAVG field
-		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45);			   // Add SCOPESIZE field
-		field_move("INTENSITY", 245, screen_height - 50, 70, 45);			   // Add SCOPE ALPHA field
+		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
+		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
+                field_move("SCOPEAUTO", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 	}
 	else
