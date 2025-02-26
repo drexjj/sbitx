@@ -6,7 +6,8 @@ v4.4 -
 - Added full spectrum/waterfall button for CW modes
 - Adjusted CW shaping timing and reduced from 20ms to 4ms
 - Added current/voltage meter display functionality with INA260 Power Sensor add-on hardware
-- Added max-hold visualization for POWER and corrected SWR calculation in the case of little or no POWER.
+- Added max-hold visualization for POWER and corrected SWR calculation in the case of little or no POWER
+- Added Spectrum Averaging function called AUTOSCOPE in MENU 2. Spectrum averaging helps in smoothing out the waterfall display and scope, making it easier to see signals clearly.
 
 v4.3 - 
 - Added Menus for additional functions
