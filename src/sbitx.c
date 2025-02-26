@@ -1745,6 +1745,9 @@ void tr_switch(int tx_on) {
     in_tx = 1;                   // raise a flag so functions see we are in transmit mode
     sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
     sound_mixer(audio_card, "Capture", 0);
+		if (rx_list->mode != MODE_DIGITAL && rx_list->mode != MODE_FT8 && rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
+		delay(20);
+	}
     mute_count = 20;             // number of audio samples to zero out
     fft_reset_m_bins();          // fixes burst at start of transmission
     set_tx_power_levels();       // use values for tx_power_watts, tx_gain
