@@ -784,7 +784,7 @@ struct field main_controls[] = {
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
 
-	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "SCOPEAUTO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -2136,7 +2136,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Normalize data to the range [0, 100] based on adjusted min/max
 		float normalized = 0;
 
-		if (!strcmp(field_str("SCOPEAUTO"), "ON")) {
+		if (!strcmp(field_str("AUTOSCOPE"), "ON")) {
 			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
 		} else {
 			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
@@ -2789,7 +2789,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		int enhanced_y = y;												// Start with the original y
 		float averaged_value = averaged_spectrum[i]; // Use averaged data
 
-                if (!strcmp(field_str("SCOPEAUTO"), "ON"))
+                if (!strcmp(field_str("AUTOSCOPE"), "ON"))
 			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
 		else
 			averaged_value += waterfall_offset;
@@ -3165,7 +3165,7 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-                field_move("SCOPEAUTO", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
+                field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 	}
 	else
