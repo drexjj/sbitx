@@ -48,6 +48,13 @@ These are text commands that can be entered from the keyboard
 	-:  Decrease the selected band's scale value by .00025
 		When increasing or decreasing the scale, the new value will be printed
 		in the terminal.  Make note of values for updating your hw_settings.ini.
+\bstackposopt [ON | OFF]
+	Enables or disables the bandstack indicators below the band buttons
+\epttopt [ON |OFF]
+	Displays the ePTT toggle button in the menu
+	You must have the QRO accessory board installed from ducerf.etsy.com to use this effectively
+\smeteropt [ON | OFF]
+	Shows or hides the relative S-Meter
 10M	
 12M
 15M
