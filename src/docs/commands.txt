@@ -55,6 +55,8 @@ These are text commands that can be entered from the keyboard
 	You must have the QRO accessory board installed from ducerf.etsy.com to use this effectively
 \smeteropt [ON | OFF]
 	Shows or hides the relative S-Meter
+\ina260opt [ON | OFF]
+	Enables or disables the input source voltage and amperage display on the title box
 10M	
 12M
 15M
