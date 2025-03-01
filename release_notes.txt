@@ -1,12 +1,12 @@
 v4.4 -
-- Added	power down button from sbitx menu
-- Added Macro chooser button in the main GUI
+- Added	power down button from sbitx menu 2
+- Added Macro chooser button in the main GUI for FT8/CW modes
 - Fixed the Macro change screen refresh when changing macros
 - Fixed the CW Macro issue when the delay/WPM were set at a threshold
 - Added full spectrum/waterfall button for CW modes
 - Adjusted CW shaping timing and reduced from 20ms to 4ms
-- Added current/voltage meter display functionality with INA260 Power Sensor add-on hardware
-- Added max-hold visualization for POWER and corrected SWR calculation in the case of little or no POWER
+- Added current/voltage meter display functionality for INA260 Power Sensor add-on hardware
+- Added max-hold visualization for POWER and corrected SWR calculation in the case of little or no FWD POWER
 - Added AUTOSCOPE in MENU 2 which adjusts the vertical offset of the scope and the base value for the waterfall automatically, making it easier to see signals clearly.
 
 v4.3 - 
