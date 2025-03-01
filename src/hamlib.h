@@ -1,5 +1,5 @@
 
-
+#ifndef RIG_H
 enum rig_errcode_e {
     RIG_OK = 0,     /*!< 0 No error, operation completed successfully */
     RIG_EINVAL,     /*!< 1 invalid parameter */
@@ -26,6 +26,7 @@ enum rig_errcode_e {
     RIG_EACCESS,    /*!< 22 Access denied -- e.g. port already in use */
     RIG_EEND        // MUST BE LAST ITEM IN LAST
 };
+#endif
 
 // Common HAMLIB error codes
 typedef enum
@@ -68,9 +69,9 @@ static int hamlib_send_cmd_raw(int cs, int is_extended, char *argv[], int argc);
 static int hamlib_get_vfo_info(int cs, int is_extended, char *argv[], int argc);
 static int hamlib_get_trn(int cs, int is_extended, char *argv[], int argc);
 static int hamlib_get_clock(int cs, int is_extended, char *argv[], int argc);
-
+static int hamlib_chk_vfo(int cs, int is_extended, char *argv[], int argc);
 // Helper functions
-void send_rprt(int client_socket, int code);
+void send_error_rprt(int client_socket, int code);
 static void send_response(int client_socket,  char *response);
 static int get_max_sd();
 static void handle_client_data(int client_socket, const char *data, ssize_t len);
@@ -80,10 +81,10 @@ static void *start_listener_thread(void *arg);
 void initialize_hamlib();
 
 // Reflector Audio Services
-//extern int start_reflector_service(const char *ip);
+extern int start_reflector_service(const char *ip);
 /* Call this to stop the reflector service.
    This will signal the service thread to exit and wait for it to finish. */
-//extern void stop_reflector_service(void);
+extern void stop_reflector_service(void);
 
 /* Returns true if the reflector service is currently running. */
-//extern bool is_reflector_service_running(void);
+extern bool is_reflector_service_running(void);
