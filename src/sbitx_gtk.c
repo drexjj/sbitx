@@ -3165,7 +3165,7 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-    field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
+                field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 	}
 	else
@@ -3349,7 +3349,6 @@ static void layout_ui()
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
 		break;
-
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_AM:
@@ -3678,94 +3677,6 @@ time_t time_sbitx()
 	if (time_delta)
 		return time(NULL);
 }
-struct band *get_band_by_frequency(int frequency)
-{
-	// Iterate through the band stack to find the matching band
-	for (int i = 0; i < sizeof(band_stack) / sizeof(band_stack[0]); i++)
-	{
-		// Use the start and stop fields to define the band edges
-		if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
-		{
-			return &band_stack[i]; // Return a pointer to the matching band
-		}
-	}
-	return NULL; // Return NULL if no matching band is found
-}
-
-void apply_band_settings(long frequency)
-{
-    int new_band = -1;
-    int max_bands = sizeof(band_stack) / sizeof(struct band);
-
-    // Determine the band index based on the frequency
-    for (int i = 0; i < max_bands; i++)
-    {
-        if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
-        {
-            new_band = i;
-            break;
-        }
-    }
-
-    if (new_band != -1)
-    {
-        // Check the TUNE 
-        if (in_tx)
-        {
-            // If TUNE is ON, skip updating the band settings
-            return;
-        }
-
-        // Highlight the correct button
-        struct field *current_focus = get_focused_field(); // Get the currently focused field
-
-        for (int i = 0; i < max_bands; i++)
-        {
-            struct field *band_field = get_field_by_label(band_stack[i].name);
-
-            if (band_field)
-            {
-                if (i == new_band)
-                {
-                    // Only focus the band button if the frequency adjustment field is not focused
-                    if (current_focus && strcmp(current_focus->label, "FREQ") != 0 &&
-                        strcmp(current_focus->label, "SPECTRUM") != 0)
-                    {
-                        focus_field_without_toggle(band_field);
-                    }
-                }
-            }
-            else
-            {
-                printf("Error: Field not found for name: %s\n", band_stack[i].name);
-            }
-        }
-
-        // Set additional fields to reflect the current band
-        char buff[20];
-        sprintf(buff, "%d", new_band);
-        set_field("#selband", buff); // Notify UI about band change
-
-        sprintf(buff, "%i", band_stack[new_band].if_gain);
-        field_set("IF", buff);
-
-        sprintf(buff, "%i", band_stack[new_band].drive);
-        field_set("DRIVE", buff);
-		
-		sprintf(buff, "%i", band_stack[new_band].tnpwr);
-        field_set("TNPWR", buff);
-
-        // Call highlight_band_field for additional consistency
-        highlight_band_field(new_band);
-    }
-    else
-    {
-        // Handle frequency outside all band ranges
-        printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
-    }
-}
-
-
 
 struct band *get_band_by_frequency(int frequency)
 {
