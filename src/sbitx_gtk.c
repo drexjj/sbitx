@@ -874,7 +874,7 @@ struct field main_controls[] = {
 	 "", -25000, 25000, 1, 0},
 
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
-	 "IAMBIC/IAMBICB/STRAIGHT", 0, 0, 0, CW_CONTROL},
+	 "STRAIGHT/SIDESWP/ULTIMAT/IAMBIC/IAMBICB", 0, 0, 0, CW_CONTROL},
 	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 1000, 50, CW_CONTROL},
 	{"#tx_pitch", NULL, 400, -1000, 50, 50, "TX_PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -5844,24 +5844,24 @@ void check_read_ina260_cadence(float *voltage, float *current)
 	}
 }
 
-int key_poll()
-{
-	int key = CW_IDLE;
-	int input_method = get_cw_input_method();
-
-	if (input_method == CW_IAMBIC || input_method == CW_IAMBICB)
-	{
-		if (digitalRead(PTT) == LOW)
-			key |= CW_DASH;
-		if (digitalRead(DASH) == LOW)
-			key |= CW_DOT;
-	}
-	// straight key
-	else if (digitalRead(PTT) == LOW || digitalRead(DASH) == LOW)
-		key = CW_DOWN;
-
-	// printf("key %d\n", key);
-	return key;
+int key_poll() {
+  int key = CW_IDLE;
+  int input_method = get_cw_input_method();
+ 
+  // Handle straight key input
+  if (input_method == CW_STRAIGHT) {
+    if ((digitalRead(PTT) == LOW) || (digitalRead(DASH) == LOW)) {
+      key = CW_DOWN;
+    }
+  } 
+  // Handle paddle input
+  else {  
+    if (digitalRead(PTT) == LOW) key |= CW_DASH;
+    if (digitalRead(DASH) == LOW) key |= CW_DOT; 
+    if (key == (CW_DASH | CW_DOT))
+      key = CW_SQUEEZE;  // key has dash AND dot bits set
+    }
+  return key;
 }
 
 void enc_init(struct encoder *e, int speed, int pin_a, int pin_b)
@@ -6010,6 +6010,10 @@ int get_cw_input_method()
 	struct field *f = get_field("#cwinput");
 	if (!strcmp(f->value, "KEYBOARD"))
 		return CW_KBD;
+	else if (!strcmp(f->value, "SIDESWP"))
+		return CW_SIDESWIPE; 
+  	else if (!strcmp(f->value, "ULTIMAT"))
+		return CW_ULTIMATIC;  
 	else if (!strcmp(f->value, "IAMBIC"))
 		return CW_IAMBIC;
 	else if (!strcmp(f->value, "IAMBICB"))
