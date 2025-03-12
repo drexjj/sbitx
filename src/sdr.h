@@ -228,13 +228,16 @@ time_t time_sbitx();
 #define CW_DASH_DELAY (8) 
 #define CW_WORD_DELAY (16) 
 #define CW_DOWN (32) 
+#define CW_SQUEEZE (64)
+#define CW_SQUEEZEOFF (128)
 
 //straight key, iambic, keyboard
 #define CW_STRAIGHT 0
 #define CW_IAMBIC	1
 #define CW_IAMBICB 2	
 #define CW_KBD 3
-
+#define CW_SIDESWIPE 4
+#define CW_ULTIMATIC 5
 
 int key_poll();
 int key_poll2();
