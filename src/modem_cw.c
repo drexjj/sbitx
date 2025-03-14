@@ -414,11 +414,6 @@ float cw_tx_get_sample() {
 // many optimizations are possible but may make it harder to change or add
 // modes 
 void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
-  // the first if statement is a clumsy fix ... in iambicB mode 
-  // we need to recognize releasing both paddles at once and I can't get
-  // key_poll() to do that
-  if ((cw_mode == CW_IAMBICB) && (cw_current_symbol == CW_SQUEEZE) 
-    && (symbol_now == CW_IDLE)) symbol_now = CW_SQUEEZEOFF;
   switch (state_machine_mode) {
   case CW_STRAIGHT:
     switch (cw_current_symbol) {
@@ -426,14 +421,14 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       if (symbol_now & CW_IDLE)
         cw_current_symbol = CW_IDLE;
       if (symbol_now & CW_DOWN) {
-        keydown_count = 1;
+        keydown_count = 10;  // this determines the shortest keydown time possible
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
       break; // exit CW_IDLE case
     case CW_DOWN:
       if (symbol_now & CW_DOWN) {
-        keydown_count = 1;
+        keydown_count = 10;
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
@@ -654,8 +649,13 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 
   case CW_IAMBICB:
     // when both paddles are squeezed, whichever one was squeezed last gets repeated
-    // when both paddles are released the keyer will finish the dit or dah and add an
-    // additional opposite element
+    // when both paddles are released the keyer will finish the dit or dah and add 
+    // an additional opposite element
+    
+    // in iambicB mode we need to recognize releasing both paddles
+    // at once and I couldn't get key_poll() to do that so do it here
+    if ((cw_current_symbol == CW_SQUEEZE) && (symbol_now == CW_IDLE)) 
+      symbol_now = CW_SQUEEZEOFF;
     switch (cw_current_symbol) {
     case CW_IDLE:
       if (symbol_now & CW_IDLE)
@@ -758,8 +758,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     break; // done with CW_IAMBICB mode
 
   case CW_KBD:
-    // Use this mode when cw_bytes_available > 0, meaning there are symbols
-    // available from macro playback or keyboard entry
+    // use this mode for symbols coming from keyboard or macros
     switch (cw_current_symbol) {
     case CW_IDLE:
       if (symbol_now & CW_IDLE)
@@ -790,8 +789,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     }
     break; // done with CW_KBD mode
   } // end of the state machine switch case  
-} // end of the state machine function         
-
+} // end of the state machine function        
 
 static FILE *pfout = NULL; //this is debugging out, not used normally
 
