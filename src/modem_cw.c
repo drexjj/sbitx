@@ -418,21 +418,21 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
   case CW_STRAIGHT:
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOWN) {
+      if (symbol_now == CW_DOWN) {
         keydown_count = 10;  // this determines the shortest keydown time possible
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
       break; // exit CW_IDLE case
     case CW_DOWN:
-      if (symbol_now & CW_DOWN) {
+      if (symbol_now == CW_DOWN) {
         keydown_count = 10;
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keydown_count = 0;
         keyup_count = 1;
         cw_current_symbol = CW_IDLE;
@@ -445,46 +445,46 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // single paddle with one side making dots and the other side dashes
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; //exit CW_IDLE case
     case CW_DOT:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DOT case
     case CW_DASH:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
@@ -497,70 +497,70 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // when both paddles are squeezed, whichever one was squeezed last gets repeated
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_IDLE case
     case CW_DOT:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_last_symbol = CW_DASH;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DOT case
     case CW_DASH:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_last_symbol = CW_DOT;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DASH case
     case CW_SQUEEZE:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
-        if (cw_last_symbol & CW_DOT) {
+      if (symbol_now == CW_SQUEEZE) {
+        if (cw_last_symbol == CW_DOT) {
           keydown_count = cw_period;
           cw_last_symbol = CW_DOT;
         } else {
@@ -570,12 +570,12 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keyup_count = cw_period;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
@@ -589,56 +589,56 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // the keyer stops sending the current bit when you release the paddles
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; //exit CW_IDLE case
     case CW_DOT:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DOT case
     case CW_DASH:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
@@ -658,74 +658,74 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       symbol_now = CW_SQUEEZEOFF;
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_IDLE case
     case CW_DOT:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_last_symbol = CW_DASH;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DOT case
     case CW_DASH:
-      if (symbol_now & CW_IDLE) {
+      if (symbol_now == CW_IDLE) {
         keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
+      if (symbol_now == CW_SQUEEZE) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_last_symbol = CW_DOT;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
       break; // exit CW_DASH case
     case CW_SQUEEZE:
-      if (symbol_now & CW_IDLE) {
-        if (cw_last_symbol & CW_DOT)
+      if (symbol_now == CW_IDLE) {
+        if (cw_last_symbol == CW_DOT)
           keydown_count = cw_period * 3;
         else
           keydown_count = cw_period;
         keyup_count = cw_period * 3;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_SQUEEZE) {
-        if (cw_last_symbol & CW_DOT) {
+      if (symbol_now == CW_SQUEEZE) {
+        if (cw_last_symbol == CW_DOT) {
           keydown_count = cw_period * 3;
           cw_last_symbol = CW_DASH;
         } else {
@@ -735,18 +735,18 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keyup_count = cw_period;
         cw_current_symbol = CW_SQUEEZE;
       }
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_DOT;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
-      if (symbol_now & CW_SQUEEZEOFF) {
-        if (cw_last_symbol & CW_DOT)
+      if (symbol_now == CW_SQUEEZEOFF) {
+        if (cw_last_symbol == CW_DOT)
           keydown_count = cw_period * 3;
         else
           keydown_count = cw_period;
@@ -761,27 +761,27 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // use this mode for symbols coming from keyboard or macros
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now & CW_IDLE)
+      if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
-      if (symbol_now & CW_DOT) {
+      if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_DASH) {
+      if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_DOT_DELAY) {
+      if (symbol_now == CW_DOT_DELAY) {
         keyup_count = cw_period;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_DASH_DELAY) {
+      if (symbol_now == CW_DASH_DELAY) {
         keyup_count = cw_period * 3;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now & CW_WORD_DELAY) {
+      if (symbol_now == CW_WORD_DELAY) {
         keyup_count = cw_period * 5; // sbitx users like 5, not 7
         cw_current_symbol = CW_IDLE;
       }
@@ -789,7 +789,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     }
     break; // done with CW_KBD mode
   } // end of the state machine switch case  
-} // end of the state machine function        
+} // end of the state machine function     
 
 static FILE *pfout = NULL; //this is debugging out, not used normally
 
