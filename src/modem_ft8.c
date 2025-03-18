@@ -579,9 +579,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
                 LOG(LOG_DEBUG, "Error [%d] while unpacking!", (int)unpack_status);
 
 			char buff[1000];
-            float snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
-            //~ sprintf(buff, "%s %+05.1f %-4.0f ~  %s\n", time_str, snr, freq_hz, text); // TODO looks better; score isn't interesting
-            sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, cand->score, lroundf(snr), freq_hz, text);
+            sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, cand->score, cand->snr, freq_hz, text);
             LOG(LOG_DEBUG, "-> %s\n", buff);
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
