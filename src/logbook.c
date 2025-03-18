@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +41,25 @@ GtkWidget *tree_view = NULL;;
 int logbook_fill(int from_id, int count, const char *query);
 void logbook_refill(const char *query);
 void clear_tree(GtkListStore *list_store);
+
+int logbook_has_power_and_swr() {
+	static int ret = -1;
+	if (ret < 0) {
+		sqlite3_stmt *stmt;
+		if (db == NULL)
+			logbook_open();
+		// https://stackoverflow.com/a/30348775
+		// it might be called sqlite_schema in newer versions
+		sqlite3_prepare_v2(db, "select sql from sqlite_master where name='logbook';", -1, &stmt, NULL);
+		assert(sqlite3_step(stmt) == SQLITE_ROW);
+		assert(sqlite3_column_count(stmt));
+		assert(sqlite3_column_type(stmt, 0) == SQLITE3_TEXT);
+		const char *sql = sqlite3_column_text(stmt, 0); // a CREATE TABLE command
+		ret = (strstr(sql, "tx_power") && strstr(sql, "vswr"));
+		sqlite3_finalize(stmt);
+	}
+	return ret;
+}
 
 /* writes the output to data/result_rows.txt
 	if the from_id is negative, it returns the later 50 records (higher id)
@@ -294,8 +314,7 @@ void logbook_open(){
 }
 
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
-
-	char *rst_recv, char *exchange_recv, char *comments){
+		char *rst_recv, char *exchange_recv, int tx_power, int tx_vswr, char *comments){
 	char statement[1000], *err_msg, date_str[10], time_str[10];
 	char freq[12], log_freq[12], mode[10], mycallsign[12];
 
@@ -310,12 +329,22 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 	sprintf(date_str, "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	sprintf(time_str, "%02d%02d", tmp->tm_hour, tmp->tm_min);
 
-	sprintf(statement,
-		"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
-		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
-		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
-			log_freq, mode, date_str, time_str, mycallsign,
-			 rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv, comments);
+	if (logbook_has_power_and_swr()) {
+		sprintf(statement,
+			"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
+			"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, tx_power, vswr, comments) "
+			"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%d.%d','%d.%d','%s');",
+				log_freq, mode, date_str, time_str, mycallsign,
+				rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv,
+				tx_power / 10, tx_power % 10, tx_vswr / 10, tx_vswr % 10, comments);
+	} else {
+		sprintf(statement,
+			"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
+			"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
+			"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
+				log_freq, mode, date_str, time_str, mycallsign,
+				rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv, comments);
+	}
 
 	if (db == NULL)
 		logbook_open();
@@ -373,7 +402,7 @@ void import_logs(char *filename){
 */
 
 // ADIF field headers, see note above
-const static char *adif_names[]={"ID","MODE","FREQ","QSO_DATE","TIME_ON","OPERATOR","RST_SENT","STX_String","CALL","RST_RCVD","SRX_String","STX","COMMENTS"};
+const static char *adif_names[]={"ID","MODE","FREQ","QSO_DATE","TIME_ON","OPERATOR","RST_SENT","STX_String","CALL","RST_RCVD","SRX_String","STX","COMMENTS","TX_PWR"};
 
 struct band_name {
 	char *name;
@@ -407,15 +436,27 @@ static void strip_chr(char *str, const char to_remove){
 
 int export_adif(char *path, char *start_date, char *end_date){
 	sqlite3_stmt *stmt;
-	char statement[200], param[2000], qso_band[20];
-
+	char statement[250], param[2000], qso_band[20];
 
 	//add to the bottom of the logbook
-	sprintf(statement, "select * from logbook where (qso_date >= '%s' AND  qso_date <= '%s')  ORDER BY id DESC;",
-		start_date, end_date);
+	if (logbook_has_power_and_swr()) {
+		snprintf(statement, 250,
+				"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments,tx_power "
+				" from logbook where (qso_date >= '%s' AND qso_date <= '%s') ORDER BY id DESC;",
+				start_date, end_date);
+	} else {
+		snprintf(statement, 250,
+				"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments "
+				" from logbook where (qso_date >= '%s' AND qso_date <= '%s') ORDER BY id DESC;",
+				start_date, end_date);
+	}
 
 	FILE *pf = fopen(path, "w");
-	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	int ret = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		printf("problem with query: %s\n", statement);
+		return -1;
+	}
 	fprintf(pf, "/ADIF file\n");
 	fprintf(pf, "generated from sBITX log db by Log2ADIF program\n");
 	fprintf(pf, "<adif version:5>3.1.4\n");
@@ -871,7 +912,7 @@ int edit_qso(char *qso_id, char *freq, char *mode, char *callsign, char *rst_sen
 
 void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2, const gchar *col3,
 		const gchar *col4, const gchar *col5, const gchar *col6,
-		const gchar *col7, const gchar *col8, const gchar *col9, const gchar *col10) {
+		const gchar *col7, const gchar *col8, const gchar *col9, const gchar *col10, const gchar *col11) {
     GtkTreeIter iter;
     gtk_list_store_append(list_store, &iter);
     gtk_list_store_set(list_store, &iter,
@@ -885,6 +926,7 @@ void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2,
                        7, col8,
                        8, col9,
                        9, col10,
+                       10, col11,
                        -1);
 }
 
@@ -931,7 +973,7 @@ int logbook_fill(int from_id, int count, const char *query){
 
 	int rec = 0;
 	char id[10], qso_time[20], qso_date[20], freq[20], mode[20], callsign[20],
-	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], comments[1000];
+	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], tx_pwr[10], comments[1000];
 
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		int i;
@@ -961,6 +1003,8 @@ int logbook_fill(int from_id, int count, const char *query){
 				strcpy(exchange_sent, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "exch_recv"))
 				strcpy(exchange_recv, sqlite3_column_text(stmt, i));
+			else if (!strcmp(col_name, "tx_power"))
+				strcpy(tx_pwr, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "comments"))
 				strcpy(comments, sqlite3_column_text(stmt, i));
 		}
@@ -968,7 +1012,7 @@ int logbook_fill(int from_id, int count, const char *query){
 		strcat(qso_date, " ");
 		strcat(qso_date, qso_time);
 		add_to_list(list_store, id,  qso_date, freq, mode,
-		callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comments);
+		callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, tx_pwr, comments);
 	}
 	sqlite3_finalize(stmt);
 }
@@ -1131,7 +1175,7 @@ void logbook_list_open(){
     gtk_window_set_title(GTK_WINDOW(window), "Logbook");
     g_signal_connect(window, "destroy", G_CALLBACK(logbook_close), NULL);
     gtk_container_set_border_width(GTK_CONTAINER(window), 10);
-    gtk_window_set_default_size(GTK_WINDOW(window), 700, 400); // Set initial window size
+    gtk_window_set_default_size(GTK_WINDOW(window), 780, 400); // Set initial window size
 
 		logbook_window = window;
     // Create a box to hold the elements
@@ -1188,15 +1232,15 @@ void logbook_list_open(){
 
     // Create a list store
 	if (!list_store)
-    	list_store = gtk_list_store_new(10, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+    	list_store = gtk_list_store_new(11, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
 
     // Create a tree view and set up columns with headings aligned to the left
     tree_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(list_store));
     const char *headings[] = {"#", "Date", "Freq", "Mode", "Call", "Sent", "Exch",
-			"Recv", "Exch", "Comments"};
-    for (int i = 0; i < 10; ++i) {
+			"Recv", "Exch", "Tx Pwr", "Comments"};
+    for (int i = 0; i < 11; ++i) {
         GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
         GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(headings[i], renderer,
             "text", i, NULL);

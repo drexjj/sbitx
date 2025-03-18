@@ -1728,18 +1728,23 @@ void enter_qso()
 		printf("Duplicate log entry not accepted for %s within two minutes of last entry of %s.\n", callsign, callsign);
 		return;
 	}
+	const int power = field_int("POWER");
+	const int swr = field_int("REF");
 	logbook_add(get_field("#contact_callsign")->value,
 				get_field("#rst_sent")->value,
 				get_field("#exchange_sent")->value,
 				get_field("#rst_received")->value,
 				get_field("#exchange_received")->value,
+				power,
+				swr,
 				get_field("#text_in")->value);
 
 	char buff[100];
-	sprintf(buff, "Logged: %s %s-%s %s-%s\n",
+	snprintf(buff, 100, "Logged: %s %s-%s %s-%s pwr %d.%d swr %d.%d\n",
 			field_str("CALL"), field_str("SENT"), field_str("NR"),
-			field_str("RECV"), field_str("EXCH"));
+			field_str("RECV"), field_str("EXCH"), power / 10, power % 10, swr / 10, swr % 10);
 	write_console(FONT_LOG, buff);
+	printf(buff);
 }
 
 static int get_band_stack_index(const char *p_value)
@@ -2288,10 +2293,10 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	if (power < 30)
 		vswr = 10;
 
-	sprintf(meter_str, "Power: %d Watts", field_int("POWER") / 10);
-	draw_text(gfx, f->x + 5, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	sprintf(meter_str, "Power: %d.%d Watts", power / 10, power % 10);
+	draw_text(gfx, f->x + 20, f->y + 5, meter_str, FONT_FIELD_LABEL);
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
-	draw_text(gfx, f->x + 135, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 200, f->y + 5, meter_str, FONT_FIELD_LABEL);
 }
 
 void draw_waterfall(struct field *f, cairo_t *gfx)

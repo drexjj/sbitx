@@ -11,6 +11,8 @@ create table logbook (
 	rst_recv TEXT,
 	exch_recv TEXT DEFAULT "",
 	tx_id	TEXT DEFAULT "",
+	tx_power TEXT DEFAULT "",
+	vswr TEXT DEFAULT "",
 	comments TEXT DEFAULT ""
 );
 
