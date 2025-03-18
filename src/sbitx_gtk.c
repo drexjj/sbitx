@@ -766,7 +766,7 @@ struct field main_controls[] = {
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
 	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-		"", 0, 0, 0, 0, COMMON_CONTROL}, 
+		"", 0, 0, 0, 0, COMMON_CONTROL},
 
 	// EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
@@ -794,9 +794,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
-	
+
 	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-		"ON/OFF", 0, 0, 0, 0},	 
+		"ON/OFF", 0, 0, 0, 0},
 
 	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -1951,11 +1951,11 @@ typedef struct {
 static gboolean destroy_dialog_idle(gpointer user_data)
 {
     GtkWidget *dialog = GTK_WIDGET(user_data);
-    
+
     // Unref and destroy the dialog
     gtk_widget_destroy(dialog);
     g_object_unref(dialog);
-    
+
     // Return FALSE to remove this callback from the idle queue
     return FALSE;
 }
@@ -1964,19 +1964,19 @@ static gboolean destroy_dialog_idle(gpointer user_data)
 gboolean restore_waterfall_settings(gpointer user_data)
 {
     TransmitData *tdata = (TransmitData *)user_data;
-    
+
     // Restore original waterfall settings
     set_field("#wf_min", tdata->wf_min);
     set_field("#wf_max", tdata->wf_max);
     set_field("#wf_spd", tdata->wf_spd);
-    
+
     // Destroy the dialog
     gtk_widget_destroy(tdata->dialog);
     g_object_unref(tdata->dialog);
-    
+
     // Free the data structure
     g_free(tdata);
-    
+
     // Return FALSE to remove this callback from the idle queue
     return FALSE;
 }
@@ -2018,7 +2018,7 @@ static gpointer transmit_callsign_thread(gpointer user_data)
     }
 
     g_free(argv[3]);
-    
+
     // Restore original waterfall settings if needed
     if (tdata->restore_settings) {
         // We need to use g_idle_add to ensure UI updates happen on the main thread
@@ -2028,7 +2028,7 @@ static gpointer transmit_callsign_thread(gpointer user_data)
         g_idle_add(destroy_dialog_idle, tdata->dialog);
         g_free(tdata);
     }
-    
+
     return NULL;
 }
 
@@ -2043,15 +2043,15 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
     struct field *f_min = get_field("#wf_min");
     struct field *f_max = get_field("#wf_max");
     struct field *f_spd = get_field("#wf_spd");
-    
+
     char original_wf_min[32], original_wf_max[32], original_wf_spd[32];
-    
+
     // Store original values
     if (f_min && f_max && f_spd) {
         strncpy(original_wf_min, f_min->value, sizeof(original_wf_min));
         strncpy(original_wf_max, f_max->value, sizeof(original_wf_max));
         strncpy(original_wf_spd, f_spd->value, sizeof(original_wf_spd));
-        
+
         // Set new values for waterfall display
         set_field("#wf_min", "145");
         set_field("#wf_max", "180");
@@ -2060,7 +2060,7 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 
     // Create a top-level, undecorated window
     GtkWidget *dialog = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_decorated(GTK_WINDOW(dialog), FALSE);  
+    gtk_window_set_decorated(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
@@ -2080,7 +2080,7 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
     TransmitData *tdata = g_malloc(sizeof(TransmitData));
     tdata->dialog = dialog;
     snprintf(tdata->text, sizeof(tdata->text), "%s", callsign);
-    
+
     // Store original waterfall settings in the transmit data
     if (f_min && f_max && f_spd) {
         strncpy(tdata->wf_min, original_wf_min, sizeof(tdata->wf_min));
@@ -2311,11 +2311,11 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Get the IP address of the connected client
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
-		
+
 		// Create the message with IP address
 		char message[512];
 		snprintf(message, sizeof(message), "Waterfall display disabled - Remote session from %s", ip_list);
-		
+
 		// Calculate text position
 		cairo_text_extents_t extents;
 		cairo_text_extents(gfx, message, &extents);
@@ -2345,7 +2345,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			draw_tx_meters(f, gfx);
 			return;
 		}
-		
+
 		// Otherwise, only draw TX meters in waterfall area for modes other than USB/LSB/AM
 		struct field *mode_f = get_field("r1:mode");
 		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
@@ -2426,7 +2426,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	// This gives good results as it's averaged, hence less noisy
 	// Smoothly adjust the waterfall offset
 	wf_offset += ((sp_baseline + 40)*2 - wf_offset) / 10;
-	
+
 	// Draw the updated waterfall
 	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
 	cairo_paint(gfx);
@@ -2516,11 +2516,11 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// Get the IP address of the connected client
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
-		
+
 		// Create the message with IP address
 		char message[512];
 		snprintf(message, sizeof(message), "Spectrum display disabled - Remote session from %s", ip_list);
-		
+
 		// Calculate text position
 		cairo_text_extents_t extents;
 		cairo_text_extents(gfx, message, &extents);
@@ -2548,7 +2548,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			draw_modulation(f_spectrum, gfx);
 			return;
 		}
-		
+
 		// Otherwise, only draw modulation for modes other than USB/LSB/AM
 		struct field *mode_f = get_field("r1:mode");
 		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
@@ -2640,7 +2640,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.1);
 		cairo_rectangle(gfx, f->x + 1, f->y + 1, 210, 30);
 		cairo_fill(gfx);
-		
+
 		// Draw the TX meters in the top left corner of the spectrum
 		struct field meter_field = *f;
 		meter_field.x = f->x + 1;
@@ -2908,75 +2908,75 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// --- Zero Beat indicator
 		const char *zerobeat_text = "ZBEAT";
 		cairo_set_font_size(gfx, FONT_SMALL);
-	
-		
+
+
 		// Only show zero beat indicator in CW/CWR modes
 		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
 			// Get zero beat value from calculate_zero_beat
 			int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
-	
-	
+
+
 			// Position and draw the text in gray
 			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
 			int zerobeat_text_y = f_spectrum->y + 30;
-	
+
 			// Draw text in gray always
 			cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray text
 			cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
 			cairo_show_text(gfx, zerobeat_text);
-	
+
 			// Draw LED indicators
 			int box_width = 15;
 			int box_height = 5;
 			int spacing = 2;
 			int led_y = zerobeat_text_y - 5;
 			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
-	
+
 			// Draw LED background
 			cairo_save(gfx);
 			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
-			cairo_rectangle(gfx, led_x - 2, led_y - 2, 
+			cairo_rectangle(gfx, led_x - 2, led_y - 2,
 						   (box_width + spacing) * 5 + 4, box_height + 4);
 			cairo_fill(gfx);
-	
+
 			// Draw 5 LEDs
-	
-			
+
+
 			for(int i = 0; i < 5; i++) {
 				cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width, box_height);
-				
+
 				// Set LED color based on zero beat value and position
 				if (i == 0 && zerobeat_value == 1) { // Far below
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
 				}
 				else if (i == 1 && zerobeat_value == 2) { // Slightly below
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
 				}
 				else if (i == 2 && zerobeat_value == 3) { // Centered
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
 				}
 				else if (i == 3 && zerobeat_value == 4) { // Slightly above
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
 				}
 				else if (i == 4 && zerobeat_value == 5) { // Far above
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
 				}
 				else {
-		
-		
+
+
 					cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Inactive LED
 				}
-	
+
 				cairo_fill(gfx);
 			}
 			cairo_restore(gfx);
@@ -3005,7 +3005,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	//--- S-Meter test W2JON
 	// Only show S-meter if we're not transmitting in LSB, USB, or AM modes
-if (!strcmp(field_str("SMETEROPT"), "ON") && 
+if (!strcmp(field_str("SMETEROPT"), "ON") &&
     !(in_tx && (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))))
 	{
 		int s_meter_value = 0;
@@ -3550,14 +3550,14 @@ void menu2_display(int show)
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
 		const char *current_mode = field_str("MODE");
-		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
-		    strcmp(current_mode, "FT8") != 0 && 
-		    strcmp(current_mode, "CW") != 0 && 
+		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
+		    strcmp(current_mode, "FT8") != 0 &&
+		    strcmp(current_mode, "CW") != 0 &&
 		    strcmp(current_mode, "CWR") != 0)
 		{
 			field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
 		}
-		
+
 
 	}
 	else
@@ -3650,7 +3650,7 @@ static void layout_ui()
 	{
 	case MODE_FT8:
 		// Place buttons and calculate highest Y position for FT8
-		
+
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
 		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
@@ -3673,8 +3673,8 @@ static void layout_ui()
 		//field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
 		//field_move("TX_PITCH", 600, y2 - 47, 73, 45);
 		//field_move("SIDETONE", 675, y2 - 47, 73, 45);
-    
-    // Reformat 2 lines for macro button  W9JES 
+
+    // Reformat 2 lines for macro button  W9JES
 		y1 = y2 - 97;
 		field_move("FT8_TX1ST", 375, y1, 75, 45);
 		field_move("FT8_AUTO", 450, y1, 75, 45);
@@ -3703,14 +3703,14 @@ static void layout_ui()
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
 		if (waterfall_height < MIN_WATERFALL_HEIGHT)
 			waterfall_height = MIN_WATERFALL_HEIGHT;
-      
+
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
       // Ensure waterfall height is at least 40 pixels to prevent negative height and malloc error resulting in a segfault
       int adjusted_waterfall_height = waterfall_height;
       if (adjusted_waterfall_height < 80) // Need at least 80 pixels to accommodate both waterfall and console
         adjusted_waterfall_height = 80;
-      
+
       // Check if MENU is on MENU 1 or MENU 2 becasue we need to hide the console when menus are active
       const char* menu_state = field_str("MENU");
       if (!strcmp(menu_state, "1") || !strcmp(menu_state, "2")) {
@@ -3720,7 +3720,7 @@ static void layout_ui()
         // Resume the viewable console position when menus are not active
         field_move("CONSOLE", 5, y1 + default_spectrum_height + adjusted_waterfall_height - 37, x2 - 7, 40);
       }
-      
+
       field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
       field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, adjusted_waterfall_height - 40);
        //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
@@ -3729,7 +3729,7 @@ static void layout_ui()
 		}
 		else
 		{
-			
+
 			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
 			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
 			waterfall_height = y2 - y1 - (default_spectrum_height + 105);
@@ -3748,7 +3748,7 @@ static void layout_ui()
 		field_move("CW_DELAY", 225, y1, 75, 45);
 		field_move("CW_INPUT", 300, y1, 75, 45);
 		field_move("SIDETONE", 375, y1, 75, 45);
-		field_move("MACRO", 450, y1, 75, 45); 
+		field_move("MACRO", 450, y1, 75, 45);
 		field_move("ZEROBEAT", 600, y1, 75, 45);
 
 		field_move("SPECT", 752, y1, 45, 45);
@@ -3764,7 +3764,7 @@ static void layout_ui()
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
 		field_move("TUNE", 1000, -1000, 40, 40);
-		
+
 		break;
 	case MODE_USB:
 	case MODE_LSB:
@@ -3795,7 +3795,7 @@ static void layout_ui()
 		field_move("TX", 260, y1, 95, 45);
 		field_move("RX", 360, y1, 95, 45);
 		field_move("TUNE", 460, 5, 40, 40);
-		 
+
 		break;
 	case MODE_DIGITAL: // W9JES
 		// N1QM
@@ -4842,16 +4842,16 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		// Use the focus_keypad.sh script to either focus the existing keypad
 		// or launch a new one if it's not running
 		system("/home/pi/sbitx/src/focus_keypad.sh &");
-		
+
 		// Force a redraw of the VFO area to prevent black background
 		invalidate_rect(f->x, f->y, f->width, f->height);
-		
+
 		// Also redraw the r1:freq field which is underneath
 		struct field *freq_field = get_field("r1:freq");
 		if (freq_field) {
 			invalidate_rect(freq_field->x, freq_field->y, freq_field->width, freq_field->height);
 		}
-		
+
 		return 1;
 	}
 	return 0;
@@ -5475,7 +5475,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
-	
+
 	if (tx_panafall_stat)
 	{
 		if (!strcmp(tx_panafall_stat->value, "ON"))
@@ -5499,7 +5499,7 @@ gboolean check_plugin_controls(gpointer data)
 		{
 			zero_beat_enabled = 0;
 		}
-	}	
+	}
 	if (ina260_stat)
 	{
 		if (!strcmp(ina260_stat->value, "ON"))
@@ -6331,17 +6331,17 @@ void check_read_ina260_cadence(float *voltage, float *current)
 int key_poll() {
   int key = CW_IDLE;
   int input_method = get_cw_input_method();
- 
+
   // Handle straight key input
   if (input_method == CW_STRAIGHT) {
     if ((digitalRead(PTT) == LOW) || (digitalRead(DASH) == LOW)) {
       key = CW_DOWN;
     }
-  } 
+  }
   // Handle paddle input
-  else {  
+  else {
     if (digitalRead(PTT) == LOW) key |= CW_DASH;
-    if (digitalRead(DASH) == LOW) key |= CW_DOT; 
+    if (digitalRead(DASH) == LOW) key |= CW_DOT;
     if (key == (CW_DASH | CW_DOT))
       key = CW_SQUEEZE;  // key has dash AND dot bits set
     }
@@ -6495,9 +6495,9 @@ int get_cw_input_method()
 	if (!strcmp(f->value, "KEYBOARD"))
 		return CW_KBD;
 	else if (!strcmp(f->value, "BUG"))
-		return CW_BUG; 
+		return CW_BUG;
   else if (!strcmp(f->value, "ULTIMAT"))
-		return CW_ULTIMATIC;  
+		return CW_ULTIMATIC;
 	else if (!strcmp(f->value, "IAMBIC"))
 		return CW_IAMBIC;
 	else if (!strcmp(f->value, "IAMBICB"))
@@ -7042,7 +7042,7 @@ gboolean ui_tick(gpointer gook)
 		else
 			edit_field(f_focus, MIN_KEY_UP);
 	}
-	
+
 	return TRUE;
 }
 
@@ -8341,7 +8341,7 @@ int main(int argc, char *argv[])
 void cleanup_on_exit() {
 	// Close the frequency keypad if it's running
 	system("/home/pi/sbitx/src/cleanup_keypad.sh");
-	
+
 	// Add any other cleanup tasks here
 	printf("Cleaning up resources before exit\n");
 }

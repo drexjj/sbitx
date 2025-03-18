@@ -133,7 +133,7 @@ int get_input_volume()
 {
 	return input_volume;
 }
- 
+
 static int multicast_socket = -1;
 
 #define MUTE_MAX 6
@@ -143,7 +143,7 @@ static int mute_count = 50;
 struct Queue qbrowser_mic;
 static int browser_mic_active = 0;
 static int browser_mic_last_activity = 0;
-#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback 
+#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback
 
 // Audio buffer for smoothing browser mic audio
 #define BROWSER_MIC_BUFFER_SIZE 48000 // 500ms at 96kHz
@@ -465,13 +465,13 @@ int q_available_space(struct Queue *q)
 static void jitter_buffer_add(int16_t *samples, int count)
 {
 	pthread_mutex_lock(&jitter_buffer_mutex);
-	
+
 	// Simple buffer management - if we have too many samples, drop the oldest ones
 	if (jitter_buffer_samples + count > JITTER_BUFFER_MAX_SAMPLES) {
 		// Keep only the most recent samples
 		int to_keep = JITTER_BUFFER_MAX_SAMPLES - count;
 		if (to_keep < 0) to_keep = 0;
-		
+
 		// Calculate how many to drop
 		int to_drop = jitter_buffer_samples - to_keep;
 		if (to_drop > 0) {
@@ -479,14 +479,14 @@ static void jitter_buffer_add(int16_t *samples, int count)
 			jitter_buffer_samples -= to_drop;
 		}
 	}
-	
+
 	// Add new samples
 	for (int i = 0; i < count; i++) {
 		jitter_buffer[jitter_buffer_write] = samples[i];
 		jitter_buffer_write = (jitter_buffer_write + 1) % JITTER_BUFFER_SIZE;
 		jitter_buffer_samples++;
 	}
-	
+
 	pthread_mutex_unlock(&jitter_buffer_mutex);
 }
 
@@ -494,23 +494,23 @@ static void jitter_buffer_add(int16_t *samples, int count)
 static int jitter_buffer_get(int16_t *samples, int count)
 {
 	pthread_mutex_lock(&jitter_buffer_mutex);
-	
+
 	// Simple read - just get what we have
 	int available = jitter_buffer_samples;
 	if (count > available) count = available;
-	
+
 	// Read available samples
 	for (int i = 0; i < count; i++) {
 		samples[i] = jitter_buffer[jitter_buffer_read];
 		jitter_buffer_read = (jitter_buffer_read + 1) % JITTER_BUFFER_SIZE;
 		jitter_buffer_samples--;
 	}
-	
+
 	// If we didn't have enough samples, fill the rest with zeros
 	for (int i = count; i < count; i++) { // This loop never runs due to the condition
 		samples[i] = 0;
 	}
-	
+
 	pthread_mutex_unlock(&jitter_buffer_mutex);
 	return count;
 }
@@ -520,14 +520,14 @@ int browser_mic_input(int16_t *samples, int count)
 {
 	if (count <= 0)
 		return 0;
-	
+
 	// Mark browser mic as active and update last activity timestamp
 	browser_mic_active = 1;
 	browser_mic_last_activity = millis();
-	
+
 	// Add samples to jitter buffer for smoother playback
 	jitter_buffer_add(samples, count);
-	
+
 	return count;
 }
 
@@ -539,7 +539,7 @@ int is_browser_mic_active()
 	{
 		browser_mic_active = 0;
 	}
-	
+
 	return browser_mic_active;
 }
 
@@ -547,12 +547,12 @@ int is_browser_mic_active()
 void upsample_browser_mic(int32_t *output, int n_samples)
 {
 	int i = 0;
-	
+
 	// Get samples from jitter buffer - 8kHz input
 	// For 96kHz output, we need a 12x ratio (8kHz → 96kHz)
 	int16_t input_samples[n_samples / 12 + 1]; // Extra space for safety
 	int samples_read = jitter_buffer_get(input_samples, n_samples / 12);
-	
+
 	if (samples_read == 0)
 	{
 		// No browser mic data, fill with zeros
@@ -561,35 +561,35 @@ void upsample_browser_mic(int32_t *output, int n_samples)
 		}
 		return;
 	}
-	
+
 	// Apply gain reduction to prevent clipping
 	for (int j = 0; j < samples_read; j++) {
 		// Reduce gain to 25% to prevent clipping
 		input_samples[j] = (int16_t)(input_samples[j] * 0.25);
 	}
-	
+
 	// Apply strong high-frequency enhancement for better clarity
 	int16_t prev_sample = 0;
 	for (int j = 0; j < samples_read; j++) {
 		// Simple high-pass filter (current - previous)
 		int16_t high_freq = input_samples[j] - prev_sample;
 		prev_sample = input_samples[j];
-		
+
 		// Add high frequencies back to enhance clarity (strong boost)
 		input_samples[j] = input_samples[j] + (high_freq * 0.7);
 	}
-	
+
 	// Simple upsampling from 8kHz to 96kHz (12x)
 	for (int j = 0; j < samples_read && i < n_samples; j++) {
 		// Get current sample
 		int16_t current = input_samples[j];
-		
+
 		// Generate 12 identical output samples for 96kHz
 		for (int k = 0; k < 12 && i < n_samples; k++) {
 			output[i++] = current * 65536;
 		}
 	}
-	
+
 	// If we still need more samples, fill with zeros
 	while (i < n_samples) {
 		output[i++] = 0;
@@ -1474,7 +1474,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
 
         // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
-        const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom 
+        const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom
 
         for (int i = 0; i < n_samples; i++)
         {
@@ -1569,11 +1569,11 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
-	
+
 	// Check if browser microphone is active and use it instead of physical mic
 	int32_t browser_mic_samples[n_samples];
 	int use_browser_mic = is_browser_mic_active();
-	
+
 	if (use_browser_mic) {
 		// Get upsampled browser mic audio
 		upsample_browser_mic(browser_mic_samples, n_samples);
@@ -1819,17 +1819,17 @@ void tx_process(
 
 	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
 	// This allows the TX audio to be displayed in the spectrum and waterfall
-	
+
 	// Create input buffer for FFT
 	complex float *tx_fft_in = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
-	
+
 	// Calculate DC offset (average) to remove it
 	float dc_offset = 0;
 	for (i = 0; i < MAX_BINS / 2; i++) {
 		dc_offset += output_tx[i];
 	}
 	dc_offset /= (MAX_BINS / 2);
-	
+
 	// Copy the output_tx samples to the FFT input buffer with a window function
 	for (i = 0; i < MAX_BINS / 2; i++) {
 		// Apply Hann window for better spectral resolution
@@ -1837,58 +1837,58 @@ void tx_process(
 		// Remove DC offset and scale down
 		tx_fft_in[i] = (output_tx[i] - dc_offset) * window / (tx_amp * 150000000.0); // Significantly reduced scaling
 	}
-	
+
 	// Zero-pad the second half
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
 		tx_fft_in[i] = 0;
 	}
-	
+
 	// Use the existing FFT infrastructure
 	for (i = 0; i < MAX_BINS; i++) {
 		__real__ fft_in[i] = crealf(tx_fft_in[i]);
 		__imag__ fft_in[i] = 0;
 	}
-	
+
 	// Perform FFT using the existing plan
 	fftw_execute(plan_fwd);
-	
+
 	// Update the fft_spectrum array with the FFT results
 	// This is important because the spectrum_update function uses this array
-	
+
 	// First pass - enhanced detail with frequency-dependent scaling
 	for (i = 0; i < MAX_BINS; i++) {
 		// Calculate bin frequency relative to center (for frequency-dependent scaling)
 		int bin_from_center = i - MAX_BINS / 2;
 		if (bin_from_center < 0) bin_from_center = -bin_from_center;
-		
+
 		// Apply slightly higher gain to mid-range frequencies where voice details matter most
 		float freq_scale = 1.0;
 		if (bin_from_center > 10 && bin_from_center < 100) {
 			freq_scale = 1.3; // Boost mid-range frequencies
 		}
-		
+
 		// Store the FFT results with enhanced detail
 		fft_spectrum[i] = fft_out[i] * 0.025 * freq_scale; // Slightly increased from 0.02 for more detail
 	}
-	
+
 	// Apply a more refined smoothing that preserves detail while reducing noise
 	complex float *smoothed = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
-	
+
 	// Copy first and last points as-is
 	smoothed[0] = fft_spectrum[0];
 	smoothed[MAX_BINS-1] = fft_spectrum[MAX_BINS-1];
-	
+
 	// Apply minimal smoothing to preserve maximum detail
 	for (i = 1; i < MAX_BINS-1; i++) {
 		// Use weighted average with heavy weight on current bin: 80% current bin, 10% each adjacent bin
 		smoothed[i] = fft_spectrum[i-1] * 0.1 + fft_spectrum[i] * 0.8 + fft_spectrum[i+1] * 0.1;
-		
+
 		// Apply stronger contrast enhancement to make fine details more visible
 		float mag = cabsf(smoothed[i]);
 		if (mag > 0) {
 			// Use stronger non-linear enhancement to reveal subtle details
 			smoothed[i] *= (1.0 + 0.5 * log10f(mag + 1.0));
-			
+
 			// Add slight sharpening effect to enhance edges between frequency components
 			if (i > 1 && i < MAX_BINS-2) {
 				complex float edge_detect = smoothed[i] * 2.0 - smoothed[i-1] * 0.5 - smoothed[i+1] * 0.5;
@@ -1896,18 +1896,18 @@ void tx_process(
 			}
 		}
 	}
-	
+
 	// Copy smoothed spectrum back to fft_spectrum
 	for (i = 0; i < MAX_BINS; i++) {
 		fft_spectrum[i] = smoothed[i];
 	}
-	
+
 	// Free the temporary buffer
 	free(smoothed);
-	
+
 	// Call the standard spectrum update function to ensure consistent processing
 	spectrum_update();
-	
+
 	// Clean up
 	free(tx_fft_in);
 
@@ -2288,14 +2288,14 @@ void setup()
 	//initialize the queues
 	q_init(&qremote, 8000);
 	q_init(&qbrowser_mic, 32000); // Initialize browser microphone queue with much larger buffer
-	
+
 	// Initialize jitter buffer
 	jitter_buffer_write = 0;
 	jitter_buffer_read = 0;
 	jitter_buffer_samples = 0;
 
 	modem_init();
-	
+
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;

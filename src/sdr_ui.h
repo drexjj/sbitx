@@ -30,8 +30,8 @@ extern int display_freq;
 #define FONT_FT8_RX 6
 #define FONT_FT8_TX 7
 #define FONT_SMALL_FIELD_VALUE 8
-#define FONT_CW_RX 9 
-#define FONT_CW_TX 10 
+#define FONT_CW_RX 9
+#define FONT_CW_TX 10
 #define FONT_FLDIGI_RX 11
 #define FONT_FLDIGI_TX 12
 #define FONT_TELNET 13
@@ -43,7 +43,7 @@ extern int display_freq;
 #define FF_GRID 18
 #define FONT_BLACK 19
 
-#define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32. 
+#define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32.
 extern int ext_ptt_enable;
 void enter_qso();
 void call_wipe();

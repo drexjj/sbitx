@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 #include <math.h>
 #include <complex.h>
 #include <fftw3.h>
@@ -75,8 +75,8 @@ int logbook_query(char *query, int from_id, char *result_file){
 			sprintf(statement, "select * from logbook "
 				"where (callsign_recv LIKE '%s%%' AND id > %d) ",
 				query, -from_id);
-		else 
-			sprintf(statement, "select * from logbook where id > %d ", -from_id); 
+		else
+			sprintf(statement, "select * from logbook where id > %d ", -from_id);
 	}
 	strcat(statement, "ORDER BY id DESC LIMIT 50;");
 
@@ -86,7 +86,7 @@ int logbook_query(char *query, int from_id, char *result_file){
 	char output_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
 	sprintf(output_path, "%s/sbitx/data/result_rows.txt", getenv("HOME"));
 	strcpy(result_file, output_path);
-	
+
 	FILE *pf = fopen(output_path, "w");
 	if (!pf)
 		return -1;
@@ -132,7 +132,7 @@ int logbook_count_dup(const char *callsign, int last_seconds){
 	struct tm *tmp = gmtime(&log_time);
 	sprintf(date_str, "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	sprintf(time_str, "%02d%02d", tmp->tm_hour, tmp->tm_min);
-	
+
 	sprintf(statement, "select * from logbook where "
 		"callsign_recv=\"%s\" AND qso_date >= \"%s\" AND qso_time >= \"%s\"",
 		callsign, date_str, time_str);
@@ -158,10 +158,10 @@ int logbook_get_grids(void (*f)(char *,int)) {
 		int num_cols = sqlite3_column_count(stmt);
 		for (int i = 0; i < num_cols; i++){
 			char const *col_name = sqlite3_column_name(stmt, i);
-			if (!strcmp(col_name, "exch_recv")) { 
+			if (!strcmp(col_name, "exch_recv")) {
 				strcpy(grid, sqlite3_column_text(stmt, i));
 			} else
-			if (!strcmp(col_name, "n")) { 
+			if (!strcmp(col_name, "n")) {
 				n = sqlite3_column_int(stmt, i);
 			}
 		}
@@ -293,7 +293,7 @@ void logbook_open(){
     }
 }
 
-void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
+void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	char *rst_recv, char *exchange_recv, char *comments){
 	char statement[1000], *err_msg, date_str[10], time_str[10];
@@ -306,7 +306,7 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 	get_field_value("#mycallsign", mycallsign);
 
 	sprintf(log_freq, "%d", atoi(freq)/1000);
-	
+
 	sprintf(date_str, "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	sprintf(time_str, "%02d%02d", tmp->tm_hour, tmp->tm_min);
 
@@ -321,7 +321,7 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 		logbook_open();
 
 	sqlite3_exec(db, statement, 0,0, &err_msg);
-	
+
 	logbook_refill(NULL);
 }
 
@@ -335,8 +335,8 @@ void logbook_refill(const char *query) {
 		logbook_fill(0, 10000, query);
 
 		/* Re-attach model to view */
-		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(list_store)); 
-	}	
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(list_store));
+	}
 }
 
 /*
@@ -365,7 +365,7 @@ void import_logs(char *filename){
 			freq, mode, date_str, time_str,
 			 mycall, rst_sent, exchange_sent,
 			contact_callsign, rst_recv, exchange_recv);
-			
+
 		puts(statement);
 	}
 	fclose(pf);
@@ -408,7 +408,7 @@ static void strip_chr(char *str, const char to_remove){
 int export_adif(char *path, char *start_date, char *end_date){
 	sqlite3_stmt *stmt;
 	char statement[200], param[2000], qso_band[20];
-	
+
 
 	//add to the bottom of the logbook
 	sprintf(statement, "select * from logbook where (qso_date >= '%s' AND  qso_date <= '%s')  ORDER BY id DESC;",
@@ -417,9 +417,9 @@ int export_adif(char *path, char *start_date, char *end_date){
 	FILE *pf = fopen(path, "w");
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 	fprintf(pf, "/ADIF file\n");
-	fprintf(pf, "generated from sBITX log db by Log2ADIF program\n");	
-	fprintf(pf, "<adif version:5>3.1.4\n");	
-	fprintf(pf, "<EOH>\n");	
+	fprintf(pf, "generated from sBITX log db by Log2ADIF program\n");
+	fprintf(pf, "<adif version:5>3.1.4\n");
+	fprintf(pf, "<EOH>\n");
 
 	int rec = 0;
 
@@ -445,7 +445,7 @@ int export_adif(char *path, char *start_date, char *end_date){
 				break;
 			}
 			//If mode is FT8; set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
-			if (i == 1)  
+			if (i == 1)
 				if (!strcmp("FT8",param))
 					rec = 1;
 			  else
@@ -457,7 +457,7 @@ int export_adif(char *path, char *start_date, char *end_date){
 				sprintf(param, "%.3f",ffreq); // write out with 3 decimal digits
 				for (int j = 0 ; j < sizeof(bands)/sizeof(struct band_name); j++)
 					if (bands[j].from <= f && f <= bands[j].to){
-						fprintf(pf, "<BAND:%d>%s\n", strlen(bands[j].name), bands[j].name); 
+						fprintf(pf, "<BAND:%d>%s\n", strlen(bands[j].name), bands[j].name);
 					}
 			}
 			else if (i == 3) //it is the date
@@ -479,7 +479,7 @@ int export_adif(char *path, char *start_date, char *end_date){
 				fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
 				break;
 		}
-	   	
+
 		}
 		fprintf(pf, "<EOR>\n");
 		//printf("\n");
@@ -630,14 +630,14 @@ void import_button_clicked(GtkWidget *window) {
 			char path[1000], start_str[20], end_str[20];
 			if (get_filename(path) != -1){
 				guint start_year, start_month, start_day, end_year, end_month, end_day;
-				gtk_calendar_get_date((GtkCalendar *)end_calendar, 
+				gtk_calendar_get_date((GtkCalendar *)end_calendar,
 					&end_year, &end_month, &end_day);
-				gtk_calendar_get_date((GtkCalendar *)start_calendar, 
+				gtk_calendar_get_date((GtkCalendar *)start_calendar,
 					&start_year, &start_month, &start_day);
 				sprintf(start_str,"%04d-%02d-%02d",start_year, start_month + 1, start_day);
 				sprintf(end_str, "%04d-%02d-%02d", end_year, end_month + 1, end_day);
 				export_adif(path, start_str, end_str);
-				printf("saved logs from %s to %s to file %s\n", start_str, end_str, path); 
+				printf("saved logs from %s to %s to file %s\n", start_str, end_str, path);
 			}
 		}
     gtk_widget_destroy(dialog);
@@ -703,14 +703,14 @@ void export_button_clicked(GtkWidget *window) {
 			char path[1000], start_str[20], end_str[20];
 			if (get_filename(path) != -1){
 				guint start_year, start_month, start_day, end_year, end_month, end_day;
-				gtk_calendar_get_date((GtkCalendar *)end_calendar, 
+				gtk_calendar_get_date((GtkCalendar *)end_calendar,
 					&end_year, &end_month, &end_day);
-				gtk_calendar_get_date((GtkCalendar *)start_calendar, 
+				gtk_calendar_get_date((GtkCalendar *)start_calendar,
 					&start_year, &start_month, &start_day);
 				sprintf(start_str,"%04d-%02d-%02d",start_year, start_month + 1, start_day);
 				sprintf(end_str, "%04d-%02d-%02d", end_year, end_month + 1, end_day);
 				export_adif(path, start_str, end_str);
-				printf("saved logs from %s to %s to file %s\n", start_str, end_str, path); 
+				printf("saved logs from %s to %s to file %s\n", start_str, end_str, path);
 			}
 		}
     gtk_widget_destroy(dialog);
@@ -736,7 +736,7 @@ static void on_callsign_changed(GtkWidget *widget, gpointer data) {
 // Function to create the dialog box
 int edit_qso(char *qso_id, char *freq, char *mode, char *callsign, char *rst_sent, char *exchange_sent,
 	char *rst_recv, char *exchange_recv, char *comment){
-    GtkWidget *dialog, *grid, *label, 
+    GtkWidget *dialog, *grid, *label,
 		*entry_freq, *entry_mode, *entry_callsign, *entry_rst_sent, *entry_exchange_sent,
 		*entry_rst_recv, *entry_exchange_recv, *entry_comment;
     GtkWidget *ok_button, *cancel_button;
@@ -862,15 +862,15 @@ int edit_qso(char *qso_id, char *freq, char *mode, char *callsign, char *rst_sen
     		gtk_widget_destroy(dialog);
 				return GTK_RESPONSE_OK;
     }
-		else{	
+		else{
     		gtk_widget_destroy(dialog);
 				return GTK_RESPONSE_CANCEL;
 		}
 }
 
 
-void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2, const gchar *col3, 
-		const gchar *col4, const gchar *col5, const gchar *col6, 
+void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2, const gchar *col3,
+		const gchar *col4, const gchar *col5, const gchar *col6,
 		const gchar *col7, const gchar *col8, const gchar *col9, const gchar *col10) {
     GtkTreeIter iter;
     gtk_list_store_append(list_store, &iter);
@@ -919,8 +919,8 @@ int logbook_fill(int from_id, int count, const char *query){
 			sprintf(statement, "select * from logbook "
 				"where (callsign_recv LIKE '%s%%' AND id > %d) ",
 				query, -from_id);
-		else 
-			sprintf(statement, "select * from logbook where id > %d ", -from_id); 
+		else
+			sprintf(statement, "select * from logbook where id > %d ", -from_id);
 	}
 
 	char stmt_count[100];
@@ -964,9 +964,9 @@ int logbook_fill(int from_id, int count, const char *query){
 			else if (!strcmp(col_name, "comments"))
 				strcpy(comments, sqlite3_column_text(stmt, i));
 		}
-	
+
 		strcat(qso_date, " ");
-		strcat(qso_date, qso_time);	
+		strcat(qso_date, qso_time);
 		add_to_list(list_store, id,  qso_date, freq, mode,
 		callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comments);
 	}
@@ -988,7 +988,7 @@ void search_update(GtkWidget *entry, gpointer search_box) {
 
 
 void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
-  gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent, 
+  gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
 		*exchange_recv, *comment;
    GtkTreeIter iter;
 
@@ -1000,7 +1000,7 @@ void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
   gtk_tree_model_get(model, &iter, 0, &qso_id,-1);
 
  	GtkWidget *dialog = gtk_message_dialog_new (NULL,
-   GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, 
+   GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
 		"Do you want to delete #%s", qso_id);
  	int response = gtk_dialog_run (GTK_DIALOG (dialog));
 	if (response == GTK_RESPONSE_YES){
@@ -1018,7 +1018,7 @@ void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
 }
 
 void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
-  gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent, 
+  gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
 		*exchange_recv, *comment;
    GtkTreeIter iter;
 
@@ -1028,10 +1028,10 @@ void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		return;
 
 //  if (!gtk_tree_model_get_iter(model, &iter, path))
-//		return; 
-  gtk_tree_model_get(model, &iter, 0, &qso_id, 
+//		return;
+  gtk_tree_model_get(model, &iter, 0, &qso_id,
 		2, &freq, 3, &mode, 4, &callsign, 5, &rst_sent, 6, &exchange_sent,
-		7, &rst_recv, 8, &exchange_recv, 9, &comment, 	
+		7, &rst_recv, 8, &exchange_recv, 9, &comment,
 	-1);
 
 
@@ -1040,7 +1040,7 @@ void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		sprintf(statement,
 			"UPDATE logbook SET mode = '%s', freq = '%s', callsign_recv = '%s', rst_sent = '%s', "
 			"exch_sent = '%s',rst_recv = '%s', exch_recv = '%s', comments = '%s' WHERE id = '%s'",
-			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, 
+			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv,
 			comment, qso_id);
 
 		sqlite3_exec(db, statement, 0,0, &err_msg);
@@ -1064,15 +1064,15 @@ void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
 // Function to handle row activation
 void on_row_activated(GtkTreeView *treeview, GtkTreePath *path, GtkTreeViewColumn *column, gpointer user_data) {
     GtkTreeModel *model = gtk_tree_view_get_model(treeview);
-    gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent, 
+    gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
 			*exchange_recv, *comment;
     GtkTreeIter iter;
 
     if (!gtk_tree_model_get_iter(model, &iter, path))
-			return; 
-   	gtk_tree_model_get(model, &iter, 0, &qso_id, 
+			return;
+   	gtk_tree_model_get(model, &iter, 0, &qso_id,
 					2, &freq, 3, &mode, 4, &callsign, 5, &rst_sent, 6, &exchange_sent,
-					7, &rst_recv, 8, &exchange_recv, 9, &comment, 	
+					7, &rst_recv, 8, &exchange_recv, 9, &comment,
 					-1);
 
 
@@ -1081,7 +1081,7 @@ void on_row_activated(GtkTreeView *treeview, GtkTreePath *path, GtkTreeViewColum
 		sprintf(statement,
 			"UPDATE logbook SET mode = '%s', freq = '%s', callsign_recv = '%s', rst_sent = '%s', "
 			"exch_sent = '%s',rst_recv = '%s', exch_recv = '%s', comments = '%s' WHERE id = '%s'",
-			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, 
+			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv,
 			comment, qso_id);
 
 		sqlite3_exec(db, statement, 0,0, &err_msg);
@@ -1173,7 +1173,7 @@ void logbook_list_open(){
 //    GtkToolItem *import_tool_item = gtk_tool_item_new();
 //    gtk_container_add(GTK_CONTAINER(import_tool_item), import_button);
 //    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), import_tool_item, -1);
-	
+
     // Create "Export" button    - W9JES
     GtkWidget *export_button = gtk_button_new_with_label("Export...");
     GtkToolItem *export_tool_item = gtk_tool_item_new();
@@ -1189,12 +1189,12 @@ void logbook_list_open(){
     // Create a list store
 	if (!list_store)
     	list_store = gtk_list_store_new(10, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, 
+      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
 
     // Create a tree view and set up columns with headings aligned to the left
     tree_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(list_store));
-    const char *headings[] = {"#", "Date", "Freq", "Mode", "Call", "Sent", "Exch", 
+    const char *headings[] = {"#", "Date", "Freq", "Mode", "Call", "Sent", "Exch",
 			"Recv", "Exch", "Comments"};
     for (int i = 0; i < 10; ++i) {
         GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
@@ -1204,7 +1204,7 @@ void logbook_list_open(){
         gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
     }
 
-		//connect the edit button the handler, passing the tree_view (afte tree_view is created) 
+		//connect the edit button the handler, passing the tree_view (afte tree_view is created)
     g_signal_connect(edit_button, "clicked", G_CALLBACK(edit_button_clicked), tree_view);
     g_signal_connect(delete_button, "clicked", G_CALLBACK(delete_button_clicked), tree_view);
 //    g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), window);  - W9JES
@@ -1229,9 +1229,9 @@ void logbook_list_open(){
     // Connect row activation signal
 //		gtk_tree_view_set_activate_on_single_click((GtkTreeView *)tree_view, FALSE);
 //    g_signal_connect(tree_view, "row-activated", G_CALLBACK(on_row_activated), NULL);
-	
 
-	
+
+
 		// Enable row selection
    	selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
     gtk_tree_selection_set_mode(selection, GTK_SELECTION_SINGLE);
