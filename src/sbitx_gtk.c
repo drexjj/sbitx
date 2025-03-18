@@ -5970,30 +5970,33 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 
 static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer data)
 {
-
-	if (f_focus)
+	struct field *hoverField = NULL;
+	for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
+		struct field *f = active_layout + i;
+		if (f->x < event->x && event->x < f->x + f->width && f->y < event->y && event->y < f->y + f->height) {
+			hoverField = f;
+			break;
+		}
+	}
+
+	if (hoverField)
+	{
+		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
+		//~ printf("scroll @%lf, %lf; reverse? %d field %s\n", event->x, event->y, reverse, hoverField->label);
 		if (event->direction == 0)
 		{
-			if (!strcmp(get_field("reverse_scrolling")->value, "ON"))
-			{
-				edit_field(f_focus, MIN_KEY_DOWN);
-			}
+			if (reverse)
+				edit_field(hoverField, MIN_KEY_DOWN);
 			else
-			{
-				edit_field(f_focus, MIN_KEY_UP);
-			}
+				edit_field(hoverField, MIN_KEY_UP);
 		}
 		else
 		{
-			if (!strcmp(get_field("reverse_scrolling")->value, "ON"))
-			{
-				edit_field(f_focus, MIN_KEY_UP);
-			}
+			if (reverse)
+				edit_field(hoverField, MIN_KEY_UP);
 			else
-			{
-				edit_field(f_focus, MIN_KEY_DOWN);
-			}
+				edit_field(hoverField, MIN_KEY_DOWN);
 		}
 	}
 }
