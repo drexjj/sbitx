@@ -1,5 +1,5 @@
-void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
-char *rst_recv, char *exchange_recv, char *comments);
+void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
+	char *rst_recv, char *exchange_recv, int tx_power, int tx_vswr, char *comments);
 int logbook_query(char *query, int from_id, char *result_file);
 int logbook_count_dup(const char *callsign, int last_seconds);
 int logbook_prev_log(const char *callsign, char *result);
