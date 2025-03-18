@@ -249,6 +249,8 @@ void hd_strip_decoration(char * ft8_message, char * decorated) {
 	while(*decorated) {
 		if (*decorated == HD_MARKUP_CHAR && *(decorated+1) != 0) {
 			decorated += 2;
+		} else if (*decorated == '<' || *decorated == '>') {
+			decorated += 1;
 		} else {
 			*ft8_message++ = *decorated++;
 		}
