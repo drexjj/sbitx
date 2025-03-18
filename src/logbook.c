@@ -521,27 +521,27 @@ int export_adif(char* path, char* start_date, char* end_date)
 				long f = atoi(param);
 				float ffreq = atof(param) / 1000.0; // convert kHz to MHz
 				snprintf(param, sizeof(param), "%.3f", ffreq);	  // write out with 3 decimal digits
-				for (int j = 0; j < sizeof(bands) / sizeof(struct band_name); j++)
-					if (bands[j].from <= f && f <= bands[j].to) {
-						fprintf(pf, "<BAND:%d>%s\n", strlen(bands[j].name), bands[j].name);
-					}
+				for (int j = 0; j < sizeof(bands) / sizeof(struct band_name); j++) {
+					if (bands[j].from <= f && f <= bands[j].to)
+						fprintf(pf, "<BAND:%d>%s ", strlen(bands[j].name), bands[j].name);
+				}
 			} else if (i == 3) // it is the date
 				strip_chr(param, '-');
 			switch (i) {
 			case 7:
 				if (rec == 1)
-					fprintf(pf, "<%s:%d>%s\n", "MY_GRIDSQUARE", strlen(param), param);
+					fprintf(pf, "<%s:%d>%s ", "MY_GRIDSQUARE", strlen(param), param);
 				else
-					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+					fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
 				break;
 			case 10:
 				if (rec == 1)
-					fprintf(pf, "<%s:%d>%s\n", "GRIDSQUARE", strlen(param), param);
+					fprintf(pf, "<%s:%d>%s ", "GRIDSQUARE", strlen(param), param);
 				else
-					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+					fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
 				break;
 			default:
-				fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
 				break;
 			}
 		}
