@@ -17,8 +17,7 @@
 
 #include "ft8_lib/common/common.h"
 #include "ft8_lib/common/wave.h"
-#include "ft8_lib/common/debug.h"
-#include "ft8_lib/ft8/pack.h"
+#include "ft8_lib/ft8/debug.h"
 #include "ft8_lib/ft8/decode.h"
 #include "ft8_lib/ft8/encode.h"
 #include "ft8_lib/ft8/constants.h"
