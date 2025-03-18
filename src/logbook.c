@@ -297,7 +297,7 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	char *rst_recv, char *exchange_recv, char *comments){
 	char statement[1000], *err_msg, date_str[10], time_str[10];
-	char freq[12], log_freq[12], mode[10], mycallsign[10];
+	char freq[12], log_freq[12], mode[10], mycallsign[12];
 
 	time_t log_time = time_sbitx();
 	struct tm *tmp = gmtime(&log_time);
@@ -343,7 +343,7 @@ void logbook_refill(const char *query) {
 void import_logs(char *filename){
 	char entry_text[1000], statement[1000];
 	char freq[10], mode[10], date_str[10], time_str[10], mycall[10], rst_sent[10],
-	exchange_sent[10], contact_callsign[10], rst_recv[10], exchange_recv[10];
+	exchange_sent[10], contact_callsign[12], rst_recv[10], exchange_recv[10];
 
 	FILE *pf = fopen(filename, "r");
 	while(fgets(entry_text, sizeof(entry_text), pf)){
