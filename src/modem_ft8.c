@@ -501,7 +501,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
            //sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
            //  cand->snr, freq_hz, message.text);
            if (strstr(buff, mycallsign_upper)) {
-               write_console(STYLE_FT8_REPLY, buff);
+				write_console(STYLE_FT8_REPLY, buff); // TODO write_console_semantic
                processingqso |= ft8_process(buff, FT8_CONTINUE_QSO);
            }
            else 

@@ -98,7 +98,6 @@ int remote_update_field(int i, char *text);
 void web_get_spectrum(char *buff);
 void save_user_settings(int forced);
 int remote_audio_output(int16_t *samples);
-
 void enter_qso();
 void call_wipe();
 void update_log_ed();
