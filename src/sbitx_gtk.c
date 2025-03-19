@@ -200,27 +200,29 @@ struct font_style
 
 guint key_modifier = 0;
 
+// A mapping from named style to font (for now that's all it is)
+// TODO switch to a mapping from semantics (the meaning of a span of text) to how it looks in this particular UI
 struct font_style font_table[] = {
-	{FONT_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_LARGE_VALUE, 1, 1, 1, "Arial", 24, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_SMALL, 0, 1, 1, "Mono", 10, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_LOG, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FT8_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FT8_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_SMALL_FIELD_VALUE, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_CW_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_CW_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FLDIGI_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FLDIGI_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FF_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FF_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FF_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{FONT_BLACK, 0, 0, 0, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_LARGE_VALUE, 1, 1, 1, "Arial", 24, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_SMALL, 0, 1, 1, "Mono", 10, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_LOG, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_SMALL_FIELD_VALUE, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_CW_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_CW_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FLDIGI_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FLDIGI_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_BLACK, 0, 0, 0, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
 struct encoder enc_a, enc_b;
@@ -248,7 +250,7 @@ struct console_line
 	char text[MAX_LINE_LENGTH];
 	int style;
 };
-static int console_style = FONT_LOG;
+static int console_style = STYLE_LOG;
 static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
@@ -565,471 +567,471 @@ int current_layout = LAYOUT_KBD;
 struct field main_controls[] = {
 
 	// Band stack position Option ON/OFF (hides/reveals band stack position)
-	{"#band_stack_pos_option", do_toggle_option, 1000, -1000, 40, 40, "BSTACKPOSOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#band_stack_pos_option", do_toggle_option, 1000, -1000, 40, 40, "BSTACKPOSOPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	/* band stack registers */
-	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
-	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
+	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
+	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "OFF/SLOW/MED/FAST", 0, 1024, 1, COMMON_CONTROL},
-	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, COMMON_CONTROL},
-	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
+	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, STYLE_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
-	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 75, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
+	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 75, 49, "", 0, "", FIELD_STATIC, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#step", NULL, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#step", NULL, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
-	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
-	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
-	{"r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "USB/LSB/AM/CW/CWR/FT8/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 
 	/* logger controls */
-	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, FONT_LOG,
+	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, STYLE_LOG,
 	 "", 0, 11, 0, COMMON_CONTROL},
-	{"#rst_sent", do_text, 90, 50, 50, 20, "SENT", 70, "", FIELD_TEXT, FONT_LOG,
+	{"#rst_sent", do_text, 90, 50, 50, 20, "SENT", 70, "", FIELD_TEXT, STYLE_LOG,
 	 "", 0, 7, 0, COMMON_CONTROL},
-	{"#rst_received", do_text, 140, 50, 50, 20, "RECV", 70, "", FIELD_TEXT, FONT_LOG,
+	{"#rst_received", do_text, 140, 50, 50, 20, "RECV", 70, "", FIELD_TEXT, STYLE_LOG,
 	 "", 0, 7, 0, COMMON_CONTROL},
-	{"#exchange_received", do_text, 190, 50, 50, 20, "EXCH", 70, "", FIELD_TEXT, FONT_LOG,
+	{"#exchange_received", do_text, 190, 50, 50, 20, "EXCH", 70, "", FIELD_TEXT, STYLE_LOG,
 	 "", 0, 7, 0, COMMON_CONTROL},
-	{"#exchange_sent", do_text, 240, 50, 50, 20, "NR", 70, "", FIELD_TEXT, FONT_LOG,
+	{"#exchange_sent", do_text, 240, 50, 50, 20, "NR", 70, "", FIELD_TEXT, STYLE_LOG,
 	 "", 0, 7, 0, COMMON_CONTROL},
-	{"#enter_qso", NULL, 290, 50, 40, 40, "SAVE", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#enter_qso", NULL, 290, 50, 40, 40, "SAVE", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#wipe", NULL, 330, 50, 40, 40, "WIPE", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
-	{"#mfqrz", NULL, 370, 50, 40, 40, "QRZ", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
-	{"#logbook", NULL, 410, 50, 40, 40, "LOG", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
-	{"#text_in", do_text, 5, 70, 285, 20, "TEXT", 70, "text box", FIELD_TEXT, FONT_LOG,
+	{"#wipe", NULL, 330, 50, 40, 40, "WIPE", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
+	{"#mfqrz", NULL, 370, 50, 40, 40, "QRZ", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
+	{"#logbook", NULL, 410, 50, 40, 40, "LOG", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
+	{"#text_in", do_text, 5, 70, 285, 20, "TEXT", 70, "text box", FIELD_TEXT, STYLE_LOG,
 	 "nothing valuable", 0, 128, 0, COMMON_CONTROL},
-	{"#toggle_kbd", do_toggle_kbd, 495, 50, 40, 40, "KBD", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#toggle_kbd", do_toggle_kbd, 495, 50, 40, 40, "KBD", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	/* end of common controls */
 
 	// tx
-	{"tx_gain", NULL, 550, -350, 50, 50, "MIC", 40, "30", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"tx_gain", NULL, 550, -350, 50, 50, "MIC", 40, "30", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 50, 1, VOICE_CONTROL},
 
-	//{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	//{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	//	"ON/OFF", 0,100,10, VOICE_CONTROL},
 
-	{"#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 50, 1, CW_CONTROL},
-	{"rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL},
 
-	{"#tx", NULL, 1000, -1000, 50, 50, "TX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#tx", NULL, 1000, -1000, 50, 50, "TX", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "RX/TX", 0, 0, 0, VOICE_CONTROL},
 
-	{"#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "RX/TX", 0, 0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
-	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
-	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
 
-	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL,
+	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#status", do_status, -1000, -1000, 400, 29, "STATUS", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL,
+	{"#status", do_status, -1000, -1000, 400, 29, "STATUS", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
 	 "status", 0, 0, 0, 0},
 
-	{"waterfall", do_waterfall, 400, 201, 400, 99, "WATERFALL", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL,
+	{"waterfall", do_waterfall, 400, 201, 400, 99, "WATERFALL", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#console", do_console, 0, 100, 400, 200, "CONSOLE", 70, "console box", FIELD_CONSOLE, FONT_LOG,
+	{"#console", do_console, 0, 100, 400, 200, "CONSOLE", 70, "console box", FIELD_CONSOLE, STYLE_LOG,
 	 "nothing valuable", 0, 0, 0, COMMON_CONTROL},
 
-	{"#log_ed", NULL, 0, 480, 480, 20, "", 70, "", FIELD_STATIC, FONT_LOG,
+	{"#log_ed", NULL, 0, 480, 480, 20, "", 70, "", FIELD_STATIC, STYLE_LOG,
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
-	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, 0},
-	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"tuning_accel_thresh1", NULL, 1000, -1000, 50, 50, "TAT1", 40, "10000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"tuning_accel_thresh1", NULL, 1000, -1000, 50, 50, "TAT1", 40, "10000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 100, 99999, 100, 0},
-	{"tuning_accel_thresh2", NULL, 1000, -1000, 50, 50, "TAT2", 40, "500", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"tuning_accel_thresh2", NULL, 1000, -1000, 50, 50, "TAT2", 40, "500", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 100, 99999, 100, 0},
-	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "BLANK/LEFT/RIGHT/CROSSHAIR", 0, 0, 0, 0},
 
 	// parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
-	{"#eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 40, 160, 5, 0},
-	{"#eq_b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#eq_b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#eq_b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 125, 500, 50, 0},
-	{"#eq_b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#eq_b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#eq_b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "500", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "500", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 250, 1000, 50, 0},
-	{"#eq_b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#eq_b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#eq_b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "1200", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "1200", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 600, 2400, 50, 0},
-	{"#eq_b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#eq_b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#eq_b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "2500", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "2500", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1500, 3500, 50, 0},
-	{"#eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
 
 	// RX EQ Controls (added)
-	{"#rx_eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "R0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "R0F", 40, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 40, 160, 5, 0},
-	{"#rx_eq_b0g", do_eq_edit, 1000, -1000, 40, 40, "R0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b0g", do_eq_edit, 1000, -1000, 40, 40, "R0G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#rx_eq_b0b", do_eq_edit, 1000, -1000, 40, 40, "R0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b0b", do_eq_edit, 1000, -1000, 40, 40, "R0B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#rx_eq_b1f", do_eq_edit, 1000, -1000, 40, 40, "R1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b1f", do_eq_edit, 1000, -1000, 40, 40, "R1F", 40, "250", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 125, 500, 50, 0},
-	{"#rx_eq_b1g", do_eq_edit, 1000, -1000, 40, 40, "R1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b1g", do_eq_edit, 1000, -1000, 40, 40, "R1G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#rx_eq_b1b", do_eq_edit, 1000, -1000, 40, 40, "R1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b1b", do_eq_edit, 1000, -1000, 40, 40, "R1B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#rx_eq_b2f", do_eq_edit, 1000, -1000, 40, 40, "R2F", 40, "500", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b2f", do_eq_edit, 1000, -1000, 40, 40, "R2F", 40, "500", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 250, 1000, 50, 0},
-	{"#rx_eq_b2g", do_eq_edit, 1000, -1000, 40, 40, "R2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b2g", do_eq_edit, 1000, -1000, 40, 40, "R2G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#rx_eq_b2b", do_eq_edit, 1000, -1000, 40, 40, "R2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b2b", do_eq_edit, 1000, -1000, 40, 40, "R2B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#rx_eq_b3f", do_eq_edit, 1000, -1000, 40, 40, "R3F", 40, "1200", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b3f", do_eq_edit, 1000, -1000, 40, 40, "R3F", 40, "1200", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 600, 2400, 50, 0},
-	{"#rx_eq_b3g", do_eq_edit, 1000, -1000, 40, 40, "R3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b3g", do_eq_edit, 1000, -1000, 40, 40, "R3G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#rx_eq_b3b", do_eq_edit, 1000, -1000, 40, 40, "R3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b3b", do_eq_edit, 1000, -1000, 40, 40, "R3B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 0.5, 0},
-	{"#rx_eq_b4f", do_eq_edit, 1000, -1000, 40, 40, "R4F", 40, "2500", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b4f", do_eq_edit, 1000, -1000, 40, 40, "R4F", 40, "2500", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1500, 3500, 50, 0},
-	{"#rx_eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "R4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "R4G", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -16, 16, 1, 0},
-	{"#rx_eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "R4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rx_eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "R4B", 40, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
-	{"#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#rx_eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "RXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rx_eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "RXEQ", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 8, 1, 0},
-	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
-	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
-	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 		"", 0, 0, 0, 0, COMMON_CONTROL},
 
 	// EQ TX Audio Setting Controls
-	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, 0},
 
 	// TX Audio Monitor
-	{"#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 10, 1, 0},
 
 	// WF Gain
-	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 200, 1, 0},
 	// WF Gain
-	{"#wf_max", do_wf_edit, 1000, -1000, 40, 40, "WFMAX", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#wf_max", do_wf_edit, 1000, -1000, 40, 40, "WFMAX", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 200, 1, 0},
 
-	{"#wf_spd", do_wf_edit, 150, 20, 5, 50, "WFSPD", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#wf_spd", do_wf_edit, 150, 20, 5, 50, "WFSPD", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 20, 150, 5, 0},
 
-	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 25, 1, 0},
 
-	{"#scope_avg", do_wf_edit, 15, 1, 1, 10, "SCOPEAVG", 10, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#scope_avg", do_wf_edit, 15, 1, 1, 10, "SCOPEAVG", 10, "10", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 15, 1, 0},
 
-	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
 
-	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 		"ON/OFF", 0, 0, 0, 0},
 
-	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
-	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
 
 	// MACRO Toggle W9JES W4WHL
-	{"#current_macro", do_toggle_macro, 1000, -1000, 40, 40, "MACRO", 40, "FT8", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#current_macro", do_toggle_macro, 1000, -1000, 40, 40, "MACRO", 40, "FT8", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, 0},
 
 	// VFO Lock ON/OFF
-	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Full Screen Waterfall Option ON/OFF
-	{"#waterfall_option", do_toggle_option, 1000, -1000, 40, 40, "SPECT", 40, "NORM", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#waterfall_option", do_toggle_option, 1000, -1000, 40, 40, "SPECT", 40, "NORM", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "FULL/NORM", 0, 0, 0, 0},
 
 	// S-Meter Option ON/OFF (hides/reveals s-meter)
-	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// ePTT option ON/OFF (hides/reveals menu button)
-	{"#eptt_option", do_toggle_option, 1000, -1000, 40, 40, "EPTTOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#eptt_option", do_toggle_option, 1000, -1000, 40, 40, "EPTTOPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	// ePTT Enable/Bypass Control
-	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// WFCALL option ON/OFF
-	{"#wfcall_option", do_toggle_option, 1000, -1000, 40, 40, "WFCALLOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#wfcall_option", do_toggle_option, 1000, -1000, 40, 40, "WFCALLOPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// INA260 Option ON/OFF (enable/disable sensor readout)
-	{"#ina260_option", do_toggle_option, 1000, -1000, 40, 40, "INA260OPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#ina260_option", do_toggle_option, 1000, -1000, 40, 40, "INA260OPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
-	{"#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
+	{"#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", 3, STYLE_FIELD_VALUE,
 	 "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	// Notch Filter Controls
-	{"#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#notch_freq", do_notch_edit, 1000, -1000, 40, 40, "NFREQ", 80, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 60, 3000, 10, 0},
-	{"#notch_bandwidth", do_notch_edit, 1000, -1000, 40, 40, "BNDWTH", 80, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#notch_bandwidth", do_notch_edit, 1000, -1000, 40, 40, "BNDWTH", 80, "10", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 60, 1000, 10, 0},
 
 	// DSP Controls
-	{"#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#dsp_plugin", do_toggle_option, 1000, -1000, 40, 40, "DSP", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#dsp_interval", do_dsp_edit, 1000, -1000, 40, 40, "INTVL", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#dsp_interval", do_dsp_edit, 1000, -1000, 40, 40, "INTVL", 80, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 20, 200, 10, 0},
-	{"#dsp_threshold", do_dsp_edit, 1000, -1000, 40, 40, "THSHLD", 80, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#dsp_threshold", do_dsp_edit, 1000, -1000, 40, 40, "THSHLD", 80, "1", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, 0},
 
 	// ANR Control
-	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Compressor Control
-	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "10/9/8/7/6/5/4/3/2/1/0", 0, 0, 0, 0},
 
 	// BFO Control
-	{"#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -3000, 3000, 50, 0},
 
 	// Tune Controls - W9JES
-	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	//"ON/OFF", 0, 0, 0, 0},
-	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, 0},
-	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 2, 30, 1, 0},
 
 	// Settings Panel
-	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL,
+	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, STYLE_SMALL,
 	 "", 3, 10, 1, 0},
-	{"#mygrid", NULL, 1000, -1000, 400, 149, "MYGRID", 70, "NOWHERE", FIELD_TEXT, FONT_SMALL,
+	{"#mygrid", NULL, 1000, -1000, 400, 149, "MYGRID", 70, "NOWHERE", FIELD_TEXT, STYLE_SMALL,
 	 "", 4, 6, 1, 0},
-	{"#passkey", NULL, 1000, -1000, 400, 149, "PASSKEY", 70, "123", FIELD_TEXT, FONT_SMALL,
+	{"#passkey", NULL, 1000, -1000, 400, 149, "PASSKEY", 70, "123", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 32, 1, 0},
 
 	// moving global variables into fields
-	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 500000, 30000000, 1, 0},
-	{"#vfo_b_freq", NULL, 1000, -1000, 50, 50, "VFOB", 40, "7000000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#vfo_b_freq", NULL, 1000, -1000, 50, 50, "VFOB", 40, "7000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 500000, 30000000, 1, 0},
-	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
-	{"#zero_beat", do_toggle_option, 1000, -1000, 40, 40, "ZEROBEAT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#zero_beat", do_toggle_option, 1000, -1000, 40, 40, "ZEROBEAT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "10", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, CW_CONTROL},
 
-	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
-	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 1000, 50, CW_CONTROL},
-	{"#tx_pitch", NULL, 400, -1000, 50, 50, "TX_PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#tx_pitch", NULL, 400, -1000, 50, 50, "TX_PITCH", 40, "600", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 3000, 10, FT8_CONTROL},
-	{"sidetone", NULL, 1000, -1000, 50, 50, "SIDETONE", 40, "25", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"sidetone", NULL, 1000, -1000, 50, 50, "SIDETONE", 40, "25", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 5, CW_CONTROL},
-	{"#sent_exchange", NULL, 1000, -1000, 400, 149, "SENT_EXCHANGE", 70, "", FIELD_TEXT, FONT_SMALL,
+	{"#sent_exchange", NULL, 1000, -1000, 400, 149, "SENT_EXCHANGE", 70, "", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 10, 1, COMMON_CONTROL},
-	{"#contest_serial", NULL, 1000, -1000, 50, 50, "CONTEST_SERIAL", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#contest_serial", NULL, 1000, -1000, 50, 50, "CONTEST_SERIAL", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 1000000, 1, COMMON_CONTROL},
-	//{"#current_macro", NULL, 1000, -1000, 400, 149, "MACRO", 70, "", FIELD_TEXT, FONT_SMALL,
+	//{"#current_macro", NULL, 1000, -1000, 400, 149, "MACRO", 70, "", FIELD_TEXT, STYLE_SMALL,
 	// "", 0, 32, 1, COMMON_CONTROL},
-	{"#fwdpower", NULL, 1000, -1000, 50, 50, "POWER", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#fwdpower", NULL, 1000, -1000, 50, 50, "POWER", 40, "300", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 10000, 1, COMMON_CONTROL},
-	{"#vswr", NULL, 1000, -1000, 50, 50, "REF", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#vswr", NULL, 1000, -1000, 50, 50, "REF", 40, "300", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 10000, 1, COMMON_CONTROL},
-	{"bridge", NULL, 1000, -1000, 50, 50, "BRIDGE", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"bridge", NULL, 1000, -1000, 50, 50, "BRIDGE", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 10, 100, 1, COMMON_CONTROL},
 	// cw, ft8 and many digital modes need abort
-	{"#abort", NULL, 370, 50, 40, 40, "ESC", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, CW_CONTROL},
+	{"#abort", NULL, 370, 50, 40, 40, "ESC", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, CW_CONTROL},
 
 	// FT8 should be 4000 Hz
-	{"#bw_voice", NULL, 1000, -1000, 50, 50, "BW_VOICE", 40, "2200", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bw_voice", NULL, 1000, -1000, 50, 50, "BW_VOICE", 40, "2200", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 3000, 50, 0},
-	{"#bw_cw", NULL, 1000, -1000, 50, 50, "BW_CW", 40, "400", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bw_cw", NULL, 1000, -1000, 50, 50, "BW_CW", 40, "400", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 3000, 50, 0},
-	{"#bw_digital", NULL, 1000, -1000, 50, 50, "BW_DIGITAL", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bw_digital", NULL, 1000, -1000, 50, 50, "BW_DIGITAL", 40, "3000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 3000, 50, 0},
-	{"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 6000, 50, 0},
 
 	// FT8 controls
-	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
-	{"#ft8_tx1st", NULL, 1000, -1000, 50, 50, "FT8_TX1ST", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#ft8_tx1st", NULL, 1000, -1000, 50, 50, "FT8_TX1ST", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
-	{"#ft8_repeat", NULL, 1000, -1000, 50, 50, "FT8_REPEAT", 40, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#ft8_repeat", NULL, 1000, -1000, 50, 50, "FT8_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
 
-	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, FONT_SMALL,
+	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 32, 1, 0},
 
 	// soft keyboard
-	{"#kbd_q", do_kbd, 0, 300, 50, 50, "", 1, "Q", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_w", do_kbd, 50, 300, 50, 50, "", 1, "W", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_e", do_kbd, 100, 300, 50, 50, "", 1, "E", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_r", do_kbd, 150, 300, 50, 50, "", 1, "R", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_t", do_kbd, 200, 300, 50, 50, "", 1, "T", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_y", do_kbd, 250, 300, 50, 50, "", 1, "Y", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_u", do_kbd, 300, 300, 50, 50, "", 1, "U", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_i", do_kbd, 350, 300, 50, 50, "", 1, "I", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_o", do_kbd, 400, 300, 50, 50, "", 1, "O", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_p", do_kbd, 450, 300, 50, 50, "", 1, "P", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_@", do_kbd, 500, 300, 50, 50, "", 1, "@", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_q", do_kbd, 0, 300, 50, 50, "", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_w", do_kbd, 50, 300, 50, 50, "", 1, "W", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_e", do_kbd, 100, 300, 50, 50, "", 1, "E", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_r", do_kbd, 150, 300, 50, 50, "", 1, "R", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_t", do_kbd, 200, 300, 50, 50, "", 1, "T", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_y", do_kbd, 250, 300, 50, 50, "", 1, "Y", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_u", do_kbd, 300, 300, 50, 50, "", 1, "U", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_i", do_kbd, 350, 300, 50, 50, "", 1, "I", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_o", do_kbd, 400, 300, 50, 50, "", 1, "O", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_p", do_kbd, 450, 300, 50, 50, "", 1, "P", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_@", do_kbd, 500, 300, 50, 50, "", 1, "@", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#kbd_1", do_kbd, 550, 300, 50, 50, "", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_2", do_kbd, 600, 300, 50, 50, "", 1, "2", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_3", do_kbd, 650, 300, 50, 50, "", 1, "3", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_bs", do_kbd, 700, 300, 100, 50, "", 1, "DEL", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_1", do_kbd, 550, 300, 50, 50, "", 1, "1", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_2", do_kbd, 600, 300, 50, 50, "", 1, "2", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_3", do_kbd, 650, 300, 50, 50, "", 1, "3", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_bs", do_kbd, 700, 300, 100, 50, "", 1, "DEL", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#kbd_alt", do_kbd, 0, 350, 50, 50, "", 1, "CMD", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_a", do_kbd, 50, 350, 50, 50, "*", 1, "A", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_s", do_kbd, 100, 350, 50, 50, "", 1, "S", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_d", do_kbd, 150, 350, 50, 50, "", 1, "D", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_f", do_kbd, 200, 350, 50, 50, "", 1, "F", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_g", do_kbd, 250, 350, 50, 50, "", 1, "G", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_h", do_kbd, 300, 350, 50, 50, "", 1, "H", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_j", do_kbd, 350, 350, 50, 50, "", 1, "J", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_k", do_kbd, 400, 350, 50, 50, "'", 1, "K", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_l", do_kbd, 450, 350, 50, 50, "", 1, "L", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_/", do_kbd, 500, 350, 50, 50, "", 1, "/", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_alt", do_kbd, 0, 350, 50, 50, "", 1, "CMD", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_a", do_kbd, 50, 350, 50, 50, "*", 1, "A", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_s", do_kbd, 100, 350, 50, 50, "", 1, "S", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_d", do_kbd, 150, 350, 50, 50, "", 1, "D", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_f", do_kbd, 200, 350, 50, 50, "", 1, "F", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_g", do_kbd, 250, 350, 50, 50, "", 1, "G", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_h", do_kbd, 300, 350, 50, 50, "", 1, "H", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_j", do_kbd, 350, 350, 50, 50, "", 1, "J", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_k", do_kbd, 400, 350, 50, 50, "'", 1, "K", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_l", do_kbd, 450, 350, 50, 50, "", 1, "L", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_/", do_kbd, 500, 350, 50, 50, "", 1, "/", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#kbd_4", do_kbd, 550, 350, 50, 50, "", 1, "4", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_5", do_kbd, 600, 350, 50, 50, "", 1, "5", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_6", do_kbd, 650, 350, 50, 50, "", 1, "6", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_enter", do_kbd, 700, 400, 100, 50, "", 1, "Enter", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_4", do_kbd, 550, 350, 50, 50, "", 1, "4", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_5", do_kbd, 600, 350, 50, 50, "", 1, "5", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_6", do_kbd, 650, 350, 50, 50, "", 1, "6", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_enter", do_kbd, 700, 400, 100, 50, "", 1, "Enter", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#kbd_ ", do_kbd, 0, 400, 50, 50, "", 1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_z", do_kbd, 50, 400, 50, 50, "", 1, "Z", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_x", do_kbd, 100, 400, 50, 50, "", 1, "X", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_c", do_kbd, 150, 400, 50, 50, "", 1, "C", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_v", do_kbd, 200, 400, 50, 50, "", 1, "V", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_b", do_kbd, 250, 400, 50, 50, "", 1, "B", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_n", do_kbd, 300, 400, 50, 50, "", 1, "N", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_m", do_kbd, 350, 400, 50, 50, "", 1, "M", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_,", do_kbd, 400, 400, 50, 50, "", 1, ",", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_.", do_kbd, 450, 400, 50, 50, "", 1, ".", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_?", do_kbd, 500, 400, 50, 50, "", 1, "?", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_ ", do_kbd, 0, 400, 50, 50, "", 1, "SPACE", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_z", do_kbd, 50, 400, 50, 50, "", 1, "Z", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_x", do_kbd, 100, 400, 50, 50, "", 1, "X", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_c", do_kbd, 150, 400, 50, 50, "", 1, "C", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_v", do_kbd, 200, 400, 50, 50, "", 1, "V", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_b", do_kbd, 250, 400, 50, 50, "", 1, "B", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_n", do_kbd, 300, 400, 50, 50, "", 1, "N", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_m", do_kbd, 350, 400, 50, 50, "", 1, "M", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_,", do_kbd, 400, 400, 50, 50, "", 1, ",", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_.", do_kbd, 450, 400, 50, 50, "", 1, ".", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_?", do_kbd, 500, 400, 50, 50, "", 1, "?", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#kbd_7", do_kbd, 550, 400, 50, 50, "", 1, "7", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_8", do_kbd, 600, 400, 50, 50, "", 1, "8", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_9", do_kbd, 650, 400, 50, 50, "", 1, "9", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_0", do_kbd, 700, 350, 50, 50, "", 1, "0", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_7", do_kbd, 550, 400, 50, 50, "", 1, "7", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_8", do_kbd, 600, 400, 50, 50, "", 1, "8", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_9", do_kbd, 650, 400, 50, 50, "", 1, "9", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_0", do_kbd, 700, 350, 50, 50, "", 1, "0", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// macros keyboard
 
 	// row 1
-	{"#mf1", do_macro, 0, 1360, 65, 40, "F1", 1, "CQ", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf1", do_macro, 0, 1360, 65, 40, "F1", 1, "CQ", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf2", do_macro, 65, 1360, 65, 40, "F2", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf2", do_macro, 65, 1360, 65, 40, "F2", 1, "Call", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf3", do_macro, 130, 1360, 65, 40, "F3", 1, "Reply", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf3", do_macro, 130, 1360, 65, 40, "F3", 1, "Reply", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf4", do_macro, 195, 1360, 65, 40, "F4", 1, "RRR", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf4", do_macro, 195, 1360, 65, 40, "F4", 1, "RRR", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf5", do_macro, 260, 1360, 70, 40, "F5", 1, "73", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf5", do_macro, 260, 1360, 70, 40, "F5", 1, "73", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf6", do_macro, 330, 1360, 70, 40, "F6", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf6", do_macro, 330, 1360, 70, 40, "F6", 1, "Call", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// row 2
 
-	{"#mf7", do_macro, 0, 1400, 65, 40, "F7", 1, "Exch", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf7", do_macro, 0, 1400, 65, 40, "F7", 1, "Exch", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf8", do_macro, 65, 1400, 65, 40, "F8", 1, "Tu", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf8", do_macro, 65, 1400, 65, 40, "F8", 1, "Tu", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf9", do_macro, 130, 1400, 65, 40, "F9", 1, "Rpt", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf9", do_macro, 130, 1400, 65, 40, "F9", 1, "Rpt", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf10", do_macro, 195, 1400, 65, 40, "F10", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf10", do_macro, 195, 1400, 65, 40, "F10", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf11", do_macro, 260, 1400, 70, 40, "F11", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf11", do_macro, 260, 1400, 70, 40, "F11", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mf12", do_macro, 330, 1400, 70, 40, "F12", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf12", do_macro, 330, 1400, 70, 40, "F12", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// row 3
 
-	{"#mfedit", do_macro, 195, 1440, 65, 40, "Edit", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mfedit", do_macro, 195, 1440, 65, 40, "Edit", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mfspot", do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mfspot", do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mfkbd", do_macro, 330, 1440, 70, 40, "Kbd", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mfkbd", do_macro, 330, 1440, 70, 40, "Kbd", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// the last control has empty cmd field
-	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 };
 
 struct field *get_field(const char *cmd);
@@ -1254,29 +1256,29 @@ void web_write(int style, char *data)
 
 	switch (style)
 	{
-	case FONT_FT8_REPLY:
-	case FONT_FT8_RX:
+	case STYLE_FT8_REPLY:
+	case STYLE_FT8_RX:
 		strcpy(tag, "WSJTX-RX");
 		break;
-	case FONT_FLDIGI_RX:
+	case STYLE_FLDIGI_RX:
 		strcpy(tag, "FLDIGI-RX");
 		break;
-	case FONT_CW_RX:
+	case STYLE_CW_RX:
 		strcpy(tag, "CW-RX");
 		break;
-	case FONT_FT8_TX:
+	case STYLE_FT8_TX:
 		strcpy(tag, "WSJTX-TX");
 		break;
-	case FONT_FT8_QUEUED:
+	case STYLE_FT8_QUEUED:
 		strcpy(tag, "WSJTX-Q");
 		break;
-	case FONT_FLDIGI_TX:
+	case STYLE_FLDIGI_TX:
 		strcpy(tag, "FLDIGI-TX");
 		break;
-	case FONT_CW_TX:
+	case STYLE_CW_TX:
 		strcpy(tag, "CW-TX");
 		break;
-	case FONT_TELNET:
+	case STYLE_TELNET:
 		strcpy(tag, "TELNET");
 		break;
 	default:
@@ -1379,14 +1381,14 @@ void write_console(int style, char *raw_text)
 		console_stream[console_current_line].style = style;
 		switch (style)
 		{
-		case FONT_FT8_RX:
-		case FONT_FLDIGI_RX:
-		case FONT_CW_RX:
+		case STYLE_FT8_RX:
+		case STYLE_FLDIGI_RX:
+		case STYLE_CW_RX:
 			break;
-		case FONT_FT8_TX:
-		case FONT_FLDIGI_TX:
-		case FONT_CW_TX:
-		case FONT_FT8_REPLY:
+		case STYLE_FT8_TX:
+		case STYLE_FLDIGI_TX:
+		case STYLE_CW_TX:
+		case STYLE_FT8_REPLY:
 			break;
 		default:
 			break;
@@ -1594,13 +1596,13 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 	case FIELD_TOGGLE:
 	case FIELD_BUTTON:
 	{
-		label_height = font_table[FONT_FIELD_LABEL].height;
-		width = measure_text(gfx, label, FONT_FIELD_LABEL);
+		label_height = font_table[STYLE_FIELD_LABEL].height;
+		width = measure_text(gfx, label, STYLE_FIELD_LABEL);
 		// skip the underscore in the label if it is too wide
 		if (width > f->width && strchr(label, '_'))
 		{
 			label = strchr(label, '_') + 1;
-			width = measure_text(gfx, label, FONT_FIELD_LABEL);
+			width = measure_text(gfx, label, STYLE_FIELD_LABEL);
 		}
 
 		offset_x = f->x + f->width / 2 - width / 2;
@@ -1608,23 +1610,23 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 		if ((f->value_type == FIELD_BUTTON) && !f->value[0])
 		{
 			label_y = f->y + (f->height - label_height) / 2;
-			draw_text(gfx, offset_x, label_y, f->label, FONT_FIELD_LABEL);
+			draw_text(gfx, offset_x, label_y, f->label, STYLE_FIELD_LABEL);
 		}
 		else
 		{
 			int font_ix = f->font_index;
 			value_height = font_table[font_ix].height;
 			label_y = f->y + ((f->height - label_height - value_height) / 2);
-			draw_text(gfx, offset_x, label_y, label, FONT_FIELD_LABEL);
+			draw_text(gfx, offset_x, label_y, label, STYLE_FIELD_LABEL);
 			width = measure_text(gfx, f->value, font_ix);
-			label_y += font_table[FONT_FIELD_LABEL].height;
+			label_y += font_table[STYLE_FIELD_LABEL].height;
 			draw_text(gfx, f->x + f->width / 2 - width / 2, label_y, f->value,
 					  font_ix);
 		}
 	}
 	break;
 	case FIELD_STATIC:
-		draw_text(gfx, f->x, f->y, f->label, FONT_FIELD_LABEL);
+		draw_text(gfx, f->x, f->y, f->label, STYLE_FIELD_LABEL);
 		break;
 	case FIELD_CONSOLE:
 		// draw_console(gfx, f);
@@ -1743,7 +1745,7 @@ void enter_qso()
 	snprintf(buff, 100, "Logged: %s %s-%s %s-%s pwr %d.%d swr %d.%d\n",
 			field_str("CALL"), field_str("SENT"), field_str("NR"),
 			field_str("RECV"), field_str("EXCH"), power / 10, power % 10, swr / 10, swr % 10);
-	write_console(FONT_LOG, buff);
+	write_console(STYLE_LOG, buff);
 	printf(buff);
 }
 
@@ -2294,9 +2296,9 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 		vswr = 10;
 
 	sprintf(meter_str, "Power: %d.%d Watts", power / 10, power % 10);
-	draw_text(gfx, f->x + 20, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 20, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
-	draw_text(gfx, f->x + 200, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 200, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 }
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
@@ -2444,7 +2446,7 @@ void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx)
 	struct field *f = f_spectrum;
 
 	sub_division = f->width / 10;
-	grid_height = f->height - (font_table[FONT_SMALL].height * 4 / 3);
+	grid_height = f->height - (font_table[STYLE_SMALL].height * 4 / 3);
 
 	cairo_set_line_width(gfx, 1);
 	cairo_set_source_rgb(gfx, palette[SPECTRUM_GRID][0],
@@ -2572,7 +2574,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	span = atof(get_field("#span")->value);
 	bw_high = atoi(get_field("r1:high")->value);
 	bw_low = atoi(get_field("r1:low")->value);
-	grid_height = f_spectrum->height - ((font_table[FONT_SMALL].height * 4) / 3);
+	grid_height = f_spectrum->height - ((font_table[STYLE_SMALL].height * 4) / 3);
 	sub_division = f_spectrum->width / 10;
 
 	// the step is in khz, we multiply by 1000 and div 10(divisions) = 100
@@ -2735,7 +2737,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// display active plugins
 	//  --- ePTT plugin indicator W2JON
 	const char *eptt_text = "ePTT";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the eptt_enabled variable and set the text color
 	if (eptt_enabled)
@@ -2749,7 +2751,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast eptt_text to char* to avoid the warning
 
-	int eptt_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)eptt_text, FONT_SMALL) - 188;
+	int eptt_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)eptt_text, STYLE_SMALL) - 188;
 	int eptt_text_y = f_spectrum->y + 7;
 	if (!strcmp(field_str("EPTTOPT"), "ON"))
 	{
@@ -2759,7 +2761,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- Compressor plugin indicator W2JON
 	const char *comp_text = "COMP";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the comp_enabled variable and set the text color
 	if (comp_enabled)
@@ -2773,14 +2775,14 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast comp_text to char* to avoid the warning
 
-	int comp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)comp_text, FONT_SMALL) - 154;
+	int comp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)comp_text, STYLE_SMALL) - 154;
 	int comp_text_y = f_spectrum->y + 7;
 	cairo_move_to(gfx, comp_text_x, comp_text_y);
 	cairo_show_text(gfx, comp_text);
 
 	// --- NOTCH plugin indicator W2JON
 	const char *notch_text = "NOTCH";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the notch_enabled variable and set the text color
 	if (notch_enabled)
@@ -2793,7 +2795,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// Cast notch_text to char* to avoid the warning
-	int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)notch_text, FONT_SMALL) - 117;
+	int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)notch_text, STYLE_SMALL) - 117;
 	int notch_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, notch_text_x, notch_text_y);
@@ -2801,7 +2803,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- TXEQ plugin indicator W2JON
 	const char *txeq_text = "TXEQ";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the txeq_enabled variable and set the text color
 	if (eq_is_enabled)
@@ -2815,7 +2817,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast txeq_text to char* to avoid the warning
 
-	int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)txeq_text, FONT_SMALL) - 85;
+	int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)txeq_text, STYLE_SMALL) - 85;
 	int txeq_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, txeq_text_x, txeq_text_y);
@@ -2823,7 +2825,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- RXEQ plugin indicator W4WHL
 	const char *rxeq_text = "RXEQ";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	if (rx_eq_is_enabled)
 	{
@@ -2836,7 +2838,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast txeq_text to char* to avoid the warning
 
-	int rxeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)rxeq_text, FONT_SMALL) - 53;
+	int rxeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)rxeq_text, STYLE_SMALL) - 53;
 	int rxeq_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, rxeq_text_x, rxeq_text_y);
@@ -2844,7 +2846,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- DSP plugin indicator W2JON
 	const char *dsp_text = "DSP";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the dsp_enabled variable and set the text color
 	if (dsp_enabled)
@@ -2858,7 +2860,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast dsp_text to char* to avoid the warning
 
-	int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)dsp_text, FONT_SMALL) - 29;
+	int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)dsp_text, STYLE_SMALL) - 29;
 	int dsp_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, dsp_text_x, dsp_text_y);
@@ -2866,7 +2868,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- ANR plugin indicator W2JON
 	const char *anr_text = "ANR";
-	cairo_set_font_size(gfx, FONT_SMALL);
+	cairo_set_font_size(gfx, STYLE_SMALL);
 
 	// Check the anr_enabled variable and set the text color
 	if (anr_enabled)
@@ -2879,7 +2881,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// Cast anr_text to char* to avoid the warning
-	int anr_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)anr_text, FONT_SMALL) - 5;
+	int anr_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)anr_text, STYLE_SMALL) - 5;
 	int anr_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, anr_text_x, anr_text_y);
@@ -2887,7 +2889,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- VFO LOCK indicator W2JON
 	const char *vfolk_text = "VFO LOCK";
-	cairo_set_font_size(gfx, FONT_LARGE_VALUE);
+	cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
 
 	// Check the vfo_lock_enabled variable and set the text color
 	if (vfo_lock_enabled)
@@ -2900,7 +2902,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// Cast vfolk_text to char* to avoid the warning
-	int vfolk_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)vfolk_text, FONT_LARGE_VALUE) - 9;
+	int vfolk_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)vfolk_text, STYLE_LARGE_VALUE) - 9;
 	int vfolk_text_y = f_spectrum->y + 30;
 
 	cairo_move_to(gfx, vfolk_text_x, vfolk_text_y);
@@ -2912,7 +2914,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	{
 		// --- Zero Beat indicator
 		const char *zerobeat_text = "ZBEAT";
-		cairo_set_font_size(gfx, FONT_SMALL);
+		cairo_set_font_size(gfx, STYLE_SMALL);
 
 
 		// Only show zero beat indicator in CW/CWR modes
@@ -2922,7 +2924,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 
 			// Position and draw the text in gray
-			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
+			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, STYLE_SMALL) - 183 ;
 			int zerobeat_text_y = f_spectrum->y + 30;
 
 			// Draw text in gray always
@@ -2935,7 +2937,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			int box_height = 5;
 			int spacing = 2;
 			int led_y = zerobeat_text_y - 5;
-			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
+			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, STYLE_SMALL) + 5;
 
 			// Draw LED background
 			cairo_save(gfx);
@@ -3003,8 +3005,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			float f_start_temp = (((float)f_start / 1000000.0) - ((int)(f_start / 1000000))) * 1000;
 			sprintf(freq_text, "%5.1f", f_start_temp);
 		}
-		int off = measure_text(gfx, freq_text, FONT_SMALL) / 2;
-		draw_text(gfx, f->x + i - off, f->y + grid_height, freq_text, FONT_SMALL);
+		int off = measure_text(gfx, freq_text, STYLE_SMALL) / 2;
+		draw_text(gfx, f->x + i - off, f->y + grid_height, freq_text, STYLE_SMALL);
 		f_start += freq_div;
 	}
 
@@ -3334,18 +3336,18 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		if (!in_tx)
 		{
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(temp_str, "%d", (atoi(f->value) + atoi(rit_delta->value)));
 			sprintf(buff, "RX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 			sprintf(temp_str, "%d", (atoi(f->value) + atoi(rit_delta->value)));
 			sprintf(buff, "RX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 		}
 	}
         else if (!strcmp(split->value, "ON"))
@@ -3354,17 +3356,17 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_FIELD);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_VALUE);
 		}
 	}
 	else if (!strcmp(vfo->value, "A"))
@@ -3373,17 +3375,17 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "B:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "A:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "B:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 		}
 	}
 	else
@@ -3393,18 +3395,18 @@ void draw_dial(struct field *f, cairo_t *gfx)
 			strcpy(temp_str, vfo_a->value);
 			// sprintf(temp_str, "%d", vfo_a_freq);
 			sprintf(buff, "A:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "B:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_a->value);
 			// sprintf(temp_str, "%d", vfo_a_freq);
 			sprintf(buff, "A:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
 		}
 	}
 }
@@ -4449,7 +4451,7 @@ int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		struct tm *tmp = gmtime(&now);
 		sprintf(buff, "%04d/%02d/%02d %02d:%02d:%02dZ",
 				tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-		int width = measure_text(gfx, buff, FONT_FIELD_LABEL);
+		int width = measure_text(gfx, buff, STYLE_FIELD_LABEL);
 		int line_height = font_table[f->font_index].height;
 		strcpy(f->value, buff);
 		f->is_dirty = 1;
@@ -4527,7 +4529,7 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		y = f->y + 1;
 		text_line_width = measure_text(gfx, f->value, f->font_index);
 		if (!strlen(f->value))
-			draw_text(gfx, f->x + 1, y + 1, f->label, FONT_FIELD_LABEL);
+			draw_text(gfx, f->x + 1, y + 1, f->label, STYLE_FIELD_LABEL);
 		else
 			draw_text(gfx, f->x + 1, y + 1, f->value, f->font_index);
 		// draw the text cursor, if there is no text, the text baseline is zero
@@ -4639,7 +4641,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			char temp_char[100];
 			// sprintf(temp_char, "delta: %d", delta_us);
 			// strcat(temp_char,"\r\n");
-			// write_console(FONT_LOG, temp_char);
+			// write_console(STYLE_LOG, temp_char);
 			clock_gettime(CLOCK_MONOTONIC_RAW, &last_change_time);
 			if (delta_us < atof(get_field("tuning_accel_thresh2")->value))
 			{
@@ -4647,7 +4649,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				{
 					tuning_step = tuning_step * 100;
 					// sprintf(temp_char, "x100 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
+					// write_console(STYLE_LOG, temp_char);
 				}
 			}
 			else if (delta_us < atof(get_field("tuning_accel_thresh1")->value))
@@ -4656,7 +4658,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				{
 					tuning_step = tuning_step * 10;
 					// printf(temp_char, "x10 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
+					// write_console(STYLE_LOG, temp_char);
 				}
 			}
 		}
@@ -4759,8 +4761,8 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	else if (event == FIELD_DRAW)
 	{
-		int label_height = font_table[FONT_FIELD_LABEL].height;
-		int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+		int label_height = font_table[STYLE_FIELD_LABEL].height;
+		int width = measure_text(gfx, f->label, STYLE_FIELD_LABEL);
 		int offset_x = f->x + f->width / 2 - width / 2;
 		int label_y;
 		int value_font;
@@ -4771,17 +4773,17 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		if (!f->value[0])
 		{
 			label_y = f->y + (f->height - label_height) / 2;
-			draw_text(gfx, offset_x, label_y, f->label, FONT_FIELD_LABEL);
+			draw_text(gfx, offset_x, label_y, f->label, STYLE_FIELD_LABEL);
 		}
 		else
 		{
 			if (width >= f->width + 2)
-				value_font = FONT_SMALL_FIELD_VALUE;
+				value_font = STYLE_SMALL_FIELD_VALUE;
 			else
-				value_font = FONT_FIELD_VALUE;
+				value_font = STYLE_FIELD_VALUE;
 			int value_height = font_table[value_font].height;
 			label_y = f->y + 3;
-			draw_text(gfx, f->x + 3, label_y, f->label, FONT_FIELD_LABEL);
+			draw_text(gfx, f->x + 3, label_y, f->label, STYLE_FIELD_LABEL);
 			width = measure_text(gfx, f->value, value_font);
 			label_y = f->y + (f->height - label_height) / 2;
 			draw_text(gfx, f->x + f->width / 2 - width / 2, label_y, f->value, value_font);
@@ -4809,9 +4811,9 @@ int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int 
 		focus_field(f_last_text); // this will prevent the controls from bouncing
 		if (strlen(get_field("#current_macro")->value))
 		{
-			write_console(FONT_LOG, "current macro is ");
-			write_console(FONT_LOG, get_field("#current_macro")->value);
-			write_console(FONT_LOG, "\n");
+			write_console(STYLE_LOG, "current macro is ");
+			write_console(STYLE_LOG, get_field("#current_macro")->value);
+			write_console(STYLE_LOG, "\n");
 		}
 		macro_load(get_field("#current_macro")->value, NULL);
 		layout_needs_refresh = true;
@@ -4917,7 +4919,7 @@ int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		{
 			ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
 			set_field("#text_in", "");
-			// write_console(FONT_LOG_TX, buff);
+			// write_console(STYLE_LOG_TX, buff);
 		}
 		else if (strlen(buff))
 		{
@@ -4935,15 +4937,15 @@ int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
-		width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+		width = measure_text(gfx, f->label, STYLE_FIELD_LABEL);
 		offset = f->width / 2 - width / 2;
 		if (strlen(f->value) == 0)
-			draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
+			draw_text(gfx, f->x + 5, f->y + 13, f->label, STYLE_FIELD_LABEL);
 		else
 		{
 			if (strlen(f->label))
 			{
-				draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
+				draw_text(gfx, f->x + 5, f->y + 5, f->label, STYLE_FIELD_LABEL);
 				draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
 			}
 			else
@@ -4967,13 +4969,13 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		else
 			rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
-		int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+		int width = measure_text(gfx, f->label, STYLE_FIELD_LABEL);
 		int offset = f->width / 2 - width / 2;
-		int label_y = f->y + ((f->height - font_table[FONT_FIELD_LABEL].height - font_table[FONT_FIELD_VALUE].height) / 2);
-		draw_text(gfx, f->x + offset, label_y, f->label, FONT_FIELD_LABEL);
+		int label_y = f->y + ((f->height - font_table[STYLE_FIELD_LABEL].height - font_table[STYLE_FIELD_VALUE].height) / 2);
+		draw_text(gfx, f->x + offset, label_y, f->label, STYLE_FIELD_LABEL);
 
 		char duration[12];
-		label_y += font_table[FONT_FIELD_LABEL].height;
+		label_y += font_table[STYLE_FIELD_LABEL].height;
 
 		if (record_start)
 		{
@@ -4986,7 +4988,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		else
 			strcpy(duration, "OFF");
-		width = measure_text(gfx, duration, FONT_FIELD_VALUE);
+		width = measure_text(gfx, duration, STYLE_FIELD_VALUE);
 		draw_text(gfx, f->x + f->width / 2 - width / 2, label_y, duration, f->font_index);
 		return 1;
 	}
@@ -5398,7 +5400,7 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	char output[500];
 	// console_init(); //playing with clearing the console...
 	// sprintf(output,"BFO value = %d\n", result);
-	// write_console(FONT_LOG, output);
+	// write_console(STYLE_LOG, output);
 
 	return 0;
 }
@@ -6186,7 +6188,7 @@ void rtc_read()
 	setenv("TZ", "UTC", 1);
 	gm_now = mktime(&t);
 
-	write_console(FONT_LOG, "\nRTC detected\n");
+	write_console(STYLE_LOG, "\nRTC detected\n");
 	time_delta = (long)gm_now - (long)(millis() / 1000l);
 }
 
@@ -6792,11 +6794,11 @@ void handleButton2Press()
 
 				if (vfoLock == 1)
 				{
-					write_console(FONT_LOG, "VFO Lock ON\n");
+					write_console(STYLE_LOG, "VFO Lock ON\n");
 				}
 				if (vfoLock == 0)
 				{
-					write_console(FONT_LOG, "VFO Lock OFF\n");
+					write_console(STYLE_LOG, "VFO Lock OFF\n");
 				}
 				// Wait for the button release to avoid immediate short press detection
 				while (digitalRead(ENC2_SW) == 0)
@@ -6874,7 +6876,7 @@ gboolean ui_tick(gpointer gook)
 		edit_field(f, MIN_KEY_DOWN);
 		tuning_ticks--;
 		// sprintf(message, "tune-\r\n");
-		// write_console(FONT_LOG, message);
+		// write_console(STYLE_LOG, message);
 	}
 
 	while (tuning_ticks < 0)
@@ -6882,7 +6884,7 @@ gboolean ui_tick(gpointer gook)
 		edit_field(f, MIN_KEY_UP);
 		tuning_ticks++;
 		// sprintf(message, "tune+\r\n");
-		// write_console(FONT_LOG, message);
+		// write_console(STYLE_LOG, message);
 	}
 
 	// every 20 ticks call modem_poll to see if any modes need work done
@@ -7263,11 +7265,11 @@ void highlight_band_field(int new_band)
 			sprintf(band_field->value, "%s", stack_place[band_stack[b].index]);
 			if (b == new_band)
 			{
-				band_field->font_index = FONT_FIELD_LABEL; // FONT_FIELD_SELECTED;
+				band_field->font_index = STYLE_FIELD_LABEL; // STYLE_FIELD_SELECTED;
 			}
 			else
 			{
-				band_field->font_index = FONT_BLACK;
+				band_field->font_index = STYLE_BLACK;
 			}
 		}
 		else
@@ -7302,7 +7304,7 @@ void utc_set(char *args, int update_rtc)
 
 	if (i != 6)
 	{
-		write_console(FONT_LOG,
+		write_console(STYLE_LOG,
 					  "Sets the current UTC Time for logging etc.\nUsage \\utc yyyy mm dd hh mm ss\nWhere\n"
 					  "  yyyy is a four digit year like 2022\n"
 					  "  mm is two digit month [1-12]\n"
@@ -7331,7 +7333,7 @@ void utc_set(char *args, int update_rtc)
 	setenv("TZ", "UTC", 1);
 	gm_now = mktime(&t);
 
-	write_console(FONT_LOG, "UTC time is set\n");
+	write_console(STYLE_LOG, "UTC time is set\n");
 	time_delta = (long)gm_now - (long)(millis() / 1000l);
 	printf("time_delta = %ld\n", time_delta);
 }
@@ -7628,13 +7630,13 @@ void do_control_action(char *cmd)
 		sprintf(request, "record=%s", fullpath);
 		sdr_request(request, response);
 		sprintf(request, "Recording:%s\n", fullpath);
-		write_console(FONT_LOG, request);
+		write_console(STYLE_LOG, request);
 	}
 	else if (!strcmp(request, "REC OFF"))
 	{
 		sdr_request("record", "off");
 		if (record_start != 0)
-			write_console(FONT_LOG, "Recording stopped\n");
+			write_console(STYLE_LOG, "Recording stopped\n");
 		record_start = 0;
 	}
 	else if (!strcmp(request, "QRZ") && strlen(field_str("CALL")) > 0)
@@ -7868,7 +7870,7 @@ void cmd_exec(char *cmd)
 	{
 		strcpy(get_field("#mycallsign")->value, args);
 		sprintf(response, "\n[Your callsign is set to %s]\n", get_field("#mycallsign")->value);
-		write_console(FONT_LOG, response);
+		write_console(STYLE_LOG, response);
 	}
 	else if (!strcmp(exec, "metercal"))
 	{
@@ -7887,7 +7889,7 @@ void cmd_exec(char *cmd)
 	{
 		set_field("#mygrid", args);
 		sprintf(response, "\n[Your grid is set to %s]\n", get_field("#mygrid")->value);
-		write_console(FONT_LOG, response);
+		write_console(STYLE_LOG, response);
 	}
 	else if (!strcmp(exec, "utc"))
 	{
@@ -7913,7 +7915,7 @@ void cmd_exec(char *cmd)
 			macro_list(list);
 			strcat(tmplist, list);
 			strcat(tmplist, "\n");
-			write_console(FONT_LOG, tmplist);
+			write_console(STYLE_LOG, tmplist);
 		}
 		else if (!macro_load(args, NULL))
 		{
@@ -7923,12 +7925,12 @@ void cmd_exec(char *cmd)
 		}
 		else if (strlen(get_field("#current_macro")->value))
 		{
-			write_console(FONT_LOG, "current macro is ");
-			write_console(FONT_LOG, get_field("#current_macro")->value);
-			write_console(FONT_LOG, "\n");
+			write_console(STYLE_LOG, "current macro is ");
+			write_console(STYLE_LOG, get_field("#current_macro")->value);
+			write_console(STYLE_LOG, "\n");
 		}
 		else
-			write_console(FONT_LOG, "macro file not loaded\n");
+			write_console(STYLE_LOG, "macro file not loaded\n");
 	}
 	else if (!strcmp(exec, "qso"))
 		enter_qso(args);
@@ -7943,16 +7945,16 @@ void cmd_exec(char *cmd)
 			if (atoi(args))
 				set_field("#contest_serial", args);
 		}
-		write_console(FONT_LOG, "Exchange set to [");
-		write_console(FONT_LOG, get_field("#sent_exchange")->value);
-		write_console(FONT_LOG, "]\n");
+		write_console(STYLE_LOG, "Exchange set to [");
+		write_console(STYLE_LOG, get_field("#sent_exchange")->value);
+		write_console(STYLE_LOG, "]\n");
 	}
 	else if (!strcmp(exec, "freq") || !strcmp(exec, "f"))
 	{
 		long freq = atol(args);
 		if (freq == 0)
 		{
-			write_console(FONT_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
+			write_console(STYLE_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
 		}
 		else if (freq < 30000)
 			freq *= 1000;
@@ -7976,7 +7978,7 @@ void cmd_exec(char *cmd)
 		if (strlen(args))
 			qrz(args);
 		else
-			write_console(FONT_LOG, "/qrz [callsign]\n");
+			write_console(STYLE_LOG, "/qrz [callsign]\n");
 	}
 	else if (!strcmp(exec, "mode") || !strcmp(exec, "m") || !strcmp(exec, "MODE"))
 	{
@@ -8012,11 +8014,11 @@ void cmd_exec(char *cmd)
 			if (t > 100 && t < 4000)
 				set_field("#tx_pitch", args);
 			else
-				write_console(FONT_LOG, "cw pitch should be 100-4000");
+				write_console(STYLE_LOG, "cw pitch should be 100-4000");
 		}
 		char buff[100];
 		sprintf(buff, "txpitch is set to %d Hz\n", get_cw_tx_pitch());
-		write_console(FONT_LOG, buff);
+		write_console(STYLE_LOG, buff);
 	}
 
 	else if (!strcmp(exec, "bfo"))
@@ -8027,7 +8029,7 @@ void cmd_exec(char *cmd)
 
 		if (!strlen(args))
 		{
-			write_console(FONT_LOG, "Usage:\n\\bfo xxxxx (in Hz to adjust bfo, 0 to reset)\n");
+			write_console(STYLE_LOG, "Usage:\n\\bfo xxxxx (in Hz to adjust bfo, 0 to reset)\n");
 			return;
 		}
 
@@ -8046,7 +8048,7 @@ void cmd_exec(char *cmd)
 		set_field("#bfo_manual_offset", int_freq_str);
 		char output[500];
 		sprintf(output, "BFO %d offset = %d\n", get_bfo_offset(), result);
-		write_console(FONT_LOG, output);
+		write_console(STYLE_LOG, output);
 	}
 	//'Band scale' setting to adjust scale for easier adjustment for tuning power output - n1qm
 	else if (!strcmp(exec, "bs"))
@@ -8097,7 +8099,7 @@ void cmd_exec(char *cmd)
 				*p = toupper(*p);
 			if (set_field(f->cmd, args))
 			{
-				write_console(FONT_LOG, "Invalid setting:");
+				write_console(STYLE_LOG, "Invalid setting:");
 			}
 			else
 			{
@@ -8274,18 +8276,18 @@ int main(int argc, char *argv[])
 	set_field("r1:freq", get_field("#vfo_a_freq")->value);
 
 	console_init();
-	write_console(FONT_LOG, VER_STR);
-	write_console(FONT_LOG, "\n");
-	write_console(FONT_LOG, "\nVisit https://github.com/drexjj/sbitx/wiki\n for help\n");
+	write_console(STYLE_LOG, VER_STR);
+	write_console(STYLE_LOG, "\n");
+	write_console(STYLE_LOG, "\nVisit https://github.com/drexjj/sbitx/wiki\n for help\n");
 
 	if (strcmp(get_field("#mycallsign")->value, "N0CALL"))
 	{
 		sprintf(buff, "\nWelcome %s your grid is %s\n",
 				get_field("#mycallsign")->value, get_field("#mygrid")->value);
-		write_console(FONT_LOG, buff);
+		write_console(STYLE_LOG, buff);
 	}
 	else
-		write_console(FONT_LOG, "\nSet your callsign and grid from\n the SET button in the menu\n");
+		write_console(STYLE_LOG, "\nSet your callsign and grid from\n the SET button in the menu\n");
 
 	set_field("#text_in", "");
 	field_set("REC", "OFF");

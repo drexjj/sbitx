@@ -20,28 +20,31 @@ void abort_tx();
 void enter_qso();
 extern int display_freq;
 
-
-#define FONT_FIELD_LABEL 0
-#define FONT_FIELD_VALUE 1
-#define FONT_LARGE_FIELD 2
-#define FONT_LARGE_VALUE 3
-#define FONT_SMALL 4
-#define FONT_LOG 5
-#define FONT_FT8_RX 6
-#define FONT_FT8_TX 7
-#define FONT_SMALL_FIELD_VALUE 8
-#define FONT_CW_RX 9
-#define FONT_CW_TX 10
-#define FONT_FLDIGI_RX 11
-#define FONT_FLDIGI_TX 12
-#define FONT_TELNET 13
-#define FONT_FT8_QUEUED 14
-#define FONT_FT8_REPLY 15
-
-#define FF_MYCALL 16
-#define FF_CALLER 17
-#define FF_GRID 18
-#define FONT_BLACK 19
+// A mixed bag of named styles used in various places in various UIs.
+// TODO maybe separate the ones that mean something from those that are mere GTK-UI-specific styles
+// e.g. MYCALL and GRID are what I'd prefer to call semantics, rather than styles
+typedef enum {
+	STYLE_FIELD_LABEL,
+	STYLE_FIELD_VALUE,
+	STYLE_LARGE_FIELD,
+	STYLE_LARGE_VALUE,
+	STYLE_SMALL,
+	STYLE_LOG,
+	STYLE_FT8_RX,
+	STYLE_FT8_TX,
+	STYLE_SMALL_FIELD_VALUE,
+	STYLE_CW_RX,
+	STYLE_CW_TX,
+	STYLE_FLDIGI_RX,
+	STYLE_FLDIGI_TX,
+	STYLE_TELNET,
+	STYLE_FT8_QUEUED,
+	STYLE_FT8_REPLY,
+	STYLE_MYCALL,
+	STYLE_CALLER,
+	STYLE_GRID,
+	STYLE_BLACK
+}  sbitx_style;
 
 #define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32.
 extern int ext_ptt_enable;

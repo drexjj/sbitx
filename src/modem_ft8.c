@@ -585,11 +585,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
 			//  cand->snr, freq_hz, message.payload);
 			if (strstr(buff, mycallsign_upper)){
-				write_console(FONT_FT8_REPLY, buff);
+				write_console(STYLE_FT8_REPLY, buff);
 				ft8_process(buff, FT8_CONTINUE_QSO);
 			}
 			else
-				write_console(FONT_FT8_RX, buff);
+				write_console(STYLE_FT8_RX, buff);
 			n_decodes++;
         }
     }
@@ -611,14 +611,14 @@ void ft8_setmode(int config){
 	switch(config){
 		case FT8_MANUAL:
 			ft8_mode = FT8_MANUAL;
-			write_console(FONT_LOG, "FT8 is manual now.\nSend messages through the keyboard\n");
+			write_console(STYLE_LOG, "FT8 is manual now.\nSend messages through the keyboard\n");
 			break;
 		case FT8_SEMI:
-			write_console(FONT_LOG, "FT8 is semi-automatic.\nClick on the callsign to start the QSO\n");
+			write_console(STYLE_LOG, "FT8 is semi-automatic.\nClick on the callsign to start the QSO\n");
 			ft8_mode = FT8_SEMI;
 			break;
 		case FT8_AUTO:
-			write_console(FONT_LOG, "FT8 is automatic.\nIt will call CQ and QSO with the first reply.\n");
+			write_console(STYLE_LOG, "FT8 is automatic.\nIt will call CQ and QSO with the first reply.\n");
 			ft8_mode = FT8_AUTO;
 			break;
 	}
@@ -631,7 +631,7 @@ static void ft8_start_tx(int offset_seconds){
 	struct tm *t = gmtime(&rawtime);
 
   sprintf(buff, "%02d%02d%02d  TX +00 %04d ~  %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
-	write_console(FONT_FT8_TX, buff);
+	write_console(STYLE_FT8_TX, buff);
 
 	ft8_tx_nsamples = sbitx_ft8_encode(ft8_tx_text, ft8_pitch, ft8_tx_buff, false);
 	ft8_tx_buff_index = offset_seconds * 96000;
@@ -651,7 +651,7 @@ void ft8_tx(char *message, int freq){
 
 	ft8_pitch = freq;
   sprintf(buff, "%02d%02d%02d  TX +00 %04d ~  %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
-	write_console(FONT_FT8_QUEUED, buff);
+	write_console(STYLE_FT8_QUEUED, buff);
 
 	//also set the times of transmission
 	char str_tx1st[10], str_repeat[10];
