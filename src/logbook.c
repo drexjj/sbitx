@@ -105,7 +105,7 @@ int logbook_query(char* query, int from_id, char* result_file)
 	// printf("[%s]\n", statement);
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
-	char output_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char output_path[PATH_MAX];
 	sprintf(output_path, "%s/sbitx/data/result_rows.txt", getenv("HOME"));
 	strncpy(result_file, output_path, sizeof(result_file));
 
@@ -294,9 +294,9 @@ int row_count_callback(void* data, int argc, char** argv, char** azColName)
 
 void logbook_open()
 {
-	char db_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char db_path[PATH_MAX];
 	char* zErrMsg = 0;
-	sprintf(db_path, "%s/sbitx/data/sbitx.db", getenv("HOME"));
+	snprintf(db_path, sizeof(db_path), "%s/sbitx/data/sbitx.db", getenv("HOME"));
 
 	rc = sqlite3_open(db_path, &db);
 	if (rc != SQLITE_OK) {
