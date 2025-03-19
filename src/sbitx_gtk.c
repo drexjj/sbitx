@@ -8250,17 +8250,16 @@ int main(int argc, char *argv[])
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
-	char directory[PATH_MAX];
-	char *path = getenv("HOME");
-	strcpy(directory, path);
-	strcat(directory, "/sbitx/data/user_settings.ini");
-	if (ini_parse(directory, user_settings_handler, NULL) < 0)
 	{
-		printf("Unable to load ~/sbitx/data/user_settings.ini\n"
-			   "Loading default.ini instead\n");
-		strcpy(directory, path);
-		strcat(directory, "/sbitx/data/default_settings.ini");
-		ini_parse(directory, user_settings_handler, NULL);
+		char settings_path[PATH_MAX];
+		sprintf(settings_path, "%s/sbitx/data/user_settings.ini", getenv("HOME"));
+		if (ini_parse(settings_path, user_settings_handler, NULL) < 0)
+		{
+			printf("Unable to load ~/sbitx/data/user_settings.ini\n"
+				   "Loading default.ini instead\n");
+			sprintf(settings_path, "%s/sbitx/data/default_settings.ini", getenv("HOME"));
+			ini_parse(settings_path, user_settings_handler, NULL);
+		}
 	}
 
 	// the logger fields may have an unfinished qso details
