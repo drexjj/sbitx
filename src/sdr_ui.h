@@ -30,8 +30,12 @@ typedef enum {
 	STYLE_LOG = 0,
 	STYLE_MYCALL,
 	STYLE_CALLER,
+	STYLE_CALLEE,
 	STYLE_GRID,
-	STYLE_RST,
+	STYLE_RST, // as parsed from a message, not observed
+	STYLE_TIME,
+	STYLE_SNR, // observed value
+	STYLE_FREQ, // 8
 	// mode-specific semantics
 	STYLE_FT8_RX,
 	STYLE_FT8_TX,
