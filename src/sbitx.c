@@ -2138,7 +2138,7 @@ void calibrate_band_power(struct power_settings *b)
 static void save_hw_settings()
 {
 	static int last_save_at = 0;
-	char file_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char file_path[PATH_MAX];
 
 	char *path = getenv("HOME");
 	strcpy(file_path, path);

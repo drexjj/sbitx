@@ -1354,7 +1354,7 @@ void write_to_remote_app(int style, char *text)
 
 void write_console(int style, char *raw_text)
 {
-	/*char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
+	/*char directory[PATH_MAX];
 	char *path = getenv("HOME");
 	strcpy(directory, path);
 	strcat(directory, "/sbitx/data/display_log.txt");
@@ -1664,7 +1664,7 @@ static int mode_id(const char *mode_str)
 void save_user_settings(int forced)
 {
 	static int last_save_at = 0;
-	char file_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char file_path[PATH_MAX];
 
 	// attempt to save settings only if it has been 30 seconds since the
 	// last time the settings were saved
@@ -7619,7 +7619,7 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "REC ON"))
 	{
-		char fullpath[200];
+		char fullpath[PATH_MAX];
 		char *path = getenv("HOME");
 		time(&record_start);
 		struct tm *tmp = localtime(&record_start);
@@ -7895,7 +7895,7 @@ void cmd_exec(char *cmd)
 	}
 	else if (!strcmp(exec, "logbook"))
 	{
-		char fullpath[200]; // dangerous, find the MAX_PATH and replace 200 with it
+		char fullpath[PATH_MAX];
 		char *path = getenv("HOME");
 		sprintf(fullpath, "mousepad %s/sbitx/data/logbook.txt", path);
 		execute_app(fullpath);
@@ -8250,7 +8250,7 @@ int main(int argc, char *argv[])
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
-	char directory[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char directory[PATH_MAX];
 	char *path = getenv("HOME");
 	strcpy(directory, path);
 	strcat(directory, "/sbitx/data/user_settings.ini");
