@@ -362,13 +362,12 @@ float cw_tx_get_sample() {
 	uint8_t symbol_now;
   void handle_cw_state_machine(uint8_t, uint8_t);
   
-	if (!keydown_count && !keyup_count) {
+	if ((keydown_count == 0) && (keyup_count == 0)) {
 		// current time used later with UI value of CW_DELAY to set break-in delay
 		millis_now = millis();
 		// set CW pitch if needed
 		if (cw_tone.freq_hz != get_pitch())
 			vfo_start( &cw_tone, get_pitch(), 0);
-	
  
     // check to see if input available from macro or keyboard
     if (cw_bytes_available > 0) {
@@ -399,7 +398,7 @@ float cw_tx_get_sample() {
 	}
   
 	// keep extending 'cw_tx_until' while we're sending
-	if (symbol_now & CW_DOWN || keydown_count > 0)
+	if ((symbol_now == CW_DOWN) || (keydown_count > 0))
 		cw_tx_until = millis_now + get_cw_delay();
 	//if macro or keyboard characters remain in the buffer
 	//prevent switching from xmit to rcv and cutting off macro
@@ -412,7 +411,7 @@ float cw_tx_get_sample() {
 
 // this function implements the state machine developed for each CW mode
 // many optimizations are possible but may make it harder to change or add
-// modes 
+// modes
 void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
   switch (state_machine_mode) {
   case CW_STRAIGHT:
@@ -421,14 +420,14 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
       if (symbol_now == CW_DOWN) {
-        keydown_count = 10;  // this determines the shortest keydown time possible
+        keydown_count = 1;  // this is very short, much less than a dit
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
       break; // exit CW_IDLE case
     case CW_DOWN:
       if (symbol_now == CW_DOWN) {
-        keydown_count = 10;
+        keydown_count = 1;
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
@@ -456,6 +455,9 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
+      }
+      if (symbol_now == CW_SQUEEZE) { 
+        cw_current_symbol = CW_IDLE;
       }
       break; //exit CW_IDLE case
     case CW_DOT:
@@ -508,6 +510,12 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
+      }
+      if (symbol_now == CW_SQUEEZE) {
+        keydown_count = cw_period;
+        keyup_count = cw_period;
+        cw_last_symbol = CW_DASH;
+        cw_current_symbol = CW_SQUEEZE;
       }
       break; // exit CW_IDLE case
     case CW_DOT:
@@ -601,6 +609,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
       }
+      if (symbol_now == CW_SQUEEZE) {
+        keydown_count = cw_period;
+        keyup_count = cw_period;
+        cw_current_symbol = CW_DOT;
+      }
       break; //exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
@@ -656,6 +669,9 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // at once and I couldn't get key_poll() to do that so do it here
     if ((cw_current_symbol == CW_SQUEEZE) && (symbol_now == CW_IDLE)) 
       symbol_now = CW_SQUEEZEOFF;
+    //DEBUGGING
+    //printf("cw_current_symbol %d\n", cw_current_symbol);
+    //printf("symbol_now %d\n", symbol_now);
     switch (cw_current_symbol) {
     case CW_IDLE:
       if (symbol_now == CW_IDLE)
@@ -669,6 +685,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
         cw_current_symbol = CW_DASH;
+      }
+      if (symbol_now == CW_SQUEEZE) {
+        keydown_count = cw_period;
+        keyup_count = cw_period;
+        cw_current_symbol = CW_DOT;
       }
       break; // exit CW_IDLE case
     case CW_DOT:
