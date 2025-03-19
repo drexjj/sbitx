@@ -17,7 +17,7 @@ bool isDigit(char c) {
 }
 
 bool isValidGridId(char* gridId) {
-	return strlen(gridId) == 4 && 
+	return strlen(gridId) == 4 &&
 		isLetter(gridId[0]) && isLetter(gridId[1]) &&
         isDigit(gridId[2]) && isDigit(gridId[3]);
 }
@@ -49,11 +49,11 @@ struct hd_message_struct {
 	char m1[32], m2[32], m3[32], m4[32];
 };
 
-int hd_next_token(char* src, int start, char* tok, int tok_max, char * sep) {
+int hd_next_token(const char* src, int start, char* tok, int tok_max, char * sep) {
 	tok[0] = 0;
-	if (src == NULL || src[start] == 0) 
+	if (src == NULL || src[start] == 0)
 		return -1;
-	char * p_sep;
+	const char * p_sep;
 	int n, p;
 	int len = strlen(src);
 	if (len > 0 && src[len-1] == '\n') {
@@ -74,7 +74,7 @@ int hd_next_token(char* src, int start, char* tok, int tok_max, char * sep) {
 	return p + n + strlen(sep);
 }
 
-int hd_message_parse(struct hd_message_struct* p_message, char* raw_message) {
+int hd_message_parse(struct hd_message_struct* p_message, const char* raw_message) {
 	int r = hd_next_token(raw_message, 0, p_message->signal_info, 32, "~ ");
 	if (r < 0 ) return r;
 	r = hd_next_token(raw_message, r, p_message->m1, 32, " ");
@@ -101,7 +101,7 @@ int ff_lookup_style(char* id, int style, int style_default) {
 			(strlen(id) == 4 && strcmp(id,"RR73") &&
 			isLetter(id[0]) && isLetter(id[1]) &&
         	isDigit(id[2]) && isDigit(id[3]));
-			
+
 			return (!id_ok || logbook_grid_exists(id)) ? style_default : style;
 			//return (!id_ok) ? style_default : style; // test skipping log lookup
 		}
@@ -121,7 +121,7 @@ char *ff_cs(char * markup, int style) {
 char* ff_style(char* decorated, struct hd_message_struct *pms, int style_default, int style1, int style2, int style3, int style4) {
 	char markup[3];
 	*decorated = 0;
-	
+
 	strcat(decorated, ff_cs(markup, style_default));
 	strcat(decorated, pms->signal_info);
 	strcat(decorated, "~ ");
@@ -148,9 +148,9 @@ char* ff_style(char* decorated, struct hd_message_struct *pms, int style_default
 
 int hd_length_no_decoration( char * decorated) {
 	int len = 0;
-	while(*decorated) 
-		if (*decorated++ == HD_MARKUP_CHAR) 
-			len--;  
+	while(*decorated)
+		if (*decorated++ == HD_MARKUP_CHAR)
+			len--;
 		else
 			len++;
 	return len < 0 ? 0 : len;
@@ -168,33 +168,33 @@ void hd_strip_decoration(char * ft8_message, char * decorated) {
 	*ft8_message = 0;
 }
 
-int hd_decorate(int style, char * message, char * decorated) {
-	
+int hd_decorate(int style, const char * message, char * decorated) {
+
 	switch (style) {
 	case STYLE_FT8_RX:
 	case STYLE_FT8_TX:
 	case STYLE_FT8_QUEUED:
-	case STYLE_FT8_REPLY: 
+	case STYLE_FT8_REPLY:
 		{
 		decorated[0] = 0;
 			struct hd_message_struct fms;
 			const char* my_callsign = field_str("MYCALLSIGN");
 			int res = hd_message_parse(&fms, message);
 			if (res == 0) {
-				if (!strcmp(fms.m1, "CQ")) { 
+				if (!strcmp(fms.m1, "CQ")) {
 					if (fms.m4[0] == 0) { // CQ caller grid
 						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_CALLER, STYLE_GRID, 0);
 					}
 					else { // CQ DX caller grid
 						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_LOG, STYLE_CALLER, STYLE_GRID);
 					}
-				} else if (!strcmp(fms.m1, my_callsign)) 
+				} else if (!strcmp(fms.m1, my_callsign))
 				{ // mycall caller grid|report
 					ff_style(decorated, &fms, style, STYLE_MYCALL, STYLE_CALLER, STYLE_GRID, 0);
-				} else if (!strcmp(fms.m2, my_callsign)) 
+				} else if (!strcmp(fms.m2, my_callsign))
 				{ // caller mycall grid|report
 					ff_style(decorated, &fms, style, STYLE_CALLER, STYLE_MYCALL, STYLE_GRID, 0);
-				} else 
+				} else
 				{ // other caller grid|report
 					ff_style(decorated, &fms, style, style, STYLE_CALLER, STYLE_GRID, 0);
 				}

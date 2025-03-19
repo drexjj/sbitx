@@ -2,6 +2,7 @@
 The initial sync between the gui values, the core radio values, settings, et al are manually set.
 */
 
+#include <assert.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -200,28 +201,34 @@ struct font_style
 
 guint key_modifier = 0;
 
-// A mapping from named style to font (for now that's all it is)
-// TODO switch to a mapping from semantics (the meaning of a span of text) to how it looks in this particular UI
+// A mapping from named style to font and color (for now that's all it is)
+// TODO maybe switch to a mapping from semantics (the meaning of a span of text) to how it looks in this particular UI
 struct font_style font_table[] = {
-	{STYLE_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_LARGE_VALUE, 1, 1, 1, "Arial", 24, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_SMALL, 0, 1, 1, "Mono", 10, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	// semantic styles (only for the console so far):
+	// STYLE_LOG must come first, because it's 0, the default
 	{STYLE_LOG, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_RST, 0.7, 0.7, 0.7, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	// mode-specific semantics
 	{STYLE_FT8_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FT8_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_SMALL_FIELD_VALUE, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CW_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CW_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FLDIGI_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FLDIGI_TX, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_FT8_QUEUED, 0.5, 0.5, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_FT8_REPLY, 1, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+
+	// non-semantic styles, for other fields and UI elements
+	{STYLE_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_LARGE_VALUE, 1, 1, 1, "Arial", 24, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_SMALL, 0, 1, 1, "Mono", 10, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_SMALL_FIELD_VALUE, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_BLACK, 0, 0, 0, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
@@ -237,23 +244,21 @@ struct encoder enc_a, enc_b;
 #define FIELD_STATIC 5
 #define FIELD_CONSOLE 6
 
-// The console is a series of lines
+// The console is a series of lines (the only text list so far)
+// console_stream is used as a ring buffer (TODO fix bugs to make it true)
 #define MAX_CONSOLE_BUFFER 10000
 #define MAX_LINE_LENGTH 128
 #define MAX_CONSOLE_LINES 500
 static int console_cols = 50;
-
-// we use just one text list in our user interface
-
 struct console_line
 {
 	char text[MAX_LINE_LENGTH];
-	int style;
+	text_span_semantic spans[MAX_CONSOLE_LINE_STYLES];
 };
-static int console_style = STYLE_LOG;
 static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
+
 struct Queue q_web;
 int noise_threshold = 0;		// DSP
 int noise_update_interval = 50; // DSP
@@ -351,32 +356,23 @@ static struct font_style *set_style(cairo_t *gfx, int font_entry)
 	cairo_set_font_size(gfx, s->height);
 	return s;
 }
-static void draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry)
+
+/*!
+	Draw null-terminated \a text at position \a x, \a y
+	using font and color looked up at index \a font_entry in font_table.
+	Returns the width in pixels, as drawn.
+*/
+static int draw_text(cairo_t *gfx, int x, int y, char *text, int font_entry)
 {
+	if (!text || !text[0])
+		return 0;
 	struct font_style *s = set_style(gfx, font_entry);
+	cairo_text_extents_t ext;
+	cairo_text_extents(gfx, text, &ext);
 	cairo_move_to(gfx, x, y + s->height);
-	char *p = text;
-	char ch[2];
-	bool font_ready = true;
-	ch[1] = 0;
-	while (*p)
-	{
-		ch[0] = *p;
-		if (!font_ready)
-		{
-			s = set_style(gfx, *p - 'A');
-			font_ready = true;
-		}
-		else if (*p != '#' && font_ready)
-		{
-			cairo_show_text(gfx, ch);
-		}
-		else if (*p == '#')
-		{
-			font_ready = false;
-		}
-		p++;
-	}
+	cairo_show_text(gfx, text);
+	//~ printf("draw_text %d,%d style %d, w %d px '%s'\n", x, y, font_entry, (int)ext.x_advance, text);
+	return (int)ext.x_advance;
 }
 
 static void fill_rect(cairo_t *gfx, int x, int y, int w, int h, int color)
@@ -1227,19 +1223,14 @@ int remote_update_field(int i, char *text)
 	return update;
 }
 
-// log is a special field that essentially is a like text
-// on a terminal
-
+// console is a list view, resembling a terminal with styled text
 void console_init()
 {
-	for (int i = 0; i < MAX_CONSOLE_LINES; i++)
-	{
-		console_stream[i].text[0] = 0;
-		console_stream[i].style = console_style;
-	}
+	memset(console_stream, 0, sizeof(console_stream));
 	struct field *f = get_field("#console");
+	assert(f);
+	f->is_dirty = TRUE;
 	console_current_line = 0;
-	f->is_dirty = 1;
 }
 
 void web_add_string(char *string)
@@ -1342,105 +1333,86 @@ int console_init_next_line()
 	console_current_line++;
 	if (console_current_line == MAX_CONSOLE_LINES)
 		console_current_line = 0;
-	console_stream[console_current_line].text[0] = 0;
-	console_stream[console_current_line].style = console_style;
+	memset(&console_stream[console_current_line], 0, sizeof(struct console_line));
 	return console_current_line;
 }
 
-void write_to_remote_app(int style, char *text)
+void write_to_remote_app(int style, const char *text)
 {
 	remote_write("{");
 	remote_write(text);
 	remote_write("}");
 }
 
-void write_console(int style, char *raw_text)
+/*!
+	Write \a text to the console with one \a style as the semantic for the whole string.
+	\a text should end with a newline if it's meant to be a whole console line;
+	otherwise it gets appended to the last line, until the last line gets too long.
+*/
+void write_console(sbitx_style style, const char *text)
 {
-	/*char directory[PATH_MAX];
-	char *path = getenv("HOME");
-	strcpy(directory, path);
-	strcat(directory, "/sbitx/data/display_log.txt");
-	*/
+	text_span_semantic sem;
+	memset(&sem, 0, sizeof(sem));
+	sem.length = strlen(text);
+	sem.semantic = style;
+	write_console_semantic(text, &sem, 1);
+}
 
-	char *text;
-	char decorated[1000];
-	if (strlen(raw_text) == 0)
+/*!
+	Append \a text with \a sem_count styled spans to the console.
+	\a text should end with a newline if it's meant to be a whole console line;
+	otherwise it gets appended to the last line, until the last line gets too long.
+*/
+void write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count)
+{
+	if (!text || text[0] == 0)
 		return;
 
-	hd_decorate(style, raw_text, decorated);
-	text = decorated;
-	web_write(style, text);
-	// move to a new line if the style has changed
-	if (style != console_style)
+	// TODO get rid of this: maybe come up with a way to send the `sem` array separately
+	// to the web and remote UIs too; otherwise use `sem` to "decorate" with a better markup
 	{
-		q_write(&q_web, '{');
-		q_write(&q_web, style + 'A');
-		console_style = style;
-		if (strlen(console_stream[console_current_line].text) > 0)
-			console_init_next_line();
-		console_stream[console_current_line].style = style;
-		switch (style)
-		{
-		case STYLE_FT8_RX:
-		case STYLE_FLDIGI_RX:
-		case STYLE_CW_RX:
-			break;
-		case STYLE_FT8_TX:
-		case STYLE_FLDIGI_TX:
-		case STYLE_CW_TX:
-		case STYLE_FT8_REPLY:
-			break;
-		default:
-			break;
-		}
+		char decorated[1000];
+		assert(sem);
+		hd_decorate(sem[0].semantic, text, decorated);
+		web_write(sem[0].semantic, decorated);
+		write_to_remote_app(sem[0].semantic, text);
 	}
 
-	if (strlen(text) == 0)
-		return;
-
-	/*
-		//write to the scroll
-		FILE *pf = fopen(directory, "a");
-		if (pf){
-			fwrite(text, strlen(text), 1, pf);
-			fclose(pf);
-			pf = NULL;
-		}
-	*/
-	write_to_remote_app(style, raw_text);
-
-	int console_line_max = MIN(console_cols, MAX_LINE_LENGTH);
-	while (*text)
+	const char *next_char = text;
+	char *console_line_string = console_stream[console_current_line].text;
+	text_span_semantic *console_line_spans = console_stream[console_current_line].spans;
+	int output_span_i = 0;
+	int col = console_line_spans[0].length;
+	const text_span_semantic *next_sem = sem;
+	while (*next_char)
 	{
-		char c = *text;
-		if (c == '\n')
-			console_init_next_line();
-		else if (c < 128 && c >= ' ')
-		{
-			char *p = console_stream[console_current_line].text;
-			int len = strlen(p);
-			if (c == HD_MARKUP_CHAR)
-			{
-				console_line_max += 2; // markup does not count
-				if (console_line_max > MAX_LINE_LENGTH - 2)
-				{
-					len = console_line_max; // force a new Line
-				}
-			}
-			if (len >= console_line_max - 1)
-			{
-				// start a fresh line
-				console_init_next_line();
-				p = console_stream[console_current_line].text;
-				len = 0;
-			}
-
-			// printf("Adding %c to %d\n", (int)c, console_current_line);
-			p[len++] = c & 0x7f;
-			p[len] = 0;
+		int text_i = next_char - text;
+		if (next_sem < sem + sem_count && next_sem->start_column == text_i) {
+			text_span_semantic *out_sem = &console_line_spans[output_span_i];
+			*out_sem = *next_sem; // copy whole struct
+			out_sem->start_row = console_current_line; // only useful for output to spans file, and should increment forever (TODO)
+			//~ printf("write '%s': span %d col %d len %d: style %d\n",
+				//~ text, output_span_i, out_sem->start_column, out_sem->length, out_sem->semantic); // debug
+			++output_span_i;
+			++next_sem;
 		}
-		text++;
+		char c = *next_char;
+		if (c == '\n' || col >= console_cols) {
+			console_line_string[col] = 0;
+			console_line_spans[output_span_i].length = col;
+			console_init_next_line();
+			console_line_string = console_stream[console_current_line].text;
+			console_line_spans = console_stream[console_current_line].spans;
+			col = 0;
+			output_span_i = 0;
+		}
+		else if (c < 128 && c >= ' ') // TODO support UTF-8 (otherwise isgraph() might work)
+		{
+			console_line_string[col++] = c & 0x7f;
+		}
+		++next_char;
 	}
+	console_line_spans[0].length = col;
 
 	struct field *f = get_field("#console");
 	if (f)
@@ -1449,7 +1421,6 @@ void write_console(int style, char *raw_text)
 
 void draw_console(cairo_t *gfx, struct field *f)
 {
-
 	int line_height = font_table[f->font_index].height;
 	int n_lines = (f->height / line_height) - 1;
 
@@ -1457,7 +1428,7 @@ void draw_console(cairo_t *gfx, struct field *f)
 
 	// estimate!
 	int char_width = measure_text(gfx, "01234567890123456789", f->font_index) / 20;
-	console_cols = f->width / char_width;
+	console_cols = MIN(f->width / char_width, MAX_LINE_LENGTH);
 	int y = f->y;
 	int j = 0;
 
@@ -1465,12 +1436,20 @@ void draw_console(cairo_t *gfx, struct field *f)
 	if (start_line < 0)
 		start_line += MAX_CONSOLE_LINES;
 
-	for (int i = 0; i <= n_lines; i++)
-	{
-		struct console_line *l = console_stream + start_line;
+	for (int i = 0; i <= n_lines; i++) {
+		struct console_line *line = console_stream + start_line;
 		if (start_line == console_selected_line)
-			fill_rect(gfx, f->x, y + 1, f->width, font_table[l->style].height + 1, SELECTED_LINE);
-		draw_text(gfx, f->x + 1, y, l->text, l->style);
+			fill_rect(gfx, f->x, y + 1, f->width, font_table[line->spans[0].semantic].height + 1, SELECTED_LINE);
+		//~ printf("first span len %d style %d in '%s'\n", line->spans[0].length, line->spans[0].semantic, line->text);
+		for (int span = 0; span < MAX_CONSOLE_LINE_STYLES && line->spans[span].length; ++span) {
+			char buf[MAX_LINE_LENGTH];
+			int len = MIN(line->spans[span].length, MAX_LINE_LENGTH - 1);
+			// copy the substring and null-terminate, because cairo_show_text() can't take a length argument :-(
+			strncpy(buf, line->text + line->spans[span].start_column, len);
+			buf[len] = 0;
+			draw_text(gfx, f->x + 1 + line->spans[span].start_column * char_width, y, buf, line->spans[span].semantic);
+		}
+
 		start_line++;
 		y += line_height;
 		if (start_line >= MAX_CONSOLE_LINES)
