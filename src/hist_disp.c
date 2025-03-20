@@ -114,7 +114,101 @@ int ff_lookup_style(char* id, int style, int style_default) {
 }
 
 char *ff_cs(char * markup, int style) {
-	markup[0] = HD_MARKUP_CHAR; markup[1] = 'A' + style; markup[2] = 0;
+	markup[0] = HD_MARKUP_CHAR;
+
+	/* used to be 'A' + style, where style came from these:
+	#define FONT_FIELD_LABEL 0
+	#define FONT_FIELD_VALUE 1
+	#define FONT_LARGE_FIELD 2
+	#define FONT_LARGE_VALUE 3
+	#define FONT_SMALL 4
+	#define FONT_LOG 5
+	#define FONT_FT8_RX 6
+	#define FONT_FT8_TX 7
+	#define FONT_SMALL_FIELD_VALUE 8
+	#define FONT_CW_RX 9
+	#define FONT_CW_TX 10
+	#define FONT_FLDIGI_RX 11
+	#define FONT_FLDIGI_TX 12
+	#define FONT_TELNET 13
+	#define FONT_FT8_QUEUED 14
+	#define FONT_FT8_REPLY 15
+
+	#define FF_MYCALL 16
+	#define FF_CALLER 17
+	#define FF_GRID 18
+	#define FONT_BLACK 19
+	*/
+
+	switch (style) {
+		// console styles
+		case STYLE_LOG:
+			markup[1] = 'A' + 5;
+			break;
+		case STYLE_MYCALL:
+			markup[1] = 'A' + 16;
+			break;
+		case STYLE_CALLER:
+			markup[1] = 'A' + 17;
+			break;
+		case STYLE_CALLEE:
+			markup[1] = 'A' + 5;
+			break;
+		case STYLE_GRID:
+			markup[1] = 'A' + 18;
+			break;
+		case STYLE_FT8_RX:
+			markup[1] = 'A' + 6;
+			break;
+		case STYLE_FT8_TX:
+			markup[1] = 'A' + 7;
+			break;
+		case STYLE_FT8_QUEUED:
+			markup[1] = 'A' + 14;
+			break;
+		case STYLE_FT8_REPLY:
+			markup[1] = 'A' + 15;
+			break;
+		case STYLE_CW_RX:
+			markup[1] = 'A' + 9;
+			break;
+		case STYLE_CW_TX:
+			markup[1] = 'A' + 10;
+			break;
+		case STYLE_FLDIGI_RX:
+			markup[1] = 'A' + 11;
+			break;
+		case STYLE_FLDIGI_TX:
+			markup[1] = 'A' + 12;
+			break;
+		case STYLE_TELNET:
+			markup[1] = 'A' + 13;
+			break;
+
+		// field styles
+		case STYLE_FIELD_LABEL:
+			markup[1] = 'A' + 0;
+			break;
+		case STYLE_FIELD_VALUE:
+			markup[1] = 'A' + 1;
+			break;
+		case STYLE_LARGE_FIELD:
+			markup[1] = 'A' + 2;
+			break;
+		case STYLE_LARGE_VALUE:
+			markup[1] = 'A' + 3;
+			break;
+		case STYLE_SMALL:
+			markup[1] = 'A' + 4;
+			break;
+		case STYLE_SMALL_FIELD_VALUE:
+			markup[1] = 'A' + 8;
+			break;
+		case STYLE_BLACK:
+			markup[1] = 'A' + 19;
+			break;
+	}
+	markup[2] = 0;
 	return markup;
 }
 
