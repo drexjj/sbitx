@@ -6163,8 +6163,6 @@ void rtc_read()
 	int e = i2cbb_read_i2c_block_data(DS3231_I2C_ADD, 0, 8, rtc_time);
 	if (e <= 0)
 	{ // start W9JES W2JON
-		printf("RTC not detected, using system time\n");
-
 		// Use system time
 		time_t system_time = time(NULL);
 		struct tm *sys_time_info = gmtime(&system_time);
@@ -6174,9 +6172,13 @@ void rtc_read()
 			printf("Failed to get system time\n");
 			return;
 		}
-		printf("Using system time\n");
-
 		time_delta = (long)system_time - (long)(millis() / 1000l);
+
+		char buf[64];
+		int len = strftime(buf, sizeof(buf), "RTC not detected; system time %Y/%m/%d %H:%M:%S\n\n", sys_time_info);
+		//~ snprintf(buf + len, sizeof(buf) - len, " delta %ld\n", time_delta);
+		write_console(STYLE_LOG, buf);
+
 		return;
 	} // end W9JES W2JON
 	for (int i = 0; i < 7; i++)
@@ -6203,8 +6205,12 @@ void rtc_read()
 	setenv("TZ", "UTC", 1);
 	gm_now = mktime(&t);
 
-	write_console(STYLE_LOG, "\nRTC detected\n");
 	time_delta = (long)gm_now - (long)(millis() / 1000l);
+
+	char buf[64];
+	int len = strftime(buf, sizeof(buf), "RTC detected: %Y/%m/%d %H:%M:%S\n\n", &t);
+	//~ snprintf(buf + len, sizeof(buf) - len, " delta %ld\n\n", time_delta);
+	write_console(STYLE_LOG, buf);
 }
 
 void rtc_write(int year, int month, int day, int hours, int minutes, int seconds)
@@ -8285,21 +8291,28 @@ int main(int argc, char *argv[])
 	if (strlen(get_field("#current_macro")->value))
 		macro_load(get_field("#current_macro")->value, NULL);
 
-	char buff[1000];
-
 	// now set the frequency of operation and more to vfo_a
 	set_field("r1:freq", get_field("#vfo_a_freq")->value);
 
 	console_init();
-	write_console(STYLE_LOG, VER_STR);
-	write_console(STYLE_LOG, "\n");
-	write_console(STYLE_LOG, "\nVisit https://github.com/drexjj/sbitx/wiki\n for help\n");
+	char buf[64];
+	snprintf(buf, sizeof(buf), "\n%s\n", VER_STR);
+	write_console(STYLE_LOG, buf);
+	write_console(STYLE_LOG, "For help: https://github.com/drexjj/sbitx/wiki\n\n");
 
 	if (strcmp(get_field("#mycallsign")->value, "N0CALL"))
 	{
-		sprintf(buff, "\nWelcome %s your grid is %s\n",
-				get_field("#mycallsign")->value, get_field("#mygrid")->value);
-		write_console(STYLE_LOG, buff);
+		char *mycall = get_field("#mycallsign")->value;
+		char *mygrid = get_field("#mygrid")->value;
+		snprintf(buf, sizeof(buf), "Welcome %s your grid is %s\n", mycall, mygrid);
+		text_span_semantic sems[2];
+		sems[0].start_column = 8;
+		sems[0].length = strlen(mycall);
+		sems[0].semantic = STYLE_MYCALL;
+		sems[1].start_column = 8 + strlen(mycall) + 14;
+		sems[1].length = strlen(mygrid);
+		sems[1].semantic = STYLE_GRID;
+		write_console_semantic(buf, sems, 2);
 	}
 	else
 		write_console(STYLE_LOG, "\nSet your callsign and grid from\n the SET button in the menu\n");
