@@ -315,7 +315,7 @@ void logbook_open(){
 
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 		char *rst_recv, char *exchange_recv, int tx_power, int tx_vswr, char *comments){
-	char statement[1000], *err_msg, date_str[10], time_str[10];
+	char statement[1000], *err_msg, date_str[11], time_str[5];
 	char freq[12], log_freq[12], mode[10], mycallsign[12];
 
 	time_t log_time = time_sbitx();
