@@ -370,7 +370,7 @@ float cw_tx_get_sample() {
 			vfo_start( &cw_tone, get_pitch(), 0);
  
     // check to see if input available from macro or keyboard
-    if (cw_bytes_available > 0) {
+    if ((cw_bytes_available > 0) || (symbol_next != NULL)) {
       state_machine_mode = CW_KBD;
       cw_current_symbol = CW_IDLE;
     } else 
@@ -409,8 +409,8 @@ float cw_tx_get_sample() {
 	return sample / 8;
 }
 
-// this function implements the state machine developed for each CW mode
-// many optimizations are possible but may make it harder to change or add
+// This function implements the KB2ML sBitx keyer state machine for each CW mode
+// Many optimizations are possible but may make it harder to change or add
 // modes
 void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
   switch (state_machine_mode) {
@@ -617,7 +617,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; //exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
+        keyup_count = cw_period * 0;  //USERS LIKE 0, NOT 2
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
@@ -638,7 +638,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DOT case
     case CW_DASH:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
+        keyup_count = cw_period * 0;  //USERS LIKE 0, NOT 2
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
@@ -694,7 +694,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
+        keyup_count = cw_period * 0;  //USERS LIKE 0, NOT 2
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
@@ -716,7 +716,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DOT case
     case CW_DASH:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
+        keyup_count = cw_period * 0;  //USERS LIKE 0, NOT 2
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
