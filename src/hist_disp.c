@@ -91,12 +91,12 @@ int hd_message_parse(struct hd_message_struct* p_message, char* raw_message) {
 int ff_lookup_style(char* id, int style, int style_default) {
 	switch (style)
 	{
-	case FF_CALLER:
+	case STYLE_CALLER:
 		return logbook_caller_exists(id) ? style_default : style;
 		// return style; // test skipping log lookup
 		break;
 
-	case FF_GRID: {
+	case STYLE_GRID: {
 		bool id_ok =
 			(strlen(id) == 4 && strcmp(id,"RR73") &&
 			isLetter(id[0]) && isLetter(id[1]) &&
@@ -171,10 +171,10 @@ void hd_strip_decoration(char * ft8_message, char * decorated) {
 int hd_decorate(int style, char * message, char * decorated) {
 	
 	switch (style) {
-	case FONT_FT8_RX:
-	case FONT_FT8_TX:
-	case FONT_FT8_QUEUED:
-	case FONT_FT8_REPLY: 
+	case STYLE_FT8_RX:
+	case STYLE_FT8_TX:
+	case STYLE_FT8_QUEUED:
+	case STYLE_FT8_REPLY: 
 		{
 		decorated[0] = 0;
 			struct hd_message_struct fms;
@@ -183,20 +183,20 @@ int hd_decorate(int style, char * message, char * decorated) {
 			if (res == 0) {
 				if (!strcmp(fms.m1, "CQ")) { 
 					if (fms.m4[0] == 0) { // CQ caller grid
-						ff_style(decorated, &fms, style, FONT_LOG, FF_CALLER, FF_GRID, 0);
+						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_CALLER, STYLE_GRID, 0);
 					}
 					else { // CQ DX caller grid
-						ff_style(decorated, &fms, style, FONT_LOG, FONT_LOG, FF_CALLER, FF_GRID);
+						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_LOG, STYLE_CALLER, STYLE_GRID);
 					}
 				} else if (!strcmp(fms.m1, my_callsign)) 
 				{ // mycall caller grid|report
-					ff_style(decorated, &fms, style, FF_MYCALL, FF_CALLER, FF_GRID, 0);
+					ff_style(decorated, &fms, style, STYLE_MYCALL, STYLE_CALLER, STYLE_GRID, 0);
 				} else if (!strcmp(fms.m2, my_callsign)) 
 				{ // caller mycall grid|report
-					ff_style(decorated, &fms, style, FF_CALLER, FF_MYCALL, FF_GRID, 0);
+					ff_style(decorated, &fms, style, STYLE_CALLER, STYLE_MYCALL, STYLE_GRID, 0);
 				} else 
 				{ // other caller grid|report
-					ff_style(decorated, &fms, style, style, FF_CALLER, FF_GRID, 0);
+					ff_style(decorated, &fms, style, style, STYLE_CALLER, STYLE_GRID, 0);
 				}
 			}
 			return res;

@@ -335,7 +335,7 @@ void fldigi_read(){
 		if (strlen(buffer)){
 				if (buffer[0] != '<' )
 					buffer[1] = 0;
-				write_console(FONT_FLDIGI_RX, buffer);
+				write_console(STYLE_FLDIGI_RX, buffer);
 //				printf("fldigi rx.get_data{%s}\n", buffer);
 		}
 	}
@@ -359,7 +359,7 @@ void fldigi_tx_more_data(){
 		buff[0] = c;
 		buff[1] = 0;
 		fldigi_call("text.add_tx", buff, resp);
-		write_console(FONT_FLDIGI_TX, buff);
+		write_console(STYLE_FLDIGI_TX, buff);
 	}
 }
 
