@@ -87,13 +87,13 @@
         .mode-panel {
             position: relative;
         }
-        
+
         .tune-disabled {
             position: relative;
             opacity: 0.6;
             cursor: not-allowed;
         }
-        
+
         .tune-disabled::before,
         .tune-disabled::after {
             content: '';
@@ -104,15 +104,15 @@
             height: 100%;
             background: red;
         }
-        
+
         .tune-disabled::before {
             transform: rotate(45deg);
         }
-        
+
         .tune-disabled::after {
             transform: rotate(-45deg);
         }
-        
+
         /* Zerobeat indicator styles */
         #zerobeat-container {
             display: none;
@@ -120,7 +120,7 @@
             text-align: center;
             min-width: 120px;
         }
-        
+
         .zerobeat-label {
             color: #fff;
             font-size: 12px;
@@ -129,13 +129,13 @@
             font-weight: bold;
             letter-spacing: -0.5px;
         }
-        
+
         .zerobeat-boxes {
             display: flex;
             gap: 2px;
             justify-content: center;
         }
-        
+
         .zerobeat-box {
             width: 15px;
             height: 6px;
@@ -145,31 +145,31 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .zerobeat-box.active[data-level="1"] {
             background-color: #ff0000;
             box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
             border-color: #ff0000;
         }
-        
+
         .zerobeat-box.active[data-level="2"] {
             background-color: #ffff00;
             box-shadow: 0 0 3px rgba(255, 255, 0, 0.5);
             border-color: #ffff00;
         }
-        
+
         .zerobeat-box.active[data-level="3"] {
             background-color: #00ff00;
             box-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
             border-color: #00ff00;
         }
-        
+
         .zerobeat-box.active[data-level="4"] {
             background-color: #ffff00;
             box-shadow: 0 0 3px rgba(255, 255, 0, 0.5);
             border-color: #ffff00;
         }
-        
+
         .zerobeat-box.active[data-level="5"] {
             background-color: #ff0000;
             box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
@@ -300,7 +300,7 @@
                 <span id="mute_state" class="btn-value">OFF</span></button>
             <button class="sbitxv3-btn" id="tune_button" type="button">Tune<br/>
                 <span id="tune_state" class="btn-value">&nbsp;</span></button></button>
-            
+
             <div class="linear" id="linear_BFO">
                 <label class="linear-label" for="BFO">BFO</label>
                 <input type="number" id="BFO" min="-3000" max="3000" class="linear-value" value="0">
@@ -1003,7 +1003,7 @@
         if (event.key === 'Enter') {
             // Prevent the default action (e.g., form submission if the input is inside a form)
             event.preventDefault();
-            do_login() 
+            do_login()
         }
     }
 
@@ -1382,26 +1382,26 @@
     let lastTime = 0; // Last time for calculating drag speed
     let lastUpdateTime = 0; // Track time of last frequency update
     const FILTER_EDGE_DETECTION_WIDTH = 40; // Width in pixels for the filter edge detection area
-    
+
     // Function to get the canvas coordinates from client coordinates
     function getCanvasCoordinates(clientX, clientY, canvas) {
         const rect = canvas.getBoundingClientRect();
-        
+
         // Calculate the ratio between the canvas's internal dimensions and its display dimensions
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        
+
         // Convert client coordinates to canvas coordinates
         const canvasX = (clientX - rect.left) * scaleX;
         const canvasY = (clientY - rect.top) * scaleY;
-        
+
         // Store the current scale factors for reference
         window.currentScaleX = scaleX;
         window.currentScaleY = scaleY;
-        
+
         return { x: canvasX, y: canvasY };
     }
-    
+
     // Function to get the appropriate edge detection width based on device
     function getEdgeDetectionWidth(isTouch = false) {
         // Use a wider detection area for touch devices
@@ -1410,37 +1410,37 @@
         }
         return FILTER_EDGE_DETECTION_WIDTH;
     }
-    
+
     // Function to check if mouse is over a filter edge
     function isOverFilterEdge(clientX, clientY, canvas) {
         if (!canvas) canvas = el("spectrum");
-        
+
         // Convert client coordinates to canvas coordinates
         const { x, y } = getCanvasCoordinates(clientX, clientY, canvas);
-        
+
         const { width, height } = canvas;
         const drawHeight = height - 15;
-        
+
         // Calculate filter edge positions directly
         const nbins = 1024; // Typical value for spectrum
         const calculated_span = nbins * 46.875;
         const hz_per_pixel = width / calculated_span;
         const half_width = width / 2;
-        
+
         // Get current filter values
         const mode = el("MODE").value;
-        
+
         // Skip filter edge detection for FT8 mode
         if (mode === "FT8") {
             return null;
         }
-        
+
         const bw = parseFloat(el("BW").value);
         const low = parseFloat(el("LOW").value);
         const high = parseFloat(el("HIGH").value);
-        
+
         let filterLeftX, filterRightX, visualLeftEdgeX, visualRightEdgeX;
-        
+
         if (mode === "LSB" || mode === "CWR") {
             filterLeftX = half_width - hz_per_pixel * high;
             filterRightX = half_width - hz_per_pixel * low;
@@ -1452,20 +1452,20 @@
             filterLeftX = half_width + hz_per_pixel * low;
             filterRightX = half_width + hz_per_pixel * high;
         }
-        
+
         // Calculate the visual edge positions (where the edges are actually drawn)
         visualLeftEdgeX = filterLeftX;
         visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
-        
+
         // Store these calculated positions for reference
         window.filterLeftEdgeX = filterLeftX;
         window.filterRightEdgeX = filterRightX;
         window.visualLeftEdgeX = visualLeftEdgeX;
         window.visualRightEdgeX = visualRightEdgeX;
-        
+
         // Use the appropriate detection width based on device type
         const edgeWidth = getEdgeDetectionWidth();
-        
+
         // Only detect if within the vertical area of the filter
         if (y >= 0 && y < drawHeight) {
             // Check left edge
@@ -1479,45 +1479,45 @@
                 return 'right';
             }
         }
-        
+
         return null;
     }
-    
+
     // Handle filter edge dragging with proper scaling support
     function handleFilterDrag(event, isTouch = false) {
         if (!isFilterDragging) return;
-        
+
         const currentX = isTouch ? event.touches[0].clientX : event.clientX;
         const deltaX = currentX - lastX;
         lastX = currentX;
-        
+
         if (deltaX === 0) return;
-        
+
         const canvas = el("spectrum");
         const rect = canvas.getBoundingClientRect();
-        
+
         // Calculate the scaling ratio between canvas and display
         const scaleX = canvas.width / rect.width;
-        
+
         // Adjust delta based on scaling ratio
         const adjustedDelta = deltaX * scaleX;
-        
+
         const { width } = canvas;
         const nbins = 1024; // Typical value for spectrum
         const calculated_span = nbins * 46.875;
         const hz_per_pixel = width / calculated_span;
-        
+
         // Get current filter values
         const mode = el("MODE").value;
         const bw = parseFloat(el("BW").value);
         let low = parseFloat(el("LOW").value);
         let high = parseFloat(el("HIGH").value);
-        
+
         // Calculate Hz change based on pixel movement
         // Apply a multiplier to make dragging more responsive
         const multiplier = 1.5;
         const hzChange = Math.round((adjustedDelta / hz_per_pixel) * multiplier);
-        
+
         console.log(`Dragging ${filterDragEdge} edge in ${mode} mode, deltaX: ${deltaX}, adjustedDelta: ${adjustedDelta}, scaleX: ${scaleX}, hzChange: ${hzChange}`);
         console.log(`Current filter values - low: ${low}, high: ${high}`);
         if (mode === "LSB" || mode === "CWR") {
@@ -1584,7 +1584,7 @@
             handleFilterDrag(event, isTouch);
             return;
         }
-        
+
         if (!isDragging) return;
 
         // Get clientX from mouse or touch event
@@ -1636,14 +1636,14 @@
 
     function startWaterfallDrag(event, isTouch = false) {
         if (isTouch && event.touches.length !== 1) return;
-        
+
         // Check if we're clicking on a filter edge in the spectrum display
         const canvas = isTouch ? event.touches[0].target : event.target;
         if (canvas.id === "spectrum") {
             const rect = canvas.getBoundingClientRect();
             const x = (isTouch ? event.touches[0].clientX : event.clientX) - rect.left;
             const y = (isTouch ? event.touches[0].clientY : event.clientY) - rect.top;
-            
+
             // Force recalculation of filter edges
             const spectrumCanvas = el("spectrum");
             const { width, height } = spectrumCanvas;
@@ -1652,15 +1652,15 @@
             const calculated_span = nbins * 46.875;
             const hz_per_pixel = width / calculated_span;
             const half_width = width / 2;
-            
+
             // Get current filter values
             const mode = el("MODE").value;
             const bw = parseFloat(el("BW").value);
             const low = parseFloat(el("LOW").value);
             const high = parseFloat(el("HIGH").value);
-            
+
             let filterLeftX, filterRightX;
-            
+
             if (mode === "LSB" || mode === "CWR") {
                 filterLeftX = half_width - hz_per_pixel * high;
                 filterRightX = half_width - hz_per_pixel * low;
@@ -1672,26 +1672,26 @@
                 filterLeftX = half_width + hz_per_pixel * low;
                 filterRightX = half_width + hz_per_pixel * high;
             }
-            
+
             // Use a wider detection area (20 pixels) for clicking
             const edgeWidth = getEdgeDetectionWidth(false);
             let edge = null;
-            
+
             // For LSB/CWR, the left edge is high cut and right edge is low cut
             // For USB/CW/others, the left edge is low cut and right edge is high cut
             // For AM, both edges adjust bandwidth symmetrically
-            
+
             // Check left edge first (closer to the left side of the canvas)
             if (Math.abs(x - filterLeftX) < edgeWidth && y < drawHeight) {
                 edge = 'left';
-            } 
+            }
             // Then check right edge (closer to the right side of the canvas)
             else if (Math.abs(x - filterRightX) < edgeWidth && y < drawHeight) {
                 edge = 'right';
             }
-            
+
             console.log(`Clicked at x: ${x}, y: ${y}, filterLeftX: ${filterLeftX}, filterRightX: ${filterRightX}, edge detected: ${edge}`);
-            
+
             if (edge) {
                 isFilterDragging = true;
                 filterDragEdge = edge;
@@ -1702,7 +1702,7 @@
                 return;
             }
         }
-        
+
         // If not dragging a filter edge, proceed with normal waterfall drag
         isDragging = true;
         lastX = isTouch ? event.touches[0].clientX : event.clientX;
@@ -1722,7 +1722,7 @@
             el("spectrum").style.cursor = 'default';
             return;
         }
-        
+
         if (isDragging) {
             setTimeout(() => {
                 const stepSize = getStepSize();
@@ -1756,20 +1756,20 @@
     // Attach event listeners
     const waterfallCanvas = el("waterfall");
     const spectrumCanvas = el("spectrum");
-    
+
     // Mouse events for waterfall
     waterfallCanvas.addEventListener("mousedown", (e) => startWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mousemove", (e) => handleWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mouseup", stopWaterfallDrag);
     waterfallCanvas.addEventListener("mouseleave", stopWaterfallDrag);
-    
+
     // Function to handle cursor changes when hovering over filter edges
     function handleFilterEdgeHover(event) {
         const canvas = el("spectrum");
-        
+
         // Use our new edge detection function that handles scaling properly
         const edge = isOverFilterEdge(event.clientX, event.clientY, canvas);
-        
+
         if (edge) {
             canvas.style.cursor = 'ew-resize';
             return true;
@@ -1778,27 +1778,27 @@
             return false;
         }
     }
-    
+
     // Mouse events for spectrum (filter dragging)
     spectrumCanvas.addEventListener("mousedown", (e) => {
         // Get canvas coordinates directly
         const rect = spectrumCanvas.getBoundingClientRect();
         const scaleX = spectrumCanvas.width / rect.width;
         const scaleY = spectrumCanvas.height / rect.height;
-        
+
         // Convert client coordinates to canvas coordinates
         const canvasX = (e.clientX - rect.left) * scaleX;
         const canvasY = (e.clientY - rect.top) * scaleY;
-        
+
         // Get the current visual edge positions
         const visualLeftEdgeX = window.visualLeftEdgeX;
         const visualRightEdgeX = window.visualRightEdgeX;
-        
+
         // Use a very wide detection area for better usability
         const edgeWidth = getEdgeDetectionWidth(false);
-        
+
         let edge = null;
-        
+
         // Check if we're clicking on a filter edge
         if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
             edge = 'left';
@@ -1807,7 +1807,7 @@
             edge = 'right';
             console.log(`Right edge clicked at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
         }
-        
+
         if (edge) {
             // If over a filter edge, start filter dragging
             isFilterDragging = true;
@@ -1822,7 +1822,7 @@
             startWaterfallDrag(e, false);
         }
     });
-    
+
     spectrumCanvas.addEventListener("mousemove", (e) => {
         // Check if we're already dragging a filter edge
         if (isFilterDragging) {
@@ -1831,25 +1831,25 @@
             e.stopPropagation(); // Prevent waterfall drag from activating
             return;
         }
-        
+
         // Get canvas coordinates directly
         const rect = spectrumCanvas.getBoundingClientRect();
         const scaleX = spectrumCanvas.width / rect.width;
         const scaleY = spectrumCanvas.height / rect.height;
-        
+
         // Convert client coordinates to canvas coordinates
         const canvasX = (e.clientX - rect.left) * scaleX;
         const canvasY = (e.clientY - rect.top) * scaleY;
-        
+
         // Get the current visual edge positions
         const visualLeftEdgeX = window.visualLeftEdgeX;
         const visualRightEdgeX = window.visualRightEdgeX;
-        
+
         // Use a very wide detection area for better usability
         const edgeWidth = getEdgeDetectionWidth(false);
-        
+
         // Check if we're hovering over a filter edge
-        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth || 
+        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth ||
             Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
             // Over a filter edge
             spectrumCanvas.style.cursor = 'ew-resize';
@@ -1863,10 +1863,10 @@
             }
         }
     });
-    
+
     spectrumCanvas.addEventListener("mouseup", stopWaterfallDrag);
     spectrumCanvas.addEventListener("mouseleave", stopWaterfallDrag);
-    
+
     // Global mouse up to ensure drag stops even if cursor leaves canvas
     document.addEventListener("mouseup", stopWaterfallDrag);
 
@@ -1875,29 +1875,29 @@
     waterfallCanvas.addEventListener("touchmove", (e) => handleWaterfallDrag(e, true));
     waterfallCanvas.addEventListener("touchend", stopWaterfallDrag);
     waterfallCanvas.addEventListener("touchcancel", stopWaterfallDrag);
-    
+
     // Touch events for spectrum (filter dragging)
     spectrumCanvas.addEventListener("touchstart", (e) => {
         // Get canvas coordinates directly
         if (e.touches.length !== 1) return;
-        
+
         const rect = spectrumCanvas.getBoundingClientRect();
         const scaleX = spectrumCanvas.width / rect.width;
         const scaleY = spectrumCanvas.height / rect.height;
-        
+
         // Convert client coordinates to canvas coordinates
         const canvasX = (e.touches[0].clientX - rect.left) * scaleX;
         const canvasY = (e.touches[0].clientY - rect.top) * scaleY;
-        
+
         // Get the current visual edge positions
         const visualLeftEdgeX = window.visualLeftEdgeX;
         const visualRightEdgeX = window.visualRightEdgeX;
-        
+
         // Use a wider detection area for touch devices
         const edgeWidth = getEdgeDetectionWidth(true);
-        
+
         let edge = null;
-        
+
         // Check if we're touching a filter edge
         if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
             edge = 'left';
@@ -1906,7 +1906,7 @@
             edge = 'right';
             console.log(`Right edge touched at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
         }
-        
+
         if (edge) {
             // If over a filter edge, start filter dragging
             isFilterDragging = true;
@@ -1920,7 +1920,7 @@
             startWaterfallDrag(e, true);
         }
     });
-    
+
     spectrumCanvas.addEventListener("touchmove", (e) => {
         // Check if we're already dragging a filter edge
         if (isFilterDragging) {
@@ -1929,11 +1929,11 @@
             e.stopPropagation(); // Prevent waterfall drag from activating
             return;
         }
-        
+
         // Otherwise, proceed with normal waterfall drag
         handleWaterfallDrag(e, true);
     });
-    
+
     spectrumCanvas.addEventListener("touchend", stopWaterfallDrag);
     spectrumCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     // created by OZ7BX
@@ -2068,7 +2068,7 @@
         // Draw filter block
         ctx.fillStyle = "#444";
         let filterLeftX, filterRightX;
-        
+
         if (mode === "LSB" || mode === "CWR") {
             filterLeftX = half_width - hz_per_pixel * high;
             filterRightX = half_width - hz_per_pixel * low;
@@ -2083,32 +2083,32 @@
             filterRightX = half_width + hz_per_pixel * high;
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         }
-        
+
         // Skip filter visualization for FT8 mode
         if (mode !== "FT8") {
             // Calculate the visual edge positions (where the edges are actually drawn)
             const visualLeftEdgeX = filterLeftX;
             const visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
-            
+
             // Store both the filter positions and visual edge positions for detection
             window.filterLeftEdgeX = filterLeftX;
             window.filterRightEdgeX = filterRightX;
             window.visualLeftEdgeX = visualLeftEdgeX;
             window.visualRightEdgeX = visualRightEdgeX;
-            
+
             // Draw filter edges with a more prominent color to indicate they're draggable
             ctx.fillStyle = "#666";
             ctx.fillRect(visualLeftEdgeX, 0, 6, drawHeight); // Left edge
             ctx.fillRect(visualRightEdgeX, 0, 6, drawHeight); // Right edge
         }
-        
+
         // Add a highlight effect at the top of the edges
         //ctx.fillStyle = "#aaa";
         //ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
         //ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
-        
+
         // Debug visualization removed for production
-        
+
         // Debug logging removed for production
 
         // Draw grid
@@ -2133,7 +2133,7 @@
             // Get the first sample value normalized to -1 to 1 range
             const firstSample = ((update.charCodeAt(3) - 32) / 50) - 1;
             ctx.moveTo(width, centerY + (firstSample * (drawHeight/8) * 2)); // Scale by 2 grid cells
-            
+
             for (let x = 0; x < nbins; x++) {
                 const px = (nbins - x - 1) * scale;
                 // Normalize the sample value to -1 to 1 range and center it
@@ -2147,7 +2147,7 @@
             const binWidth = Math.max(1, scale);
             for (let x = 0; x < nbins; x++) {
                 const px = (nbins - x - 1) * scale;
-                
+
                 // Adjust the spectrum level calculation for FT8 mode
                 let ph;
                 if (mode === "FT8") {
@@ -2157,7 +2157,7 @@
                     // Original calculation for other modes
                     ph = -((update.charCodeAt(x + 3) - 32) * drawHeight * 2) / 100;
                 }
-                
+
                 ctx.fillStyle = cachedGradient;
                 ctx.fillRect(px, drawHeight - 1, binWidth, ph);
             }
@@ -2486,7 +2486,7 @@
         }//enter key when the focus is on text_in
         else if ((key == "\u8617" || key == '\n') && text_focus.id == "text_in") {
         if (text_focus.value.toUpperCase() === "CLEAR") {
-          FT8_lists_clear(); 
+          FT8_lists_clear();
          }
             websocket_send(text_focus.value);
             text_focus.value = "";
@@ -2697,7 +2697,7 @@
         initialized: false,
         stream: null,
         context: null,
-        workletNode: null,        // AudioWorklet node 
+        workletNode: null,        // AudioWorklet node
         buffer: [],
         bufferSize: 512,          // Buffer size for audio processing
         bufferThreshold: 256,     // Send when buffer reaches this size
@@ -2719,7 +2719,7 @@
         }
 
         try {
-         // Request microphone access 
+         // Request microphone access
          if ('audioSession' in navigator) {
                 navigator.audioSession.type = 'play-and-record';
             }
@@ -2869,7 +2869,7 @@
             }
         }
     }
-    
+
 
 
     //user interaction handlers
@@ -2931,10 +2931,10 @@
         if (e.id === "BFO") {
             var slider = el("slider_BFO");
             slider.value = e.value;
-            
+
             var currentTime = Date.now();
             var timeSinceLastAdjustment = currentTime - lastBFOAdjustmentTime;
-            
+
             // Only send menu 1 if more than 5 seconds have passed since last adjustment
             if (timeSinceLastAdjustment > 5000) {
                 //console.log("BFO text input: Sending menu 1 command (5+ seconds since last adjustment)");
@@ -2948,7 +2948,7 @@
                 //console.log("BFO text input: Skipping menu 1 command (last adjustment was " + Math.round(timeSinceLastAdjustment/1000) + " seconds ago)");
                 websocket_send("BFO " + e.value);
             }
-            
+
             // Update the last adjustment time
             lastBFOAdjustmentTime = currentTime;
             return;
@@ -3089,7 +3089,7 @@
                 log("FT8_process_message: error parsing [" + text + "]");
                 return;
             }
-    
+
             var index = 1;
             var confidence_score = token_list[1];
             var signal_strength = token_list[2];
@@ -3099,7 +3099,7 @@
             var message = token_list[7];
             var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
             var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
-    
+
             if (style == 'Q')
                 return "sbitx-list-item wsjtx-message-queued";
             if (contact_callsign == mycallsign)
@@ -3197,7 +3197,89 @@
         }
         item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
     }
-    function FT8_list_append(list_id, text, style) {
+
+// Style codes of interest - if present the caller / grid is not found in the log
+const STYLE_MYCALL = 16;
+const STYLE_CALLER = 17;
+const STYLE_GRID = 18;
+function deco_get_style(text) {
+	let i = text.indexOf('#');
+	if (i >= 0 && text.length > i+1) {
+		return text.charCodeAt(i+1)-'A'.charCodeAt(0);
+	}
+	return 0;
+}
+function deco_to_span(text) {
+	let jclass = "";
+	switch (deco_get_style(text)) {
+		case STYLE_CALLER:
+			jclass = "ft8-new-caller";
+			break;
+		case STYLE_GRID:
+			jclass = "ft8-new-grid";
+			GRIDMAP.gridIdNotLogged(text.substring(2));
+			break;
+		case STYLE_MYCALL:
+			jclass = "wsjtx-mycallsign";
+			break;
+		default:
+			if (GRIDMAP.isValidGridId(text.substring(2))) {
+				GRIDMAP.gridIdLogged(text.substring(2));
+			}
+		    jclass = "ft8-old-grid";
+			break;
+	}
+	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
+}
+function FT8_stylize_message_item(item, text, style) {
+	//tokenize the message
+	var token_list = text.match(/\S+/g);
+	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
+		log("FT8_process_message: error parsing [" + text + "]");
+		return;
+	}
+        var label_position = text.search("~");
+        var label = text.substring(0, label_position);
+
+	var confidence_score = token_list[1];
+	var signal_strength = token_list[2];
+	var rx_frequency = token_list[3];
+	var m1 = token_list[5];
+	var m2 = token_list[6];
+	var m3 = token_list[7];
+	var m4 = token_list[8];
+	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
+	if(style == 'Q') {
+		item.className = "sbitx-list-item wsjtx-message-queued";
+	}
+	else if (deco_strip(m1) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-message-for-me";
+	}
+	else if (deco_strip(m2) == mycallsign){
+		item.className = "sbitx-list-item wsjtx-mycallsign";
+	}
+	else {
+		item.className = "sbitx-list-item";
+	}
+	var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";
+	// detailed markup
+	var htmMessage = "";
+	if (deco_strip(m1) == "CQ"){
+		item.className = "sbitx-list-item wsjtx-cq-in-message";
+		if (token_list.length == 8) { // CQ sender grid
+			htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
+		} else { // CQ DX sender grid
+			htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
+		}
+	}
+	else {
+		// contact sender grid|R
+		htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
+	}
+	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
+}
+function FT8_list_append(list_id, text, style){
         var item = document.createElement("li");
         FT8_stylize_message_item(item, text, style);
         item.id = deco_strip(text).replace(/[^\w\-\~]+/g, "_");
@@ -3251,7 +3333,7 @@
         if (event.altKey) { // shift click
             if (token_list.length == 9) { // cq dx call grid
                 show_in_qrz_window(token_list[7]);
-            } else { // cq call grid || to call grid 
+            } else { // cq call grid || to call grid
                 show_in_qrz_window(token_list[6]);
             }
             //event.stopPropagation();
@@ -3802,7 +3884,7 @@
                 write_console(s);
                 // Extract qso grid from message e.g.
                 // "Logged: F4VTG -05-JO65 -14-JN12\n;"
-                if (s.startsWith("Logged:")) { // String ends width \n 
+                if (s.startsWith("Logged:")) { // String ends width \n
                     s = s.substring(s.length - 5, s.length - 1);
                     GRIDMAP.gridIdJustLogged(s);
                 }
@@ -4246,8 +4328,8 @@
 
     spectrumEl.addEventListener("mouseup", (event) => { getMousePosition(canvas, event)});
     $("#STORE").on("click", () => { websocket_send(el("BAND").value); });
-    $("#sound_mute").on("click", () => { 
-        sound_mute = !sound_mute; 
+    $("#sound_mute").on("click", () => {
+        sound_mute = !sound_mute;
         el("mute_state").innerHTML = sound_mute ? "ON" : "OFF";
     });
     el("dial").addEventListener("wheel", change_freq, { passive: false });
@@ -4416,17 +4498,17 @@
     //when the user changes the value
     // Variable to track the last time BFO was adjusted
     var lastBFOAdjustmentTime = 0;
-    
+
     function on_linear_moved(event) {
         var control = event.currentTarget;
         var control_id = control.id.substring(7);
         el(control_id).value = control.value;
-        
+
         // Special handling for BFO slider
         if (control_id === "BFO") {
             var currentTime = Date.now();
             var timeSinceLastAdjustment = currentTime - lastBFOAdjustmentTime;
-            
+
             // Only send menu 1 if more than 5 seconds have passed since last adjustment
             if (timeSinceLastAdjustment > 5000) {
                 //console.log("BFO slider: Sending menu 1 command (5+ seconds since last adjustment)");
@@ -4440,7 +4522,7 @@
                   //console.log("BFO slider: Skipping menu 1 command (last adjustment was " + Math.round(timeSinceLastAdjustment/1000) + " seconds ago)");
                 websocket_send("BFO " + control.value);
             }
-            
+
             // Update the last adjustment time
             lastBFOAdjustmentTime = currentTime;
         } else {
@@ -4511,19 +4593,19 @@
         const tuneButton = document.getElementById('tune_button');
         const modeSelect = document.getElementById('MODE');
         const zerobeatContainer = document.getElementById('zerobeat-container');
-        
+
         if (!tuneButton || !modeSelect || !zerobeatContainer) {
             console.log('Required elements not found for checkTuneState');
             return;
         }
-        
+
         const disabledModes = ['CW', 'CWR', 'FT8'];
         const currentMode = modeSelect.value;
-        
+
         if (disabledModes.includes(currentMode)) {
             tuneButton.classList.add('tune-disabled');
             tuneButton.disabled = true;
-   
+
             // Show zerobeat indicator only in CW/CWR modes
             if (currentMode === 'CW' || currentMode === 'CWR') {
                 zerobeatContainer.style.display = 'block';
@@ -4542,7 +4624,7 @@
     // Function to handle tune button click
     document.addEventListener('DOMContentLoaded', function() {
         const modeSelect = document.getElementById('MODE');
-        
+
         // Listen for mode changes
         modeSelect.addEventListener('change', checkTuneState);
 
@@ -4562,12 +4644,12 @@
         document.getElementById('ePTT').addEventListener('change', function() {
             websocket_send('eptt ' + this.value.toLowerCase());
         });
-        
+
         // Initialize sidetone slider
         document.getElementById('slider_SIDETONE').addEventListener('input', function() {
             websocket_send('sidetone ' + this.value);
         });
-        
+
         // Check initial state to show/hide controls based on current mode
         checkTuneState();
     });
@@ -4575,7 +4657,7 @@
     // Hide Browser Mic button if not on HTTPS
     // Initialize NoSleep to prevent device from sleeping
     const noSleep = new NoSleep();
-    
+
     // Function to enable/disable wake lock
     function enableWakeLock() {
         noSleep.enable();
@@ -4585,13 +4667,13 @@
     document.addEventListener('DOMContentLoaded', (event) => {
         // Enable wake lock when page loads
         enableWakeLock();
-        
+
         const browserMicButton = document.getElementById('browser_mic');
         if (browserMicButton && window.location.protocol !== 'https:') {
             console.log('Not on HTTPS, hiding Browser Mic button.');
             browserMicButton.style.display = 'none';
         }
-        
+
         // Auto-start browser mic if this is a remote session (not localhost/127.0.0.1)
         const isRemote = document.location.hostname !== "127.0.0.1" && document.location.hostname !== "localhost";
         if (isRemote) {

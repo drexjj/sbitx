@@ -369,7 +369,7 @@ static int cw_read_key(){
 
     if (symbol_next) {
         char buff[2] = { (char)toupper(uc), 0 };  // safe ctype: uc is unsigned char
-        write_console(FONT_CW_TX, buff);
+        write_console(STYLE_CW_TX, buff);
         return cw_get_next_symbol();
     } else {
         // unknown character: ignore
@@ -887,7 +887,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
       // no symbol being built, check for word gap (long space)
       if (p->ticker >= word_gap) {
         if (!p->last_char_was_space) {
-          write_console(FONT_CW_RX, " ");  // output a space to the console (word separator)
+          write_console(STYLE_CW_RX, " ");  // output a space to the console (word separator)
           p->last_char_was_space = 1;
         }
         p->ticker = 0;   // reset ticker after outputting space
@@ -908,7 +908,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
         // if this also looks like a word gap, print a space
         if (p->ticker >= word_gap) {
           if (!p->last_char_was_space) {
-            write_console(FONT_CW_RX, " ");
+            write_console(STYLE_CW_RX, " ");
             p->last_char_was_space = 1;
           }
           p->ticker = 0;
@@ -988,12 +988,12 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   decoder->next_symbol = 0;  // reset the symbol buffer for the next letter/sequence
   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      write_console(FONT_CW_RX, morse_rx_table[i].c);
+      write_console(STYLE_CW_RX, morse_rx_table[i].c);
       decoder->last_char_was_space = 0;
       return;
     }
   }
-  write_console(FONT_CW_RX, morse_code_string);
+  write_console(STYLE_CW_RX, morse_code_string);
   decoder->last_char_was_space = 0;
 }
 

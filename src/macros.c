@@ -45,7 +45,7 @@ void macro_list(char *output){
   struct dirent *dir;
 
 	if (!d){
-		write_console(FONT_LOG, "\Error:web subdirectory is missing\n");
+		write_console(STYLE_LOG, "\Error:web subdirectory is missing\n");
 		return;
 	}
 
