@@ -78,7 +78,7 @@ void macro_label(int fn_key, char *label){
 	}
 }
 
-int  macro_load(char *filename, char *output){
+int  macro_load(const char *filename, char *output){
 	char macro_line[255];
 	char full_path[PATH_MAX];
 
