@@ -569,7 +569,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
         if (cand->score < kMin_score)
             continue;
 
-        float freq_hz = (cand->freq_offset + (float)cand->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
+        int freq_hz = lroundf((cand->freq_offset + (float)cand->freq_sub / mon.wf.freq_osr) / mon.symbol_period);
         float time_sec = (cand->time_offset + (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
 
         ftx_message_t message;
@@ -620,7 +620,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
 			decoded[idx_hash].spans = spans;
 
 			char buf[64];
-			int prefix_len = snprintf(buf, sizeof(buf), "%s %3d %+03d %-4.0f ~ ", time_str, cand->score, cand->snr, freq_hz);
+			int prefix_len = snprintf(buf, sizeof(buf), "%s %3d %+03d %4d ~ ", time_str, cand->score, cand->snr, freq_hz);
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s\n", text);
 			LOG(LOG_DEBUG, "-> %s\n", buff);
 			//For troubleshooting you can display the time offset - n1qm
@@ -815,7 +815,7 @@ static void ft8_start_tx(int offset_seconds){
 	time_t	rawtime = time_sbitx();
 	struct tm *t = gmtime(&rawtime);
 
-  sprintf(buff, "%02d%02d%02d  TX +00 %04d ~  %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
+	sprintf(buff, "%02d%02d%02d  TX     %4d ~ %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
 	write_console(STYLE_FT8_TX, buff);
 
 	ft8_tx_nsamples = sbitx_ft8_encode(ft8_tx_text, ft8_pitch, ft8_tx_buff, false);
@@ -835,7 +835,7 @@ void ft8_tx(char *message, int freq){
 	strcpy(ft8_tx_text, message);
 
 	ft8_pitch = freq;
-  sprintf(buff, "%02d%02d%02d  TX +00 %04d ~  %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
+	sprintf(buff, "%02d%02d%02d  TX     %4d ~ %s\n", t->tm_hour, t->tm_min, t->tm_sec, ft8_pitch, ft8_tx_text);
 	write_console(STYLE_FT8_QUEUED, buff);
 
 	//also set the times of transmission
