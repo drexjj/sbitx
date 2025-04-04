@@ -233,11 +233,12 @@ time_t time_sbitx();
 
 //straight key, iambic, keyboard
 #define CW_STRAIGHT 0
-#define CW_IAMBIC	1
+#define CW_IAMBIC 1
 #define CW_IAMBICB 2	
 #define CW_KBD 3
 #define CW_SIDESWIPE 4
 #define CW_ULTIMATIC 5
+#define CW_BUG 6
 
 int key_poll();
 int key_poll2();
