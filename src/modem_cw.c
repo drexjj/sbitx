@@ -863,7 +863,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // don't act on anything else until it is cleared
     if (cw_next_symbol_flag == 1) {
       if ((keydown_count == 0) && (keyup_count == 0)) {
-        printf("cw_next_symbol_flag ==1\n");
+        printf("cw_next_symbol_flag set\n");
         if (cw_next_symbol == CW_DOT) {
           keydown_count = cw_period;
           keyup_count = cw_period;
