@@ -1051,6 +1051,40 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     end_of_iambicB:
     break; // done with CW_IAMBICB mode
 
+  case CW_KBD:
+    // this mode handles symbols coming from keyboard or macros
+    switch (cw_current_symbol) {
+    case CW_IDLE:
+      if (symbol_now == CW_IDLE)
+        cw_current_symbol = CW_IDLE;
+      if (symbol_now == CW_DOT) {
+        keydown_count = cw_period;
+        keyup_count = cw_period;
+        cw_current_symbol = CW_IDLE;
+      }
+      if (symbol_now == CW_DASH) {
+        keydown_count = cw_period * 3;
+        keyup_count = cw_period;
+        cw_current_symbol = CW_IDLE;
+      }
+      if (symbol_now == CW_DOT_DELAY) {
+        keyup_count = cw_period;
+        cw_current_symbol = CW_IDLE;
+      }
+      if (symbol_now == CW_DASH_DELAY) {
+        keyup_count = cw_period * 3;
+        cw_current_symbol = CW_IDLE;
+      }
+      if (symbol_now == CW_WORD_DELAY) {
+        keyup_count = cw_period * 5; // sbitx users like 5, not 7
+        cw_current_symbol = CW_IDLE;
+      }
+      break;
+    }
+    break; // done with CW_KBD mode
+  } // end of the state machine switch case
+} // end of handle_cw_state_machine function
+
 static FILE *pfout = NULL; //this is debugging out, not used normally
 
 static void cw_rx_bin_init(struct bin *p, float freq, int n, 
