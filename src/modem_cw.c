@@ -867,7 +867,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keyup_count = cw_period;
           cw_last_symbol = CW_DASH;
         }
-        printf("cw_next_symbol_flag was set\n");
+        //printf("cw_next_symbol_flag was set\n");
         cw_next_symbol_flag = 0;
       }
     goto end_of_iambicB;
@@ -883,7 +883,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period;
           keyup_count = cw_period;
           cw_last_symbol = CW_DOT;
-          printf("IDLE DOT\n");
+          //printf("IDLE DOT\n");
         } 
         cw_current_symbol = CW_DOT;
       }
@@ -892,7 +892,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
           cw_last_symbol = CW_DASH;
-          printf("IDLE DASH\n");
+          //printf("IDLE DASH\n");
         }
         cw_current_symbol = CW_DASH;
       }
@@ -903,7 +903,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           cw_last_symbol = CW_DOT;
           cw_next_symbol = CW_DASH;
           cw_next_symbol_flag = 1;
-          printf("IDLE SQ\n");
+          //printf("IDLE SQ\n");
         }
         cw_current_symbol = CW_SQUEEZE;
       }
@@ -918,7 +918,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period;
           keyup_count = cw_period;
           cw_last_symbol = CW_DOT;
-          printf("DOT DOT1\n");
+          //printf("DOT DOT1\n");
         }
         cw_current_symbol = CW_DOT;
       }
@@ -927,12 +927,12 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
           cw_last_symbol = CW_DASH;
-          printf("DOT DASH1\n");
+          //printf("DOT DASH1\n");
         } else if (keyup_count > 0) {
           // early paddle input for next dash
           cw_next_symbol = CW_DASH;
           cw_next_symbol_flag = 1;
-          printf("DOT DASH2\n");
+          //"DOT DASH2\n");
         }
         cw_current_symbol = CW_DOT;
       }
@@ -941,11 +941,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           if (cw_last_symbol == CW_DOT) {
             cw_next_symbol = CW_DASH;
             cw_next_symbol_flag = 1;
-            printf("DOT SQ1\n");
+            //printf("DOT SQ1\n");
           } else if (cw_last_symbol == CW_DASH) {
             cw_next_symbol = CW_DOT;
             cw_next_symbol_flag = 1;
-            printf("DOT SQ2\n");
+            //printf("DOT SQ2\n");
           }
         }
         cw_current_symbol = CW_SQUEEZE;
@@ -960,12 +960,12 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period;
           keyup_count = cw_period;
           cw_last_symbol = CW_DOT;
-          printf("DASH DOT1\n");
+          //printf("DASH DOT1\n");
         } else if (keydown_count > 0) {
           // early paddle input for next dot
           cw_next_symbol = CW_DOT;
           cw_next_symbol_flag = 1;
-          printf("DASH DOT2\n");
+          //printf("DASH DOT2\n");
         }
         cw_current_symbol = CW_DOT;
       }
@@ -975,7 +975,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
           cw_last_symbol = CW_DASH;
-          printf("DASH DASH\n");
+          //printf("DASH DASH\n");
         }
         cw_current_symbol = CW_DASH;
       }
@@ -984,11 +984,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           if (cw_last_symbol == CW_DOT) {
             cw_next_symbol = CW_DASH;
             cw_next_symbol_flag = 1;
-            printf("DASH SQ1\n");
+            //printf("DASH SQ1\n");
           } else if (cw_last_symbol == CW_DASH) {
             cw_next_symbol = CW_DOT;
             cw_next_symbol_flag = 1;
-            printf("DASH SQ2\n");
+            //printf("DASH SQ2\n");
           }
         }
         cw_current_symbol = CW_SQUEEZE;
@@ -996,14 +996,14 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DASH case
     case CW_SQUEEZE:
       if (symbol_now == CW_IDLE) {
-        printf("SQ IDLE\n");
+        //printf("SQ IDLE\n");
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_DOT) {
         if ((keydown_count == 0) && (keyup_count == 0)) {
           keydown_count = cw_period;
           keyup_count = cw_period;
-          printf("SQ DOT1\n");
+          //printf("SQ DOT1\n");
         }
         cw_last_symbol = CW_DOT;
         cw_current_symbol = CW_DOT;
@@ -1012,14 +1012,14 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         if ((keydown_count == 0) && (keyup_count == 0)) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
-          printf("SQ DASH1\n");
+          //printf("SQ DASH1\n");
         }
         cw_last_symbol = CW_DASH;
         cw_current_symbol = CW_DASH;
       }
       if (symbol_now == CW_SQUEEZE) { // alternate dot and dash
         if ((keydown_count == 0) && (keyup_count == 0)) {
-          printf("SQ SQ\n");
+          //printf("SQ SQ\n");
           if (cw_last_symbol == CW_DOT) {
             keydown_count = cw_period * 3;
             keyup_count = cw_period;
