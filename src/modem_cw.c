@@ -966,7 +966,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           cw_last_symbol = CW_DOT;
           //printf("DASH DOT1\n");
         } 
-        cw_current_symbol = CW_DOT;
+        cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_DASH) {
         // this is a dash following a previous dash
