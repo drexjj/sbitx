@@ -855,7 +855,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // an additional opposite element
     
     // before checking new paddle input, look for a symbol ready to go
-    // don't act on anything else until it is cleared
     if (cw_next_symbol_flag == 1) {
       if ((keydown_count == 0) && (keyup_count == 0)) {
         if (cw_next_symbol == CW_DOT) {
@@ -934,7 +933,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           cw_last_symbol = CW_DASH;
           //printf("DOT DASH1\n");
         }
-        cw_current_symbol = CW_DOT;
+        cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
         if (keydown_count > 0) {
