@@ -756,6 +756,8 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
+	 {"#wf_paint", NULL, 1000, -1000, 40, 40, "WF-PAINT", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+		"", 0, 0, 0, 0, COMMON_CONTROL}, 
 
 	// EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
@@ -1906,6 +1908,89 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 	{
 		gtk_widget_destroy(parent_window);
 	}
+}
+
+
+// Transmit Callsign in Waterfall
+extern struct field *get_field(const char *name);
+
+// Struct to pass data to the thread
+typedef struct {
+    GtkWidget *dialog;
+    char text[128];  // Just store the callsign text
+} TransmitData;
+
+// Thread function to run the command and close the dialog
+static gpointer transmit_callsign_thread(gpointer user_data)
+{
+    TransmitData *tdata = (TransmitData *)user_data;
+
+    gchar *argv[] = {
+        "python3",
+        "/home/pi/spectrum_painting/spectrogram-generator.py",
+        "--text",
+        NULL,  // This will be set later
+        "--transmit",
+        NULL
+    };
+
+    argv[3] = g_strdup(tdata->text);  // Set the callsign
+
+    gint exit_status = 0;
+    GError *error = NULL;
+    gboolean success = g_spawn_sync(
+        NULL,            // Working directory
+        argv,            // Argument vector
+        NULL,            // Environment
+        G_SPAWN_SEARCH_PATH,
+        NULL,            // Child setup function
+        NULL,            // User data
+        NULL,            // Stdout
+        NULL,            // Stderr
+        &exit_status,
+        &error
+    );
+
+    if (!success) {
+        g_warning("Failed to run command: %s", error->message);
+        g_error_free(error);
+    }
+
+    g_free(argv[3]);
+
+    // Close dialog from main thread
+    g_idle_add((GSourceFunc)gtk_widget_destroy, tdata->dialog);
+    g_free(tdata);
+    return NULL;
+}
+
+static void on_wf_paint_button_click(GtkWidget *widget, gpointer data)
+{
+    const char *callsign = get_field("#mycallsign")->value;
+    if (!callsign || strlen(callsign) == 0)
+        callsign = "N0CALL";
+
+    // Create a top-level, undecorated window
+    GtkWidget *dialog = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_decorated(GTK_WINDOW(dialog), FALSE);  
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
+    gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
+
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    GtkWidget *label = gtk_label_new("Transmitting Callsign in Waterfall");
+    gtk_container_add(GTK_CONTAINER(box), label);
+    gtk_container_add(GTK_CONTAINER(dialog), box);
+
+    gtk_widget_show_all(dialog);
+
+    // Prepare data
+    TransmitData *tdata = g_malloc(sizeof(TransmitData));
+    tdata->dialog = dialog;
+    snprintf(tdata->text, sizeof(tdata->text), "%s", callsign);
+
+    // Run the command in a separate thread
+    g_thread_new("transmit_thread", transmit_callsign_thread, tdata);
 }
 
 /* rendering of the fields */
@@ -3167,6 +3252,8 @@ void menu2_display(int show)
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
                 field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
+		field_move("WF-PAINT", screen_width - 94, screen_height - 150, 92, 45); // Add WF-PAINT
+
 	}
 	else
 	{
@@ -6958,6 +7045,10 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "PWR-DWN"))
 	{
 		on_power_down_button_click(NULL, NULL);
+	}
+	else if (!strcmp(request, "WF-PAINT"))
+	{
+		on_wf_paint_button_click(NULL, NULL);
 	}
 	else if (!strcmp(request, "LOG"))
 	{
