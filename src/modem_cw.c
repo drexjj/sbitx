@@ -909,7 +909,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
+        // do nothing, stay in same state
       }
       if (symbol_now == CW_DOT) {
         // this is a dot following a previous dot
@@ -952,10 +952,10 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DOT case
     case CW_DASH:
       if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
+        // do nothing, stay in same state
       }
       if (symbol_now == CW_DOT) {
-        if (keydown_count > 0) {
+        if (keyup_count > 0) {
           // early paddle input for next dot
           cw_next_symbol = CW_DOT;
           cw_next_symbol_flag = 1;
