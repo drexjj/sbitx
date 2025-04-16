@@ -1602,6 +1602,41 @@ void draw_console(cairo_t *gfx, struct field *f)
 	}
 }
 
+/*!
+	From the console line at the given \a line number, see if the semantic \a sem
+	can be found.  If so, copy the substring to \a out (which has a max length \a len),
+	and return the start position where it was found.
+
+	Returns -1 if it was not found.
+*/
+int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
+	int _start = -1, _len = -1;
+	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i)
+		if (console_stream[line].spans[i].semantic == sem) {
+			_start = console_stream[line].spans[i].start_column;
+			_len = console_stream[line].spans[i].length;
+			--_len; // point to the last char
+			if (console_stream[line].text[_start + _len] == ' ')
+				--_len;
+			// remote brackets from hashed callsigns
+			if (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_MYCALL) {
+				if (console_stream[line].text[_start + _len] == '>')
+					--_len;
+				if (console_stream[line].text[_start ] == '<') {
+					++_start;
+					--_len;
+				}
+			}
+			++_len; // point to the null terminator
+			break;
+		}
+	if (_start < 0 || _len < 0)
+		return -1;
+	char *end = stpncpy(out, console_stream[line].text + _start, MIN(_len, outlen - 1));
+	*end = 0;
+	return _start;
+}
+
 int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	char buff[100], *p, *q;
@@ -1737,7 +1772,7 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 			draw_text(gfx, offset_x, label_y, f->label, STYLE_FIELD_LABEL);
 		}
 		else
-		{ 
+		{
 			int font_ix = f->font_index;
 			value_height = font_table[font_ix].height;
 			label_y = f->y + ((f->height - label_height - value_height) / 2);
@@ -3775,7 +3810,7 @@ void menu_display(int show) {
 				field_move("RXEQ", 120, screen_height - 80, 45, 37);
 				field_move("NOTCH", 185, screen_height - 80, 95, 37);
 				field_move("ANR", 295, screen_height - 80, 45, 37);
-				field_move("APF", 355, screen_height - 80, 95, 37);				
+				field_move("APF", 355, screen_height - 80, 95, 37);
 				field_move("COMP", 470, screen_height - 80, 45, 37);
 				field_move("TXMON", 535, screen_height - 80, 45, 37);
 				field_move("TNDUR", 600, screen_height - 80, 45, 37);
@@ -3792,7 +3827,7 @@ void menu_display(int show) {
 				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
 				field_move("DSP", 295, screen_height - 40, 45, 37);
 				field_move("GAIN", 355, screen_height - 40, 45, 37);
-				field_move("WIDTH", 405, screen_height - 40, 45, 37);								
+				field_move("WIDTH", 405, screen_height - 40, 45, 37);
 				field_move("BFO", 470, screen_height - 40, 45, 37);
 				field_move("VFOLK", 535, screen_height - 40, 45, 37);
 				field_move("TNPWR", 600, screen_height - 40, 45, 37);
@@ -7676,7 +7711,7 @@ void ui_init(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
-	
+
 	display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
 

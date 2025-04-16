@@ -383,11 +383,12 @@ void modem_set_pitch(int pitch, int mode){
 		case MODE_CWR:
 		case MODE_FT8:
 		case MODE_PSK31:
-		case MODE_RTTY:
+		case MODE_RTTY: {
 			char response[1000];
-			
+
 			fldigi_call_i("modem.set_carrier", pitch, response);
 			break;
+		}
 	}
 }
 
