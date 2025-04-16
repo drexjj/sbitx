@@ -1467,38 +1467,31 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 
 	// Apply RXEQ after Modem only on non-digital modes
 	if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE)
-{
-    if (rx_eq_is_enabled == 1)
-    {
-        // Step 1: Apply EQ with built-in normalization and clamping
-        apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
-
-        // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
-        const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom
-
-        for (int i = 0; i < n_samples; i++)
-        {
-            double sample = output_speaker[i];
-
-            // Apply smooth limiting if sample exceeds threshold
-            if (fabs(sample) > limiter_threshold)
-            {
-                sample = limiter_threshold * tanh(sample / limiter_threshold);
-            }
-
-            output_speaker[i] = (int32_t)sample;
-        }
-    }
-}
-// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-// Moved after EQ processing so qremote gets the equalized audio when applicable
-	if (rx_list->output == 0) {
-		for (i = 0; i < MAX_BINS / 2; i += 6)
+	{
+		if (rx_eq_is_enabled == 1)
 		{
-			q_write(&qremote, output_speaker[i]);
+			// Step 1: Apply EQ with built-in normalization and clamping
+			apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
+
+			// Step 2: Optionally apply soft limiting (only if additional smoothing is required)
+			const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom
+
+			for (int i = 0; i < n_samples; i++)
+			{
+				double sample = output_speaker[i];
+
+				// Apply smooth limiting if sample exceeds threshold
+				if (fabs(sample) > limiter_threshold)
+				{
+					sample = limiter_threshold * tanh(sample / limiter_threshold);
+				}
+
+				output_speaker[i] = (int32_t)sample;
+			}
 		}
 	}
 }
+
 void read_power()
 {
 	uint8_t response[4];
@@ -2196,61 +2189,50 @@ void tx_cal()
 // added and edited comments
 // removed several delay() calls
 // eliminated LPF switching during tr_switch
-
-void tr_switch_de(int tx_on) {
-  // function replaced by tr_switch, should never be called
-}
-
-void tr_switch_v2(int tx_on) {
-  // function replaced by tr_switch, should never be called
-}
-
 // transmit-receive switch for both sbitx DE and V2 and newer
 void tr_switch(int tx_on) {
-  if (tx_on) {                   // switch to transmit
-    in_tx = 1;                   // raise a flag so functions see we are in transmit mode
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
-    sound_mixer(audio_card, "Capture", 0);
-		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
-		delay(20);
+	if (tx_on) {                   // switch to transmit
+		in_tx = 1;                   // raise a flag so functions see we are in transmit mode
+		sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
+		sound_mixer(audio_card, "Capture", 0);
+		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR)
+			delay(20);
+		//mute_count = 20;             // number of audio samples to zero out
+		mute_count = 1;             // number of audio samples to zero out
+		fft_reset_m_bins();          // fixes burst at start of transmission
+		set_tx_power_levels();       // use values for tx_power_watts, tx_gain
+		//ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
+		if (ext_ptt_enable == 1) {
+			digitalWrite(EXT_PTT, HIGH);
+			delay(20); //this delay gives time for ext device to settle before tx
+		}
+		digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
+		spectrum_reset();
+
+		// Also reset the hold counter for showing the output power
+		fwdpower_cnt = 0;
+		fwdpower_calc = 0;
+		fwdpower = 0;
+	} else {                       // switch to receive
+		in_tx = 0;                   // lower the transmit flag
+		sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
+		sound_mixer(audio_card, "Capture", 0);
+		fft_reset_m_bins();
+		mute_count = MUTE_MAX;
+		digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
+		delay(5);
+		digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
+		check_r1_volume();           // audio codec is back on
+		initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
+		sound_mixer(audio_card, "Master", rx_vol);
+		sound_mixer(audio_card, "Capture", rx_gain);
+		spectrum_reset();
+
+		// Also reset the hold counter for showing the output power
+		fwdpower_cnt = 0;
+		fwdpower_calc = 0;
+		fwdpower = 0;
 	}
-    //mute_count = 20;             // number of audio samples to zero out
-    mute_count = 1;             // number of audio samples to zero out
-	fft_reset_m_bins();          // fixes burst at start of transmission
-    set_tx_power_levels();       // use values for tx_power_watts, tx_gain
-    //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
-			if (ext_ptt_enable == 1) {
-				digitalWrite(EXT_PTT, HIGH);
-				delay(20); //this delay gives time for ext device to settle before tx
-			}
-    digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
-    spectrum_reset();
-
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
-    fwdpower = 0;
-
-  } else {                       // switch to receive
-    in_tx = 0;                   // lower the transmit flag
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
-    sound_mixer(audio_card, "Capture", 0);
-    fft_reset_m_bins();
-    mute_count = MUTE_MAX;
-    digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
-    delay(5);
-    digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
-    check_r1_volume();           // audio codec is back on
-    initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
-    sound_mixer(audio_card, "Master", rx_vol);
-    sound_mixer(audio_card, "Capture", rx_gain);
-    spectrum_reset();
-
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
-    fwdpower = 0;
-  }
 }
 
 /*
