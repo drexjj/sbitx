@@ -723,7 +723,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
+        // do nothing, stay in same state
       }
       if (symbol_now == CW_DOT) {
         // this is a dot following a previous dot
@@ -747,7 +747,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           cw_next_symbol_flag = 1;
           //printf("DOT DASH2\n");
         }
-        cw_current_symbol = CW_DOT;
+        cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
         if ((keydown_count > 0) || (keyup_count > 0)) {
@@ -766,7 +766,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DOT case
     case CW_DASH:
       if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
+        // do nothing, stay in same state
       }
       if (symbol_now == CW_DOT) {
         if (keyup_count == 0) {
@@ -780,7 +780,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           cw_next_symbol_flag = 1;
           //printf("DASH DOT2\n");
         }
-        cw_current_symbol = CW_DOT;
+        cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_DASH) {
         // this is a dash following a previous dash
