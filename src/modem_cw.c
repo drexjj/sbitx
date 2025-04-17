@@ -571,8 +571,8 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // when both paddles are squeezed, whichever one was squeezed last gets repeated
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now == CW_IDLE)
-        cw_current_symbol = CW_IDLE;
+      if (symbol_now == CW_IDLE) {
+        // do nothing, stay in same state
       if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
@@ -592,7 +592,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_IDLE case
     case CW_DOT:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
@@ -614,7 +613,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DOT case
     case CW_DASH:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
@@ -636,7 +634,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DASH case
     case CW_SQUEEZE:
       if (symbol_now == CW_IDLE) {
-        keyup_count = cw_period * 2;
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
