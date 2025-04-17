@@ -573,6 +573,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     case CW_IDLE:
       if (symbol_now == CW_IDLE) {
         // do nothing, stay in same state
+      }
       if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
