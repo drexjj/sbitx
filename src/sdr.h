@@ -229,7 +229,7 @@ time_t time_sbitx();
 #define CW_WORD_DELAY (16) 
 #define CW_DOWN (32) 
 #define CW_SQUEEZE (64)
-#define CW_SQUEEZEOFF (128)
+
 
 //straight key, iambic, keyboard
 #define CW_STRAIGHT 0
