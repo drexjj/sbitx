@@ -1062,7 +1062,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_DASH_DELAY) {
-        keyup_count = cw_period * 3;
+        keyup_count = cw_period * 2;  // make total delay 3 dits
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_WORD_DELAY) {
