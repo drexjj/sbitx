@@ -1045,28 +1045,47 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // this mode handles symbols coming from keyboard or macros
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now == CW_IDLE)
+      if (symbol_now == CW_IDLE) {
+        cw_last_symbol = CW_IDLE;
         cw_current_symbol = CW_IDLE;
+      }
       if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
+        cw_last_symbol = CW_DOT;
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_DASH) {
         keydown_count = cw_period * 3;
         keyup_count = cw_period;
+        cw_last_symbol = CW_DASH;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now == CW_DOT_DELAY) {
-        keyup_count = cw_period;
+      if (symbol_now == CW_DOT_DELAY) {  // this is never used?!
+        keyup_count = cw_period * 1;
+        cw_last_symbol = CW_DOT_DELAY;
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now == CW_DASH_DELAY) {
-        keyup_count = cw_period * 2;  // make total delay 3 dits
+      if (symbol_now == CW_DASH_DELAY) {  // a NULL
+        if (cw_last_symbol == CW_WORD_DELAY) {
+          // no more delay extension needed
+        } else {
+          // extend single delay after dot or dash to total 3 dit lengths
+          // betweeen characters
+          keyup_count = cw_period * 2;
+        }
+        cw_last_symbol = CW_DASH_DELAY; 
         cw_current_symbol = CW_IDLE;
       }
-      if (symbol_now == CW_WORD_DELAY) {
-        keyup_count = cw_period * 5; // sbitx users like 5, not 7
+      if (symbol_now == CW_WORD_DELAY) {  // a space
+        if (cw_last_symbol == CW_DASH_DELAY) {
+          // extend delay after end of character delay four more
+          // dit-lengths to total seven dit lengths
+          keyup_count = cw_period * 4;
+        } else {
+          keyup_count = cw_period * 7;
+        }
+        cw_last_symbol = CW_WORD_DELAY;
         cw_current_symbol = CW_IDLE;
       }
       break;
