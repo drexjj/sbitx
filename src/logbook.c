@@ -774,7 +774,9 @@ static void on_callsign_changed(GtkWidget *widget, gpointer data) {
     g_free(result);
 }
 
-// Function to create the dialog box
+// Create and populate a dialog box with the given QSO data.
+// Wait for the user to do the editing and exit via one of the buttons.
+// Returns GTK_RESPONSE_OK or GTK_RESPONSE_CANCEL.
 int edit_qso(char *qso_id, char *freq, char *mode, char *callsign, char *rst_sent, char *exchange_sent,
 	char *rst_recv, char *exchange_recv, char *comment){
     GtkWidget *dialog, *grid, *label,
@@ -911,7 +913,7 @@ int edit_qso(char *qso_id, char *freq, char *mode, char *callsign, char *rst_sen
 
 void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2, const gchar *col3,
 		const gchar *col4, const gchar *col5, const gchar *col6,
-		const gchar *col7, const gchar *col8, const gchar *col9, const gchar *col10, const gchar *col11) {
+		const gchar *col7, const gchar *col8, const gchar *col9, const gchar *col10, const gchar *col11, const gchar *col12) {
     GtkTreeIter iter;
     gtk_list_store_append(list_store, &iter);
     gtk_list_store_set(list_store, &iter,
@@ -926,6 +928,7 @@ void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2,
                        8, col9,
                        9, col10,
                        10, col11,
+                       11, col12,
                        -1);
 }
 
@@ -972,7 +975,7 @@ int logbook_fill(int from_id, int count, const char *query){
 
 	int rec = 0;
 	char id[10], qso_time[20], qso_date[20], freq[20], mode[20], callsign[20],
-	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], tx_pwr[10], comments[1000];
+	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], tx_pwr[10], swr[10], comments[1000];
 
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		int i;
@@ -1004,6 +1007,8 @@ int logbook_fill(int from_id, int count, const char *query){
 				strcpy(exchange_recv, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "tx_power"))
 				strcpy(tx_pwr, sqlite3_column_text(stmt, i));
+			else if (!strcmp(col_name, "vswr"))
+				strcpy(swr, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "comments"))
 				strcpy(comments, sqlite3_column_text(stmt, i));
 		}
@@ -1011,7 +1016,7 @@ int logbook_fill(int from_id, int count, const char *query){
 		strcat(qso_date, " ");
 		strcat(qso_date, qso_time);
 		add_to_list(list_store, id,  qso_date, freq, mode,
-		callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, tx_pwr, comments);
+			callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, tx_pwr, swr, comments);
 	}
 	sqlite3_finalize(stmt);
 }
@@ -1061,30 +1066,48 @@ void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
 }
 
 void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
-  gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
+	gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
 		*exchange_recv, *comment;
-   GtkTreeIter iter;
+	GtkTreeIter iter;
 
-  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
+	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
 
-  if (!gtk_tree_selection_get_selected(selection, &model, &iter))
+	if (!gtk_tree_selection_get_selected(selection, &model, &iter))
 		return;
 
-//  if (!gtk_tree_model_get_iter(model, &iter, path))
-//		return;
-  gtk_tree_model_get(model, &iter, 0, &qso_id,
+	// This apparently allocates as many chars as necessary
+	// to hold each field as-is, into each gchar pointer.
+	gtk_tree_model_get(model, &iter, 0, &qso_id,
 		2, &freq, 3, &mode, 4, &callsign, 5, &rst_sent, 6, &exchange_sent,
-		7, &rst_recv, 8, &exchange_recv, 9, &comment,
-	-1);
+		7, &rst_recv, 8, &exchange_recv, 11, &comment,
+		-1);
 
+	// But we want to allow the user to lengthen fields
+	// (for example, adding a comment where there was none);
+	// so we need to copy the existing data into longer buffers.
+	// edit_qso() expects to overwrite them.
+	char qso_id_buf[10], freq_buf[20], mode_buf[20], callsign_buf[20],
+		rst_recv_buf[20], exchange_recv_buf[20],
+		rst_sent_buf[20], exchange_sent_buf[20],
+		comment_buf[1000];
+	strncpy(qso_id_buf, qso_id, sizeof(qso_id_buf));
+	strncpy(freq_buf, freq, sizeof(freq_buf));
+	strncpy(mode_buf, mode, sizeof(mode_buf));
+	strncpy(callsign_buf, callsign, sizeof(callsign_buf));
+	strncpy(rst_recv_buf, rst_recv, sizeof(rst_recv_buf));
+	strncpy(exchange_recv_buf, exchange_recv, sizeof(exchange_recv_buf));
+	strncpy(rst_sent_buf, rst_sent, sizeof(rst_sent_buf));
+	strncpy(exchange_sent_buf, exchange_sent, sizeof(exchange_sent_buf));
+	strncpy(comment_buf, comment, sizeof(comment_buf));
 
-	if (edit_qso(qso_id, freq, mode, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comment)){
-		char statement[1000], *err_msg;
-		sprintf(statement,
+	if (edit_qso(qso_id_buf, freq_buf, mode_buf, callsign_buf, rst_sent_buf, exchange_sent_buf,
+			rst_recv_buf, exchange_recv_buf, comment_buf) == GTK_RESPONSE_OK) {
+		char statement[2048], *err_msg;
+		snprintf(statement, sizeof(statement),
 			"UPDATE logbook SET mode = '%s', freq = '%s', callsign_recv = '%s', rst_sent = '%s', "
 			"exch_sent = '%s',rst_recv = '%s', exch_recv = '%s', comments = '%s' WHERE id = '%s'",
-			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv,
-			comment, qso_id);
+			mode_buf, freq_buf, callsign_buf, rst_sent_buf, exchange_sent_buf, rst_recv_buf, exchange_recv_buf,
+			comment_buf, qso_id);
 
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
@@ -1119,9 +1142,10 @@ void on_row_activated(GtkTreeView *treeview, GtkTreePath *path, GtkTreeViewColum
 					-1);
 
 
-	if (edit_qso(qso_id, freq, mode, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comment)){
-		char statement[1000], *err_msg;
-		sprintf(statement,
+	if (edit_qso(qso_id, freq, mode, callsign, rst_sent, exchange_sent,
+			rst_recv, exchange_recv, comment) == GTK_RESPONSE_OK) {
+		char statement[2048], *err_msg;
+		snprintf(statement, sizeof(statement),
 			"UPDATE logbook SET mode = '%s', freq = '%s', callsign_recv = '%s', rst_sent = '%s', "
 			"exch_sent = '%s',rst_recv = '%s', exch_recv = '%s', comments = '%s' WHERE id = '%s'",
 			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv,
@@ -1231,15 +1255,17 @@ void logbook_list_open(){
 
     // Create a list store
 	if (!list_store)
-    	list_store = gtk_list_store_new(11, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+    	list_store = gtk_list_store_new(12, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+      	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+	else
+		clear_tree(list_store);
 
     // Create a tree view and set up columns with headings aligned to the left
     tree_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(list_store));
     const char *headings[] = {"#", "Date", "Freq", "Mode", "Call", "Sent", "Exch",
-			"Recv", "Exch", "Tx Pwr", "Comments"};
-    for (int i = 0; i < 11; ++i) {
+			"Recv", "Exch", "Tx Pwr", "SWR", "Comments"};
+    for (int i = 0; i < 12; ++i) {
         GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
         GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(headings[i], renderer,
             "text", i, NULL);
