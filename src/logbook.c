@@ -823,7 +823,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	gtk_entry_set_text(GTK_ENTRY(entry_rst_sent), (gchar*)rst_sent);
 
 	// exchange_sent field
-	label = gtk_label_new("Exchage Sent");
+	label = gtk_label_new("Exchange Sent");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 4, 1, 1);
 	entry_exchange_sent = gtk_entry_new();
 	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_sent), 10);
@@ -831,7 +831,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	gtk_entry_set_text(GTK_ENTRY(entry_exchange_sent), (gchar*)exchange_sent);
 
 	// rst_recv field
-	label = gtk_label_new("RST Recv");
+	label = gtk_label_new("RST Rcvd");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 5, 1, 1);
 	entry_rst_recv = gtk_entry_new();
 	gtk_entry_set_max_length(GTK_ENTRY(entry_rst_recv), 6);
@@ -839,7 +839,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	gtk_entry_set_text(GTK_ENTRY(entry_rst_recv), (gchar*)rst_recv);
 
 	// exchange_recv field
-	label = gtk_label_new("Exchage Sent");
+	label = gtk_label_new("Exchange Rcvd");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 6, 1, 1);
 	entry_exchange_recv = gtk_entry_new();
 	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_recv), 6);
