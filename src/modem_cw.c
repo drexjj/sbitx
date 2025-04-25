@@ -384,7 +384,6 @@ float cw_tx_get_sample() {
   // other modes only check when idle
   if ((state_machine_mode == CW_STRAIGHT || 
         state_machine_mode == CW_BUG ||
-        state_machine_mode == CW_SIDESWIPE || 
         state_machine_mode == CW_ULTIMATIC || 
         state_machine_mode == CW_KBD) && 
         (keydown_count == 0 && keyup_count == 0)
@@ -511,60 +510,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
       break; // exit CW_DASH case
     }
     break; // done with CW_BUG mode
-
-  case CW_SIDESWIPE:
-    // single paddle with one side making dots and the other side dashes
-    switch (cw_current_symbol) {
-    case CW_IDLE:
-      if (symbol_now == CW_IDLE) {
-        // do nothing, stay in same state
-      }
-      if (symbol_now == CW_DOT) {
-        keydown_count = cw_period;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DOT;
-      }
-      if (symbol_now == CW_DASH) {
-        keydown_count = cw_period * 3;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DASH;
-      }
-      if (symbol_now == CW_SQUEEZE) {
-        cw_current_symbol = CW_IDLE;
-      }
-      break; // exit CW_IDLE case
-    case CW_DOT:
-      if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
-      }
-      if (symbol_now == CW_DOT) {
-        keydown_count = cw_period;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DOT;
-      }
-      if (symbol_now == CW_DASH) {
-        keydown_count = cw_period * 3;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DASH;
-      }
-      break; // exit CW_DOT case
-    case CW_DASH:
-      if (symbol_now == CW_IDLE) {
-        cw_current_symbol = CW_IDLE;
-      }
-      if (symbol_now == CW_DOT) {
-        keydown_count = cw_period;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DOT;
-      }
-      if (symbol_now == CW_DASH) {
-        keydown_count = cw_period * 3;
-        keyup_count = cw_period;
-        cw_current_symbol = CW_DASH;
-      }
-      break; // exit CW_DASH case
-    }
-    break; // done with CW_SIDESWIPE mode
 
   case CW_ULTIMATIC:
     // when both paddles are squeezed, whichever one was squeezed last gets repeated
