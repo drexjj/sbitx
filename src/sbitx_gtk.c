@@ -874,7 +874,7 @@ struct field main_controls[] = {
 	 "", -25000, 25000, 1, 0},
 
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
-	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/SIDESWP/BUG", 0, 0, 0, CW_CONTROL},
+	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
 	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 1000, 50, CW_CONTROL},
 	{"#tx_pitch", NULL, 400, -1000, 50, 50, "TX_PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -6012,9 +6012,7 @@ int get_cw_input_method()
 		return CW_KBD;
 	else if (!strcmp(f->value, "BUG"))
 		return CW_BUG; 
-	else if (!strcmp(f->value, "SIDESWP"))
-		return CW_SIDESWIPE; 
-  	else if (!strcmp(f->value, "ULTIMAT"))
+  else if (!strcmp(f->value, "ULTIMAT"))
 		return CW_ULTIMATIC;  
 	else if (!strcmp(f->value, "IAMBIC"))
 		return CW_IAMBIC;
