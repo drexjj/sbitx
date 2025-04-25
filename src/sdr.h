@@ -236,7 +236,7 @@ time_t time_sbitx();
 #define CW_IAMBIC 1
 #define CW_IAMBICB 2	
 #define CW_KBD 3
-#define CW_SIDESWIPE 4
+//#define CW_SIDESWIPE 4 // not supported in keyer
 #define CW_ULTIMATIC 5
 #define CW_BUG 6
 
