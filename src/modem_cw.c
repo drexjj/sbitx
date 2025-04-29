@@ -678,7 +678,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
           cw_last_symbol = CW_DASH;
-        } else if ((keydown_count > 0) || (keyup_count > 0)) {
+        } else if (keyup_count > 0) {
           // early paddle input for next dash
           cw_next_symbol = CW_DASH;
           cw_next_symbol_flag = 1;
@@ -686,7 +686,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         cw_current_symbol = CW_IDLE;
       }
       if (symbol_now == CW_SQUEEZE) {
-        if ((keydown_count > 0) || (keyup_count > 0)) {
+        if (keydown_count > 0) {
           if (cw_last_symbol == CW_DOT) {
             cw_next_symbol = CW_DASH;
             cw_next_symbol_flag = 1;
@@ -707,7 +707,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           keydown_count = cw_period;
           keyup_count = cw_period;
           cw_last_symbol = CW_DOT;
-        } else if ((keydown_count > 0) || (keyup_count > 0)) {
+        } else if (keyup_count > 0) {
           // early paddle input for next dot
           cw_next_symbol = CW_DOT;
           cw_next_symbol_flag = 1;
@@ -724,7 +724,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         cw_current_symbol = CW_DASH;
       }
       if (symbol_now == CW_SQUEEZE) {
-        if ((keydown_count > 0) || (keyup_count > 0)) {
+        if (keydown_count > 0) {
           if (cw_last_symbol == CW_DOT) {
             cw_next_symbol = CW_DASH;
             cw_next_symbol_flag = 1;
@@ -847,7 +847,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
           // early paddle input for next dash
           cw_next_symbol = CW_DASH;
           cw_next_symbol_flag = 1;
-          //"DOT DASH2\n");
         } else if (keyup_count == 0) {
           keydown_count = cw_period * 3;
           keyup_count = cw_period;
