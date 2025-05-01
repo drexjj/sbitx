@@ -133,11 +133,31 @@ int get_input_volume()
 {
 	return input_volume;
 }
-
+ 
 static int multicast_socket = -1;
 
 #define MUTE_MAX 6
 static int mute_count = 50;
+
+// Queue for browser microphone audio data
+struct Queue qbrowser_mic;
+static int browser_mic_active = 0;
+static int browser_mic_last_activity = 0;
+#define BROWSER_MIC_TIMEOUT 5000 // Increased timeout for more reliable fallback // Increased timeout to 2 seconds
+
+// Audio buffer for smoothing browser mic audio
+#define BROWSER_MIC_BUFFER_SIZE 48000 // 500ms at 96kHz
+static int32_t browser_mic_buffer[BROWSER_MIC_BUFFER_SIZE];
+static int browser_mic_buffer_index = 0;
+static int browser_mic_buffer_filled = 0;
+
+// Ring buffer for jitter compensation
+#define JITTER_BUFFER_SIZE 96000 // 1 second at 96kHz
+static int16_t jitter_buffer[JITTER_BUFFER_SIZE];
+static int jitter_buffer_write = 0;
+static int jitter_buffer_read = 0;
+static int jitter_buffer_samples = 0;
+static pthread_mutex_t jitter_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 FILE *pf_record;
 int16_t record_buffer[1024];
@@ -430,6 +450,150 @@ int remote_audio_output(int16_t *samples)
 		samples[i] = q_read(&qremote) / 32786;
 	}
 	return length;
+}
+
+// Helper function to get available space in a queue
+int q_available_space(struct Queue *q)
+{
+	return q->max_q - q_length(q);
+}
+
+// Simple fixed-size buffer for 8kHz samples
+#define JITTER_BUFFER_MAX_SAMPLES 1600 // Maximum samples to store (200ms at 8kHz)
+
+// Function to add samples to jitter buffer
+static void jitter_buffer_add(int16_t *samples, int count)
+{
+	pthread_mutex_lock(&jitter_buffer_mutex);
+	
+	// Simple buffer management - if we have too many samples, drop the oldest ones
+	if (jitter_buffer_samples + count > JITTER_BUFFER_MAX_SAMPLES) {
+		// Keep only the most recent samples
+		int to_keep = JITTER_BUFFER_MAX_SAMPLES - count;
+		if (to_keep < 0) to_keep = 0;
+		
+		// Calculate how many to drop
+		int to_drop = jitter_buffer_samples - to_keep;
+		if (to_drop > 0) {
+			jitter_buffer_read = (jitter_buffer_read + to_drop) % JITTER_BUFFER_SIZE;
+			jitter_buffer_samples -= to_drop;
+		}
+	}
+	
+	// Add new samples
+	for (int i = 0; i < count; i++) {
+		jitter_buffer[jitter_buffer_write] = samples[i];
+		jitter_buffer_write = (jitter_buffer_write + 1) % JITTER_BUFFER_SIZE;
+		jitter_buffer_samples++;
+	}
+	
+	pthread_mutex_unlock(&jitter_buffer_mutex);
+}
+
+// Function to get samples from jitter buffer
+static int jitter_buffer_get(int16_t *samples, int count)
+{
+	pthread_mutex_lock(&jitter_buffer_mutex);
+	
+	// Simple read - just get what we have
+	int available = jitter_buffer_samples;
+	if (count > available) count = available;
+	
+	// Read available samples
+	for (int i = 0; i < count; i++) {
+		samples[i] = jitter_buffer[jitter_buffer_read];
+		jitter_buffer_read = (jitter_buffer_read + 1) % JITTER_BUFFER_SIZE;
+		jitter_buffer_samples--;
+	}
+	
+	// If we didn't have enough samples, fill the rest with zeros
+	for (int i = count; i < count; i++) { // This loop never runs due to the condition
+		samples[i] = 0;
+	}
+	
+	pthread_mutex_unlock(&jitter_buffer_mutex);
+	return count;
+}
+
+// Function to receive browser microphone audio data
+int browser_mic_input(int16_t *samples, int count)
+{
+	if (count <= 0)
+		return 0;
+	
+	// Mark browser mic as active and update last activity timestamp
+	browser_mic_active = 1;
+	browser_mic_last_activity = millis();
+	
+	// Add samples to jitter buffer for smoother playback
+	jitter_buffer_add(samples, count);
+	
+	return count;
+}
+
+// Function to check if browser mic is active
+int is_browser_mic_active()
+{
+	// Check if browser mic has been inactive for too long
+	if (browser_mic_active && (millis() - browser_mic_last_activity > BROWSER_MIC_TIMEOUT))
+	{
+		browser_mic_active = 0;
+	}
+	
+	return browser_mic_active;
+}
+
+// Function to convert 16-bit samples at 8kHz to 32-bit samples at 96kHz
+void upsample_browser_mic(int32_t *output, int n_samples)
+{
+	int i = 0;
+	
+	// Get samples from jitter buffer - 8kHz input
+	// For 96kHz output, we need a 12x ratio (8kHz → 96kHz)
+	int16_t input_samples[n_samples / 12 + 1]; // Extra space for safety
+	int samples_read = jitter_buffer_get(input_samples, n_samples / 12);
+	
+	if (samples_read == 0)
+	{
+		// No browser mic data, fill with zeros
+		for (int i = 0; i < n_samples; i++) {
+			output[i] = 0;
+		}
+		return;
+	}
+	
+	// Apply gain reduction to prevent clipping
+	for (int j = 0; j < samples_read; j++) {
+		// Reduce gain to 25% to prevent clipping
+		input_samples[j] = (int16_t)(input_samples[j] * 0.25);
+	}
+	
+	// Apply high-frequency enhancement
+	int16_t prev_sample = 0;
+	for (int j = 0; j < samples_read; j++) {
+		// Simple high-pass filter (current - previous)
+		int16_t high_freq = input_samples[j] - prev_sample;
+		prev_sample = input_samples[j];
+		
+		// Add some high frequencies back to enhance clarity
+		input_samples[j] = input_samples[j] + (high_freq * 0.7);
+	}
+	
+	// Simple upsampling from 8kHz to 96kHz (12x)
+	for (int j = 0; j < samples_read && i < n_samples; j++) {
+		// Get current sample
+		int16_t current = input_samples[j];
+		
+		// Generate 12 identical output samples for 96kHz
+		for (int k = 0; k < 12 && i < n_samples; k++) {
+			output[i++] = current * 65536;
+		}
+	}
+	
+	// If we still need more samples, fill with zeros
+	while (i < n_samples) {
+		output[i++] = 0;
+	}
 }
 
 static int prev_lpf = -1;
@@ -1235,6 +1399,15 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
+	
+	// Check if browser microphone is active and use it instead of physical mic
+	int32_t browser_mic_samples[n_samples];
+	int use_browser_mic = is_browser_mic_active();
+	
+	if (use_browser_mic) {
+		// Get upsampled browser mic audio
+		upsample_browser_mic(browser_mic_samples, n_samples);
+	}
 
 	struct rx *r = tx_list;
 
@@ -1265,7 +1438,11 @@ void tx_process(
 			// Convert input_mic (int32_t) to float for compression
 			for (int i = 0; i < n_samples; i++)
 			{
-				temp_input_mic[i] = (float)input_mic[i] / 2000000000.0;
+				if (use_browser_mic) {
+					temp_input_mic[i] = (float)browser_mic_samples[i] / 2000000000.0;
+				} else {
+					temp_input_mic[i] = (float)input_mic[i] / 2000000000.0;
+				}
 			}
 
 			for (int i = 0; i < 5 && i < n_samples; i++)
@@ -1280,7 +1457,11 @@ void tx_process(
 			// Convert back the processed data to int32_t after compression
 			for (int i = 0; i < n_samples; i++)
 			{
-				input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				if (use_browser_mic) {
+					browser_mic_samples[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				} else {
+					input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				}
 			}
 			for (int i = 0; i < 5 && i < n_samples; i++)
 			{
@@ -1289,13 +1470,20 @@ void tx_process(
 
 		if (eq_is_enabled == 1)
 		{
-			apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+			if (use_browser_mic) {
+				apply_eq(&tx_eq, browser_mic_samples, n_samples, 48000.0);
+			} else {
+				apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+			}
 		}
 	}
 
 	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM))
 	{
 		memset(input_mic, 0, n_samples * sizeof(int32_t));
+		if (use_browser_mic) {
+			memset(browser_mic_samples, 0, n_samples * sizeof(int32_t));
+		}
 		mute_count--;
 	}
 	// first add the previous M samples
@@ -1319,14 +1507,25 @@ void tx_process(
 		else if (r->mode == MODE_AM)
 		{
 			// double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
-			double modulation = (1.0 * input_mic[j]) / 200000000.0;
+			double modulation;
+			if (use_browser_mic) {
+				modulation = (1.0 * browser_mic_samples[j]) / 200000000.0;
+			} else {
+				modulation = (1.0 * input_mic[j]) / 200000000.0;
+			}
 			if (modulation < -1.0)
 				modulation = -1.0;
 			i_carrier = (1.0 * vfo_read(&am_carrier)) / 50000000000.0;
 			i_sample = (1.0 + modulation) * i_carrier;
 		}
 		else
-			i_sample = (1.0 * input_mic[j]) / 2000000000.0;
+		{
+			if (use_browser_mic) {
+				i_sample = (1.0 * browser_mic_samples[j]) / 2000000000.0;
+			} else {
+				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
+			}
+		}
 
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
@@ -1818,9 +2017,14 @@ void setup()
 	fft_init();
 	vfo_init_phase_table();
 	setup_oscillators();
+	//initialize the queues
 	q_init(&qremote, 8000);
-
-	modem_init();
+	q_init(&qbrowser_mic, 32000); // Initialize browser microphone queue with much larger buffer
+	
+	// Initialize jitter buffer
+	jitter_buffer_write = 0;
+	jitter_buffer_read = 0;
+	jitter_buffer_samples = 0;
 
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);

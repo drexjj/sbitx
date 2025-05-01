@@ -12,6 +12,10 @@
 #include "logbook.h"
 #include "hist_disp.h"
 
+// Function declarations for browser microphone handling
+extern int browser_mic_input(int16_t *samples, int count);
+extern int is_browser_mic_active();
+
 static const char *s_listen_on = "ws://0.0.0.0:8080";
 static char s_web_root[1000];
 static char session_cookie[100];
@@ -127,6 +131,21 @@ char request[200];
 int request_index = 0;
 
 static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
+	// Check if this is binary data (browser microphone audio)
+	if (wm->data.len > 0 && wm->flags & 2) { 
+		// Binary data flag
+		// Process browser microphone data
+		// Always accept browser mic data - the browser will only send when in TX mode
+		// and the browser_mic_input function will handle the data appropriately
+		int16_t *audio_samples = (int16_t *)wm->data.ptr;
+		int sample_count = wm->data.len / sizeof(int16_t);
+		
+		// Pass the browser microphone data to the audio processing chain
+		browser_mic_input(audio_samples, sample_count);
+		return;
+	}
+
+	// Handle text messages
 	if (wm->data.len > 99)
 		return;
 
@@ -198,6 +217,7 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     if (mg_http_match_uri(hm, "/websocket")) {
       // Upgrade to websocket. From now on, a connection is a full-duplex
       // Websocket connection, which will receive MG_EV_WS_MSG events.
+      // Upgrade to websocket for audio support
       mg_ws_upgrade(c, hm, NULL);
     } else if (mg_http_match_uri(hm, "/rest")) {
       // Serve REST response
