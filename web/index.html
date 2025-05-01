@@ -1438,26 +1438,60 @@ function change_freq(event) {
     var player = null;
     var micStream = null;
     var micContext = null;
-    var micProcessor = null;
-    var micEnabled = false;
-    var micInitialized = false; // Track if microphone has been initialized
-    
-    // Audio buffer for microphone data - basic approach
-    var audioBuffer = [];
-    var bufferSize = 512; // Very small buffer for minimal delay
-    var bufferThreshold = 256; // Send when buffer reaches this size
-    var sendIntervalMs = 20; // Send interval in milliseconds
-    var audioSendInterval = null;
-    var lastSendTime = 0;
-    
-    // Audio processing variables
-    var audioContext = null;
-    var audioWorkletSupported = false;
-    var audioProcessorNode = null;
-    var audioAnalyser = null;
-    var audioGainNode = null;
-    var audioCompressor = null;
-    var audioLowpassFilter = null;
+    // Set up variables for browser microphone - single global object to prevent duplication
+    window.sbitxMic = window.sbitxMic || {
+        enabled: false,
+        initialized: false,
+        stream: null,
+        context: null,
+        processor: null,
+        buffer: [],
+        bufferSize: 512,          // Buffer size for audio processing
+        bufferThreshold: 256,     // Send when buffer reaches this size
+        sendIntervalMs: 50,       // Send interval in milliseconds
+        sendInterval: null,       // Interval reference
+        lastSendTime: 0,          // Timestamp of last audio send
+        analyser: null,           // Audio analyser for levels
+        gainNode: null,           // Gain control
+        compressor: null,         // Dynamic compression
+        lowpassFilter: null,      // Low-pass filter
+        initCount: 0              // Track initialization attempts
+    };
+
+    function toggleBrowserMic() {
+        // Toggle mic state using the global object
+        window.sbitxMic.enabled = !window.sbitxMic.enabled;
+        var micBtn = document.getElementById('browser_mic');
+        
+        if (window.sbitxMic.enabled) {
+            micBtn.textContent = "Browser Mic ON";
+            micBtn.style.backgroundColor = "yellow";
+            console.log("Browser microphone enabled");
+            
+            // Initialize microphone if not already done
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                // Only initialize once
+                if (!window.sbitxMic.initialized) {
+                    console.log("Initializing browser mic");
+                    initBrowserMic();
+                }
+                
+                // Set up the audio send interval only once
+                if (!window.sbitxMic.sendInterval) {
+                    setupAudioSendInterval();
+                }
+            } else {
+                console.log("Browser microphone not supported");
+            }
+        } else {
+            micBtn.textContent = "Browser Mic OFF";
+            micBtn.style.backgroundColor = "";
+            console.log("Browser microphone disabled");
+            
+            // Clear the audio buffer when mic is disabled
+            window.sbitxMic.buffer = [];
+        }
+    }
 
     function audio_start() {
         player = new PCMPlayer({
@@ -1466,222 +1500,140 @@ function change_freq(event) {
             sampleRate: 48000,
             flushingTime: 200
         });
-        
-        // Initialize browser microphone if supported
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            initBrowserMic();
-            // Set up the audio send interval only once during startup
-            if (!audioSendInterval) {
-                setupAudioSendInterval();
-            }
-        } else {
-            console.log("Browser microphone not supported");
-        }
+    
     }
     
     function initBrowserMic() {
+        // Track initialization attempts
+        window.sbitxMic.initCount++;
+        console.log("Browser mic initialization attempt #" + window.sbitxMic.initCount);
+        
         // Skip if already initialized
-        if (micInitialized && micStream) {
+        if (window.sbitxMic.initialized && window.sbitxMic.stream) {
             console.log("Browser microphone already initialized, skipping");
             return;
         }
         
-        // Request access to the microphone with specific constraints
         navigator.mediaDevices.getUserMedia({
             audio: {
-                sampleRate: 48000,           // Request 48kHz if possible
+                sampleRate: 8000,            // Request 8kHz directly to match our needs
                 channelCount: 1,             // Mono audio
                 echoCancellation: true,      // Enable echo cancellation
                 noiseSuppression: true,      // Enable noise suppression
                 autoGainControl: true        // Enable auto gain control
             }
-        })
-        .then(function(stream) {
-            micStream = stream;
-            micContext = new (window.AudioContext || window.webkitAudioContext)();
-            console.log("Audio context sample rate: " + micContext.sampleRate + "Hz");
+        }).then(stream => {
+            window.sbitxMic.stream = stream;
+            window.sbitxMic.context = new (window.AudioContext || window.webkitAudioContext)();
+            window.sbitxMic.initialized = true; // Mark as initialized
+            console.log("Audio context sample rate: " + window.sbitxMic.context.sampleRate + "Hz");
             
-            // Check if AudioWorklet is supported
-            if (micContext.audioWorklet) {
-                audioWorkletSupported = true;
-                console.log("AudioWorklet is supported, but we'll use ScriptProcessor for compatibility");
-            }
+            const source = window.sbitxMic.context.createMediaStreamSource(stream);
+            window.sbitxMic.analyser = window.sbitxMic.context.createAnalyser();
+            window.sbitxMic.analyser.fftSize = 256;
+            window.sbitxMic.analyser.smoothingTimeConstant = 0.8;
             
-            // Set up audio processing chain for better quality
-            var source = micContext.createMediaStreamSource(stream);
+            window.sbitxMic.compressor = window.sbitxMic.context.createDynamicsCompressor();
+            window.sbitxMic.compressor.threshold.value = -24;  // Start compressing at -24dB
+            window.sbitxMic.compressor.knee.value = 10;        // Smooth knee
+            window.sbitxMic.compressor.ratio.value = 6;        // 6:1 compression ratio
+            window.sbitxMic.compressor.attack.value = 0.005;   // 5ms attack
+            window.sbitxMic.compressor.release.value = 0.050;  // 50ms release
             
-            // Create analyzer for monitoring audio levels
-            audioAnalyser = micContext.createAnalyser();
-            audioAnalyser.fftSize = 256;
-            audioAnalyser.smoothingTimeConstant = 0.8;
+            window.sbitxMic.gainNode = window.sbitxMic.context.createGain();
+            window.sbitxMic.gainNode.gain.value = 1.5;         // Slight boost
             
-            // Create compressor for more consistent audio levels
-            audioCompressor = micContext.createDynamicsCompressor();
-            audioCompressor.threshold.value = -24;  // Start compressing at -24dB
-            audioCompressor.knee.value = 10;        // Smooth knee
-            audioCompressor.ratio.value = 6;        // 6:1 compression ratio
-            audioCompressor.attack.value = 0.005;   // 5ms attack
-            audioCompressor.release.value = 0.050;  // 50ms release
+            window.sbitxMic.lowpassFilter = window.sbitxMic.context.createBiquadFilter();
+            window.sbitxMic.lowpassFilter.type = 'lowpass';
+            window.sbitxMic.lowpassFilter.frequency.value = 7000; // Cut off frequencies above 7kHz
+            window.sbitxMic.lowpassFilter.Q.value = 1.0;
             
-            // Create gain node for volume control
-            audioGainNode = micContext.createGain();
-            audioGainNode.gain.value = 1.5;         // Slight boost
+            window.sbitxMic.processor = window.sbitxMic.context.createScriptProcessor(2048, 1, 1);
             
-            // Create lowpass filter to reduce high frequency noise
-            audioLowpassFilter = micContext.createBiquadFilter();
-            audioLowpassFilter.type = 'lowpass';
-            audioLowpassFilter.frequency.value = 7000; // Cut off frequencies above 7kHz
-            audioLowpassFilter.Q.value = 1.0;
+            source.connect(window.sbitxMic.compressor);
+            window.sbitxMic.compressor.connect(window.sbitxMic.gainNode);
+            window.sbitxMic.gainNode.connect(window.sbitxMic.lowpassFilter);
+            window.sbitxMic.lowpassFilter.connect(window.sbitxMic.analyser);
+            window.sbitxMic.analyser.connect(window.sbitxMic.processor);
+            window.sbitxMic.processor.connect(window.sbitxMic.context.destination);
             
-            // Create a processor node to handle the audio data
-            micProcessor = micContext.createScriptProcessor(2048, 1, 1);
-            
-            // Connect the audio processing chain
-            source.connect(audioCompressor);
-            audioCompressor.connect(audioGainNode);
-            audioGainNode.connect(audioLowpassFilter);
-            audioLowpassFilter.connect(audioAnalyser);
-            audioAnalyser.connect(micProcessor);
-            micProcessor.connect(micContext.destination);
-            
-            // Process audio data and buffer when in TX mode
-            micProcessor.onaudioprocess = function(e) {
-                if (in_tx && micEnabled) {
-                    // Get the audio data
-                    var inputData = e.inputBuffer.getChannelData(0);
+            window.sbitxMic.processor.onaudioprocess = function(e) {
+                if (in_tx && window.sbitxMic.enabled) {
+                    const inputData = e.inputBuffer.getChannelData(0);
                     
-                    // Get audio level for visualization (optional)
-                    if (audioAnalyser) {
-                        var dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-                        audioAnalyser.getByteFrequencyData(dataArray);
-                        var sum = 0;
-                        for (var i = 0; i < dataArray.length; i++) {
-                            sum += dataArray[i];
-                        }
-                        var average = sum / dataArray.length;
-                        // Could use this for visual feedback
+                    const dataArray = new Uint8Array(window.sbitxMic.analyser.frequencyBinCount);
+                    window.sbitxMic.analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const average = sum / dataArray.length;
+                    
+                    const sampleRate = window.sbitxMic.context.sampleRate;
+                    const targetRate = 8000; // Always target 8kHz
+                    
+                    const ratio = Math.floor(sampleRate / targetRate);
+                    if (ratio < 1) ratio = 1; // Safety check
+                    
+                    const newLength = Math.floor(inputData.length / ratio);
+                    const downsampledData = new Float32Array(newLength);
+                    
+                    if (!window.sampleRateLogged) {
+                        console.log("Using browser sample rate: " + sampleRate + "Hz, ratio: " + ratio);
+                        window.sampleRateLogged = true;
                     }
                     
-                    // Basic approach with 8kHz sampling rate
-                    var downsampledData;
-                    var sampleRate = micContext.sampleRate;
-                    
-                    // Use 8kHz sampling rate
-                    var ratio = Math.floor(sampleRate / 8000);
-                    var newLength = Math.floor(inputData.length / ratio);
-                    downsampledData = new Float32Array(newLength);
-                    
-                    // Simple downsampling with gain reduction to prevent clipping
-                    var gainReduction = 0.15; // Reduce to 15% to prevent clipping
-                    for (var i = 0; i < newLength; i++) {
+                    const gainReduction = 0.15; // Reduce to 15% to prevent clipping
+                    for (let i = 0; i < newLength; i++) {
                         downsampledData[i] = inputData[i * ratio] * gainReduction;
                     }
                     
-                    // Apply high-frequency boost to improve clarity
-                    downsampledData = applyHighFrequencyBoost(downsampledData);
+                    const filtered = applyHighFrequencyBoost(downsampledData);
+                    const filtered2 = applyLowPassFilter(filtered);
                     
-                    // Apply gentle low-pass filter to smooth any harshness
-                    downsampledData = applyLowPassFilter(downsampledData);
-                    
-                    // Add samples to buffer for later processing and sending
-                    for (var i = 0; i < downsampledData.length; i++) {
-                        audioBuffer.push(downsampledData[i]);
+                    for (let i = 0; i < filtered2.length; i++) {
+                        window.sbitxMic.buffer.push(filtered2[i]);
                     }
                     
-                    // Limit buffer size to prevent memory issues
-                    if (audioBuffer.length > bufferSize * 3) {
-                        audioBuffer = audioBuffer.slice(audioBuffer.length - bufferSize * 3);
+                    if (window.sbitxMic.buffer.length > 10000) {
+                        window.sbitxMic.buffer = window.sbitxMic.buffer.slice(0, 5000);
                     }
-                }
-                
-                // Visual feedback that mic is active
-                var micBtn = document.getElementById('browser_mic');
-                if (micBtn && in_tx && micEnabled) {
-                    micBtn.style.backgroundColor = "yellow";
+                    
+                    const micBtn = document.getElementById('browser_mic');
+                    if (micBtn) {
+                        micBtn.style.backgroundColor = "yellow";
+                    }
                 }
             };
-                    
-            setTimeout(function() {
-                var micBtn = document.getElementById('browser_mic');
-                if (micBtn && micEnabled) {
-                    micBtn.style.backgroundColor = "yellow";
-                }
-            }, 100);
-        });
-        // Setup the interval to send audio data at regular intervals
-        // This helps create a more consistent audio stream
-        audioSendInterval = setInterval(function() {
-            if (in_tx && micEnabled && socket && socket.readyState === WebSocket.OPEN) {
-                var now = Date.now();
-                if (audioBuffer.length >= bufferThreshold || (now - lastSendTime > 200 && audioBuffer.length > 0)) {
-                    // Take what we have in the buffer, up to bufferSize
-                    var samplesToSend = Math.min(audioBuffer.length, bufferSize);
-                    var dataToSend = audioBuffer.slice(0, samplesToSend);
-                    // Minimal processing to reduce artifacts
-                    // Just apply a very gentle low-pass filter
-                    dataToSend = applyLowPassFilter(dataToSend);
-                    dataToSend = applyLowPassFilter(dataToSend);
-                    
-                    // Convert to 16-bit PCM with proper scaling
-                    var pcmData = new Int16Array(dataToSend.length);
-                    for (var i = 0; i < dataToSend.length; i++) {
-                        // Apply soft clipping to prevent harsh distortion
-                        var sample = dataToSend[i];
-                        if (sample > 0.8) {
-                            sample = 0.8 + (sample - 0.8) / (1 + Math.pow((sample - 0.8) / 0.2, 2));
-                        } else if (sample < -0.8) {
-                            sample = -0.8 - ((-sample) - 0.8) / (1 + Math.pow(((-sample) - 0.8) / 0.2, 2));
-                        }
-                        
-                        pcmData[i] = Math.round(sample * 32767);
-                    }
-                    
-                    // Send the audio data to the server
-                    socket.send(pcmData.buffer);
-                    lastSendTime = now;
-                    
-                    // Visual feedback with level indication
-                    var micBtn = document.getElementById('browser_mic');
-                    if (micBtn) {
-                        // Calculate audio level for visual feedback
-                        var level = calculateAudioLevel(dataToSend);
-                        var color = getColorForLevel(level);
-                        micBtn.style.backgroundColor = color;
-                        setTimeout(function() {
-                            if (micEnabled) {
-                                micBtn.style.backgroundColor = "yellow";
-                            }
-                        }, 100);
-                    }
-                }
-            }
+        }).then(function() {
             console.log("Browser microphone initialized");
-            micInitialized = true; // Mark as initialized
-        })
-        .catch(function(err) {
+            // Already set window.sbitxMic.initialized = true above
+        }).catch(function(err) {
             console.log("Error accessing microphone: " + err);
-            micInitialized = false;
+            window.sbitxMic.initialized = false;
         });
     }
     
-    // Setup the interval to send audio data at regular intervals outside of the initBrowserMic function
-    // to ensure we only have one interval running
+    // Setup the interval to send audio data at regular intervals
     function setupAudioSendInterval() {
         // Clear any existing interval first
-        if (audioSendInterval) {
-            clearInterval(audioSendInterval);
+        if (window.sbitxMic.sendInterval) {
+            clearInterval(window.sbitxMic.sendInterval);
+            window.sbitxMic.sendInterval = null;
         }
         
-        audioSendInterval = setInterval(function() {
-            if (in_tx && micEnabled && socket && socket.readyState === WebSocket.OPEN) {
+        // Create the interval directly with an inline function
+        window.sbitxMic.sendInterval = setInterval(function() {
+            if (in_tx && window.sbitxMic.enabled && socket && socket.readyState === WebSocket.OPEN) {
                 var now = Date.now();
-                if (audioBuffer.length >= bufferThreshold || (now - lastSendTime > 200 && audioBuffer.length > 0)) {
+                if (window.sbitxMic.buffer.length >= window.sbitxMic.bufferThreshold || 
+                    (now - window.sbitxMic.lastSendTime > 200 && window.sbitxMic.buffer.length > 0)) {
                     // Take what we have in the buffer, up to bufferSize
-                    var samplesToSend = Math.min(audioBuffer.length, bufferSize);
-                    var dataToSend = audioBuffer.slice(0, samplesToSend);
-                    audioBuffer = audioBuffer.slice(samplesToSend);
-                    // Apply more thorough processing for better quality
-                    // 1. Apply a gentle low-pass filter to reduce high-frequency noise
+                    var samplesToSend = Math.min(window.sbitxMic.buffer.length, window.sbitxMic.bufferSize);
+                    var dataToSend = window.sbitxMic.buffer.slice(0, samplesToSend);
+                    window.sbitxMic.buffer = window.sbitxMic.buffer.slice(samplesToSend);
+                    
+                    // Apply a gentle low-pass filter to reduce high-frequency noise
                     dataToSend = applyLowPassFilter(dataToSend);
                   
                     // Convert to 16-bit PCM with proper scaling
@@ -1700,7 +1652,7 @@ function change_freq(event) {
                     
                     // Send the audio data to the server
                     socket.send(pcmData.buffer);
-                    lastSendTime = now;
+                    window.sbitxMic.lastSendTime = now;
                     
                     // Visual feedback with level indication
                     var micBtn = document.getElementById('browser_mic');
@@ -1710,14 +1662,14 @@ function change_freq(event) {
                         var color = getColorForLevel(level);
                         micBtn.style.backgroundColor = color;
                         setTimeout(function() {
-                            if (micEnabled) {
+                            if (window.sbitxMic.enabled) {
                                 micBtn.style.backgroundColor = "yellow";
                             }
                         }, 100);
                     }
                 }
             }
-        }, sendIntervalMs);
+        }, window.sbitxMic.sendIntervalMs);
     }
     
     // Helper functions for audio processing
@@ -1736,9 +1688,9 @@ function change_freq(event) {
     };
     
     var applyHighFrequencyBoost = function(samples) {
-        // Simple high-frequency boost using a high-pass filter
+        // Strong high-frequency boost for better clarity
         var filtered = new Float32Array(samples.length);
-        var alpha = 0.2; // Lower alpha for stronger high-pass effect
+        var alpha = 0.2; // Stronger high-pass effect
         var lastSample = 0;
         var lastOutput = 0;
         
@@ -1747,7 +1699,7 @@ function change_freq(event) {
             var highPass = samples[i] - lastSample;
             lastSample = samples[i];
             
-            // Add some of the high-pass signal back to the original
+            // Add high-pass signal back to the original with strong boost
             filtered[i] = samples[i] + (highPass * 1.5); // Boost high frequencies by 150%
             
             // Limit to prevent clipping
@@ -1857,41 +1809,8 @@ function change_freq(event) {
         return "#FF3300"; // Red (loud)
     };
     
-    function toggleBrowserMic() {
-        // Initialize mic if not already done
-        if (!micInitialized) {
-            initBrowserMic();
-        }
-        
-        micEnabled = !micEnabled;
-        var micBtn = document.getElementById('browser_mic');
-        if (micEnabled) {
-            // Enable microphone
-            micBtn.style.backgroundColor = "yellow";
-            micBtn.style.color = "black";
-            micBtn.innerHTML = "Browser Mic ON";
-            
-            // Clear buffer and start fresh
-            audioBuffer = [];
-             
-            // Reset the audio send interval to ensure proper timing
-            setupAudioSendInterval();
-            lastSendTime = Date.now();
-            
-            // Resume audio context if it was suspended
-            if (micContext && micContext.state === 'suspended') {
-                micContext.resume();
-            }
-        } else {
-            // Disable microphone
-            micBtn.style.backgroundColor = "#555";
-            micBtn.style.color = "white";
-            micBtn.innerHTML = "Browser Mic OFF";
-            
-            // Clear the audio buffer
-            audioBuffer = [];
-        }
-    }
+    // The duplicate toggleBrowserMic function has been removed
+    // The main toggleBrowserMic function is defined above
 
     function move_caret(elem, caretPos) {
 

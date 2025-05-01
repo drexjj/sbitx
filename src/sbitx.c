@@ -568,14 +568,14 @@ void upsample_browser_mic(int32_t *output, int n_samples)
 		input_samples[j] = (int16_t)(input_samples[j] * 0.25);
 	}
 	
-	// Apply high-frequency enhancement
+	// Apply strong high-frequency enhancement for better clarity
 	int16_t prev_sample = 0;
 	for (int j = 0; j < samples_read; j++) {
 		// Simple high-pass filter (current - previous)
 		int16_t high_freq = input_samples[j] - prev_sample;
 		prev_sample = input_samples[j];
 		
-		// Add some high frequencies back to enhance clarity
+		// Add high frequencies back to enhance clarity (strong boost)
 		input_samples[j] = input_samples[j] + (high_freq * 0.7);
 	}
 	
