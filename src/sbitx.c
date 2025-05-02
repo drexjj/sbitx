@@ -143,7 +143,7 @@ static int mute_count = 50;
 struct Queue qbrowser_mic;
 static int browser_mic_active = 0;
 static int browser_mic_last_activity = 0;
-#define BROWSER_MIC_TIMEOUT 5000 // Increased timeout for more reliable fallback // Increased timeout to 2 seconds
+#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback 
 
 // Audio buffer for smoothing browser mic audio
 #define BROWSER_MIC_BUFFER_SIZE 48000 // 500ms at 96kHz
