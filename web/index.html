@@ -1461,7 +1461,7 @@ function change_freq(event) {
         
         if (window.sbitxMic.enabled) {
             micBtn.textContent = "Browser Mic ON";
-            micBtn.style.backgroundColor = "yellow";
+            //micBtn.style.backgroundColor = "yellow";
             console.log("Browser microphone enabled");
             
             // Initialize microphone if not already done
@@ -1498,30 +1498,7 @@ function change_freq(event) {
         });
     }
 
-function show_keyboard() {
-    $("#keybd").show();
-}
 /* Filter Panel */
-
-function receiver_panel_open() {
-    log("intializing the receiver panel");
-    //resize the waterfall and the spectrum, both need to be visible when tuning
-    var waterfall = el("waterfall");
-    var spectrum = el("spectrum");
-    //	spectrum.height = 50;
-    //	waterfall.height = 50;
-
-}
-
-function filter_set(event) {
-    var id = parseInt(event.currentTarget.id);
-    var center = parseInt(el("PITCH").value);
-    var mode = el("MODE").value;
-    var low = 300;
-    var high = 3000;
-
-    websocket_send("bandwidth " + id);
-}
 
 /* audio stuff (this needs to work with webrtc data packets rather than websockets */
 //setup the audio
@@ -1543,50 +1520,6 @@ window.sbitxMic = window.sbitxMic || {
     lastSendTime: 0,          // Timestamp of last audio send
     initCount: 0              // Track initialization attempts
 };
-
-function toggleBrowserMic() {
-    // Toggle mic state using the global object
-    window.sbitxMic.enabled = !window.sbitxMic.enabled;
-    var micBtn = document.getElementById('browser_mic');
-    
-    if (window.sbitxMic.enabled) {
-        micBtn.textContent = "Browser Mic ON";
-        console.log("Browser microphone enabled");
-        
-        // Initialize microphone if not already done
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            // Only initialize once
-            if (!window.sbitxMic.initialized) {
-                console.log("Initializing browser mic");
-                initBrowserMic();
-            }
-            
-            // Set up the audio send interval only once
-            if (!window.sbitxMic.sendInterval) {
-                setupAudioSendInterval();
-            }
-        } else {
-            console.log("Browser microphone not supported");
-        }
-    } else {
-        micBtn.textContent = "Browser Mic OFF";
-        micBtn.style.backgroundColor = "";
-        console.log("Browser microphone disabled");
-        
-        // Clear the audio buffer when mic is disabled
-        window.sbitxMic.buffer = [];
-    }
-}
-
-function audio_start() {
-    player = new PCMPlayer({
-        encoding: '16bitInt',
-        channels: 1,
-        sampleRate: 48000,
-        flushingTime: 200
-    });
-    
-}
 
 async function initBrowserMic() {
     // Track initialization attempts
@@ -1662,8 +1595,6 @@ async function initBrowserMic() {
         window.sbitxMic.initialized = false;
     }
 }
-
-// This function was removed as we no longer need color visualization for the mic button
 
 // Setup the interval to send audio data at regular intervals
 function setupAudioSendInterval() {
@@ -2450,11 +2381,6 @@ function show_in_qrz_window(callsign) {
     function logbook_search() {
         logbook_reset();
     }
-
-    function open_logbook(event) {
-        open_panel("logbook_panel");
-    }
-
 
     /* settings panel */
 
