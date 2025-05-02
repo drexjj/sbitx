@@ -39,9 +39,6 @@ static struct mg_mgr mgr;  // Event manager
 // Debug flag for webserver logging
 static int webserver_debug_enabled = 0; // Set to 1 to enable verbose logging
 
-// Redirect HTTP to HTTPS flag
-static int redirect_http_to_https = 0; // Set to 1 to enable automatic redirect to HTTPS
-
 // Helper function to read a file into a dynamically allocated buffer
 // Returns NULL on error, caller must free the buffer.
 static char *read_file(const char *path, size_t *len)
@@ -321,22 +318,31 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
     }
   } else if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-
+ // Determine if redirection should happen based on IP
+    int redirect_http_to_https;
+    if (c->rem.ip[0] == 127 && c->rem.ip[1] == 0 && c->rem.ip[2] == 0 && c->rem.ip[3] == 1) {
+        // Connection is from localhost, disable redirect
+        redirect_http_to_https = 0;
+    } else {
+        // Connection is not from localhost, enable redirect 
+        redirect_http_to_https = 1;
+    }
     // Check for HTTP->HTTPS redirect *before* other handling
     if (redirect_http_to_https && !c->is_tls) {
       // Construct the target URL: https://sbitx.local:8443 + original URI
-      // Using sbitx.local as it's the CN in the certificate
       char https_url[2048];
       snprintf(https_url, sizeof(https_url), "https://sbitx.local:8443%.*s", 
                (int)hm->uri.len, hm->uri.buf);
       
-      // Send 302 Found redirect
-      mg_http_reply(c, 302, "Found", "Location: %s\r\n", https_url);
-      
-      if (webserver_debug_enabled) {
-           printf("Redirecting HTTP request for %.*s to %s\n", (int)hm->uri.len, hm->uri.buf, https_url);
-      }
-      return; // Stop further processing for this connection
+      // Construct the Location header string, including Content-Length: 0
+      char redir_headers[2100]; 
+      snprintf(redir_headers, sizeof(redir_headers), "Location: %s\r\nContent-Length: 0\r\n", https_url);
+
+      // Send 302 redirect using the extra_headers parameter (3rd arg), empty body format (4th arg)
+      mg_http_reply(c, 302, redir_headers, ""); 
+            
+      // Stop processing this request after sending the redirect
+      return; 
     }
 
     // Log basic HTTP message receipt only if debugging (if not redirected)
