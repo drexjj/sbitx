@@ -1,0 +1,4 @@
+TLS requires the installation of the OpenSSL runtime libraries: 
+sudo apt update && sudo apt install openssl libssl-dev
+
+In webserver.c on line 43 set redirect_http_to_https = 1; to force http://sbitx.local to https://sbitx.local:8443

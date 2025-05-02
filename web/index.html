@@ -253,7 +253,7 @@
             </div><!-- end of help text -->
             <div id="login_panel">
                 <div class="help_text">
-                    <h1>sBitx v3</h1>
+                    <h1>sBitx v4.4</h1>
                     <p>The sBitx is an open-source, hackable, next generation radio.</p>
                     <p>Enter passkey to access your sbitx.</p>
                     <div id="login_error"></div>
@@ -261,8 +261,12 @@
                            name="passkey" autocomplete="off" placeholder="passkey" />
                     <button class="logger-button" id="start_login">Start</button>
                     <p>New user? Try 123 as the passkey. Change it when prompted.</p>
+                    <div style="margin-top: 15px; padding: 10px; background-color: #000000;">
+                        <p><strong>Want to TX remotely? <a href="https://sbitx.local:8443" style="color: #0066cc;">https://sbitx.local:8443</a></p>
+                        <p><small>Note: You may need to accept the self-signed certificate warning.</small></p>
+                    </div>
                     <p>
-                        Released under General Public Licens v3.0.<br />
+                        Released under General Public License v3.0.<br />
                         (c) Ashhar Farhan, 2023
                     </p>
                 </div>
@@ -603,7 +607,27 @@
 
     /* socket handlers */
     var socket = null;
-
+    
+    // Helper function to determine if we're using HTTPS
+    function isSecureConnection() {
+        return window.location.protocol === 'https:';
+    }
+    
+    // Helper function to get the correct WebSocket protocol (ws:// or wss://)
+    function getWebSocketProtocol() {
+        return isSecureConnection() ? 'wss://' : 'ws://';
+    }
+    
+    // Helper function to get the correct port
+    function getWebSocketPort() {
+        return isSecureConnection() ? '8443' : '8080';
+    }
+    
+    // Helper function to get the correct WebSocket path
+    function getWebSocketPath() {
+        return '/websocket';
+    }
+    
     function on_open(event) {
         log("socket is connected");
         websocket_send("login=" + el("passkey").value);
@@ -661,29 +685,50 @@
 
     function do_login() {
         log("requesting full screen");
-        if (document.location.hostname == "127.0.0.1")
+        if (document.location.hostname == "127.0.0.1") {
             go_fullscreen();
-        //	document.documentElement.requestFullscreen();
-        log("done full screen");
-        if (socket != null)
-            socket.close();
-        log("reset the socket, if any");
+        }
+        
+        // Check passkey for non-local connections
         if (el("passkey").value.length < 3 && document.location.hostname != "127.0.0.1") {
             alert("Enter the passkey (three characters or more)");
             return false;
         }
-        log("creating a new socket, if any");
-        socket = new WebSocket("ws://" + location.host + "/websocket");
-        log("created the new socket");
-        socket.onopen = on_open;
-        socket.onmessage = on_message;
-        socket.onclose = on_close;
-        socket.onerror = on_error;
-        if (document.location.hostname != "127.0.0.1")
-            audio_start();
+        
+        if (socket != null) {
+            socket.close();
+            socket = null;
+        }
+
+        // Use the helper functions to determine protocol and port
+        var wsProtocol = getWebSocketProtocol();
+        var wsPort = getWebSocketPort();
+        var wsPath = getWebSocketPath();
+        var hostname = window.location.hostname;
+        if (hostname == "") {
+            hostname = "localhost";
+        }
+        
+        var wsUrl = wsProtocol + hostname + ":" + wsPort + wsPath;
+        
+        log("opening socket to " + wsUrl);
+        try {
+            socket = new WebSocket(wsUrl);
+            socket.binaryType = "arraybuffer";
+            socket.onopen = on_open;
+            socket.onclose = on_close;
+            socket.onmessage = on_message;
+            socket.onerror = on_error;
+            
+            // Start audio for non-local connections
+            if (document.location.hostname != "127.0.0.1") {
+                audio_start();
+            }
+        } catch (e) {
+            log("socket error: " + e);
+            end_login("Failed to connect to sBitx");
+        }
     }
-
-
 
     // ui panel switchers
     function show_login() {
@@ -1490,22 +1535,24 @@ function change_freq(event) {
     }
 
     function audio_start() {
-        player = new PCMPlayer({
-            encoding: '16bitInt',
-            channels: 1,
-            sampleRate: 48000,
-            flushingTime: 200
-        });
+        try {
+            // Create new PCM player if not already created
+            if (!player) {
+                player = new PCMPlayer({
+                    encoding: '16bitInt',
+                    channels: 1,
+                    sampleRate: 48000,  // Use 48kHz sample rate for better audio quality
+                    flushingTime: 100
+                });
+                log("PCM player initialized successfully");
+            } else {
+                log("PCM player already initialized");
+            }
+        } catch (e) {
+            log("audio player error: " + e);
+        }
     }
 
-/* Filter Panel */
-
-/* audio stuff (this needs to work with webrtc data packets rather than websockets */
-//setup the audio
-var player = null;
-var micStream = null;
-var micContext = null;
-// Set up variables for browser microphone - single global object to prevent duplication
 window.sbitxMic = window.sbitxMic || {
     enabled: false,
     initialized: false,
@@ -1821,9 +1868,6 @@ function setupAudioSendInterval() {
         var confidence_score = token_list[1];
         var signal_strength = token_list[2];
         var rx_frequency = token_list[3];
-        var contact_callsign = token_list[5];
-        var sender_callsign = token_list[6];
-        var message = token_list[7];
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
         var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
 
@@ -2588,6 +2632,7 @@ function show_in_qrz_window(callsign) {
         var cmd = "";
         var args = "";
 
+        // Handle binary data (audio samples)
         if (response instanceof Blob) {
             f = new FileReader();
             f.onload = () => {
@@ -2606,6 +2651,33 @@ function show_in_qrz_window(callsign) {
                 }
             }
             f.readAsArrayBuffer(response);
+            return;
+        }
+        
+        // Handle ArrayBuffer data (binary audio data)
+        if (response instanceof ArrayBuffer || 
+            (typeof response === 'object' && response.constructor && 
+             response.constructor.name === 'ArrayBuffer')) {
+            if (player != null && !sound_mute) {
+                var samples = new Int16Array(response);
+                var upsample = new Int16Array(samples.length * intp_factor);
+                var j = 0;
+                //interpolate, generating higher sampling rate
+                for (var i = 0; i < samples.length; i++)
+                    for (var x = 0; x < intp_factor; x++) {
+                        upsample[j++] = ((prev_sample * (intp_factor - x - 1))
+                            + (samples[i] * (x + 1))) / intp_factor;
+                        prev_sample = samples[i];
+                    }
+                player.feed(upsample);
+            }
+            return;
+        }
+        
+        // Handle string data
+        // Make sure response is a string before using string methods
+        if (typeof response !== 'string') {
+            // Silently ignore non-string, non-binary data
             return;
         }
 
@@ -2968,4 +3040,20 @@ function show_in_qrz_window(callsign) {
         con.fadeOut(6000);
     }
 </script>
+<script>
+    function setDebug(on) {
+        ws.send("DEBUG:"+on);
+    }
+
+    // Hide Browser Mic button if not on HTTPS
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const browserMicButton = document.getElementById('browser_mic');
+        if (browserMicButton && window.location.protocol !== 'https:') {
+            console.log('Not on HTTPS, hiding Browser Mic button.');
+            browserMicButton.style.display = 'none';
+        }
+    });
+
+</script>
+</body>
 </html>
