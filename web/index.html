@@ -1551,7 +1551,6 @@ function toggleBrowserMic() {
     
     if (window.sbitxMic.enabled) {
         micBtn.textContent = "Browser Mic ON";
-        micBtn.style.backgroundColor = "yellow";
         console.log("Browser microphone enabled");
         
         // Initialize microphone if not already done
@@ -1637,7 +1636,7 @@ async function initBrowserMic() {
             // Handle messages from the processor
             window.sbitxMic.workletNode.port.onmessage = (event) => {
                 if (in_tx && window.sbitxMic.enabled) {
-                    const { audioData, level } = event.data;
+                    const { audioData } = event.data;
                     
                     // Add processed audio to buffer for sending
                     for (let i = 0; i < audioData.length; i++) {
@@ -1648,9 +1647,6 @@ async function initBrowserMic() {
                     if (window.sbitxMic.buffer.length > 10000) {
                         window.sbitxMic.buffer = window.sbitxMic.buffer.slice(0, 5000);
                     }
-                    
-                    // Visual feedback
-                    updateMicButtonColor(level);
                 }
             };
             
@@ -1667,21 +1663,7 @@ async function initBrowserMic() {
     }
 }
 
-// Helper function to update mic button color based on audio level
-function updateMicButtonColor(level) {
-    const micBtn = document.getElementById('browser_mic');
-    if (micBtn) {
-        const color = getColorForLevel(level);
-        micBtn.style.backgroundColor = color;
-        
-        // Reset to yellow after a short delay
-        setTimeout(function() {
-            if (window.sbitxMic.enabled) {
-                micBtn.style.backgroundColor = "yellow";
-            }
-        }, 100);
-    }
-}
+// This function was removed as we no longer need color visualization for the mic button
 
 // Setup the interval to send audio data at regular intervals
 function setupAudioSendInterval() {
@@ -1725,15 +1707,7 @@ function setupAudioSendInterval() {
         }, window.sbitxMic.sendIntervalMs);
     }
     
-    // Helper function for audio level visualization
-    var getColorForLevel = function(level) {
-        // Convert level (0-1) to color
-        if (level < 0.1) return "#FFFF00"; // Yellow (quiet)
-        if (level < 0.3) return "#FFCC00"; // Orange-yellow
-        if (level < 0.6) return "#FF9900"; // Orange
-        if (level < 0.8) return "#FF6600"; // Dark orange
-        return "#FF3300"; // Red (loud)
-    };
+    // This function was removed as we no longer need color levels for the mic button
     
 
     function move_caret(elem, caretPos) {

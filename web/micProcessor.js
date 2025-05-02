@@ -54,13 +54,9 @@ class MicAudioProcessor extends AudioWorkletProcessor {
     // Apply low-pass filter to smooth any harshness
     const filteredData = this.applyLowPassFilter(boostedData);
     
-    // Calculate audio level for visualization
-    const level = this.calculateAudioLevel(filteredData);
-    
-    // Send processed audio and level to main thread
+    // Send processed audio to main thread
     this.port.postMessage({
-      audioData: filteredData,
-      level: level
+      audioData: filteredData
     });
     
     return true; // Keep processor alive
@@ -102,13 +98,7 @@ class MicAudioProcessor extends AudioWorkletProcessor {
     return filtered;
   }
   
-  calculateAudioLevel(samples) {
-    let sum = 0;
-    for (let i = 0; i < samples.length; i++) {
-      sum += Math.abs(samples[i]);
-    }
-    return sum / samples.length;
-  }
+  // calculateAudioLevel function removed as we no longer need visual feedback
 }
 
 // Register the processor with a name that will be used to create it
