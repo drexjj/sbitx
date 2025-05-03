@@ -541,6 +541,7 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -4548,6 +4549,16 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		// Use the focus_keypad.sh script to either focus the existing keypad
 		// or launch a new one if it's not running
 		system("/home/pi/sbitx/src/focus_keypad.sh &");
+		
+		// Force a redraw of the VFO area to prevent black background
+		invalidate_rect(f->x, f->y, f->width, f->height);
+		
+		// Also redraw the r1:freq field which is underneath
+		struct field *freq_field = get_field("r1:freq");
+		if (freq_field) {
+			invalidate_rect(freq_field->x, freq_field->y, freq_field->width, freq_field->height);
+		}
+		
 		return 1;
 	}
 	return 0;
@@ -7988,7 +7999,19 @@ int main(int argc, char *argv[])
 	//	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
 	//	"  &>/dev/null &");
 
+	// Register a function to be called when the application exits
+	atexit(cleanup_on_exit);
+
 	gtk_main();
 
 	return 0;
+}
+
+// Function to clean up resources when the application exits
+void cleanup_on_exit() {
+	// Close the frequency keypad if it's running
+	system("/home/pi/sbitx/src/cleanup_keypad.sh");
+	
+	// Add any other cleanup tasks here
+	printf("Cleaning up resources before exit\n");
 }
