@@ -34,6 +34,23 @@ static const char *s_ssl_key_path = "/home/pi/sbitx/ssl/key.pem";
 
 static char s_web_root[1000];
 static char session_cookie[100];
+static int active_websocket_connections = 0; // Counter for active WebSocket connections
+static int quit_webserver = 0; // Flag to signal webserver thread to stop
+static pthread_t webserver_thread; // Thread handle for the webserver
+
+// Define a structure to track WebSocket connections
+#define MAX_WS_CONNECTIONS 10
+#define WS_CONNECTION_TIMEOUT_MS 5000  // 5 seconds timeout
+
+typedef struct {
+    struct mg_connection *conn;  // Pointer to the connection
+    int64_t last_active_time;    // Timestamp of last activity
+    int active;                  // Whether this connection is active
+    char ip_addr[50];           // IP address of the client
+} ws_connection_t;
+
+static ws_connection_t ws_connections[MAX_WS_CONNECTIONS] = {0};
+static int64_t last_ping_time = 0;  // Time of last ping check
 static struct mg_mgr mgr;  // Event manager
 
 // Debug flag for webserver logging
@@ -367,10 +384,123 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
   } else if (ev == MG_EV_WS_MSG) {
     // Got websocket frame. Received data is wm->data
     struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
-//		printf("ws request,  client to %x:%d\n", c->rem.ip, c->rem.port);
-    web_despatcher(c, wm);
+    
+    // Update the last active time for this connection
+    for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+      if (ws_connections[i].active && ws_connections[i].conn == c) {
+        ws_connections[i].last_active_time = mg_millis();
+        break;
+      }
+    }
+    
+    // Handle pong messages
+    if (wm->flags == WEBSOCKET_OP_PONG) {
+      // Just update the timestamp, which we already did above
+      if (webserver_debug_enabled) {
+        printf("Received pong from client\n");
+      }
+    } else {
+      // Regular message
+      web_despatcher(c, wm);
+    }
+  } else if (ev == MG_EV_WS_OPEN) {
+    // WebSocket connection opened
+    active_websocket_connections++;
+    
+    // Add to our connection tracking array
+    for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+      if (!ws_connections[i].active) {
+        ws_connections[i].conn = c;
+        ws_connections[i].last_active_time = mg_millis();
+        ws_connections[i].active = 1;
+        
+        // Store the client IP address
+        char ip_str[50];
+        // Format IP address manually using the connection's remote address (without port)
+        snprintf(ip_str, sizeof(ip_str), "%d.%d.%d.%d", 
+                 c->rem.ip[0], c->rem.ip[1], c->rem.ip[2], c->rem.ip[3]);
+        strncpy(ws_connections[i].ip_addr, ip_str, sizeof(ws_connections[i].ip_addr)-1);
+        ws_connections[i].ip_addr[sizeof(ws_connections[i].ip_addr)-1] = '\0'; // Ensure null termination
+        
+        break;
+      }
+    }
+    
+    if (webserver_debug_enabled) {
+      printf("WebSocket connection opened, active connections: %d\n", active_websocket_connections);
+    }
+  } else if (ev == MG_EV_CLOSE) {
+    // Check if this was a WebSocket connection
+    if (c->is_websocket) {
+      // Remove from our connection tracking array
+      for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+        if (ws_connections[i].active && ws_connections[i].conn == c) {
+          ws_connections[i].active = 0;
+          ws_connections[i].conn = NULL;
+          break;
+        }
+      }
+      
+      active_websocket_connections--;
+      if (active_websocket_connections < 0) active_websocket_connections = 0; // Safety check
+      
+      if (webserver_debug_enabled) {
+        printf("WebSocket connection closed, active connections: %d\n", active_websocket_connections);
+      }
+      
+      // Just update the connection status - the regular UI update cycle will handle the transition
+      if (active_websocket_connections == 0) {
+        // Send a simple refresh message
+        web_update("refresh");
+      }
+    }
   }
   // No additional data needed
+}
+
+// Check for stale connections and send pings
+void check_websocket_connections() {
+  int64_t current_time = mg_millis();
+  int connections_closed = 0;
+  
+  // Send pings every 2 seconds
+  if (current_time - last_ping_time > 2000) {
+    last_ping_time = current_time;
+    
+    // Check each connection
+    for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+      if (ws_connections[i].active) {
+        // Check if connection has timed out
+        if (current_time - ws_connections[i].last_active_time > WS_CONNECTION_TIMEOUT_MS) {
+          // Connection timed out, mark as inactive
+          if (webserver_debug_enabled) {
+            printf("WebSocket connection timed out and closed\n");
+          }
+          
+          // Close the connection
+          mg_ws_send(ws_connections[i].conn, "", 0, WEBSOCKET_OP_CLOSE);
+          ws_connections[i].active = 0;
+          ws_connections[i].conn = NULL;
+          connections_closed++;
+        } else {
+          // Send a ping to keep the connection alive
+          mg_ws_send(ws_connections[i].conn, "ping", 4, WEBSOCKET_OP_PING);
+        }
+      }
+    }
+    
+    // If we closed any connections, update the counter
+    if (connections_closed > 0) {
+      active_websocket_connections -= connections_closed;
+      if (active_websocket_connections < 0) active_websocket_connections = 0;
+      
+      // If all connections are now closed, just update the connection status
+      if (active_websocket_connections == 0) {
+        // Send a simple refresh message
+        web_update("refresh");
+      }
+    }
+  }
 }
 
 void *webserver_thread_function(void *server){
@@ -447,8 +577,11 @@ void *webserver_thread_function(void *server){
   }
 
   // Event loop
-  while(1) {
-    mg_mgr_poll(&mgr, 100); // Poll events every 100ms
+  while(!quit_webserver){
+    mg_mgr_poll(&mgr, 100);  // Poll for 100ms
+    
+    // Check for stale connections
+    check_websocket_connections();
   }
 
   // Cleanup (won't be reached in this infinite loop, but good practice)
@@ -458,11 +591,56 @@ void *webserver_thread_function(void *server){
   return NULL;
 }
 
-void webserver_stop(){
-  mg_mgr_free(&mgr);
+// Function to check if any remote browser sessions are active
+int is_remote_browser_active() {
+  return active_websocket_connections > 0;
 }
 
-static pthread_t webserver_thread;
+// Function to get the IP addresses of active connections
+// Returns a comma-separated list of IP addresses in the provided buffer
+// Returns the number of active connections
+int get_active_connection_ips(char *buffer, int buffer_size) {
+  int count = 0;
+  buffer[0] = '\0'; // Initialize empty string
+  
+  for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+    if (ws_connections[i].active) {
+      // Add comma if not the first IP
+      if (count > 0) {
+        strncat(buffer, ", ", buffer_size - strlen(buffer) - 1);
+      }
+      
+      // Add the IP address
+      strncat(buffer, ws_connections[i].ip_addr, buffer_size - strlen(buffer) - 1);
+      count++;
+    }
+  }
+  
+  return count;
+}
+
+void webserver_stop(){
+	// Signal the thread to stop
+	quit_webserver = 1;
+	
+	// Wait for the thread to finish (optional)
+	pthread_join(webserver_thread, NULL);
+	
+	// Reset the flag for potential restart
+	quit_webserver = 0;
+}
+
+// Function to send updates to all connected WebSocket clients
+void web_update(char *message) {
+	// Iterate through all active connections and send the message
+	for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+		if (ws_connections[i].active && ws_connections[i].conn != NULL) {
+			mg_ws_send(ws_connections[i].conn, message, strlen(message), WEBSOCKET_OP_TEXT);
+		}
+	}
+}
+
+// Webserver start function
 
 void webserver_start(){
 	char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it

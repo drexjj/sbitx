@@ -2224,6 +2224,39 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
+	// Check if remote browser session is active
+	if (is_remote_browser_active())
+	{
+		// Display message instead of rendering waterfall
+		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_fill(gfx);
+
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 14);
+
+		// Get the IP address of the connected client
+		char ip_list[256];
+		get_active_connection_ips(ip_list, sizeof(ip_list));
+		
+		// Create the message with IP address
+		char message[512];
+		snprintf(message, sizeof(message), "Waterfall display disabled - Remote session from %s", ip_list);
+		
+		// Calculate text position
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, message, &extents);
+
+		// Center the text
+		float x = f->x + (f->width - extents.width) / 2;
+		float y = f->y + (f->height + extents.height) / 2;
+
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, message);
+		return;
+	}
+
 	// Temp local variables.  To be updated by GUI later.
 	float initial_wf_min = 0.0f;
 	float initial_wf_max = 100.0f;
@@ -2384,6 +2417,39 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
+	// Check if remote browser session is active
+	if (is_remote_browser_active())
+	{
+		// Display message instead of rendering spectrum
+		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
+		cairo_rectangle(gfx, f_spectrum->x, f_spectrum->y, f_spectrum->width, f_spectrum->height);
+		cairo_fill(gfx);
+
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 14);
+
+		// Get the IP address of the connected client
+		char ip_list[256];
+		get_active_connection_ips(ip_list, sizeof(ip_list));
+		
+		// Create the message with IP address
+		char message[512];
+		snprintf(message, sizeof(message), "Spectrum display disabled - Remote session from %s", ip_list);
+		
+		// Calculate text position
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, message, &extents);
+
+		// Center the text
+		float x = f_spectrum->x + (f_spectrum->width - extents.width) / 2;
+		float y = f_spectrum->y + (f_spectrum->height + extents.height) / 2;
+
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, message);
+		return;
+	}
+
 	int y, sub_division, i, grid_height, bw_high, bw_low, pitch, tx_pitch;
 	float span;
 	struct field *f;
@@ -3144,10 +3210,11 @@ void draw_dial(struct field *f, cairo_t *gfx)
 void invalidate_rect(int x, int y, int width, int height)
 {
 	if (display_area)
-	{
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
-	}
 }
+
+// These functions have been removed to avoid memory corruption issues
+// The regular UI update cycle will handle refreshing the display when needed
 
 // the keyboard appears at the bottom 150 pixels of the window
 void keyboard_display(int show)
@@ -6714,6 +6781,7 @@ gboolean ui_tick(gpointer gook)
 		else
 			edit_field(f_focus, MIN_KEY_UP);
 	}
+	
 	return TRUE;
 }
 
