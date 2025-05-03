@@ -815,6 +815,10 @@ struct field main_controls[] = {
 	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
+	// WFCALL option ON/OFF
+	{"#wfcall_option", do_toggle_option, 1000, -1000, 40, 40, "WFCALLOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+
 	// INA260 Option ON/OFF (enable/disable sensor readout)
 	{"#ina260_option", do_toggle_option, 1000, -1000, 40, 40, "INA260OPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -3273,9 +3277,13 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-                field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
+		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
-		field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
+		if (!strcmp(field_str("WFCALLOPT"), "ON"))
+		{
+			field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
+		}
+		
 
 	}
 	else
