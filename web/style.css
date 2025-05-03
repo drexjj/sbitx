@@ -1,886 +1,965 @@
+/* Custom properties for reusability */
+:root {
+    --primary-bg: #1a1a1a;
+    --primary-text: #fff;
+    --accent-red: #ff471a;
+    --accent-blue: #1a75ff;
+    --accent-yellow: #ffff00;
+    --border-radius: 5px;
+    --spacing-sm: 5px;
+    --spacing-md: 10px;
+    --font-primary: 'Helvetica', 'Verdana', sans-serif;
+    --font-mono: 'Courier New', monospace;
+}
+
+
 body {
-	overflow-x: hidden;
-	margin: 0px;
+    overflow-x: hidden;
+    margin: 0;
+    background-color: var(--primary-bg);
+    color: cyan;
+    font-family: var(--font-primary);
 }
 
 #sdr_page:after {
-	content:"";
-	display: table;
-	clear: both;
+    content: "";
+    display: table;
+    clear: both;
 }
 
-/* tx meters use these */
+/* Slider controls */
 .slider-label {
-	display: inline-block;
-	width: 50px;
-	text-align: right;
-	font-weight: bold;
+    display: inline-block;
+    width: 50px;
+    text-align: right;
+    font-weight: bold;
 }
 
 .sbitx-slider {
-	width: 100px;
+    width: 100px;
 }
 
 .slider-reading {
-	display: inline-block;
-	text-align: right;
-	width: 50px;
+    display: inline-block;
+    text-align: right;
+    width: 50px;
 }
 
 .sbitx-selection {
-	border: none;
-	font-size: 12pt;
-	color: white; 
+    border: none;
+    font-size: 12pt;
+    color: var(--primary-text);
+    background: var(--primary-bg);
 }
 
 .sbitx-selection option {
-	font-size: 11px;
+    font-size: 11px;
 }
 
-select, select option, input {
-	background: black;
-	color: #fff; 
-	opacity: 1;
+select,
+select option,
+input {
+    background: var(--primary-bg);
+    color: var(--primary-text);
+    opacity: 1;
 }
 
 .sbitx-text-input {
-	height: 30px;
-	font-size: 12pt;
-	readonly: true;
+    height: 30px;
+    font-size: 12pt;
 }
 
-/* topbar (actually to the left right now) */
-
-#sidebar{
-	float: left;
-	width: 200px;
-	background-color: black;
-	padding-top: 30px;
+/* Sidebar */
+#sidebar {
+    float: left;
+    width: 200px;
+    background-color: var(--primary-bg);
+    padding-top: 30px;
 }
 
 #restore-btn {
-	float: right;
-	display: inline-block;
-	background-color: #444;
-	font-size: 20pt;
-	position: fixed;
-	top: 0px;
-	right: 0px;
-	padding-left: 5px;
-	padding-right: 5px;
-	text-align: center;
-	color: white;
-	margin: 2px;
-	border-radius: 5px;	
-/*	line-height: 45px; */
-/*	border: 1px solid white; */
-	z-index: 99;
-}
-
-
-
-#vfo-btn {
+    float: right;
+    display: inline-block;
+    background-color: #444;
+    font-size: 20pt;
+    position: fixed;
+    top: 0;
+    right: 0;
+    padding: var(--spacing-sm);
+    text-align: center;
+    color: var(--primary-text);
+    margin: 2px;
+    border-radius: var(--border-radius);
+    z-index: 99;
+    font-family: 'Segoe UI Symbol', 'Noto Sans Symbols', sans-serif;
 }
 
 .menu-item {
-	display: block;
-	width: 200px;
-	border-collapse: collapse;
-	padding: 0;
-	margin-bottom:10px;
-	vertical-align: top;
-	text-align: left;
+    display: flex;
+    width: 200px;
+    padding: 0;
+    margin-bottom: var(--spacing-md);
+    vertical-align: center;
+    text-align: center;
 }
 
 #tx_meters {
-	position: absolute;
-	background-color: #ff471a;
-	padding: 10px;
-	width: 200px;
-	height: 60px;
-	color: white;
-	display: none;
-	padding-left: 10px;
-	z-index = 1;
+    position: absolute;
+    background-color: var(--accent-red, #ff4d4d); /* Fallback color */
+    padding: var(--spacing-md, 0.75rem); /* Fallback to rem */
+    width: clamp(160px, 20vw, 200px); /* Responsive width */
+    height: clamp(48px, 8vh, 60px); /* Responsive height */
+    color: var(--primary-text, #ffffff); /* Fallback text color */
+    display: none;
+    z-index: 1;
+    border-radius: 6px; /* Modern rounded corners */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* Subtle shadow for depth */
+    transition: opacity 0.3s ease, transform 0.3s ease; /* Smooth show/hide */
 }
-
 #rx_controls {
-	display: block;
-	height: 60px;
+    display: block;
+    height: 60px;
 }
-
-/*
-#tuning_knob {
-	display: inline-block;
-	width: 350px;
-	text-align: center;
-}
-*/
 
 #dial {
-	background-color: #3dacbf;
-	width: 146px;
-	padding-top: 0;
-	text-align: left;
-	height: 40px;
+    background-color: #3dacbf;
+    width: 146px;
+    padding-top: 0;
+    text-align: left;
+    align-items: center;
+    /* Vertical centering */
+    justify-content: center;
+    /* Horizontal centering */
+    height: 40px;
+}
+
+#tuning_knob {
+    display: inline-block !important;
+    background: #000000;
+    /* Darker than --primary-bg */
+    padding: 0;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.15);
+    /* Modern shadow */
+    text-align: center;
+    /* Ensure canvas is centered */
+    line-height: 100px;
+    /* Match knob height */
+}
+
+#tuning_knob input.knob {
+    background: transparent !important;
+    color: var(--primary-text) !important;
+    border: none;
+    font-size: 10pt;
+    font-family: var(--font-primary);
+    text-align: center;
+    width: 50px;
+    text-shadow: 0 0 3px rgba(255, 255, 255, 0.3);
+    /* Glowing text */
+}
+
+#tuning_knob:hover {
+    box-shadow: 0 3px 8px rgba(255, 255, 255, 0.2);
+    transition: box-shadow 0.2s ease;
+}
+
+/* Ensure canvas is centered */
+#tuning_knob canvas {
+    display: block;
+    margin: 0 auto;
 }
 
 #freq_status {
-	background-color: yellow;
-	color: black;
+    background-color: var(--accent-yellow);
+    color: var(--primary-bg);
 }
 
-#current_freq{
-	font-size: 18pt;
-	line-height: 23px;
-	font-weight: bold;
-	color: black;
+#current_freq {
+    font-size: 18pt;
+    line-height: 23px;
+    font-weight: bold;
+    color: var(--accent-yellow);
 }
 
 #other_freq {
-	color: black;
+    color: var(--primary-bg);
 }
 
 .dial_details {
-	background-color: black;
-	color: white;
-	border-radius: 5px;
-	font-size: 9pt;
-	padding-left: 5px;
-	padding-right: 5px;
-	display: inline-block;
-	width: 72px;
-	text-algin: left;
+    background-color: var(--primary-bg);
+    color: var(--primary-text);
+    border-radius: var(--border-radius);
+    font-size: 9pt;
+    padding: var(--spacing-sm);
+    display: inline-block;
+    width: 72px;
+    text-align: left;
 }
 
 #tx_drive_reading {
-	color: white;
-	background-color: red;
+    color: var(--primary-text);
+    background-color: red;
 }
 
-/* end of dial styling */
-
-#current_freq:after{
-	text-align: right;
-	float: right;	
+#current_freq:after {
+    text-align: right;
+    float: right;
 }
 
-/* logger styling */
+/* Logger styling */
 .logger-input {
-	border-collapse: collapse;
-	border: 1px solid white;
-	height: 35px;
-	text-transform:uppercase;
+    border: 1px solid var(--primary-text);
+    height: 35px;
+    text-transform: uppercase;
 }
 
 .logger-button {
-	height: 30px;
-	border-collapse: collapse;
-	border: none;
-	background-color: #1a75ff;
-	color: white;
-	margin: 5px;
-	border-radius: 10px;
+    height: 30px;
+    border: none;
+    background-color: var(--accent-blue);
+    color: var(--primary-text);
+    margin: var(--spacing-sm);
+    border-radius: var(--border-radius);
 }
 
-#SENT, #RECV {
-	width: 60px;
+#SENT,
+#RECV {
+    width: 60px;
 }
 
-/* CW panel: also used for RTT/PSK31/CW/CWR */
-
+/* CW panel */
 #cw_settings {
-	padding-top: 5px;
-	padding-bottom: 5px;
+    padding: var(--spacing-sm) 0;
 }
 
 #data_window {
-	height: 70px;
-	color: green;
-	text-align: left;
-	font-size: 12pt;
-	overflow: auto;
-	border: solid 1px #333;
+    height: 70px;
+    color: green;
+    text-align: left;
+    font-size: 12pt;
+    overflow: auto;
+    border: 1px solid #333;
 }
 
-.data_rx{
-	color: green;
+.data_rx {
+    color: green;
 }
 
 .data_tx {
-	color: orange;
-	font-weight: bold;
+    color: orange;
+    font-weight: bold;
+}
+
+#data_chat_tx,
+#data_chat_rx,
+#ptt_tx,
+#ptt_rx {
+    width: 150px;
+    height: 30px;
+    color: var(--primary-text);
 }
 
 #data_chat_tx {
-	width: 150px;
-	height: 30px;
-	padding-right: 20px;
-	background-color: red;
-	color: white;
+    background-color: red;
+    padding-right: 20px;
 }
 
 #data_chat_rx {
-	width: 150px;
-	height: 30px;
-	padding-left: 20px;
-	background-color: blue;
-	color: white;
+    background-color: blue;
+    padding-left: 20px;
+}
+
+#ptt_tx {
+    background-color: red;
+    padding-right: 20px;
+    height: 45px;
+}
+
+#ptt_rx {
+    background-color: blue;
+    padding-left: 20px;
+    height: 45px;
 }
 
 /* Voice panel */
 #Voice_ui {
-	text-align: center;
-	padding-bottom: 10px;
-	border: none;
-	background-color: black;
+    text-align: center;
+    padding-bottom: var(--spacing-md);
+    background-color: var(--primary-bg);
 }
 
-#ptt_tx {
-	width: 150px;
-	height: 45px;
-	padding-right: 20px;
-	background-color: red;
-	color: white;
-}
-
-#ptt_rx {
-	width: 150px;
-	height: 45px;
-	padding-left: 20px;
-	background-color: blue;
-	color: white;
-}
-
-/* logbook, opens in a different tab */
+/* Logbook */
 #logbook_panel {
-	zindex = 1;
-	opacity: 1;
-	z-index: 1;
+    z-index: 1;
 }
 
 #logbook_panel table {
-	width: 100%;
-	border-collapse: collapse;
-	border: 1px solid white;
+    width: 100%;
 }
 
 #logbook_table thead tr {
-	display: block;
-	font-size: 11pt;
-	color:white; 
-	text-align: right;
+    display: block;
+    font-size: 11pt;
+    color: var(--primary-text);
+    text-align: right;
 }
 
 #logbook_table tbody {
-	display: block;
-	height: 200px;
-	width: 100%;
-	overflow: auto;
+    display: block;
+    height: 200px;
+    overflow: auto;
 }
 
 #logbook-toobar {
-	margin-top: 5px;
-	margin-bottom: 5px;
+    margin: var(--spacing-sm) 0;
 }
 
 .logbook-id {
-	width: 50px;
-	font-size: 9pt;
-	color: #444;
+    width: 50px;
+    font-size: 9pt;
+    color: #444;
 }
 
 .logbook-datestamp {
-	width: 150px;
-	font-size: 9pt;
-	color: #888; 
+    width: 150px;
+    font-size: 9pt;
+    color: #888;
 }
+
+.logbook-lfield,
+.logbook-field {
+    font-size: 10pt;
+    color: var(--primary-text);
+    text-transform: uppercase;
+}
+
 .logbook-lfield {
-	font-size: 10pt;
-	color: white;
-	text-transform:uppercase;
-	padding-left: 10px;
-	text-align: left;
+    padding-left: var(--spacing-md);
+    text-align: left;
 }
 
 .logbook-field {
-	font-size: 10pt;
-	color: white;
-	text-transform:uppercase;
-	text-align: right;
+    text-align: right;
 }
 
 #logbook-search {
-	text-transform:uppercase;
+    text-transform: uppercase;
 }
 
-.logbook-serial{width: 30px;}
-.logbook-freq{width: 75px;}
-.logbook-call{width: 75px;}
-.logbook-mode{width: 50px;}
-.logbook-sent{width: 70px;}
-.logbook-recv{width: 70px;}
-
-/* recorder panel */
-#recorder_panel {
-	width: 300px;
-	display: none;
-	position: absolute;
-	background-color: white;
-	margin-top: 50px;
-	padding: 2px;
-	color: black;
+.logbook-serial {
+    width: 30px;
 }
 
-.recorder-btn {
-	height: 40px;
-	width: 75px;
-	border-collapse: collapse;
-	border: 1px solid #888;
-	background-color: black;
-	color: white;
-	margin: 2px;
+.logbook-freq {
+    width: 75px;
 }
 
-#record_start {
-	color: white;
-	background-color: red;
-	width: 60px;
-	font-weight: bold;
+.logbook-call {
+    width: 75px;
 }
 
-#record_stop {
-	background-color: white;
-	color: black;	
-	width: 60px;
-	font-weight: bold;
+.logbook-mode {
+    width: 50px;
 }
 
-/* console panel */
-
-#console_window{
-	width: 100%;
-	height: 200px;
-	white-space: pre-wrap;
-	overflow: auto;
-	font-family: monospace;
-	color: green; 
-	border: solid 1px green;
-	padding-bottom: 3px;
-	background-color: black;
-	text-align: left;
-	vertical-align: top;
-}	
-
-#command_bar {
-	width: 100%;
+.logbook-sent {
+    width: 70px;
 }
 
-#text_in {
-	width: 95%;
-	border: solid 1px white;
+.logbook-recv {
+    width: 70px;
 }
 
-/* telnet */
 
-#telnet_window{
-	width: 100%;
-	height: 200px;
-	white-space: pre-wrap;
-	overflow: auto;
-	font-family: monospace;
-	font-size: 8pt;
-	color: green; 
-	border: none;
-	padding-bottom: 3px;
-	background-color: black;
-	text-align: left;
-	vertical-align: top;
-}	
+/* Console panel */
+#console_window,
+#telnet_window {
+    width: 100%;
+    height: 200px;
+    white-space: pre-wrap;
+    overflow: auto;
+    font-family: var(--font-mono);
+    color: green;
+    border: 1px solid green;
+    padding-bottom: 3px;
+    background-color: var(--primary-bg);
+    text-align: left;
+    vertical-align: top;
+}
+
+#command_bar,
+#telnet_command_bar {
+    width: 100%;
+}
+
+#text_in,
+#telnet_in {
+    width: 95%;
+    border: 1px solid var(--primary-text);
+}
 
 #telnet_command_bar {
-	width: 95%;
-	border: solid 1px white;
-	margin:3px;
+    margin: 3px;
 }
 
-#telnet_in {
-	width: 100%;
-	border: white;
-}
-
-#telnet {
-}
-
-#tclose {
-}
-/* settings panel */
-
+/* Settings panel */
 #settings_panel {
-	padding-bottom: 10px;
-	position: fixed;
-	left: 200px;
-	top: 0px;
-	border: solid 1px white;
-	background-color: black; 
-	opacity: 1;
-	z-index: 1;
+    padding-bottom: var(--spacing-md);
+    border: 1px solid var(--primary-text);
+    background-color: var(--primary-bg);
+    z-index: 1;
 }
 
 .settings-element {
-	margin: 8px;
+    margin: 8px;
 }
 
 .settings-label {
-	display: inline-block;
-	width: 150px;
-	text-align: right;
+    display: inline-block;
+    width: 150px;
+    text-align: right;
 }
 
 .settings_input {
-	text-transform:uppercase;
+    text-transform: uppercase;
 }
 
-/* coloring for the values */
+/* Coloring */
 .greyed {
-	color: #888;
+    color: #888;
 }
 
-/* panel styling */
+/* Panel styling */
 .sbitx-panel {
-	float: left;
-	padding: 0;
-	background: black;
-	border-collapse: collapse;
+    float: right;
+    padding: 0;
+    background: var(--primary-bg);
+}
+.sbitx-panel * {
+    vertical-align: top; /* Align inline/inline-block children to the top */
 }
 
 .sbitx-panel-title {
-	float: right;
-	display: inline-block;
-	background-color: black;
-	font-size: 14pt;
+    float: left;
+    display: inline-block;
+    background-color: var(--primary-bg);
+    font-size: 14pt;
 }
 
 .sbitx-btn-back {
-	font-size: 12pt;
-	background-color: black;
-	color: white;
-	border: none;
+    font-size: 12pt;
+    background: linear-gradient(to bottom, #444, #222);
+    color: var(--primary-text);
+    border: none;
 }
 
-/* waterfall and spectrum */
+/* Waterfall and spectrum */
 #pan_adapter {
-	margin-bottom: 3px;
+    width: 100%;
+    box-sizing: border-box; 
+    border: 4px solid #333;
+    border-radius: 12px;
+    padding: 5px;
+    background: linear-gradient(to bottom, #2a2a2a, #1f1f1f);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 6px 16px rgba(0, 0, 0, 0.7);
+
 }
 
-#spectrum canvas {
-	position: absolute;
-}
-		
-/* FT8/ wsjt-x styling */
+#spectrum-wrap, #waterfall, #spectrum {
 
+    padding: 0px;
+    margin-top: 0px;
+}
+
+#spectrum canvas,
+#waterfall canvas {
+    width: 100% !important;
+    /* Ensure canvases stretch to full width */
+    height: auto;
+    /* Maintain aspect ratio */
+}
+
+/* FT8/WSJT-X styling */
 .sbitx-list-container {
-	display: inline-block;
-	font-family: courier, monspace-ui, monospace;
-	font-size: 10pt;
-	height: 386px;
-	width: 320px;
-	overflow: auto;
-	border: none;
+    box-sizing: border-box;
+    display: inline-block;
+    font-family: courier, monspace-ui, monospace;    font-size: 10pt;
+    height: 405px;
+    width: 340px;
+    overflow-y: scroll;     /* <--- always reserve space */
+    overflow-x: hidden;
+
+    background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+    border-radius: 10px;
+    border-top: 2px solid #3a3a3a;
+    border-left: 2px solid #2a2a2a;
+    border-right: 2px solid #111;
+    border-bottom: 2px solid #111;
+
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 
+                0 4px 12px rgba(0, 0, 0, 0.5);
+    padding: 0px;
+    color: #ccc;
+    box-sizing: border-box;
 }
 
-/* styling the FT8 list */
 .ft8-label {
-	font-size: 9pt;
-	display: inline-block;
-	width: 22ch;
+    font-size: 9pt;
+    display: inline-block;
+    width: 22ch;
 }
 
 .ft8-message {
-	font-size: 9pt;
-	font-weight: bold;
-	color: white;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--primary-text);
 }
+
 .ft8-old-grid {
-	color: rgb(47, 178, 101);
+    color: rgb(47, 178, 101);
 }
+
 .ft8-new-caller {
-	color: rgb(217, 90, 55);
+    color: rgb(217, 90, 55);
 }
+
 .ft8-new-grid {
-	color: rgb(247, 247, 38);
+    color: rgb(247, 247, 38);
 }
+
 .wsjtx-message-queued {
-	color: rgb(184, 123, 38);
+    color: rgb(184, 123, 38);
 }
+
 .wsjtx-message-for-me {
-	color: rgb(251, 129, 129);
+    color: rgb(251, 129, 129);
 }
+
 .wsjtx-mycallsign {
-	color: rgb(71, 213, 10);
+    color: rgb(71, 213, 10);
 }
+
 .wsjtx-cq-in-message {
-	color: rgb(251, 243, 0);
+    color: rgb(251, 243, 0);
 }
-/* generic styling of ui elements */
 
-.sbitx-list-box .ui-selected {background: grey; color: white;}
+/* Generic UI elements */
+.sbitx-list-box .ui-selected {
+    background: grey;
+    color: var(--primary-text);
+}
+
 .sbitx-list-box {
-	list-style-type:none; 
-	margin: 0; padding: 0; 
-	font-size: 9pt;
-}
-.sbitx-list-box li{
-	margin: 0; 
-	padding: 0; 
-	height: 9pt;
+    list-style-type: none;
+    margin: 20;
+    padding: 0;
+    font-size: 9pt;
 }
 
-body {
-			background-color: #000;
-			color: cyan;
-			font-family: Helvetica, Verdana, Sans-serif;
-			margin: 0;
-			padding: 0;
-}
-
-#kbd {
-	padding: 10px;
-}
-
-#kbd_btn:hover .drop-content {
-	display: block;
-}
-
-.help_text{
-	font-size: 10pt;
-	color: white;
-	margin-left: 30px;
+.sbitx-list-box li {
+    margin: 0;
+    padding: 0;
+    height: 9pt;
 }
 
 /* v3 styles */
 #macro_keys td {
-/*	width: 45px;
-	width: 9%;
-*/
-	width: 10%;
-	margin: 2px;
-	padding: 2px;
-	height: 40px;
-	text-align: center;
-	border-collapse: collapse;
-	border: solid 1px white;
-	background-color: black;
-	opacity: 1.0;
-	font-size: 15pt;
+    width: 10%;
+    margin: 2px;
+    padding: 2px;
+    height: 40px;
+    text-align: center;
+    border: 1px solid var(--primary-text);
+    background-color: var(--primary-bg);
+    opacity: 1;
+    font-size: 15pt;
 }
 
-.sbitxv3-control {
-	text-align: left;
-	min-width: 40px;
-	padding-top: 5px;
-	padding-left: 3px;
-	height: 36px;
-	min-height: 36px;
-	border: solid 1px #333; 
-    /*background-color: #044b59;*/
-	
-	font-size: 12px;
-	vertical-align:top;
-	display: inline-block;
-	padding-bottom: 0;
+.sbitxv3-VFO {
+    text-align: left;
+    min-width: 180px;
+    padding-top: var(--spacing-sm);
+    padding-left: 3px;
+    height: 36px;
+    border: 1px solid #333;
+    font-size: 12px;
+    vertical-align: top;
+    display: inline-block;
 }
 
-.sbitxv3-selection{
-	border: 0;
-	font-size: 11px;
-	margin-left: -4px;
-	min-width: 40px;
-    /*background-color: #044b59;*/
+.sbitxv3-MACRO {
+    text-align: left;
+    min-width: 40px;
+    max-width: 75px;
+    padding-top: var(--spacing-sm);
+    padding-left: 3px;
+    height: 36px;
+    border: 1px solid #333;
+    font-size: 12px;
+    vertical-align: top;
+    display: inline-block;
+}
 
-/*	-webkit-appearance: none;
-	-ms-appearance: none;
-	-moz-appearane: none;
-	appearance: none;*/
+
+
+.sbitxv3-control,
+.sbitxv3-control2,
+.linear {
+    background: linear-gradient(to bottom, #444, #222);
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px #111;
+    color: #eee;
+
+    text-align: left;
+    min-width: 35px;
+    max-width: 50px;
+    padding-top: var(--spacing-sm);
+    padding-left: 3px;
+    height: 36px;
+    border: 1px solid #333;
+    font-size: 12px;
+    vertical-align: top;
+    display: inline-block;
+}
+
+.sbitxv3-selection {
+    border: 0;
+    font-size: 10px;
+    margin-left: -4px;
+    min-width: 30px;
 }
 
 .sbitxv3-selection option {
-	font-size: 11px;
-	width: 70px;
+    font-size: 12px;
+    width: 70px;
 }
 
-.sbitxv3-btn {
-	height: 43px;
-	min-width: 30px;
-	background-color: #0c2333;
-	border: solid 1px black;
-	font-size: 12px;
-	color: white;
-	vertical-align:top;
-	display: inline-block;
-/*	margin-top: 1px;
-	margin-bottom: 1px;*/
-	padding: 7 0 7 0;
+.sbitxv3-btn,
+.logger-button {
+    height: 45px;
+    background: linear-gradient(to bottom, #444, #222);
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px #111;
+    color: #eee;
+    padding: 7 0 7 0;
+    text-align: center;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
 }
 
-.selband {
-	font-family: monospace;
-	display: block;
+.sbitxv3-btn:hover,
+.logger-button:hover {
+    background: linear-gradient(to bottom, #555, #333);
 }
+
+.sbitxv3-btn:active,
+.logger-button:active {
+    box-shadow: 0 2px #111;
+    transform: translateY(2px);
+}
+
 
 .sbitxv3-macro {
-	text-align: left;
-	width: 75px;
-	padding-top: 5px;
-	padding-left: 3px;
-	height: 36px;
-	min-height: 36px;
-	border: solid 1px #888;
-	font-size: 14px;
-	font-weight: bold;
-	vertical-align:top;
-	display: inline-block;
-	padding-bottom: 0;
-	color: black;
-	background-color: white;
+    text-align: left;
+    width: 75px;
+    padding-top: var(--spacing-sm);
+    padding-left: 3px;
+    height: 36px;
+    border: 1px solid #888;
+    font-size: 12px;
+    font-weight: bold;
+    vertical-align: top;
+    display: inline-block;
+    color: var(--primary-bg);
+    background-color: var(--primary-text);
 }
+
+
 
 #maincontrols {
-	width:100%;
-	position: fixed;
-	top: 0;
-	background: black;
-	z-index: 1;
-}
-
-#settings-open {
-	position:relative;
+    background: var(--primary-bg);
+    z-index: 1;
 }
 
 #settings-open:after {
-	content: '\2197';
-	top: 0;
-	right: 0;
-}
-	
-
-.sbitxv3-control2 {
-	text-align: left;
-	width: 50px;
-	padding-top: 5px;
-	padding-left: 3px;
-	height: 36px;
-	min-height: 36px;
-	border: solid 1px #888;
-	font-size: 12px;
-	vertical-align:top;
-	display: inline-block;
-	position: relative;
-	display: inline-block;
+    content: '\2197';
+    top: 0;
+    right: 0;
 }
 
 .sbitxv3-value {
-	color: white;
-}
-
-/* linear pot  styling */
-
-.linear{
-	text-align: left;
-	min-width: 40px;
-	padding-top: 5px;
-	padding-left: 3px;
-	height: 36px;
-	min-height: 36px;
-	border: solid 1px #888;
-	font-size: 12px;
-	vertical-align:top;
-	display: inline-block;
-	position: relative;
-	display: inline-block;
-}
-
-#IF {
-	width: 36px;
-}
-
-#AUDIO {
-	width: 40px;
+    color: var(--primary-text);
 }
 
 .linear-value {
-	width: 50px;
-	border: 0;
+    width: 45px;
+    font-size: 12px;
+    border: 0;
 }
 
-.linear-dropdown{
-	display: none;
-	position: absolute;
-	width: 50px;
-	height: 100px;
-	z-index: 1;
-	opacity: 1;
-	background-color: black;
+.linear-dropdown {
+    display: none;
+    position: absolute;
+    width: 45px;
+    height: 100px;
+    z-index: 1;
+    background-color: var(--primary-bg);
 }
 
-.linear-slider{
-	appearance: slider-vertical;
-	height: 90px;
-	width: 40px;
+.linear-slider {
+    appearance: slider-vertical;
+    height: 90px;
+    width: 45px;
 }
 
 .macro-btn {
-	height: 45px;
-	min-width: 50px;
-	border-collapse: collapse;
-	border: 1px solid #888;
-	background-color: black;
-	color: white;
-	line-height: 15px;
+    height: 45px;
+    min-width: 50px;
+    border: 1px solid #888;
+    background-color: var(--primary-bg);
+    color: var(--primary-text);
+    line-height: 15px;
 }
 
 .sbitx-text-field {
-	margin-top: 4px;
-	height: 33px;
-	border: solid 1px #888;
+    margin-top: 4px;
+    height: 33px;
+    border: 1px solid #888;
 }
+
 .longer-control {
-	width: 100px;
+    width: 100px;
 }
 
-.longer-control .sbitxv3-selection{
-	width: 80px;
+.longer-control .sbitxv3-selection {
+    width: 80px;
 }
 
-.rx-control {
-	background-color: #0033cc;
-}
-
-.rx-control input {
-	background-color: #0033cc;
-}
-
+.rx-control,
+.rx-control input,
 .rx-control select {
-	background-color: #0033cc;
+    background-color: #0033cc;
 }
 
-/* individual controls, only styled */
-
-#logger-log, #wipe, #logbook-open, #qrz {
-	background-color: #049117;
-	margin-top: 2px;
-	padding-left: 2px;
-    padding-right: 2px;
-	height: 36px;
+#logger-log,
+#wipe,
+#logbook-open,
+#qrz {
+    background-color: #049117;
+    margin-top: 2px;
+    padding: 0 2px;
+    height: 36px;
 }
 
-#linear_DRIVE, #linear_DRIVE > .linear-dropdown, #linear_DRIVE > .linear-value{
-	background-color: #bf0f0f;
-	/*border: solid 1px black;*/
+#linear_DRIVE,
+#linear_DRIVE>.linear-dropdown,
+#linear_DRIVE>.linear-value {
+    background-color: #bf0f0f;
 }
 
-
-/* specific controls */
 #TEXT {
-	width: 100%;
-	display: inline-block;
+    width: 100%;
+    display: inline-block;
 }
 
 #CW_INPUT {
-	background-color: black;
-	border: solid 1px #333;
-}
-
-#more_keys{
-	text-align: left;
+    background-color: var(--primary-bg);
+    border: 1px solid #333;
 }
 
 #dial-dropdown {
-	width: 200px;
-	height: 200px;
-	/* display: none; */
-	position: absolute;
-	z-index: 1;
-	background-color: black;
+    width: 200px;
+    height: 200px;
+    position: absolute;
+    z-index: 1;
+    background-color: var(--primary-bg);
 }
 
-#qrz{
-	width: 20px;
-	min-width: 20px;
+#qrz {
+    width: 20px;
+    min-width: 20px;
 }
 
 #console {
-	display: none;
-	position: absolute;
-	background-color: white;
-	padding: 2px;
-	width: 200px;
-	color: black;
+    display: none;
+    position: absolute;
+    background-color: var(--primary-text);
+    padding: 2px;
+    width: 200px;
+    color: var(--primary-bg);
 }
 
-/* style the  keyboard */
-
-#keybd {
-	z-index: 1;
-	opacity: 1;
-	background-color: black;
+#keybd,
+#keybd-container {
+    z-index: 1;
+    background-color: var(--primary-bg);
+    opacity: 1;
 }
 
-#keybd  td {
-	width: 6%;
-	margin: 2px;
-	padding: 2px;
-	height: 40px;
-	text-align: center;
-	border-collapse: collapse;
-	border: solid 1px white;
-	background-color: black;
-	opacity: 1.0;
-	font-size: 15pt;
+#keybd td {
+    width: 6%;
+    margin: 2px;
+    padding: 2px;
+    height: 40px;
+    text-align: center;
+    border: 1px solid var(--primary-text);
+    background-color: var(--primary-bg);
+    opacity: 1;
+    font-size: 15pt;
 }
-
-#keybd-container{ 
- 	opacity: 1;
-	text-align: center;
-}
-
-/* login pane */
 
 #login_error {
-	background-color: yellow;
-	color: black;
+    background-color: var(--accent-yellow);
+    color: var(--primary-bg);
 }
 
-/* https://coderwall.com/p/5m0srg/beware-of-inline-block */
 #main {
-	margin-left: 200px;
-	margin-top:90px;
-	vertical-align: top;
-	z-index: -1; /* this is to allow the restore button to show through ?? */
+    vertical-align: top;
+    z-index: -1;
 }
 
 #FT8_controls {
-	display: block;
+    display: block;
 }
-/* Tooltip css */
+
+/* Tooltip */
 .tooltip {
-	position: relative;
-	display: inline-block;
-	border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
-  }
+    position: relative;
+    display: inline-block;
+}
+
 .tooltip .tooltiptext {
-	visibility: hidden;
-	background-color: darkgreen;
-	color: #fff;
-	text-align: center;
-	padding: 5px 0;
-	border-radius: 4px;
-	position: absolute;
-	left: 0px;
+    visibility: hidden;
+    background-color: darkgreen;
+    color: var(--primary-text);
+    text-align: center;
+    padding: var(--spacing-sm) 0;
+    border-radius: var(--border-radius);
+    position: absolute;
+    left: 0;
     top: -24px;
     font-size: small;
-	z-index: 1;
+    z-index: 1;
 }
+
 .tooltip:hover .tooltiptext {
-	visibility: visible;
+    visibility: visible;
 }
+
+/* Tooltip */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+#gridmap {
+    border: 4px solid #333;
+    border-radius: 10px;
+    background: #1a1a1a;
+    justify-content: center;
+    padding: 8px;
+    margin-top: 0px;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05),
+                0 4px 12px rgba(0, 0, 0, 0.5);
+    vertical-align: top;
+    overflow-x: hidden
+
+
+}
+
+#login_panel {
+    width: 700px;
+    box-sizing: border-box; 
+    border: 4px solid #333;
+    border-radius: 12px;
+    padding: 5px;
+    margin: 100px auto;
+    background: linear-gradient(to bottom, #2a2a2a, #1f1f1f);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 6px 16px rgba(0, 0, 0, 0.7);
+    text-align: center;
+    vertical-align: top;
+
+}
+
+
+#keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
+    width: 100%;
+    box-sizing: border-box; 
+    border: 4px solid #333;
+    border-radius: 12px;
+    padding: 5px;
+    margin: 2px;
+    background: linear-gradient(to bottom, #2a2a2a, #1f1f1f);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 6px 16px rgba(0, 0, 0, 0.7);
+    text-align: left;
+    vertical-align: top;
+
+}
+
+
+#record_start {
+    color: red;
+    font-weight: bold;
+    width: 60px;
+    margin-left: 20px;
+}
+
+#record_stop {
+    color: green;
+    font-weight: bold;
+    width: 60px;
+    margin-left: 20px;
+
+}
+
+#record_duration {
+    color: var(--primary-text);
+}
+
+/* General container styling for help_text */
+.help_text {
+    background: #1a1a1a; /* Dark background for tech aesthetic */
+    color: #e0e0e0; /* Light text for contrast */
+    padding: 30px;
+    border-radius: 10px; /* Rounded corners */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+    text-align: center; /* Center-align text */
+    font-family: 'Arial', sans-serif; /* Clean, modern font */
+}
+
+/* Heading */
+.help_text h1 {
+    font-size: 2.2em; /* Large but not overwhelming */
+    margin: 0 0 15px; /* Space below */
+    color: #00b7eb; /* Bright cyan for tech vibe */
+}
+
+/* Paragraphs */
+.help_text p {
+    font-size: 1em; /* Readable size */
+    margin: 10px 0; /* Consistent spacing */
+    line-height: 1.5; /* Improved readability */
+}
+
+/* License and Discord paragraphs */
+.help_text p:nth-last-of-type(-n+2) {
+    font-size: 0.9em !important; /* Slightly smaller for footer-like text */
+    color: #a0a0a0 !important; /* Muted color for less emphasis */
+    margin-top: 20px !important; /* Extra space above */
+}
+.help_text a {
+    color: #00b7eb;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.help_text a:hover {
+    color: #009bcb;
+    text-decoration: underline;
+}
+

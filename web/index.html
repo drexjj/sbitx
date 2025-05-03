@@ -1,9 +1,10 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <!--
     HOW IT WORKS
 
     1. A number of classes with names starting with sbitx- are defined these are
-    used to implment sbitx specific handlers for events, etc.
+    used to implement sbitx specific handlers for events, etc.
 
     2. A single websocket is used for efficient communication with the sbitx process
     The websocket is used to transmit text messages for UI interactions and a binary
@@ -15,10 +16,10 @@
 
     SEMANTIC STRUCTURE
 
-  The top bar has frequency, volume, mode and icons to restore the web ui,
+    The top bar has frequency, volume, mode and icons to restore the web ui,
     enable/disable the on-screen keyboard, etc.
 
-    Each mode like ssb, ft8, etc has its one div that is enabled and others are all disabled.
+    Each mode like ssb, ft8, etc has its own div that is enabled and others are all disabled.
 
     MAKING YOUR OWN SKINS
     we can use different skins by replacing/editing the index.html and the style.css
@@ -27,33 +28,36 @@
     CREDITS:
     The wonderful knob is from https://github.com/aterrien/jQuery-Knob
 -->
+
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>sBitx</title>
     <script src="jquery.min.js"></script>
     <script src="jquery.knob.js"></script>
     <script src="pcm-player.js"></script>
-	<script src="proj4.js"></script>
+    <script src="proj4.js"></script>
     <script src="gridmap.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    <input type="hidden" id="FREQ" value="7040000" />
-    <input type="hidden" id="VFOA" value="7040000" />
-    <input type="hidden" id="VFOB" value="7040000" />
-    <input type="hidden" id="POWER" value="0" />
-    <input type="hidden" id="REF" value="1" />
-    <input type="hidden" id="HIGH" value="2200" />
-    <input type="hidden" id="LOW" value="300" />
-    <input type="hidden" id="STATUS" value="---" />
-    <input type="hidden" id="REC" value="OFF" />
-    <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="" />
-    <input type="hidden" id="VFOx" value="A" /> <!-- oz7bx: This id=VFO causes VFO switch to fail  -->
+    <input type="hidden" id="FREQ" value="7040000">
+    <input type="hidden" id="VFOA" value="7040000">
+    <input type="hidden" id="VFOB" value="7040000">
+    <input type="hidden" id="POWER" value="0">
+    <input type="hidden" id="REF" value="1">
+    <input type="hidden" id="HIGH" value="2200">
+    <input type="hidden" id="LOW" value="300">
+    <input type="hidden" id="STATUS" value="---">
+    <input type="hidden" id="REC" value="OFF">
+    <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="">
+    <input type="hidden" id="VFO" value="A"> <!-- Fixed id from VFOx to VFO -->
+
     <div id="sdr_page">
-        <div id="maincontrols">
+        <section id="maincontrols">
             <div class="sbitxv3-control">
-                <div class="sbitxv3-label">MODE</div>
+                <label class="sbitxv3-label" for="MODE">MODE</label>
                 <select class="sbitxv3-selection sbitx-selection" id="MODE">
                     <option value="USB">USB</option>
                     <option value="LSB">LSB</option>
@@ -64,96 +68,65 @@
                     <option value="2TONE">2TONE</option>
                     <option value="AM">AM</option>
                 </select>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">KNOB</div>
-                <select class="sbitxv3-selection sbitx-selection" id="KNOB">
-                    <option value="ON">ON</option>
-                    <option value="OFF">OFF</option>
-                </select>
-            </div><div class="sbitxv3-control" id="dial">
+            </div>
+            <div class="sbitxv3-VFO" id="dial">
                 <span id="current_freq">A:00.000.000</span>
                 <span id="other_freq">B: 00.000.000</span>
             </div>
-            <!-- funny html that breaks the line inside the button tag to
-            prevent spaces between the elements
-            -->
-            <button class="sbitxv3-btn" id="10M" type="submit">
-                10M<span id="S10" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="12M" type="submit">
-                12M<span id="S12" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="15M" type="submit">
-                15M<span id="S15" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="17M" type="submit">
-                17M<span id="S17" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="20M" type="submit">
-                20M<span id="S20" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="30M" type="submit">
-                30M<span id="S30" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="40M" type="submit">
-                40M<span id="S40" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="60M" type="submit">
-                60M<span id="S60" class="selband"></span>
-            </button><button class="sbitxv3-btn" id="80M" type="submit">
-                80M<span id="S80" class="selband"></span>
-            </button><div class="sbitxv3-control rx-control">
-                <div class="sbitxv3-label">AGC </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="BAND">BAND</label>
+                <select class="sbitxv3-selection sbitx-selection" id="BAND">
+                    <option value="10M">10M</option>
+                    <option value="12M">12M</option>
+                    <option value="15M">15M</option>
+                    <option value="17M">17M</option>
+                    <option value="20M">20M</option>
+                    <option value="30M">30M</option>
+                    <option value="40M">40M</option>
+                    <option value="60M">60M</option>
+                    <option value="80M">80M</option>
+                </select>
+            </div>
+            <div class="sbitxv3-control rx-control">
+                <label class="sbitxv3-label" for="AGC">AGC</label>
                 <select class="sbitxv3-selection sbitx-selection" id="AGC">
                     <option value="FAST">FAST</option>
                     <option value="MED">MED</option>
                     <option value="SLOW">SLOW</option>
                     <option value="OFF">OFF</option>
                 </select>
-            </div><div class="linear rx-control" id="linear_BW">
-                <div class="linear-label">BW</div>
-    	<input type="number" id="BW" min="50" max="5000" step="50" class="linear-value" />
+            </div>
+            <div class="linear rx-control" id="linear_BW">
+                <label class="linear-label" for="BW">BW</label>
+                <input type="number" id="BW" min="50" max="5000" step="50" class="linear-value">
                 <div class="linear-dropdown">
-                    <input type="range" class="linear-slider"
-                           id="slider_BW" max="5000" min="50" step="50" value="13" />
+                    <input type="range" class="linear-slider" id="slider_BW" max="5000" min="50" step="50" value="13">
                 </div>
-
-                <!--
-                     </div><div class="linear rx-control" id="LOW">
-                     <div class="linear-label">LOW</div>
-                     <input type="number" id="LOW" min="0" max="4000" class="linear-value" />
-                     <div class="linear-dropdown">
-                     <input type="range" class="linear-slider"
-                         id="slider_LOW" max="4000" min="50" step="10" value="13" />
-                         </div>
-                             </div><div class="linear rx-control" id="HIGH">
-                     <div class="linear-label">HIGH</div>
-                     <input type="number" id="HIGH" min="50" max="4000" class="linear-value" />
-                     <div class="linear-dropdown">
-                     <input type="range" class="linear-slider"
-                         id="slider_HIGH" max="4000" min="50" step="10" value="13" />
-                         </div>
-                -->
-            </div><div class="linear rx-control" id="linear_IF">
-                <div class="linear-label">IF</div>
-                <input type="number" id="IF" min="0" max="100" class="linear-value" />
+            </div>
+            <div class="linear rx-control" id="linear_IF">
+                <label class="linear-label" for="IF">IF</label>
+                <input type="number" id="IF" min="0" max="100" class="linear-value">
                 <div class="linear-dropdown">
-                    <input type="range" class="linear-slider"
-                           id="slider_IF" max="100" min="0" step="1" value="13" />
+                    <input type="range" class="linear-slider" id="slider_IF" max="100" min="0" step="1" value="13">
                 </div>
-            </div><div class="linear rx-control" id="linear_AUDIO">
-                <div class="linear-label">AUDIO</div>
-                <input type="number" id="AUDIO" min="0" max="100" class="linear-value" />
+            </div>
+            <div class="linear rx-control" id="linear_AUDIO">
+                <label class="linear-label" for="AUDIO">AUDIO</label>
+                <input type="number" id="AUDIO" min="0" max="100" class="linear-value">
                 <div class="linear-dropdown">
-                    <input type="range" class="linear-slider"
-                           id="slider_AUDIO" max="100" min="0" step="1" value="13" />
+                    <input type="range" class="linear-slider" id="slider_AUDIO" max="100" min="0" step="1" value="13">
                 </div>
-            </div><!-- It's nice to mute e.g. the FT8 sond in the browser
-            --><button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button><!--
-            --><button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic OFF</button><!--
-            --><br />
+            </div>
+            <button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button>
             <div class="linear" id="linear_DRIVE">
-                <div class="linear-label">DRIVE</div>
-                <input type="number" id="DRIVE" min="1" max="100" class="linear-value" />
+                <label class="linear-label" for="DRIVE">DRIVE</label>
+                <input type="number" id="DRIVE" min="1" max="100" class="linear-value">
                 <div class="linear-dropdown">
-                    <input type="range" class="linear-slider"
-                           id="slider_DRIVE" max="100" min="1" step="1" value="13" />
+                    <input type="range" class="linear-slider" id="slider_DRIVE" max="100" min="1" step="1" value="13">
                 </div>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">STEP</div>
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="STEP">STEP</label>
                 <select id="STEP" class="sbitx-selection sbitxv3-selection">
                     <option value="10H">10H</option>
                     <option value="100H">100H</option>
@@ -162,45 +135,37 @@
                     <option value="10K">10K</option>
                     <option value="100K">100K</option>
                 </select>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">VFO</div>
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="VFO">VFO</label>
                 <select class="sbitxv3-selection sbitx-selection" id="VFO">
                     <option value="A">A</option>
                     <option value="B">B</option>
                 </select>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">SPLIT</div>
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="SPLIT">SPLIT</label>
                 <select class="sbitxv3-selection sbitx-selection" id="SPLIT">
                     <option value="OFF">OFF</option>
                     <option value="ON">ON</option>
                 </select>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">RIT</div>
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="RIT">RIT</label>
                 <select class="sbitxv3-selection sbitx-selection" id="RIT">
                     <option value="OFF">OFF</option>
                     <option value="ON">ON</option>
                 </select>
-            </div><div class="sbitxv3-control">
-                <div class="sbitxv3-label">ePTT</div>
-                <select class="sbitxv3-selection sbitx-selection" id="ePTT">
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="QRO">QRO</label>
+                <select class="sbitxv3-selection sbitx-selection" id="QRO">
                     <option value="OFF">OFF</option>
                     <option value="ON">ON</option>
                 </select>
-            </div><button class="sbitxv3-btn" id="qrz" tabindex=-1>
-                ?
-            </button><input type="text" class="logger-input sbitx-text-input sbitx-text-field"
-                            id="CALL" placeholder="Call" size="6"><input type="text" class="logger-input sbitx-text-input sbitx-text-field"
-                                                                         id="SENT" placeholder="Sent" size="3" /><input type="text" class="logger-input sbitx-text-input sbitx-text-field"
-                                                                                                                        id="RECV" placeholder="Rcv" size="3" /><input type="text" class="logger-input sbitx-text-input sbitx-text-field"
-                                                                                                                                                                      id="EXCH" placeholder="Exch" size="2" /><input type="text" class="logger-input sbitx-text-input sbitx-text-field"
-                                                                                                                                                                                                                     id="NR" placeholder="Nr" size="2" /><button class="sbitxv3-btn" id="logger-log">
-                OK
-            </button><button class="sbitxv3-btn" id="wipe">
-                WIPE
-            </button><button class="sbitxv3-btn" id="logbook-open">
-                LOG
-            </button><div class="sbitxv3-control">
-                <div class="sbitxv3-label">SPAN</div>
+            </div>
+            <div class="sbitxv3-control">
+                <label class="sbitxv3-label" for="SPAN">SPAN</label>
                 <select class="sbitxv3-selection sbitx-selection" id="SPAN">
                     <option value="25K">25K</option>
                     <option value="10K">10K</option>
@@ -208,78 +173,29 @@
                     <option value="2.5K">2.5K</option>
                 </select>
             </div>
-        </div><!-- end of maincontrols -->
-        <span id="restore-btn" onclick="toggle_fullscreen();"> &#X21F3; </span>
-        <div id="sidebar">
-            <div class="menu-item" id="tuning_knob">
-                <input id="big_tuning_knob"
-                       class="knob" data-width="190"
-                       data-height="190" data-displayInput=false
-                       data-cursor=true data-fgColor="#222222" data-thickness=.3
-                       data-step=1 data-max=360 value="0">
-            </div>
-        </div> <!-- end of sidebar -->
-        <div id="main">
-            <!-- settings panel -->
-            <div id="settings_panel" class="sbitx-panel">
-                <span class="sbitx-panel-title">
-                    <button class="sbitx-btn-back" data-for="panel_bar">&#x2716; Close</button>
-                </span>
+        </section>
+        <section id="logger-controls" class="sbitx-panel">
+            <button class="sbitxv3-btn" id="qrz">?</button>
+            <input type="text" class="logger-input sbitx-text-input sbitx-text-field" id="CALL" placeholder="Call">
+            <input type="text" class="logger-input sbitx-text-input sbitx-text-field" id="SENT" placeholder="Sent">
+            <input type="text" class="logger-input sbitx-text-input sbitx-text-field" id="RECV" placeholder="Rcv">
+            <input type="text" class="logger-input sbitx-text-input sbitx-text-field" id="EXCH" placeholder="Exch">
+            <input type="text" class="logger-input sbitx-text-input sbitx-text-field" id="NR" placeholder="Nr">
+            <button class="sbitxv3-btn" id="logger-log">OK</button>
+            <button class="sbitxv3-btn" id="wipe">WIPE</button>
+            <button class="sbitxv3-btn" id="logbook-open">LOG</button>
+        </section>
+        <button id="restore-btn" onclick="toggle_fullscreen();">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M12 5v14M5 12h14M7 7l5 5m5-5l-5 5" />
+            </svg>
+        </button>
+        <main id="main">
 
-                <div class="settings-element">
-                    <span class="settings-label">Passkey:</span><input id="PASSKEY"
-                                                                       class="settings_input sbitx-text-input" type="text" size="6" />
-                </div>
-
-                <div class="settings-element">
-                    <span class="settings-label">My Callsign:</span><input id="MYCALLSIGN"
-                                                                           class="settings_input sbitx-text-input" type="text" size="6" />
-                </div>
-
-                <div class="settings-element">
-                    <span class="settings-label">My Grid:</span><input id="MYGRID"
-                                                                       class="settings_input sbitx-text-input" type="text" size="6" />
-                </div>
-                <div class="settings-element">
-                    <span class="settings-label">Telnet Server:</span>
-                    <input type="text" class="settings_input sbitx-text-input" size="17"
-                           id="TELNETURL" />
-                    (Like : dxc.nc7j.com:7373)
-                </div>
-                <div class="settings-element">
-                    <span class="settings-label"></span>
-                    <button id="settings_save" class="logger-button">Update</button>
-                </div>
-            </div><!-- end of help text -->
-            <div id="login_panel">
-                <div class="help_text">
-                    <h1>sBitx v4.4</h1>
-                    <p>The sBitx is an open-source, hackable, next generation radio.</p>
-                    <p>Enter passkey to access your sbitx.</p>
-                    <div id="login_error"></div>
-                    <input type="text" class="sbitx-text-input" id="passkey"
-                           name="passkey" autocomplete="off" placeholder="passkey" />
-                    <button class="logger-button" id="start_login">Start</button>
-                    <p>New user? Try 123 as the passkey. Change it when prompted.</p>
-                    <div style="margin-top: 15px; padding: 5px 8px; border: 1px solid #fdfbfb; background-color: #000000; display: inline-block; max-width: fit-content;">
-                        <p style="margin: 3px 0;"><strong>Remote SSB TX is now supported from your browser!</strong></p>
-                        <p style="margin: 3px 0;"><small>Note: You may need to accept the self-signed certificate warning.</small></p>
-                    </div>
-                    <p>
-                        Released under General Public License v3.0.<br />
-                        (c) Ashhar Farhan, 2023, Extended by the sBitx 64bit Dev Team 2025
-                    </p>
-                </div>
-            </div><!-- end of login -->
-            <!-- it streams automatically, anyway
-            <div id="extra-controls">
-                <button id="streamaudio" type="submit" onclick="audio_start();">Stream Audio</button>
-            </div>
-            -->
             <!-- logbook -->
             <div id="logbook_panel" class="sbitx-panel">
-                <input class="logger-input sbitx-text-input sbitx-text-field"
-                       id="logbook-search" type="text" size="6" placeholder="Search" />
+                <input class="logger-input sbitx-text-input sbitx-text-field" id="logbook-search" type="text" size="6"
+                    placeholder="Search" />
                 <button class="sbitxv3-btn longer-control" id="btn-logbook-load">More</button>
                 <button class="sbitxv3-btn longer-control" id="btn-logbook-close">Close</button>
                 <table id="logbook_table">
@@ -298,120 +214,113 @@
                     </tbody>
                 </table>
             </div>
-            <!--   panadapter, xxxx_open functions will resize this as needed -->
+
             <!-- pan adapter and waterfall -->
-            <div id="pan_adapter">
+            <section id="pan_adapter">
                 <div id="console">Hello</div>
                 <div id="tx_meters">
                     <div class="menu-item">
-                        <span class="slider-label">Watts</span>
+                        <label class="slider-label" for="POWER_meter">Watts</label>
                         <meter id="POWER_meter" max="500" min="0" value="0"></meter>
                         <span id="POWER_reading"></span>
                     </div>
                     <div class="menu-item">
-                        <span class="slider-label">SWR</span>
+                        <label class="slider-label" for="REF_meter">SWR</label>
                         <meter id="REF_meter" max="1000" min="0" value="0"></meter>
-                        <span id="REF_reading" /></span>
-                    </div>
-                </div><!-- end of tx_meters -->
-                <!-- recorder panel -->
-                <div id="recorder_panel" class="sbitx-panel mode-panel">
-                    <span class="sbitx-panel-title">
-                        <button class="sbitx-btn-back" data-for="panel_bar">&#x2716; Close</button>
-                    </span>
-                    <div class="menu_item">
-                        <button class="logger-button" id="record_start">REC</button>
-                        <button class="logger-button" id="record_stop">STOP</button>
-                        <span id="record_duration">00:00</span>
+                        <span id="REF_reading"></span>
                     </div>
                 </div>
+
                 <div id="spectrum-wrap">
-                    <div width="100%"><canvas id="spectrum" width="600" height="80"></canvas></div>
-                </div><!-- end of spectrum-wrap -->
-                <div width="100%"><canvas id="waterfall" width="600" height="80"></canvas></div>
-            </div>
-            <!-- end of panadapter -->
-            <!- wsjtx specific controls -->
-            <div id="FT8_ui" class="sbitx-panel mode-panel">
+                    <canvas id="spectrum" width="600" height="80"></canvas>
+                </div>
+                <canvas id="waterfall" width="600" height="80"></canvas>
+            </section>
+            <!-- wsjtx specific controls -->
+            <section id="FT8_ui" class="sbitx-panel mode-panel">
                 <div id="wsjtx-activity" class="sbitx-list-container">
                     Band Activity
-                    <ol size="10" class="sbitx-list-box">
-                    </ol>
+                    <ol class="sbitx-list-box"></ol>
                 </div>
                 <div id="wsjtx-rx" class="sbitx-list-container">
                     RX Frequency
-                    <ol size="10" class="sbitx-list-box">
-                    </ol>
+                    <ol class="sbitx-list-box"></ol>
                 </div>
-			<div id="gridmap"></div>
+                <div id="gridmap"></div>
                 <div id="FT8_controls">
                     <div class="sbitxv3-control">
-                        <div class="sbitxv3-label">AUTO</div>
+                        <label class="sbitxv3-label" for="FT8_AUTO">AUTO</label>
                         <select class="sbitxv3-selection sbitx-selection" id="FT8_AUTO">
                             <option value="ON">ON</option>
                             <option value="OFF">OFF</option>
                         </select>
                     </div>
                     <div class="sbitxv3-control">
-                        <div class="sbitxv3-label">TX1ST</div>
+                        <label class="sbitxv3-label" for="FT8_TX1ST">TX1ST</label>
                         <select class="sbitxv3-selection sbitx-selection" id="FT8_TX1ST">
                             <option value="ON">ON</option>
                             <option value="OFF">OFF</option>
                         </select>
-                    </div><div class="linear" id="linear_TX_PITCH">
-                        <div class="linear-label">TX TONE</div>
-                        <input type="number" id="TX_PITCH" min="10" max="4000" class="linear-value" />
+                    </div>
+                    <div class="linear" id="linear_TX_PITCH">
+                        <label class="linear-label" for="TX_PITCH">TX TONE</label>
+                        <input type="number" id="TX_PITCH" min="10" max="4000" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_TX_PITCH" max="4000" min="10" step="10" value="1900" />
+                            <input type="range" class="linear-slider" id="slider_TX_PITCH" max="4000" min="10" step="10"
+                                value="1900">
                         </div>
-                    </div><div class="linear" id="linear_FT8_REPEAT">
-                        <div class="linear-label">REPEAT</div>
-                        <input type="number" id="FT8_REPEAT" min="1" max="10" class="linear-value" />
+                    </div>
+                    <div class="linear" id="linear_FT8_REPEAT">
+                        <label class="linear-label" for="FT8_REPEAT">REPEAT</label>
+                        <input type="number" id="FT8_REPEAT" min="1" max="10" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_FT8_REPEAT" max="10" min="1" step="1" value="3" />
+                            <input type="range" class="linear-slider" id="slider_FT8_REPEAT" max="10" min="1" step="1"
+                                value="3">
                         </div>
-                    </div><!-- end of FT8_controls -->
+                    </div>
                 </div>
-            </div>
-            <!- cw pane -->
-            <div id="CW_ui" class="sbitx-panel mode-panel">
+            </section>
+            <!-- cw pane -->
+            <section id="CW_ui" class="sbitx-panel mode-panel">
                 <div id="data_window" tabindex="0">
                     <span id="text_done"></span>
                     <span id="text_pending"></span>
                 </div>
                 <div id="cw_settings">
                     <div class="linear" id="linear_WPM">
-                        <div class="linear-label">WPM</div>
-                        <input type="number" id="WPM" min="0" max="100" class="linear-value" />
+                        <label class="linear-label" for="WPM">WPM</label>
+                        <input type="number" id="WPM" min="0" max="100" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_WPM" max="40" min="5" step="1" value="13" />
+                            <input type="range" class="linear-slider" id="slider_WPM" max="40" min="5" step="1"
+                                value="13">
                         </div>
-                    </div><div class="linear" id="linear_PITCH">
-                        <div class="linear-label">PITCH</div>
-                        <input type="number" id="PITCH" min="0" max="100" class="linear-value" />
+                    </div>
+                    <div class="linear" id="linear_PITCH">
+                        <label class="linear-label" for="PITCH">PITCH</label>
+                        <input type="number" id="PITCH" min="0" max="100" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_PITCH" max="3000" min="50" step="10" value="600" />
+                            <input type="range" class="linear-slider" id="slider_PITCH" max="3000" min="50" step="10"
+                                value="600">
                         </div>
-                    </div><div class="linear" id="linear_CW_DELAY">
-                        <div class="linear-label">DELAY</div>
-                        <input type="number" id="CW_DELAY" min="50" max="1000" class="linear-value" />
+                    </div>
+                    <div class="linear" id="linear_CW_DELAY">
+                        <label class="linear-label" for="CW_DELAY">DELAY</label>
+                        <input type="number" id="CW_DELAY" min="50" max="1000" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_PITCH" max="1000" min="50" step="50" value="600" />
+                            <input type="range" class="linear-slider" id="slider_CW_DELAY" max="1000" min="50" step="50"
+                                value="600">
                         </div>
-                    </div><div class="linear" id="linear_SIDETONE">
-                        <div class="linear-label">TX VOL</div>
-                        <input type="number" id="SIDETONE" min="0" max="100" class="linear-value" />
+                    </div>
+                    <div class="linear" id="linear_SIDETONE">
+                        <label class="linear-label" for="SIDETONE">TX VOL</label>
+                        <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
                         <div class="linear-dropdown">
-                            <input type="range" class="linear-slider"
-                                   id="slider_SIDETONE" max="100" min="0" step="5" value="600" />
+                            <input type="range" class="linear-slider" id="slider_SIDETONE" max="100" min="0" step="5"
+                                value="600">
                         </div>
-                    </div><div class="sbitx-control longer-control">
-                        <div class="sbitxv3-label">INPUT</div>
+                    </div>
+                    <div class="sbitx-control longer-control">
+                        <label class="sbitxv3-label" for="CW_INPUT">INPUT</label>
                         <select class="sbitxv3-selection sbitx-selection" id="CW_INPUT">
                             <option value="IAMBIC">IAMBIC</option>
                             <option value="IAMBICB">IAMBIC-B</option>
@@ -419,156 +328,202 @@
                         </select>
                     </div>
                 </div>
-                <span id="data_chat">
+                <div id="data_chat">
                     <button id="data_chat_tx">TX</button>
                     <button id="data_chat_rx">RX</button>
-                </span>
-            </div>
+                </div>
+            </section>
             <!-- ssb/2tone pane -->
-            <div id="Voice_ui" class="sbitx-panel mode-panel">
+            <section id="Voice_ui" class="sbitx-panel mode-panel">
                 <div class="linear" id="linear_MIC">
-                    <div class="linear-label">MIC</div>
-                    <input type="number" id="MIC" min="0" max="100" class="linear-value" />
+                    <label class="linear-label" for="MIC">MIC</label>
+                    <input type="number" id="MIC" min="0" max="100" class="linear-value">
                     <div class="linear-dropdown">
-                        <input type="range" class="linear-slider"
-                               id="slider_MIC" max="100" min="0" step="1" value="13" />
+                        <input type="range" class="linear-slider" id="slider_MIC" max="100" min="0" step="1" value="13">
                     </div>
                 </div>
                 <button id="ptt_tx">TX</button>
                 <button id="ptt_rx">RX</button>
-            </div>
-            <!-- console panel -->
-            <div id="console_panel" class="sbitx-panel">
-                Terminal
-                <span class="sbitx-panel-title">
-                    <button class="sbitx-btn-back" data-for="panel_bar">&#x2716; Close</button>
-                </span>
-                <div id="console_window">
-                </div>
-                <div id="command_bar">
-                    <input type="text" class="sbitx-text-input" id="text_in" />
-                </div>
-            </div>
+                <button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic
+                    OFF</button>
 
-            <!-- telnet panel -->
-            <div id="telnet_panel" class="sbitx-panel">
-                <span class="sbitx-panel-title">
-                    <button class="sbitx-btn-back" data-for="panel_bar">&#x2716; Close</button>
-                </span>
-                Telnet
-                <button id="telnet" class="logger-button sbitx-btn">Start</button>
-                <button id="tclose" class="logger-button sbitx-btn">Stop</button>
-                <div id="telnet_window">
-                </div>
-                <div id="telnet_command_bar">
-                    <input type="text" class="sbitx-text-input" id="telnet_in" />
-                </div>
-            </div>
+            </section>
 
-
-        </div><!-- end of main used to limit overlapping of sidebar -->
-        <!-- the keyboard, comes at the bottom of them all -->
-    </div> <!-- end of sdr_page (vs login page, etc)-->
-    <div id="keybd-container">
-        <div id="more_keys">
-            <div class="Sbitxv3-control">
-                <div class="sbitxv3-label">MACRO</div>
-                <select class="sbitxv3-selection sbitx-selection" id="MACRO">
-                </select>
-            </div>
-            <button class="sbitxv3-btn" id="esc">
-                ESC
-            </button><button class="sbitxv3-btn macro-btn" id="F1">
-                F1
-            </button><button class="sbitxv3-btn macro-btn" id="F2">
-                F2
-            </button><button class="sbitxv3-btn macro-btn" id="F3">
-                F3
-            </button><button class="sbitxv3-btn macro-btn" id="F4">
-                F4
-            </button><button class="sbitxv3-btn macro-btn" id="F5">
-                F5
-            </button><button class="sbitxv3-btn macro-btn" id="F6">
-                F6
-            </button><button class="sbitxv3-btn macro-btn" id="F7">
-                F7
-            </button><button class="sbitxv3-btn macro-btn" id="F8">
-                F8
-            </button><button class="sbitxv3-btn macro-btn" id="F9">
-                F9
-            </button><button class="sbitxv3-btn macro-btn" id="F10">F10</button>
-            <button class="sbitxv3-btn" id="console-open">
-                CMD
-            </button><button class="sbitxv3-btn" id="telnet-open">
-                TEL
-            </button><button class="sbitxv3-btn" id="recorder-open">
-                REC
-            </button><button class="sbitxv3-btn" id="settings-open">SET</button>
-            <input type="text" class="sbitx-text-input sbitx-text-field"
-                   id="TEXT" placeholder="TEXT\CMD" size="20" />
-        </div><!-- end of more_keys -->
-        <table id="keybd" class="sbitx-keystroke" width="100%">
-            <tr>
-                <td>Q</td>
-                <td>W</td>
-                <td>E</td>
-                <td>R</td>
-                <td>T</td>
-                <td>Y</td>
-                <td>U</td>
-                <td>I</td>
-                <td>O</td>
-                <td>P</td>
-                <td>@</td>
-                <td>1</td>
-                <td>2</td>
-                <td>3</td>
-                <td colspan="2">DEL</td>
-            </tr>
-            <tr>
-                <td>CMD</td>
-                <td>A</td>
-                <td>S</td>
-                <td>D</td>
-                <td>F</td>
-                <td>G</td>
-                <td>H</td>
-                <td>J</td>
-                <td>K</td>
-                <td>L</td>
-                <td>/</td>
-                <td>4</td>
-                <td>5</td>
-                <td>6</td>
-                <td colspan="2">Enter</td>
-            </tr>
-            <tr>
-                <td>SPACE</td>
-                <td>Z</td>
-                <td>X</td>
-                <td>C</td>
-                <td>V</td>
-                <td>B</td>
-                <td>N</td>
-                <td>M</td>
-                <td>,</td>
-                <td>.</td>
-                <td>?</td>
-                <td>7</td>
-                <td>8</td>
-                <td>9</td>
-                <td>0</td>
-                <td>[x]</td>
-            </tr>
-        </table>
-    </div> <!-- end of on screen keyboard -->
-    <div class="menu-item">
-        <a href="https://www.hamqsl.com/solar.html"
-           title="Click to add Solar-Terrestrial Data to your website!">
-            <img src="https://www.hamqsl.com/solarbc.php">
-        </a>
+        </main>
     </div>
-    <!- tx panel -->
+    <div id="keybd-container">
+
+        <div id="more_keys">
+            <div class="sbitxv3-MACRO">
+                <label class="sbitxv3-label" for="MACRO">MACRO</label>
+                <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
+            </div>
+
+            <button class="sbitxv3-btn" id="esc">ESC</button>
+            <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
+            <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
+            <button class="sbitxv3-btn macro-btn" id="F3">F3</button>
+            <button class="sbitxv3-btn macro-btn" id="F4">F4</button>
+            <button class="sbitxv3-btn macro-btn" id="F5">F5</button>
+            <button class="sbitxv3-btn macro-btn" id="F6">F6</button>
+            <button class="sbitxv3-btn macro-btn" id="F7">F7</button>
+            <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
+            <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
+            <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
+            <button class="sbitxv3-btn" id="console-open">CMD</button>
+            <button class="sbitxv3-btn" id="telnet-open">TEL</button>
+            <button class="sbitxv3-btn" id="recorder-open">REC</button>
+            <button class="sbitxv3-btn" id="settings-open">SET</button>
+
+
+        </div>
+        <!-- TX panel -->
+        <!-- console panel -->
+        <section id="console_panel" class="sbitx-panel">
+            <h2 class="sbitx-panel-title">
+                Terminal
+                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+            </h2>
+            <div id="console_window"></div>
+            <div id="command_bar">
+                <input type="text" class="sbitx-text-input" id="text_in">
+            </div>
+        </section>
+        <!-- telnet panel -->
+        <section id="telnet_panel" class="sbitx-panel">
+            <h2 class="sbitx-panel-title">
+                Telnet
+                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+            </h2>
+            <button id="telnet" class="logger-button sbitx-btn">Start</button>
+            <button id="tclose" class="logger-button sbitx-btn">Stop</button>
+            <div id="telnet_window"></div>
+            <div id="telnet_command_bar">
+                <input type="text" class="sbitx-text-input" id="telnet_in">
+            </div>
+        </section>
+        <!-- settings panel -->
+        <section id="settings_panel" class="sbitx-panel">
+            <h2 class="sbitx-panel-title">
+                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+            </h2>
+            <div class="settings-element">
+                <label class="settings-label" for="PASSKEY">Passkey:</label>
+                <input id="PASSKEY" class="settings_input sbitx-text-input" type="text">
+            </div>
+            <div class="settings-element">
+                <label class="settings-label" for="MYCALLSIGN">My Callsign:</label>
+                <input id="MYCALLSIGN" class="settings_input sbitx-text-input" type="text">
+            </div>
+            <div class="settings-element">
+                <label class="settings-label" for="MYGRID">My Grid:</label>
+                <input id="MYGRID" class="settings_input sbitx-text-input" type="text">
+            </div>
+            <div class="settings-element">
+                <label class="settings-label" for="TELNETURL">Telnet Server:</label>
+                <input type="text" class="settings_input sbitx-text-input" id="TELNETURL"
+                    placeholder="e.g., dxc.nc7j.com:7373">
+            </div>
+            <div class="settings-element">
+                <button id="settings_save" class="logger-button">Update</button>
+            </div>
+        </section>
+        <!-- login panel -->
+        <section id="login_panel">
+            <div class="help_text">
+                <h1>sBitx v4.5 SLC</h1>
+                <p>The sBitx is an open-source, hackable, next generation radio.</p>
+                <p>Enter passkey to access your sbitx.</p>
+                <div id="login_error"></div>
+                <input type="text" class="sbitx-text-input" id="passkey" name="passkey" autocomplete="off"
+                    placeholder="passkey">
+                <button class="sbitxv3-btn" id="start_login">Start</button>
+                <p>New user? Try 123 as the passkey. Change it when prompted.</p>
+                <p>
+                    Released under General Public License v3.0.<br>
+                    (c) Ashhar Farhan, 2023 forked by the 64Bit Team, 2025.
+                </p>
+                <canvas id="canvas" width="350" height="120"></canvas>
+                <script>
+                    const canvas = document.getElementById('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const text_animation = "sBitx 64bit";
+                    const fontSize = 60;
+                    let letters = [];
+                    let time = 0;
+
+                    class Letter {
+                        constructor(char, x, y, delay) {
+                            this.char = char;
+                            this.x = x;
+                            this.y = y;
+                            this.delay = delay;
+                            this.opacity = 0;
+                        }
+
+                        update() {
+                            if (time >= this.delay) {
+                                this.opacity = Math.min(this.opacity + 0.015, 1); // Smooth fade-in
+                            }
+                        }
+
+                        draw() {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ctx.font = `${fontSize}px Arial`;
+                            ctx.fillStyle = '#D3D3D3'; // White/grey color
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(this.char, this.x, this.y);
+                            ctx.restore();
+                        }
+                    }
+
+                    function init() {
+                        ctx.font = `${fontSize}px Arial`;
+                        const textWidth = ctx.measureText(text_animation).width;
+                        const startX = canvas.width / 2 - textWidth / 2;
+                        let x = startX;
+
+                        for (let i = 0; i < text_animation.length; i++) {
+                            const metrics = ctx.measureText(text_animation[i]);
+                            x += metrics.width / 2;
+                            letters.push(new Letter(text_animation[i], x, canvas.height / 2, i * 15));
+                            x += metrics.width / 2;
+                        }
+                    }
+
+                    function animate() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        letters.forEach(letter => {
+                            letter.update();
+                            letter.draw();
+                        });
+                        time++;
+                        requestAnimationFrame(animate);
+                    }
+
+                    init();
+                    animate();
+                </script>
+                <p>
+                    Join our Discord at <a href="https://discord.gg/tCCjw5g5Pf">https://discord.gg/tCCjw5g5Pf</a>
+                </p>
+            </div>
+        </section>
+        <!-- recorder panel -->
+        <div id="recorder_panel" class="sbitx-panel mode-panel">
+            <h2 class="sbitx-panel-title">
+                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+            </h2>
+            <div class="menu_item">
+                <button class="logger-button" id="record_start">REC</button>
+                <button class="logger-button" id="record_stop">STOP</button>
+
+            </div>
+            <span id="record_duration">00:00</span>
+        </div>
+    </div>
 </body>
 
 <script>
@@ -587,7 +542,7 @@
     var band_stack_indicators = ["", "", "", "", "", "", "", "", ""];
 
     /* oz7bx gridmap */
-    GRIDMAP.init(document.getElementById("gridmap"), 700, 360);
+    GRIDMAP.init(document.getElementById("gridmap"), 360, 360);
 
     /* a few helper functions */
     function el(element_id) {
@@ -607,27 +562,27 @@
 
     /* socket handlers */
     var socket = null;
-    
+
     // Helper function to determine if we're using HTTPS
     function isSecureConnection() {
         return window.location.protocol === 'https:';
     }
-    
+
     // Helper function to get the correct WebSocket protocol (ws:// or wss://)
     function getWebSocketProtocol() {
         return isSecureConnection() ? 'wss://' : 'ws://';
     }
-    
+
     // Helper function to get the correct port
     function getWebSocketPort() {
         return isSecureConnection() ? '8443' : '8080';
     }
-    
+
     // Helper function to get the correct WebSocket path
     function getWebSocketPath() {
         return '/websocket';
     }
-    
+
     function on_open(event) {
         log("socket is connected");
         websocket_send("login=" + el("passkey").value);
@@ -663,7 +618,6 @@
     }
 
     /* login handler */
-
     function end_login(reason) {
         socket = null;
         session_id = "nullsession";
@@ -683,18 +637,19 @@
         }
     }
 
+    // Existing do_login (modified to call audio_start correctly)
     function do_login() {
         log("requesting full screen");
         if (document.location.hostname == "127.0.0.1") {
             go_fullscreen();
         }
-        
+
         // Check passkey for non-local connections
         if (el("passkey").value.length < 3 && document.location.hostname != "127.0.0.1") {
             alert("Enter the passkey (three characters or more)");
             return false;
         }
-        
+
         if (socket != null) {
             socket.close();
             socket = null;
@@ -708,9 +663,9 @@
         if (hostname == "") {
             hostname = "localhost";
         }
-        
+
         var wsUrl = wsProtocol + hostname + ":" + wsPort + wsPath;
-        
+
         log("opening socket to " + wsUrl);
         try {
             socket = new WebSocket(wsUrl);
@@ -719,7 +674,7 @@
             socket.onclose = on_close;
             socket.onmessage = on_message;
             socket.onerror = on_error;
-            
+
             // Start audio for non-local connections
             if (document.location.hostname != "127.0.0.1") {
                 audio_start();
@@ -730,40 +685,34 @@
         }
     }
 
+
+
     // ui panel switchers
     function show_login() {
         $("#login_panel").show();
         $(".sbitx-panel").hide();
         $("#pan_adapter").hide();
         $("#cmd").hide();
-        $("#sidebar").hide();
         $("#more_keys").hide();
         $("#maincontrols").hide();
+        $("#logger-controls").hide(); // Hide logger controls on login
         if (document.location.hostname == "127.0.0.1")
             show_keyboard();
 
-        //this is a hack to make the onscreen keyboard
-        //work with the passkey
+        // This is a hack to make the onscreen keyboard work with the passkey
         text_focus = el("passkey");
         el("passkey").value = "";
         $("#passkey").focus();
     }
 
     function show_main() {
-        var dial = el("sidebar");
         var main = el("main");
-        if (document.location.hostname == "127.0.0.1") {
-            main.style.marginLeft = 0;
-            dial.style.display = "none";
-        }
-        else {
-            main.style.marginLeft = 200;
-            dial.style.display = "block";
-        }
+        main.style.marginLeft = 0; // No sidebar, so no margin
         $("#pan_adapter").show();
         $("#login_panel").hide();
         $("#more_keys").show();
         $("#maincontrols").show();
+        $("#logger-controls").show();
         websocket_send("logbook=-1");
         websocket_send("macros_list=macros_list");
     }
@@ -902,19 +851,19 @@
     let tuning_position_last = 0;
     var knob_resolution = 6;
 
-function getStepSize() {
-	var step_text = el("STEP").value;
-	var step_size = 1000;
-	switch(step_text){
-		case "10H": step_size = 10; break;
-		case "100H": step_size = 100; break;
-		case "500H": step_size = 500; break;
-		case "1K": step_size = 1000; break;
-		case "10K": step_size = 10000; break;
-		case "100K": step_size = 100000; break;
-	}
-	return step_size;
-}
+    function getStepSize() {
+        var step_text = el("STEP").value;
+        var step_size = 1000;
+        switch (step_text) {
+            case "10H": step_size = 10; break;
+            case "100H": step_size = 100; break;
+            case "500H": step_size = 500; break;
+            case "1K": step_size = 1000; break;
+            case "10K": step_size = 10000; break;
+            case "100K": step_size = 100000; break;
+        }
+        return step_size;
+    }
     function tuning_knob_handler(position_now) {
         //avoid small movements
         if (Math.abs(position_now - tuning_position_last) < knob_resolution)
@@ -935,7 +884,7 @@ function getStepSize() {
         //reduce the precision of delta
         delta = Math.round(delta / knob_resolution);
         //tuning up or down by the step value
-	    var step_size = getStepSize();
+        var step_size = getStepSize();
 
         f = el('FREQ');
         var freq = parseInt(f.value);
@@ -952,55 +901,74 @@ function getStepSize() {
 
     //link the knob to the jquery code
     $(function ($) {
-        $(".knob").knob({
+        $('.knob').knob({
+            width: 150,
+            height: 150,
+            fgColor: '#1a75ff', // --accent-blue
+            bgColor: '#444444', // Slightly lighter for visibility
+            thickness: 0.4,
+            cursor: 20,
+            lineCap: 'round',
+            displayInput: false, // No numbers
+            step: 0.1, // Fine steps for smooth tuning
+            font: 'Helvetica, sans-serif',
+            fontWeight: 'normal',
             change: function (value) {
+                console.log('Knob changed to:', value);
                 tuning_knob_handler(value);
             },
             release: function (value) {
-		tuning_knob_handler(value); // +llh
-                //console.log(this.$.attr('value'));
-                //console.log("release : " + value);
+                console.log('Knob released at:', value);
+                tuning_knob_handler(value);
             },
             cancel: function () {
-                //console.log("cancel : ", this);
+                console.log('Knob cancelled');
             },
             draw: function () {
+                // Custom draw for gradient
+                var ctx = this.g;
+                var gradient = ctx.createLinearGradient(0, 0, this.w, this.h);
+                gradient.addColorStop(0, '#1a75ff'); // --accent-blue
+                gradient.addColorStop(1, '#0d47a1'); // Darker blue
+                ctx.strokeStyle = gradient;
             }
         });
+        console.log('Knob initialized for #tuning_knob:', $('#tuning_knob').length);
     });
-
-function change_freq(event) {
-	event.preventDefault();
-	let f = el('FREQ');
-	var freq = parseInt(f.value);
-	var step_size = getStepSize();
-	freq = Math.round(freq/step_size) * step_size;
-	if (event.deltaY > 0)
-		freq += step_size;
-	else
-		freq -= step_size;
-	f.value = freq;
-	update_freq(f.value);	
-}
+    function change_freq(event) {
+        event.preventDefault();
+        let f = el('FREQ');
+        var freq = parseInt(f.value);
+        var step_size = getStepSize();
+        freq = Math.round(freq / step_size) * step_size;
+        if (event.deltaY > 0)
+            freq += step_size;
+        else
+            freq -= step_size;
+        f.value = freq;
+        update_freq(f.value);
+    }
 
     /* waterfall and spectrum */
 
     function resize_ui() {
         var b = $("body");
-        var sidebar_width = $("#sidebar").width();
-        if ($("#sidebar")[0].style.display == "none")
-            sidebar_width = 0;
-
         log("resize_ui w = " + b.width() + " h = " + b.height());
-
-        el("waterfall").width = b.width() - sidebar_width;//-sidebar.width;
-        el("spectrum").width = b.width() - sidebar_width;//-sidebar.width;
-        $(".sbitx-panel").width = b.width() - sidebar_width;
-        el("CW_ui").width = b.width() - sidebar_width;//-sidebar.width;
-        /*	if(b.height() > 600){
-                el("waterfall").height = b.height() / 4;
-                el("spectrum").height = b.height() /4;
-            }*/
+        el("pan_adapter").width = b.width() - 30;
+        el("waterfall").width = b.width() - 30;
+        el("spectrum").width = el("waterfall").width;
+        $(".sbitx-panel").width = b.width() - 30;
+        el("CW_ui").width = b.width() - 30;
+        if (el("FT8_controls")) {
+            el("FT8_controls").style.width = b.width() + "px"; // Ensure FT8_controls spans full width
+        }
+        if (el("sbitx-list-container")) {
+            el("sbitx-list-container").style.width = "320px"; // Match original fixed width
+        }
+        /* if(b.height() > 600){
+            el("waterfall").height = b.height() / 4;
+            el("spectrum").height = b.height() / 4;
+        } */
         height = b.height();
     }
 
@@ -1035,11 +1003,87 @@ function change_freq(event) {
         update_freq(freq);
     }
 
-    canvasElem = el("waterfall");
+    //Mouse drag W4WHL
+    // Waterfall drag handling
+    let isDragging = false;
+    let lastX = 0;
+    let accumulatedPixels = 0; // Accumulator for pixel movement
+    const pixelsPerStep = 100; // Pixels required to trigger one step (adjustable)
 
-    $('#waterfall').mousedown(function (e) {
-        getMousePosition(canvasElem, e);
-    });
+    function handleWaterfallDrag(event, isTouch = false) {
+        if (!isDragging) return;
+
+        // Get clientX from mouse or touch event
+        const currentX = isTouch ? event.touches[0].clientX : event.clientX;
+        const deltaX = currentX - lastX; // Positive if moving right, negative if left
+        const stepSize = getStepSize(); // e.g., 10, 100, 1000 Hz
+
+        // Accumulate raw pixel movement
+        accumulatedPixels += deltaX;
+
+        // Calculate number of steps based on accumulated pixels
+        const steps = Math.floor(accumulatedPixels / pixelsPerStep); // Integer steps
+
+        if (steps !== 0) {
+            // Update frequency: dragging right (deltaX > 0) decreases freq
+            let freq = parseInt(el('FREQ').value);
+            freq -= steps * stepSize; // Apply steps * stepSize (e.g., -1000 Hz for 1 kHz step)
+            freq = Math.round(freq / stepSize) * stepSize; // Snap to step grid
+
+            // Apply update if frequency changed
+            if (freq !== parseInt(el('FREQ').value)) {
+                update_freq(freq);
+                console.log(`Waterfall drag freq: ${freq} (deltaX: ${deltaX}, accumulatedPixels: ${accumulatedPixels}, steps: ${steps})`);
+            }
+
+            // Reduce accumulated pixels by the amount used
+            accumulatedPixels -= steps * pixelsPerStep;
+        }
+
+        lastX = currentX; // Update last position
+        if (!isTouch) event.preventDefault(); // Prevent text selection for mouse
+    }
+
+    function startWaterfallDrag(event, isTouch = false) {
+        if (isTouch && event.touches.length !== 1) return;
+        isDragging = true;
+        lastX = isTouch ? event.touches[0].clientX : event.clientX;
+        accumulatedPixels = 0; // Reset accumulator
+        event.preventDefault();
+    }
+
+    function stopWaterfallDrag() {
+        if (isDragging) {
+            // Apply any remaining accumulated pixels
+            const stepSize = getStepSize();
+            let freq = parseInt(el('FREQ').value);
+            const steps = Math.round(accumulatedPixels / pixelsPerStep); // Round final delta
+
+            if (steps !== 0) {
+                freq -= steps * stepSize;
+                freq = Math.round(freq / stepSize) * stepSize;
+                if (freq !== parseInt(el('FREQ').value)) {
+                    update_freq(freq);
+                    console.log(`Waterfall drag end freq: ${freq} (final steps: ${steps}, accumulatedPixels: ${accumulatedPixels})`);
+                }
+            }
+        }
+        isDragging = false;
+        accumulatedPixels = 0;
+    }
+
+    // Attach event listeners
+    const waterfallCanvas = el("waterfall");
+    waterfallCanvas.addEventListener("mousedown", (e) => startWaterfallDrag(e, false));
+    waterfallCanvas.addEventListener("mousemove", (e) => handleWaterfallDrag(e, false));
+    waterfallCanvas.addEventListener("mouseup", stopWaterfallDrag);
+    waterfallCanvas.addEventListener("mouseleave", stopWaterfallDrag);
+    document.addEventListener("mouseup", stopWaterfallDrag);
+
+    waterfallCanvas.addEventListener("touchstart", (e) => startWaterfallDrag(e, true));
+    waterfallCanvas.addEventListener("touchmove", (e) => handleWaterfallDrag(e, true));
+    waterfallCanvas.addEventListener("touchend", stopWaterfallDrag);
+    waterfallCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     // created by OZ7BX
 
     function calcGradientFarhan(v) {
@@ -1048,29 +1092,29 @@ function change_freq(event) {
         }
         let clr = {};
         if (v < 20) {
-           clr.r = 0;
-           clr.g = 0;
-           clr.b = v * 12;
+            clr.r = 0;
+            clr.g = 0;
+            clr.b = v * 12;
         }
         else if (v < 40) {
-           clr.r = 0;
-           clr.g = (v - 20) * 12;
-           clr.b = 255;
+            clr.r = 0;
+            clr.g = (v - 20) * 12;
+            clr.b = 255;
         }
         else if (v < 60) {
-           clr.r = 0;
-           clr.g = 255;
-           clr.b = (60 - v) * 12;
+            clr.r = 0;
+            clr.g = 255;
+            clr.b = (60 - v) * 12;
         }
         else if (v < 80) {
-           clr.r = (v - 60) * 12;
-           clr.g = 255;
-           clr.b = 0;
+            clr.r = (v - 60) * 12;
+            clr.g = 255;
+            clr.b = 0;
         }
         else {
-           clr.r = 255;
-           clr.g = (100 - v) * 12;
-           clr.b = 0;
+            clr.r = 255;
+            clr.g = (100 - v) * 12;
+            clr.b = 0;
         }
         return clr;
     }
@@ -1081,303 +1125,214 @@ function change_freq(event) {
         }
         let clr = {};
         if (v < 20) {
-           const t = v / 20.0;
-           clr.r = 0;
-           clr.g = 0;
-           clr.b = Math.round(t * 255);
+            const t = v / 20.0;
+            clr.r = 0;
+            clr.g = 0;
+            clr.b = Math.round(t * 255);
         }
         else if (v < 40) {
-           const t = (v - 20) / 20.0;
-           clr.r = 0;
-           clr.g = Math.round(t * 255);
-           clr.b = 255;
+            const t = (v - 20) / 20.0;
+            clr.r = 0;
+            clr.g = Math.round(t * 255);
+            clr.b = 255;
         }
         else if (v < 60) {
-           const t = (v - 40) / 20.0;
-           clr.r = 0;
-           clr.g = 255;
-           clr.b = Math.round((1.0 - t) * 255);
+            const t = (v - 40) / 20.0;
+            clr.r = 0;
+            clr.g = 255;
+            clr.b = Math.round((1.0 - t) * 255);
         }
         else if (v < 80) {
-           const t = (v - 60) / 20.0;
-           clr.r = Math.round(t * 255);
-           clr.g = 255;
-           clr.b = 0;
+            const t = (v - 60) / 20.0;
+            clr.r = Math.round(t * 255);
+            clr.g = 255;
+            clr.b = 0;
         }
         else {
-           const t = (v - 80) / 20.0;
-           clr.r = 255;
-           clr.g = Math.round((1.0 - t) * 255);
-           clr.b = 0;
+            const t = (v - 80) / 20.0;
+            clr.r = 255;
+            clr.g = Math.round((1.0 - t) * 255);
+            clr.b = 0;
         }
-	return clr;
+        return clr;
     }
 
     var nbins = 0;
 
     function spectrum_update(update) {
-        var w = el("spectrum");
-        var ctx = w.getContext("2d");
-        nbins = update.length - 3; //the first three characters are the status
-        var scale = w.width / nbins;
-        var height = w.height - 15;
+        const w = el("spectrum");
+        const { width, height } = w;
+        const ctx = w.getContext("2d");
+        nbins = update.length - 3;
+        const scale = width / nbins;
+        const drawHeight = height - 15;
+        const calculated_span = nbins * 46.875;
+        const hz_per_pixel = width / calculated_span;
+
+        // Clear canvas
         ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, w.width, w.height);
+        ctx.fillRect(0, 0, width, height);
 
-	// Create linear gradient
-	const grad=ctx.createLinearGradient(0,0, 0,height);
-     /*	grad.addColorStop(0, "red");
-	grad.addColorStop(0.2, "orange");
-        grad.addColorStop(0.4, "yellow");
-        grad.addColorStop(0.6, "green");
-        grad.addColorStop(0.8, "darkcyan");
-        grad.addColorStop(1, "darkblue"); */
-
-        for ( var v = 0; v <= 100; v++) {
-            let clr = calcGradient(100-v);
-            grad.addColorStop(v/100.0, "rgb(" + clr.r + " " + clr.g + " " + clr.b + ")"); 
+        // Create gradient (consider caching if static)
+        const grad = ctx.createLinearGradient(0, 0, 0, drawHeight);
+        for (let v = 0; v <= 100; v++) {
+            const clr = calcGradient(100 - v);
+            grad.addColorStop(v / 100.0, `rgb(${clr.r}, ${clr.g}, ${clr.b})`);
         }
 
-        //draw the filter block
-        var bw = parseFloat(el("BW").value); // Use BW setting for bandwidth
-        var low = parseFloat(el("LOW").value);
-        var high = parseFloat(el("HIGH").value);
-        var mode = el("MODE").value;
-        var status = el("STATUS").value;
-        var calculated_span = nbins * 46.875; //this comes from the sampling rate of the sdr
-        var hz_per_pixel = w.width / calculated_span;
+        // Cache DOM values
+        const mode = el("MODE").value;
+        const bw = parseFloat(el("BW").value);
+        const low = parseFloat(el("LOW").value);
+        const high = parseFloat(el("HIGH").value);
+        const status = el("STATUS").value;
 
+        // Draw filter block
         ctx.fillStyle = "#444";
-        if (mode == 'LSB' || mode == 'CWR') {
-            ctx.fillRect(w.width / 2 - (hz_per_pixel * high), 0,
-                (high - low) * hz_per_pixel, height); // existing logic for LSB and CWR modes
-        } else if (mode == 'AM') {
-            var centerFrequency = w.width / 2;
-            var blockWidth = bw * hz_per_pixel * 2; // cover both sidebands
-
-            ctx.fillRect(centerFrequency - blockWidth / 2, 0, blockWidth, height);
+        if (mode === 'LSB' || mode === 'CWR') {
+            ctx.fillRect(width / 2 - (hz_per_pixel * high), 0, (high - low) * hz_per_pixel, drawHeight);
+        } else if (mode === 'AM') {
+            const blockWidth = bw * hz_per_pixel * 2;
+            ctx.fillRect(width / 2 - blockWidth / 2, 0, blockWidth, drawHeight);
         } else {
-            if (mode == 'USB') {
-                ctx.fillRect(w.width / 2 + (hz_per_pixel * low), 0,
-                    (high - low) * hz_per_pixel, height); // USB mode
-            } else {
-                ctx.fillRect(w.width / 2 + (hz_per_pixel * low), 0,
-                    (high - low) * hz_per_pixel, height); // other modes
-            }
+            ctx.fillRect(width / 2 + (hz_per_pixel * low), 0, (high - low) * hz_per_pixel, drawHeight);
         }
 
-
-        //draw the grid
+        // Draw grid
         ctx.beginPath();
-        for (var x = 0; x < 10; x++) {
-            ctx.moveTo(w.width * x / 10, 0);
-            ctx.lineTo(w.width * x / 10, height);
+        for (let x = 0; x < 10; x++) {
+            const px = width * x / 10;
+            ctx.moveTo(px, 0);
+            ctx.lineTo(px, drawHeight);
         }
-        for (var x = 0; x < 8; x++) {
-            ctx.moveTo(0, height * x / 8);
-            ctx.lineTo(w.width, x * height / 8);
+        for (let y = 0; y < 8; y++) {
+            const py = drawHeight * y / 8;
+            ctx.moveTo(0, py);
+            ctx.lineTo(width, py);
         }
-        ctx.closePath();
         ctx.strokeStyle = "#333";
         ctx.stroke();
 
-        //plot the spectrum
-        ctx.beginPath();
-        ctx.moveTo(w.width, height - (update.charCodeAt(0) - 32));
-        //we index the charcodes at an offset of 3 (the first three are status)
-
+        // Plot spectrum
         if (update.startsWith("TX")) {
+            ctx.beginPath();
+            ctx.moveTo(width, drawHeight - (update.charCodeAt(0) - 32));
             for (let x = 0; x < nbins; x++) {
-                ctx.lineTo((nbins - x - 1) * scale, height - (((update.charCodeAt(x + 3) - 32) / 100) * height));
+                ctx.lineTo((nbins - x - 1) * scale, drawHeight - (((update.charCodeAt(x + 3) - 32) / 100) * drawHeight));
             }
+            ctx.strokeStyle = "#ffff00";
+            ctx.stroke();
         } else {
             for (let x = 0; x < nbins; x++) {
                 const px = (nbins - x - 1) * scale;
-                const ph = - (((update.charCodeAt(x + 3) -32 ) * height * 2) / 100);
+                const ph = -(((update.charCodeAt(x + 3) - 32) * drawHeight * 2) / 100);
                 ctx.fillStyle = grad;
-                ctx.fillRect(px,height-1, 3,ph);
+                ctx.fillRect(px, drawHeight - 1, scale, ph);
             }
         }
 
-        ctx.strokeStyle = "#ffff00";
-        ctx.stroke();
-
-        //write the spectrum edges
-        ctx.fillStyle = "cyan";
-        ctx.font = "14px Sans";
+        // Draw status
         ctx.fillStyle = "orange";
-
-        //write the status
-        //ctx.fillText(status, w.width / 2 - ctx.measureText(status).width / 2, 14);
+        ctx.font = "14px Sans";
         ctx.fillText(status, 20, 14);
 
-
-        //show spots!
-        let freq = parseInt(el("FREQ").value) / 1000;
+        // Draw spots
+        const freq = parseInt(el("FREQ").value) / 1000;
+        const dups = new Set();
         let spot_count = 0;
         let spot_report = "";
-        let dups = new Object();
-
         for (let i = 0; i < spots.length && spot_count < 10; i++) {
-            if (Math.abs(spots[i].frequency - freq) < 25) {
-                if (dups[spots[i].callsign] == undefined) {
-                    spot_report = spot_report + " " + spots[i].frequency + "/" + spots[i].callsign + "/" + spots[i].mode;
-                    spot_count++;
-                    dups[spots[i].callsign] = spots[i].frequency;
-                }
+            if (Math.abs(spots[i].frequency - freq) < 25 && !dups.has(spots[i].callsign)) {
+                spot_report += ` ${spots[i].frequency}/${spots[i].callsign}/${spots[i].mode}`;
+                dups.add(spots[i].callsign);
+                spot_count++;
             }
         }
         ctx.font = "12px Sans";
         ctx.fillStyle = "white";
-        ctx.fillText(spot_report, 0, height + 12);
+        ctx.fillText(spot_report, 0, drawHeight + 12);
 
-        //now, draw the tx and rx lines
-        var rx_pitch = el("PITCH").value;
-
-        if (mode == 'AM') {
-            var tx_pitch = 0;
-        } else {
-            var tx_pitch = el("TX_PITCH").value;
-        }
+        // Draw RX/TX lines
+        const rx_pitch = parseFloat(el("PITCH").value);
+        const tx_pitch = mode === 'AM' ? 0 : parseFloat(el("TX_PITCH").value);
 
         ctx.beginPath();
-        ctx.font = "12px Sans";
         ctx.strokeStyle = "cyan";
         ctx.fillStyle = "white";
-        if (mode == 'CWR' || mode == 'LSB') {
-            ctx.moveTo(w.width / 2 - (rx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 - (rx_pitch * hz_per_pixel), height);
-            ctx.fillText("RX", w.width / 2 - (rx_pitch * hz_per_pixel) - 10, height + 12);
+        ctx.font = "12px Sans";
+        let rx_x;
+        if (mode === 'CWR' || mode === 'LSB') {
+            rx_x = width / 2 - (rx_pitch * hz_per_pixel);
+        } else if (mode === 'AM') {
+            rx_x = width / 2;
+        } else {
+            rx_x = width / 2 + (rx_pitch * hz_per_pixel);
         }
-        //W2JON
-        else if (mode == 'AM') {
-            // Draw RX line for AM centered
-            ctx.moveTo(w.width / 2, 0);
-            ctx.lineTo(w.width / 2, height);
-            ctx.fillText("RX", w.width / 2 - 10, height + 12);
-
-            // Optionally, we can draw TX line for AM bu tthere is ZERO reason to do so
-            ctx.moveTo(w.width / 2 + (tx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 + (tx_pitch * hz_per_pixel), height);
-            //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
-            //ctx.fillText("TX", w.width/2 - 10, height + 12);
-        }
-        //-
-        else {
-            ctx.moveTo(w.width / 2 + (rx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 + (rx_pitch * hz_per_pixel), height);
-            ctx.fillText("RX", w.width / 2 + (rx_pitch * hz_per_pixel) - 10, height + 12);
-        }
+        ctx.moveTo(rx_x, 0);
+        ctx.lineTo(rx_x, drawHeight);
+        ctx.fillText("RX", rx_x - 10, drawHeight + 12);
         ctx.stroke();
 
-        //
-        //draw the tx line separately only for FT8
-        if (mode != "FT8")
-            return;
-
-        ctx.beginPath();
-        ctx.strokeStyle = "red";
-        ctx.fillStyle = "red";
-
-        if (mode == 'CWR' || mode == 'LSB') {
-            ctx.moveTo(w.width / 2 - (tx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 - (tx_pitch * hz_per_pixel), height);
-            ctx.fillText("TX", w.width / 2 - (tx_pitch * hz_per_pixel) - 10, height + 12);
+        if (mode === 'FT8') {
+            ctx.beginPath();
+            ctx.strokeStyle = "red";
+            ctx.fillStyle = "red";
+            const tx_x = mode === 'CWR' || mode === 'LSB' ? width / 2 - (tx_pitch * hz_per_pixel) : width / 2 + (tx_pitch * hz_per_pixel);
+            ctx.moveTo(tx_x, 0);
+            ctx.lineTo(tx_x, drawHeight);
+            ctx.fillText("TX", tx_x - 10, drawHeight + 12);
+            ctx.stroke();
         }
-        //W2JON
-        else if (mode == 'AM') {
-            // Draw RX line for AM centered
-            ctx.moveTo(w.width / 2, 0);
-            ctx.lineTo(w.width / 2, height);
-            ctx.fillText("RX", w.width / 2 - 10, height + 12);
-
-            // Optionally, we can draw TX line for AM
-            ctx.moveTo(w.width / 2 + (tx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 + (tx_pitch * hz_per_pixel), height);
-            //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
-            //ctx.fillText("TX", w.width/2 - 10, height + 12);
-        }
-        //-
-        else {
-            ctx.moveTo(w.width / 2 + (tx_pitch * hz_per_pixel), 0);
-            ctx.lineTo(w.width / 2 + (tx_pitch * hz_per_pixel), height);
-            ctx.fillText("TX", w.width / 2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
-        }
-        ctx.stroke();
     }
-
     function waterfall_update(update) {
-        var w = el("waterfall");
-        var i = 0;
+        const w = el("waterfall");
+        const { width, height } = w;
+        if (width === 0 || height === 0) return;
 
-        if (w.width == 0 || w.height == 0)
-            return;
+        const ctx = w.getContext("2d", { willReadFrequently: true });
+        const nbins = update.length - 3;
+        const scale = nbins / width;
+        const calculated_span = nbins * 46.875;
+        const hz_per_pixel = width / calculated_span;
 
-        nbins = update.length - 3;
-        var scale = nbins / w.width;
+        // Get mode and pitch values
+        const mode = el("MODE").value;
+        const rx_pitch = parseFloat(el("PITCH").value);
+        const tx_pitch = mode === 'FT8' ? parseFloat(el("TX_PITCH").value) : 0;
 
-        //get the tx and rx lines
-        var rx_pitch = el("PITCH").value;
-        var tx_pitch = el("TX_PITCH").value;
-        var mode = el("MODE").value;
-        var calculated_span = nbins * 46.875; //this comes from the sampling rate of the sdr
-        var hz_per_pixel = w.width / calculated_span;
-        var repeat = 3;
+        // Calculate repeat and spot positions
+        const repeat = mode === 'FT8' ? 1 : mode === 'CW' || mode === 'CWR' ? 2 : 2;
+        const rx_spot = Math.round(width / 2 + (rx_pitch * hz_per_pixel * (mode === 'CWR' || mode === 'LSB' ? -1 : 1)));
+        const tx_spot = mode === 'FT8' ? Math.round(width / 2 + (tx_pitch * hz_per_pixel)) : -1;
 
-        if (mode == 'FT8')
-            repeat = 1;
-        else if (mode == 'CW' || mode == 'CWR')
-            repeat = 2;
-
-
-        var rx_spot = -1;
-        var tx_spot = -1;
-
-        if (mode == 'CWR' || mode == 'LSB')
-            rx_spot = w.width / 2 - (rx_pitch * hz_per_pixel);
-        else
-            rx_spot = w.width / 2 + (rx_pitch * hz_per_pixel);
-        rx_spot = Math.round(rx_spot);
-
-        if (mode == 'FT8') {
-            tx_spot = w.width / 2 + (tx_pitch * hz_per_pixel);
-            tx_spot = Math.round(tx_spot);
-        }
-
-        var ctx = w.getContext("2d", { willReadFrequently: true });
-
-        //first move the old image down by 1 pixels (bitblt it down)
-        var img = ctx.getImageData(0, 0, w.width, w.height);
+        // Shift existing image down
+        const img = ctx.getImageData(0, 0, width, height);
         ctx.putImageData(img, 0, repeat);
 
-        //create a new strip of waterfall width, but 1 pixels high
-        img = ctx.getImageData(0, 0, w.width, 1);
-        var i = 0;
+        // Create new strip (1 pixel high)
+        const strip = ctx.createImageData(width, 1);
+        const data = strip.data; // Uint8ClampedArray
+        let i = 0;
 
-        for (var x = 0; x < w.width; x++) {
-            var bin = (w.width - x) * scale;
+        for (let x = 0; x < width; x++) {
+            const bin = Math.floor((width - x) * scale);
+            let v = (update.charCodeAt(bin + 3) - 32) * 2;
+            v = Math.min(v, 100);
 
-            //the first three are status
-            var v = (update.charCodeAt(bin + 3) - 32) * 2;
-            let clr = calcGradient(v);
-            if (x == tx_spot)
-                img.data[i++] = 255;
-            else
-                img.data[i++] = clr.r;
+            // Compute color using calcGradient
+            const clr = calcGradient(v);
 
-            if (x == rx_spot) {
-                img.data[i++] = 255;
-                img.data[i++] = 255;
-            }
-            else {
-                img.data[i++] = clr.g;
-                img.data[i++] = clr.b;
-            }
-            img.data[i++] = 255;
+            // Set pixel data
+            data[i++] = x === tx_spot ? 255 : clr.r;
+            data[i++] = x === rx_spot ? 255 : clr.g;
+            data[i++] = x === rx_spot ? 255 : clr.b;
+            data[i++] = 255; // Alpha
         }
 
-        for (i = 0; i < repeat; i++)
-            ctx.putImageData(img, 0, i);
+        // Draw the strip
+        for (let i = 0; i < repeat; i++) {
+            ctx.putImageData(strip, 0, i);
+        }
     }
 
     /* on screen keyboard panel */
@@ -1480,9 +1435,15 @@ function change_freq(event) {
 
     /* audio stuff (this needs to work with webrtc data packets rather than websockets */
     //setup the audio
-    var player = null;
+    var rxAudioContext = null;
+    var rxWorkletNode = null;
+    var rxAudioInitialized = false;
     var micStream = null;
     var micContext = null;
+    var prev_sample = 0;
+    var intp_factor = 6; //we will interpolate from 8 khz to 48 khz
+    var sound_mute = false;
+    var f = null;
     // Set up variables for browser microphone - single global object to prevent duplication
     window.sbitxMic = window.sbitxMic || {
         enabled: false,
@@ -1503,12 +1464,12 @@ function change_freq(event) {
         // Toggle mic state using the global object
         window.sbitxMic.enabled = !window.sbitxMic.enabled;
         var micBtn = document.getElementById('browser_mic');
-        
+
         if (window.sbitxMic.enabled) {
             micBtn.textContent = "Browser Mic ON";
             //micBtn.style.backgroundColor = "yellow";
             console.log("Browser microphone enabled");
-            
+
             // Initialize microphone if not already done
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 // Only initialize once
@@ -1516,7 +1477,7 @@ function change_freq(event) {
                     console.log("Initializing browser mic");
                     initBrowserMic();
                 }
-                
+
                 // Set up the audio send interval only once
                 if (!window.sbitxMic.sendInterval) {
                     setupAudioSendInterval();
@@ -1528,155 +1489,254 @@ function change_freq(event) {
             micBtn.textContent = "Browser Mic OFF";
             micBtn.style.backgroundColor = "";
             console.log("Browser microphone disabled");
-            
+
             // Clear the audio buffer when mic is disabled
             window.sbitxMic.buffer = [];
         }
     }
 
-    function audio_start() {
+    async function audio_start() {
         try {
-            // Create new PCM player if not already created
-            if (!player) {
+            // Initialize the RX audio worklet if not already initialized
+            if (!rxAudioInitialized) {
+                // Create audio context
+                rxAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Load the audio worklet module
+                try {
+                    await rxAudioContext.audioWorklet.addModule('rxProcessor.js');
+                    log("RX AudioWorklet module loaded successfully");
+                    
+                    // Create the worklet node with processor options
+                    rxWorkletNode = new AudioWorkletNode(
+                        rxAudioContext,
+                        'audio-playback-processor',
+                        {
+                            // Pass the correct sample rate information
+                            processorOptions: {
+                                inputSampleRate: 16000, // The sBitx system decimates from 96kHz to 16kHz
+                                outputSampleRate: rxAudioContext.sampleRate,
+                                debug: false // Set to true to enable buffer logging for debugging
+                            }
+                        }
+                    );
+                    
+                    // Connect the node to the audio output
+                    rxWorkletNode.connect(rxAudioContext.destination);
+                    
+                    // Handle messages from the processor
+                    rxWorkletNode.port.onmessage = (event) => {
+                        const { status, level } = event.data;
+                        
+                        if (status === "buffer_low") {
+                            // Buffer is running low, could log or handle this
+                            // console.log("Audio buffer running low");
+                        } else if (status === "buffer_full") {
+                            // Buffer is full, could throttle sending data
+                            // console.log("Audio buffer full");
+                        } else if (status === "buffer_level") {
+                            // Could use this to display a buffer level indicator
+                            // console.log(`Buffer level: ${level * 100}%`);
+                        }
+                    };
+                    
+                    rxAudioInitialized = true;
+                    log("RX audio worklet initialized successfully");
+                    
+                    // Request audio data from the server after initialization
+                    if (session_id !== 'nullsession') {
+                        websocket_send("audio");
+                    }
+                } catch (workletError) {
+                    log("Failed to load RX AudioWorklet: " + workletError + ". Falling back to PCMPlayer.");
+                    // Fallback to PCMPlayer
+                    player = new PCMPlayer({
+                        encoding: '16bitInt',
+                        channels: 1,
+                        sampleRate: 48000,
+                        flushingTime: 100
+                    });
+                    log("PCM player initialized as fallback");
+                    rxAudioInitialized = true; // Mark as initialized even though we're using fallback
+                    
+                    // Request audio data from the server after initialization
+                    if (session_id !== 'nullsession') {
+                        websocket_send("audio");
+                    }
+                }
+            } else {
+                log("RX audio already initialized");
+                // Ensure we're requesting audio data
+                if (session_id !== 'nullsession') {
+                    websocket_send("audio");
+                }
+            }
+        } catch (e) {
+            log("RX audio initialization error: " + e);
+            // Last resort fallback
+            try {
                 player = new PCMPlayer({
                     encoding: '16bitInt',
                     channels: 1,
-                    sampleRate: 48000,  // Use 48kHz sample rate for better audio quality
+                    sampleRate: 48000,
                     flushingTime: 100
                 });
-                log("PCM player initialized successfully");
-            } else {
-                log("PCM player already initialized");
-            }
-        } catch (e) {
-            log("audio player error: " + e);
-        }
-    }
-
-window.sbitxMic = window.sbitxMic || {
-    enabled: false,
-    initialized: false,
-    stream: null,
-    context: null,
-    workletNode: null,        // AudioWorklet node 
-    buffer: [],
-    bufferSize: 512,          // Buffer size for audio processing
-    bufferThreshold: 256,     // Send when buffer reaches this size
-    sendIntervalMs: 50,       // Send interval in milliseconds
-    sendInterval: null,       // Interval reference
-    lastSendTime: 0,          // Timestamp of last audio send
-    initCount: 0              // Track initialization attempts
-};
-
-async function initBrowserMic() {
-    // Track initialization attempts
-    window.sbitxMic.initCount++;
-    console.log("Browser mic initialization attempt #" + window.sbitxMic.initCount);
-    
-    // Skip if already initialized
-    if (window.sbitxMic.initialized && window.sbitxMic.stream) {
-        console.log("Browser microphone already initialized, skipping");
-        return;
-    }
-    
-    try {
-        // Request microphone access
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                sampleRate: 8000,            // Request 8kHz directly to match our needs
-                channelCount: 1,             // Mono audio
-                echoCancellation: true,      // Enable echo cancellation
-                noiseSuppression: true,      // Enable noise suppression
-                autoGainControl: true        // Enable auto gain control
-            }
-        });
-        
-        // Initialize audio context
-        window.sbitxMic.stream = stream;
-        window.sbitxMic.context = new (window.AudioContext || window.webkitAudioContext)();
-        window.sbitxMic.initialized = true; // Mark as initialized
-        console.log("Audio context sample rate: " + window.sbitxMic.context.sampleRate + "Hz");
-        
-        // Load the audio worklet module
-        try {
-            await window.sbitxMic.context.audioWorklet.addModule('micProcessor.js');
-            console.log("AudioWorklet module loaded successfully");
-            
-            // Create audio nodes
-            const source = window.sbitxMic.context.createMediaStreamSource(stream);
-            window.sbitxMic.workletNode = new AudioWorkletNode(
-                window.sbitxMic.context, 
-                'mic-audio-processor'
-            );
-            
-            // Connect the audio processing chain
-            source.connect(window.sbitxMic.workletNode);
-            window.sbitxMic.workletNode.connect(window.sbitxMic.context.destination);
-            
-            // Handle messages from the processor
-            window.sbitxMic.workletNode.port.onmessage = (event) => {
-                if (in_tx && window.sbitxMic.enabled) {
-                    const { audioData } = event.data;
-                    
-                    // Add processed audio to buffer for sending
-                    for (let i = 0; i < audioData.length; i++) {
-                        window.sbitxMic.buffer.push(audioData[i]);
-                    }
-                    
-                    // Limit buffer size to prevent memory issues
-                    if (window.sbitxMic.buffer.length > 10000) {
-                        window.sbitxMic.buffer = window.sbitxMic.buffer.slice(0, 5000);
-                    }
+                log("PCM player initialized as emergency fallback");
+                rxAudioInitialized = true;
+                
+                // Request audio data from the server
+                if (session_id !== 'nullsession') {
+                    websocket_send("audio");
                 }
-            };
-            
-            console.log("Browser microphone initialized with AudioWorklet");
-        } catch (workletError) {
-            console.error("Failed to load AudioWorklet, falling back to ScriptProcessor: " + workletError);
-            // If AudioWorklet fails, we could add a fallback to ScriptProcessor here
-            // But for simplicity, we'll just report the error
-            throw workletError;
+            } catch (fallbackError) {
+                log("Critical audio error: " + fallbackError);
+            }
         }
-    } catch (err) {
-        console.log("Error accessing microphone: " + err);
-        window.sbitxMic.initialized = false;
     }
-}
 
-// Setup the interval to send audio data at regular intervals
-function setupAudioSendInterval() {
-    // Clear any existing interval first
-    if (window.sbitxMic.sendInterval) {
-        clearInterval(window.sbitxMic.sendInterval);
-        window.sbitxMic.sendInterval = null;
+    window.sbitxMic = window.sbitxMic || {
+        enabled: false,
+        initialized: false,
+        stream: null,
+        context: null,
+        workletNode: null,        // AudioWorklet node 
+        buffer: [],
+        bufferSize: 512,          // Buffer size for audio processing
+        bufferThreshold: 256,     // Send when buffer reaches this size
+        sendIntervalMs: 50,       // Send interval in milliseconds
+        sendInterval: null,       // Interval reference
+        lastSendTime: 0,          // Timestamp of last audio send
+        initCount: 0              // Track initialization attempts
+    };
+
+    async function initBrowserMic() {
+        // Track initialization attempts
+        window.sbitxMic.initCount++;
+        console.log("Browser mic initialization attempt #" + window.sbitxMic.initCount);
+
+        // Skip if already initialized
+        if (window.sbitxMic.initialized && window.sbitxMic.stream) {
+            console.log("Browser microphone already initialized, skipping");
+            return;
+        }
+
+        try {
+            // Request microphone access
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: 8000,            // Request 8kHz directly to match our needs
+                    channelCount: 1,             // Mono audio
+                    echoCancellation: false,     // False to help prevent rx audio ducking 
+                    noiseSuppression: true,      // Enable noise suppression
+                    autoGainControl: true        // Enable auto gain control
+                }
+            });
+
+            // Initialize audio context
+            window.sbitxMic.stream = stream;
+            window.sbitxMic.context = new (window.AudioContext || window.webkitAudioContext)();
+            window.sbitxMic.initialized = true; // Mark as initialized
+            console.log("Audio context sample rate: " + window.sbitxMic.context.sampleRate + "Hz");
+
+            // Load the audio worklet module
+            try {
+                await window.sbitxMic.context.audioWorklet.addModule('micProcessor.js');
+                console.log("AudioWorklet module loaded successfully");
+
+                // Create audio nodes
+                const source = window.sbitxMic.context.createMediaStreamSource(stream);
+                window.sbitxMic.workletNode = new AudioWorkletNode(
+                    window.sbitxMic.context,
+                    'mic-audio-processor'
+                );
+
+                // Connect the audio processing chain
+                source.connect(window.sbitxMic.workletNode);
+                window.sbitxMic.workletNode.connect(window.sbitxMic.context.destination);
+
+                // Handle messages from the processor
+                window.sbitxMic.workletNode.port.onmessage = (event) => {
+                    if (in_tx && window.sbitxMic.enabled) {
+                        const { audioData } = event.data;
+
+                        // Add processed audio to buffer for sending
+                        for (let i = 0; i < audioData.length; i++) {
+                            window.sbitxMic.buffer.push(audioData[i]);
+                        }
+
+                        // Limit buffer size to prevent memory issues
+                        if (window.sbitxMic.buffer.length > 10000) {
+                            window.sbitxMic.buffer = window.sbitxMic.buffer.slice(0, 5000);
+                        }
+                    }
+                };
+
+                console.log("Browser microphone initialized with AudioWorklet");
+            } catch (workletError) {
+                console.error("Failed to load AudioWorklet, falling back to ScriptProcessor: " + workletError);
+                // If AudioWorklet fails, we could add a fallback to ScriptProcessor here
+                // But for simplicity, we'll just report the error
+                throw workletError;
+            }
+        } catch (err) {
+            console.log("Error accessing microphone: " + err);
+            window.sbitxMic.initialized = false;
+        }
     }
-        
+
+    // Setup the interval to send audio data at regular intervals
+    function setupAudioSendInterval() {
+        // Clear any existing interval first
+        if (window.sbitxMic.sendInterval) {
+            clearInterval(window.sbitxMic.sendInterval);
+            window.sbitxMic.sendInterval = null;
+        }
+
         // Create the interval directly with an inline function
-        window.sbitxMic.sendInterval = setInterval(function() {
+        window.sbitxMic.sendInterval = setInterval(function () {
             if (in_tx && window.sbitxMic.enabled && socket && socket.readyState === WebSocket.OPEN) {
                 var now = Date.now();
-                if (window.sbitxMic.buffer.length >= window.sbitxMic.bufferThreshold || 
+                if (window.sbitxMic.buffer.length >= window.sbitxMic.bufferThreshold ||
                     (now - window.sbitxMic.lastSendTime > 200 && window.sbitxMic.buffer.length > 0)) {
                     // Take what we have in the buffer, up to bufferSize
                     var samplesToSend = Math.min(window.sbitxMic.buffer.length, window.sbitxMic.bufferSize);
                     var dataToSend = window.sbitxMic.buffer.slice(0, samplesToSend);
                     window.sbitxMic.buffer = window.sbitxMic.buffer.slice(samplesToSend);
-                    
+
                     // Note: Audio processing is now done in the AudioWorklet
                     // We just need to convert to 16-bit PCM for transmission
                     var pcmData = new Int16Array(dataToSend.length);
-                    for (var i = 0; i < dataToSend.length; i++) {
-                        // Apply soft clipping to prevent harsh distortion
-                        var sample = dataToSend[i];
-                        if (sample > 0.8) {
-                            sample = 0.8 + (sample - 0.8) / (1 + Math.pow((sample - 0.8) / 0.2, 2));
-                        } else if (sample < -0.8) {
-                            sample = -0.8 - ((-sample) - 0.8) / (1 + Math.pow(((-sample) - 0.8) / 0.2, 2));
-                        }
-                        
-                        pcmData[i] = Math.round(sample * 32767);
+                    
+                    // Check if we're in the silence period for TX transition
+                    var silenceAudio = false;
+                    if (window.txSilenceUntil && now < window.txSilenceUntil) {
+                        silenceAudio = true;
+                        console.log("Silencing TX audio during transition");
                     }
                     
+                    for (var i = 0; i < dataToSend.length; i++) {
+                        // If in silence period, use zero samples
+                        if (silenceAudio) {
+                            pcmData[i] = 0;
+                        } else {
+                            // Apply soft clipping to prevent harsh distortion
+                            var sample = dataToSend[i];
+                            if (sample > 0.8) {
+                                sample = 0.8 + (sample - 0.8) / (1 + Math.pow((sample - 0.8) / 0.2, 2));
+                            } else if (sample < -0.8) {
+                                sample = -0.8 - ((-sample) - 0.8) / (1 + Math.pow(((-sample) - 0.8) / 0.2, 2));
+                            }
+                            
+                            pcmData[i] = Math.round(sample * 32767);
+                        }
+                    }
+                    
+                    // Clear the silence flag if we've passed the time
+                    if (window.txSilenceUntil && now >= window.txSilenceUntil) {
+                        window.txSilenceUntil = null;
+                        console.log("TX audio transition complete");
+                    }
+
                     // Send the audio data to the server
                     socket.send(pcmData.buffer);
                     window.sbitxMic.lastSendTime = now;
@@ -1684,8 +1744,6 @@ function setupAudioSendInterval() {
             }
         }, window.sbitxMic.sendIntervalMs);
     }
-    
-    
 
     function move_caret(elem, caretPos) {
 
@@ -1737,10 +1795,15 @@ function setupAudioSendInterval() {
     function sbitx_selection_changed(event) {
         var e = event.currentTarget;
         var id_reading = e.id + "_reading";
-        websocket_send(e.id + " " + e.value);
+        if (e.id === "BAND") {
+            log("Sending band command: " + e.value); // Debug log
+            websocket_send(e.value); // Send just the band value, e.g., "20M"
+        } else {
+            log("Sending command: " + e.id + " " + e.value); // Debug log
+            websocket_send(e.id + " " + e.value); // Original behavior for other selects
+        }
         draw_dial();
     }
-
     function sbitx_slider_update(e) {
         var id_reading = e.id + "_reading";
         if (el(id_reading)) {
@@ -1832,20 +1895,45 @@ function setupAudioSendInterval() {
 
 
     function switch_to_tx() {
+        // Set UI state immediately
         log("setting in_tx true");
         $("#tx_meters").show();
         in_tx = true;
         
-        // Resume audio context if it's suspended (needed for some browsers)
+        // Clear the RX audio buffer
+        if (rxAudioInitialized && rxWorkletNode) {
+            rxWorkletNode.port.postMessage({ command: 'clear_buffer' });
+            log("RX audio buffer cleared");
+        }
+        
+        // Set a flag to silence the first 100ms of TX audio
+        window.txSilenceUntil = Date.now() + 100; // 100ms silence
+        log("TX audio silenced for transition");
+        
+        // Resume microphone audio context if it's suspended
         if (micContext && micContext.state === 'suspended') {
             micContext.resume();
         }
     }
 
+
     function switch_to_rx() {
         $("#tx_meters").hide();
         log("setting in_tx false");
         in_tx = false;
+        
+        // Clear any lingering TX audio data
+        if (window.sbitxMic && window.sbitxMic.buffer) {
+            window.sbitxMic.buffer = [];
+        }
+        
+        // Clear any TX silence timing
+        window.txSilenceUntil = null;
+        
+        // Request fresh audio data from the server
+        if (session_id !== 'nullsession' && rxAudioInitialized) {
+            websocket_send("audio");
+        }
     }
 
     /* wsjtx functionality */
@@ -1854,125 +1942,129 @@ function setupAudioSendInterval() {
     var ft8_tx_on_even = true;
     var ft8_tx_message = "";
 
-/* old version (OZ7BX)
-    function FT8_stylize_message(text, style) {
+    /* old version (OZ7BX)
+        function FT8_stylize_message(text, style) {
+            //tokenize the message
+            var token_list = text.match(/\S+/g);
+            if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9) {
+                log("FT8_process_message: error parsing [" + text + "]");
+                return;
+            }
+    
+            var index = 1;
+            var confidence_score = token_list[1];
+            var signal_strength = token_list[2];
+            var rx_frequency = token_list[3];
+            var contact_callsign = token_list[5];
+            var sender_callsign = token_list[6];
+            var message = token_list[7];
+            var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
+            var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
+    
+            if (style == 'Q')
+                return "sbitx-list-item wsjtx-message-queued";
+            if (contact_callsign == mycallsign)
+                return "sbitx-list-item wsjtx-message-for-me";
+            else if (sender_callsign == mycallsign)
+                return "sbitx-list-item wsjtx-mycallsign";
+        else if (contact_callsign == "CQ")
+                return "sbitx-list-item wsjtx-cq-in-message";
+            else
+                return "sbitx-list-item";
+    } */
+    function deco_strip(text) {
+        return text.replace(/#./g, '');
+    }
+
+    // Style codes of interest - if present the caller / grid is not found in the log
+    const FF_MYCALL = 16;
+    const FF_CALLER = 17;
+    const FF_GRID = 18;
+    function deco_get_style(text) {
+        let i = text.indexOf('#');
+        if (i >= 0 && text.length > i + 1) {
+            return text.charCodeAt(i + 1) - 'A'.charCodeAt(0);
+        }
+        return 0;
+    }
+    function deco_to_span(text) {
+        let jclass = "";
+        switch (deco_get_style(text)) {
+            case FF_CALLER:
+                jclass = "ft8-new-caller";
+                break;
+            case FF_GRID:
+                jclass = "ft8-new-grid";
+                GRIDMAP.gridIdNotLogged(text.substring(2));
+                break;
+            case FF_MYCALL:
+                jclass = "wsjtx-mycallsign";
+                break;
+            default:
+                if (GRIDMAP.isValidGridId(text.substring(2))) {
+                    GRIDMAP.gridIdLogged(text.substring(2));
+                }
+                jclass = "ft8-old-grid";
+                break;
+        }
+        return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
+    }
+    function FT8_stylize_message_item(item, text, style) {
         //tokenize the message
-        var token_list = text.match(/\S+/g);
+        var normalized_text = text.replace(/_/g, ' ');
+        var token_list = normalized_text.match(/\S+/g)
         if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9) {
             log("FT8_process_message: error parsing [" + text + "]");
             return;
         }
+        var label_position = normalized_text.search("~");
+        var label = normalized_text.substring(0, label_position);
 
-        var index = 1;
         var confidence_score = token_list[1];
         var signal_strength = token_list[2];
         var rx_frequency = token_list[3];
+        var m1 = token_list[5];
+        var m2 = token_list[6];
+        var m3 = token_list[7];
+        var m4 = token_list[8];
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
         var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
-
-        if (style == 'Q')
-            return "sbitx-list-item wsjtx-message-queued";
-        if (contact_callsign == mycallsign)
-            return "sbitx-list-item wsjtx-message-for-me";
-        else if (sender_callsign == mycallsign)
-            return "sbitx-list-item wsjtx-mycallsign";
-	else if (contact_callsign == "CQ")
-            return "sbitx-list-item wsjtx-cq-in-message";
-        else
-            return "sbitx-list-item";
-} */
-function deco_strip(text) {
-	return text.replace(/#./g, '');
+        if (style == 'Q') {
+            item.className = "sbitx-list-item wsjtx-message-queued";
+        }
+        else if (deco_strip(m1) == mycallsign) {
+            item.className = "sbitx-list-item wsjtx-message-for-me";
+        }
+        else if (deco_strip(m2) == mycallsign) {
+            item.className = "sbitx-list-item wsjtx-mycallsign";
+        }
+        else {
+            item.className = "sbitx-list-item";
+        }
+        var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";
+        // detailed markup
+        var htmMessage = "";
+        if (deco_strip(m1) == "CQ") {
+            item.className = "sbitx-list-item wsjtx-cq-in-message";
+            if (token_list.length == 8) { // CQ sender grid
+                htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
+            } else { // CQ DX sender grid
+                htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
+            }
+        }
+        else {
+            // contact sender grid|R
+            htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
+        }
+        item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
     }
-
-// Style codes of interest - if present the caller / grid is not found in the log
-const FF_MYCALL = 16;
-const FF_CALLER = 17;
-const FF_GRID = 18;
-function deco_get_style(text) {
-	let i = text.indexOf('#');
-	if (i >= 0 && text.length > i+1) {
-		return text.charCodeAt(i+1)-'A'.charCodeAt(0);
-	}
-	return 0;
-}
-function deco_to_span(text) {
-	let jclass = "";
-	switch (deco_get_style(text)) {
-		case FF_CALLER:
-			jclass = "ft8-new-caller";
-			break;
-		case FF_GRID:
-			jclass = "ft8-new-grid";
-			GRIDMAP.gridIdNotLogged(text.substring(2));
-			break;	
-		case FF_MYCALL:
-			jclass = "wsjtx-mycallsign";
-			break;
-		default:
-			if (GRIDMAP.isValidGridId(text.substring(2))) {
-				GRIDMAP.gridIdLogged(text.substring(2));
-			}
-		    jclass = "ft8-old-grid";
-			break;
-	}
-	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
-}
-function FT8_stylize_message_item(item, text, style) {
-	//tokenize the message
-	var token_list = text.match(/\S+/g);
-	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
-		log("FT8_process_message: error parsing [" + text + "]");
-		return;
-	}
-        var label_position = text.search("~");
-        var label = text.substring(0, label_position);
-
-	var confidence_score = token_list[1];
-	var signal_strength = token_list[2];
-	var rx_frequency = token_list[3];
-	var m1 = token_list[5]; 
-	var m2 = token_list[6]; 
-	var m3 = token_list[7]; 
-	var m4 = token_list[8]; 
-	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
-	if(style == 'Q') {
-		item.className = "sbitx-list-item wsjtx-message-queued";
-	}
-	else if (deco_strip(m1) == mycallsign){
-		item.className = "sbitx-list-item wsjtx-message-for-me";
-	}
-	else if (deco_strip(m2) == mycallsign){
-		item.className = "sbitx-list-item wsjtx-mycallsign";
-	}
-	else {
-		item.className = "sbitx-list-item";
-	}
-	var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";   
-	// detailed markup
-	var htmMessage = "";
-	if (deco_strip(m1) == "CQ"){
-		item.className = "sbitx-list-item wsjtx-cq-in-message";
-		if (token_list.length == 8) { // CQ sender grid
-			htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
-		} else { // CQ DX sender grid
-			htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
-		}
-	}
-	else {
-		// contact sender grid|R
-		htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
-	}
-	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
-}
-function FT8_list_append(list_id, text, style){
+    function FT8_list_append(list_id, text, style) {
         var item = document.createElement("li");
-	FT8_stylize_message_item(item, text, style);
-	item.id = deco_strip(text);
+        FT8_stylize_message_item(item, text, style);
+        item.id = deco_strip(text).replace(/[^\w\-\~]+/g, "_");
         item.addEventListener("click", FT8_message_chosen);
         el(list_id).children[0].appendChild(item);
-        item.scrollIntoView({ behaviour: 'smooth', block: 'nearest', inline: 'start' });
+        item.scrollIntoView({ behaviour: 'smooth', block: 'nearest' });
     }
 
     function FT8_transmit(message) {
@@ -2001,9 +2093,10 @@ function FT8_list_append(list_id, text, style){
         if (message_text.length == 0)
             return;
         //tokenize the message
-        var token_list = message_text.match(/\S+/g);
+        var normalized_text = message_text.replace(/_/g, ' ');
+        var token_list = normalized_text.match(/\S+/g);
         if (token_list.length < 7 || token_list[4] != '~' || token_list.length > 9) {
-            log("FT8_process_message: error parsing [" + text + "]");
+            log("FT8_process_message: error parsing [" + message_text + "]");
             return;
         }
 
@@ -2015,38 +2108,38 @@ function FT8_list_append(list_id, text, style){
 
         var contact_callsign = "";
         var sender_callsign = ""
-		
-		if (event.altKey) { // shift click
-			if (token_list.length == 9) { // cq dx call grid
-				show_in_qrz_window(token_list[7]);
-			} else { // cq call grid || to call grid 
-				show_in_qrz_window(token_list[6]);
-			}
-			//event.stopPropagation();
-			return false;
-		} else {
-        if (token_list[6] == mycallsign) {
-			    //a message that I sent out, retransmit this
-            contact_callsign = token_list[5];
-            FT8_transmit(message_text);
-            return;
-			} else {
 
-        //this is the start of a new call
-        logger_wipe();
-        logger_abort();
-        FT8_list_append("wsjtx-rx", message_text);
-        websocket_send("FT8 " + message_text);
+        if (event.altKey) { // shift click
+            if (token_list.length == 9) { // cq dx call grid
+                show_in_qrz_window(token_list[7]);
+            } else { // cq call grid || to call grid 
+                show_in_qrz_window(token_list[6]);
+            }
+            //event.stopPropagation();
+            return false;
+        } else {
+            if (token_list[6] == mycallsign) {
+                //a message that I sent out, retransmit this
+                contact_callsign = token_list[5];
+                FT8_transmit(normalized_text);
+                return;
+            } else {
+
+                //this is the start of a new call
+                logger_wipe();
+                logger_abort();
+                FT8_list_append("wsjtx-rx", normalized_text);
+                websocket_send("FT8 " + normalized_text);
+            }
+        }
     }
-		}
-	}
 
-function FT8_lists_clear() {
-	document.querySelector('#wsjtx-activity ol').innerHTML ="";
-	document.querySelector('#wsjtx-rx ol').innerHTML ="";
-}
+    function FT8_lists_clear() {
+        document.querySelector('#wsjtx-activity ol').innerHTML = "";
+        document.querySelector('#wsjtx-rx ol').innerHTML = "";
+    }
     function FT8_new_message(text, style) {
-	log("ft8:" + text + ":" + style);
+        //log("ft8:" + text + ":" + style);
         var words = text.split(' ');
         FT8_list_append("wsjtx-activity", text, style);
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
@@ -2056,8 +2149,7 @@ function FT8_lists_clear() {
 
     // setup the html for wsjtx
     function FT8_open() {
-        el("KNOB").value = "OFF";
-        dial_show();
+
         el("FT8_ui").style.display = "block";
     }
 
@@ -2216,30 +2308,30 @@ function FT8_lists_clear() {
         websocket_send("abort=1");
     }
 
-function show_in_qrz_window(callsign) {
-	var url = "https://www.qrz.com/db/" + callsign;
-	if (qrz_window == null || qrz_window.closed)
-		qrz_window = window.open(url, "_blank");
-	else
-		qrz_window.location = url;
-}
+    function show_in_qrz_window(callsign) {
+        var url = "https://www.qrz.com/db/" + callsign;
+        if (qrz_window == null || qrz_window.closed)
+            qrz_window = window.open(url, "_blank");
+        else
+            qrz_window.location = url;
+    }
     function logger_qrz(event) {
         if ($("#CALL").val().length < 2)
             return;
 
-	show_in_qrz_window($("#CALL").val());
+        show_in_qrz_window($("#CALL").val());
     }
 
     function logbook_open(event) {
         //	var url = "https://www.qrz.com/db/" + $("#CALL").val();
-	var url = window.location.origin + "/logbook.html";
+        var url = window.location.origin + "/logbook.html";
 
-	if (log_window == null)
-		log_window = window.open(url, "log");
-	else //if (log_window.closed)
-		log_window = window.open(url, "log");
-	//else
-		//log_window.location = url;
+        if (log_window == null)
+            log_window = window.open(url, "log");
+        else //if (log_window.closed)
+            log_window = window.open(url, "log");
+        //else
+        //log_window.location = url;
     }
     function logger_enter_qso() {
         var contact_callsign = el("CALL").value.toUpperCase();
@@ -2384,7 +2476,7 @@ function show_in_qrz_window(callsign) {
         //callsign
         item = row.insertCell(-1);
         item.innerHTML = token[8];
-	item.className = "logbook-lfield logbook-call";
+        item.className = "logbook-lfield logbook-call";
         //sent
         item = row.insertCell(-1);
         item.innerHTML = token[6] + '  ' + token[7];
@@ -2424,6 +2516,11 @@ function show_in_qrz_window(callsign) {
     function logbook_search() {
         logbook_reset();
     }
+
+    function open_logbook(event) {
+        open_panel("logbook_panel");
+    }
+
 
     /* settings panel */
 
@@ -2524,16 +2621,16 @@ function show_in_qrz_window(callsign) {
                     cw_update(data[i].innerHTML, "data_rx");
 
             var data = xml.getElementsByTagName("LOG");
-		for (var i = 0; i < data.length; i++) {
-			let s = data[i].innerHTML;
-			write_console(s);
-			// Extract qso grid from message e.g.
-			// "Logged: F4VTG -05-JO65 -14-JN12\n;"
-			if (s.startsWith("Logged:")) { // String ends width \n 
-				s = s.substring(s.length-5,s.length-1);
-				GRIDMAP.gridIdJustLogged(s);
-			}
-		}
+            for (var i = 0; i < data.length; i++) {
+                let s = data[i].innerHTML;
+                write_console(s);
+                // Extract qso grid from message e.g.
+                // "Logged: F4VTG -05-JO65 -14-JN12\n;"
+                if (s.startsWith("Logged:")) { // String ends width \n 
+                    s = s.substring(s.length - 5, s.length - 1);
+                    GRIDMAP.gridIdJustLogged(s);
+                }
+            }
         }
         else
             console_update(text);
@@ -2553,7 +2650,7 @@ function show_in_qrz_window(callsign) {
             return;
         if (session_id == 'nullsession')
             return;
-        if (player != null)
+        if (rxAudioInitialized && !sound_mute)
             websocket_send("audio");
         else
             websocket_send("spectrum");
@@ -2564,14 +2661,21 @@ function show_in_qrz_window(callsign) {
     }
 
     function show_selected_band_store(args) {
-        const elts = document.querySelectorAll('.selband');
-        let store = band_stack_indicators[args];
-        let other_store = (store.length ==  0 ? "" : "&nbsp;");
-        for (let i = 0; i < elts.length; i++) {
-            elts[i].innerHTML = " " + ((i == (elts.length-args-1)) ? store : other_store); 
-        }
+        // Update the BAND dropdown to reflect the selected band
+        var band_map = {
+            '0': '80M',
+            '1': '60M',
+            '2': '40M',
+            '3': '30M',
+            '4': '20M',
+            '5': '17M',
+            '6': '15M',
+            '7': '12M',
+            '8': '10M'
+        };
+        el("BAND").value = band_map[args];
+        el("SELBAND").innerHTML = band_stack_indicators[args] || " ";
     }
-    
     function mode_set(new_mode) {
 
         var wf = el("waterfall");
@@ -2602,9 +2706,9 @@ function show_in_qrz_window(callsign) {
                 sp.height = 50;
                 wf.height = 50;
                 FT8_open();
-                $("#FT8_ui").show();
+                $(".FT8_ui").show();
                 logger_set_macro("FT8");
-			sound_mute = true;
+                sound_mute = true;
                 break;
             default:
                 wf.height = 150;
@@ -2624,6 +2728,13 @@ function show_in_qrz_window(callsign) {
         mode_set(event.currentTarget.value);
     }
 
+    var prev_sample = 0;
+    var intp_factor = 3;
+
+    // Waterfall throttling variables
+    var lastWaterfallUpdate = 0;
+    var waterfallUpdateInterval = 100; // Update every 100ms (adjust to slow more/less)
+
     //audio interpolation variables
     var prev_sample = 0;
     var intp_factor = 3;
@@ -2635,8 +2746,47 @@ function show_in_qrz_window(callsign) {
         if (response instanceof Blob) {
             f = new FileReader();
             f.onload = () => {
-			if (player != null && !sound_mute){
+                if (!sound_mute) {
                     var samples = new Int16Array(f.result);
+                    
+                    // If we have the worklet initialized, use it
+                    if (rxAudioInitialized && rxWorkletNode) {
+                        // Send the raw Int16Array data directly to the worklet
+                        rxWorkletNode.port.postMessage(samples.buffer);
+                    } 
+                    // Otherwise fall back to PCMPlayer if available
+                    else if (typeof player !== 'undefined' && player) {
+                        var upsample = new Int16Array(samples.length * intp_factor);
+                        var j = 0;
+                        //interpolate, generating higher sampling rate
+                        for (var i = 0; i < samples.length; i++)
+                            for (var x = 0; x < intp_factor; x++) {
+                                upsample[j++] = ((prev_sample * (intp_factor - x - 1))
+                                    + (samples[i] * (x + 1))) / intp_factor;
+                                prev_sample = samples[i];
+                            }
+                        player.feed(upsample);
+                    }
+                }
+            }
+            f.readAsArrayBuffer(response);
+            return;
+        }
+
+        // Handle ArrayBuffer data (binary audio data)
+        if (response instanceof ArrayBuffer ||
+            (typeof response === 'object' && response.constructor &&
+                response.constructor.name === 'ArrayBuffer')) {
+            if (!sound_mute) {
+                var samples = new Int16Array(response);
+                
+                // If we have the worklet initialized, use it
+                if (rxAudioInitialized && rxWorkletNode) {
+                    // Send the raw Int16Array data directly to the worklet
+                    rxWorkletNode.port.postMessage(samples.buffer);
+                } 
+                // Otherwise fall back to PCMPlayer if available
+                else if (typeof player !== 'undefined' && player) {
                     var upsample = new Int16Array(samples.length * intp_factor);
                     var j = 0;
                     //interpolate, generating higher sampling rate
@@ -2649,30 +2799,9 @@ function show_in_qrz_window(callsign) {
                     player.feed(upsample);
                 }
             }
-            f.readAsArrayBuffer(response);
             return;
         }
-        
-        // Handle ArrayBuffer data (binary audio data)
-        if (response instanceof ArrayBuffer || 
-            (typeof response === 'object' && response.constructor && 
-             response.constructor.name === 'ArrayBuffer')) {
-            if (player != null && !sound_mute) {
-                var samples = new Int16Array(response);
-                var upsample = new Int16Array(samples.length * intp_factor);
-                var j = 0;
-                //interpolate, generating higher sampling rate
-                for (var i = 0; i < samples.length; i++)
-                    for (var x = 0; x < intp_factor; x++) {
-                        upsample[j++] = ((prev_sample * (intp_factor - x - 1))
-                            + (samples[i] * (x + 1))) / intp_factor;
-                        prev_sample = samples[i];
-                    }
-                player.feed(upsample);
-            }
-            return;
-        }
-        
+
         // Handle string data
         // Make sure response is a string before using string methods
         if (typeof response !== 'string') {
@@ -2780,9 +2909,9 @@ function show_in_qrz_window(callsign) {
                 break;
             case 'SELBAND':
                 if (curBand !== args) {
-                	FT8_lists_clear();
-		}
-		curBand = args; 
+                    FT8_lists_clear();
+                }
+                curBand = args;
                 show_selected_band_store(args);
                 break;
             case 'MODE':
@@ -2825,6 +2954,7 @@ function show_in_qrz_window(callsign) {
         }
     }
 
+
     parser = new DOMParser();
     show_login();
     waterfall_init();
@@ -2851,9 +2981,9 @@ function show_in_qrz_window(callsign) {
     //$(".ft8-clickable").on("click", FT8_message_chosen);
 
     //specific control handler
-	//$("#knob_on").on("click", toggle_dial);
-    $("#KNOB").on("change", dial_show);
-	$("#sound_mute").on("click", () => { sound_mute = !sound_mute;});
+    //$("#knob_on").on("click", toggle_dial);
+
+    $("#sound_mute").on("click", () => { sound_mute = !sound_mute; });
     el("dial").addEventListener("wheel", change_freq, { passive: false });
     $("#REF").on("change", draw_meters);
     $("#MODE").on("change", mode_changed);
@@ -2976,15 +3106,23 @@ function show_in_qrz_window(callsign) {
     function linear_toggle(event) {
         var drop_id = event.currentTarget.id.substring(7);
         var div_el = event.currentTarget.querySelector(".linear-dropdown");
-        if (div_el.style.display == "block")
+        log("Toggle!!!!");
+
+        if (div_el.style.display == "block") {
             div_el.style.display = "";
-        else {
+            // Show logger controls again when slider is hidden
+            $("#logger-controls").show();
+        } else {
             div_el.style.display = "block";
-            //send this value to the radio to get the focus here
-            //this will enable the control encoder to work
+            // Hide logger controls when slider is shown
+            $("#logger-controls").hide();
+
+            // send this value to the radio to get the focus here
+            // this will enable the control encoder to work
             websocket_send(drop_id + " " + el(drop_id).value);
         }
     }
+
 
 
     //when the user changes the value
@@ -3018,19 +3156,7 @@ function show_in_qrz_window(callsign) {
             collection[i].style.display = "";
     }
 
-    function dial_show(event) {
-        var dial = el("sidebar");
-        var main = el("main");
-        if (el("KNOB").value == "ON") {
-            main.style.marginLeft = 200;
-            dial.style.display = "block";
-        }
-        else {
-            main.style.marginLeft = 0;
-            dial.style.display = "none";
-        }
-        resize_ui();
-    }
+
 
     function write_console(str) {
         var con = $("#console");
@@ -3041,7 +3167,7 @@ function show_in_qrz_window(callsign) {
 </script>
 <script>
     function setDebug(on) {
-        ws.send("DEBUG:"+on);
+        ws.send("DEBUG:" + on);
     }
 
     // Hide Browser Mic button if not on HTTPS
@@ -3054,5 +3180,5 @@ function show_in_qrz_window(callsign) {
     });
 
 </script>
-</body>
+
 </html>
