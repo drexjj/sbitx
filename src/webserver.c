@@ -4,6 +4,7 @@
 #include "webserver.h"
 #include <pthread.h>
 #include <math.h>
+#include <string.h>
 #include <complex.h>
 #include <fftw3.h>
 #include <wiringPi.h>
@@ -11,11 +12,79 @@
 #include "sdr_ui.h"
 #include "logbook.h"
 #include "hist_disp.h"
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
-static const char *s_listen_on = "ws://0.0.0.0:8080";
+// Function declarations for browser microphone handling
+extern int browser_mic_input(int16_t *samples, int count);
+extern int is_browser_mic_active();
+
+// HTTP and HTTPS endpoints
+static const char *s_http_addr = "0.0.0.0:8080";  // Plain address without protocol
+static const char *s_https_addr = "0.0.0.0:8443";  // Plain address without protocol
+
+// Hardcoded self-signed certificate and key for HTTPS
+// This eliminates file reading issues with OpenSSL
+static const char *s_ssl_cert_path = "/home/pi/sbitx/ssl/cert.pem";
+static const char *s_ssl_key_path = "/home/pi/sbitx/ssl/key.pem";
+
 static char s_web_root[1000];
 static char session_cookie[100];
 static struct mg_mgr mgr;  // Event manager
+
+// Debug flag for webserver logging
+static int webserver_debug_enabled = 0; // Set to 1 to enable verbose logging
+
+// Helper function to read a file into a dynamically allocated buffer
+// Returns NULL on error, caller must free the buffer.
+static char *read_file(const char *path, size_t *len)
+{
+  FILE *fp = fopen(path, "rb");
+  if (fp == NULL) {
+    perror("fopen failed");
+    return NULL;
+  }
+  fseek(fp, 0, SEEK_END);
+  *len = (size_t)ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  char *buf = (char *)malloc(*len + 1);
+  if (buf != NULL) {
+    size_t read_len = fread(buf, 1, *len, fp);
+    if (read_len != *len) {
+      fprintf(stderr, "fread failed: read %zu, expected %zu\n", read_len, *len);
+      free(buf);
+      buf = NULL;
+      *len = 0;
+    } else {
+      buf[*len] = '\0'; // Null-terminate
+    }
+  }
+  fclose(fp);
+  return buf;
+}
+
+// Read file content into a buffer
+static char *read_file_content(const char *path, size_t *size) {
+  FILE *fp;
+  char *data = NULL;
+  *size = 0;
+  if ((fp = fopen(path, "rb")) != NULL) {
+    fseek(fp, 0, SEEK_END);
+    *size = (size_t) ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    data = (char *) malloc(*size + 1);
+    if (data != NULL) {
+      fread(data, 1, *size, fp);
+      data[*size] = '\0';
+    }
+    fclose(fp);
+  }
+  return data;
+}
 
 static void web_respond(struct mg_connection *c, char *message){
 	mg_ws_send(c, message, strlen(message), WEBSOCKET_OP_TEXT);
@@ -55,7 +124,9 @@ static void do_login(struct mg_connection *c, char *key){
 	get_field_value("#passkey", passkey);
 
 	//look for key only on non-local ip addresses
-	if ((!key || strcmp(passkey, key)) && (c->rem.ip != 16777343)){
+	// Check if IP is 127.0.0.1 (localhost)
+	if ((!key || strcmp(passkey, key)) && 
+	    !(c->rem.ip[0] == 127 && c->rem.ip[1] == 0 && c->rem.ip[2] == 0 && c->rem.ip[3] == 1)){
 		web_respond(c, "login error");
 		c->is_draining = 1;
 		printf("passkey didn't match. Closing socket\n");
@@ -126,11 +197,31 @@ void get_macro_labels(struct mg_connection *c){
 char request[200];
 int request_index = 0;
 
+typedef struct {
+  struct mg_tls_opts tls_opts;
+  uint16_t https_port;
+} webserver_data_t;
+
 static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
+	// Check if this is binary data (browser microphone audio)
+	if (wm->data.len > 0 && wm->flags & 2) { 
+		// Binary data flag
+		// Process browser microphone data
+		// Always accept browser mic data - the browser will only send when in TX mode
+		// and the browser_mic_input function will handle the data appropriately
+		int16_t *audio_samples = (int16_t *)wm->data.buf;
+		int sample_count = wm->data.len / sizeof(int16_t);
+		
+		// Pass the browser microphone data to the audio processing chain
+		browser_mic_input(audio_samples, sample_count);
+		return;
+	}
+
+	// Handle text messages
 	if (wm->data.len > 99)
 		return;
 
-	strncpy(request, wm->data.ptr, wm->data.len);	
+	strncpy(request, wm->data.buf, wm->data.len);	
 	request[wm->data.len] = 0;
 	//handle the 'no-cookie' situation
 	char *cookie = NULL;
@@ -181,25 +272,91 @@ static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
 	}
 }
 
-// This RESTful server implements the following endpoints:
-//   /websocket - upgrade to Websocket, and implement websocket echo server
-//   /rest - respond with JSON string {"result": 123}
-//   any other URI serves static files from s_web_root
-static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
-  if (ev == MG_EV_OPEN) {
-    // c->is_hexdumping = 1;
-	} else if (ev == MG_EV_ERROR || ev == MG_EV_CLOSE){
-//		if (ev == MG_EV_ERROR)
-//			printf("closing with MG_EV_ERROR : ");
-//		if (ev = MG_EV_CLOSE)
-//			printf("closing with MG_EV_CLOSE : ");
+static void fn(struct mg_connection *c, int ev, void *ev_data) {
+  webserver_data_t *ws_data = (webserver_data_t *)c->mgr->userdata; // Get our data
+
+  if (ev == MG_EV_ACCEPT) {
+    // Log when a connection is accepted
+    char addr[INET6_ADDRSTRLEN]; 
+    int af = c->rem.is_ip6 ? AF_INET6 : AF_INET;
+    uint16_t local_port = mg_ntohs(c->loc.port);
+    inet_ntop(af, c->rem.ip, addr, sizeof(addr));
+
+    if (ws_data != NULL && local_port == ws_data->https_port) {
+      // Connection on HTTPS port
+      if (webserver_debug_enabled) {
+          printf("MG_EV_ACCEPT: HTTPS Conn from %s on port %d. Initializing TLS...\n", addr, local_port);
+      }
+      // Initialize TLS for this connection
+      mg_tls_init(c, &ws_data->tls_opts);
+    } else {
+      // Connection on other port (assume HTTP)
+      if (webserver_debug_enabled) {
+          printf("MG_EV_ACCEPT: HTTP Conn from %s on port %d, is_tls: %d\n", addr, local_port, c->is_tls);
+      }
+    }
+  } else if (ev == MG_EV_ERROR) {
+    // Log errors only if debugging is enabled
+    if (webserver_debug_enabled) {
+        printf("MG_EV_ERROR: %s\n", (char *) ev_data);
+    }
+  } else if (ev == MG_EV_CLOSE) {
+    // Optionally log connection close if debugging
+    if (webserver_debug_enabled) {
+        char addr[32];
+        int af = c->rem.is_ip6 ? AF_INET6 : AF_INET;
+        inet_ntop(af, c->rem.ip, addr, sizeof(addr));
+        printf("MG_EV_CLOSE: Conn from %s\n", addr);
+    }
+  } else if (ev == MG_EV_TLS_HS) {
+    // Log TLS Handshake result only if debugging
+    if (webserver_debug_enabled) {
+        printf("MG_EV_TLS_HS: Handshake %s. TLS established: %d, Error: %s\n", 
+           ev_data == NULL ? "SUCCESS" : "FAILED", 
+           c->is_tls,
+           ev_data ? (char *)ev_data : "(none)");
+    }
   } else if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-    if (mg_http_match_uri(hm, "/websocket")) {
+ // Determine if redirection should happen based on IP
+    int redirect_http_to_https;
+    if (c->rem.ip[0] == 127 && c->rem.ip[1] == 0 && c->rem.ip[2] == 0 && c->rem.ip[3] == 1) {
+        // Connection is from localhost, disable redirect
+        redirect_http_to_https = 0;
+    } else {
+        // Connection is not from localhost, enable redirect 
+        redirect_http_to_https = 1;
+    }
+    // Check for HTTP->HTTPS redirect *before* other handling
+    if (redirect_http_to_https && !c->is_tls) {
+      // Construct the target URL: https://sbitx.local:8443 + original URI
+      char https_url[2048];
+      snprintf(https_url, sizeof(https_url), "https://sbitx.local:8443%.*s", 
+               (int)hm->uri.len, hm->uri.buf);
+      
+      // Construct the Location header string, including Content-Length: 0
+      char redir_headers[2100]; 
+      snprintf(redir_headers, sizeof(redir_headers), "Location: %s\r\nContent-Length: 0\r\n", https_url);
+
+      // Send 302 redirect using the extra_headers parameter (3rd arg), empty body format (4th arg)
+      mg_http_reply(c, 302, redir_headers, ""); 
+            
+      // Stop processing this request after sending the redirect
+      return; 
+    }
+
+    // Log basic HTTP message receipt only if debugging (if not redirected)
+    if (webserver_debug_enabled) {
+        printf("MG_EV_HTTP_MSG received on %s connection for URI %.*s\n", 
+               c->is_tls ? "HTTPS" : "HTTP", (int)hm->uri.len, hm->uri.buf);
+    }
+
+    if (mg_match(hm->uri, mg_str("/websocket"), NULL)) {
       // Upgrade to websocket. From now on, a connection is a full-duplex
       // Websocket connection, which will receive MG_EV_WS_MSG events.
+      // Upgrade to websocket for audio support
       mg_ws_upgrade(c, hm, NULL);
-    } else if (mg_http_match_uri(hm, "/rest")) {
+    } else if (mg_match(hm->uri, mg_str("/rest"), NULL)) {
       // Serve REST response
       mg_http_reply(c, 200, "", "{\"result\": %d}\n", 123);
     } else {
@@ -213,14 +370,92 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
 //		printf("ws request,  client to %x:%d\n", c->rem.ip, c->rem.port);
     web_despatcher(c, wm);
   }
-  (void) fn_data;
+  // No additional data needed
 }
 
 void *webserver_thread_function(void *server){
-  mg_mgr_init(&mgr);  // Initialise event manager
-  mg_http_listen(&mgr, s_listen_on, fn, NULL);  // Create HTTP listener
-  for (;;) mg_mgr_poll(&mgr, 1000);             // Infinite event loop
-	printf("exiting webserver thread\n");
+  struct mg_mgr mgr;
+  mg_mgr_init(&mgr);
+  
+  // Prepare webserver data (TLS opts and port) for event handler
+  webserver_data_t ws_data = {0};
+  uint16_t https_port_num = 0;
+
+  // Parse HTTPS port from address string
+  // Basic parsing: find last ':' and convert the rest to int
+  const char *port_str = strrchr(s_https_addr, ':');
+  if (port_str != NULL) {
+      https_port_num = (uint16_t)atoi(port_str + 1);
+  }
+
+  // Read certificate and key files into memory buffers
+  size_t cert_len = 0, key_len = 0;
+  char *cert_buf = read_file(s_ssl_cert_path, &cert_len);
+  char *key_buf = read_file(s_ssl_key_path, &key_len);
+
+  if (https_port_num > 0 && cert_buf != NULL && key_buf != NULL) {
+      ws_data.https_port = https_port_num;
+      ws_data.tls_opts.cert = mg_str_n(cert_buf, cert_len);
+      ws_data.tls_opts.key = mg_str_n(key_buf, key_len);
+      if (webserver_debug_enabled) {
+          printf("TLS data prepared for port %d\n", ws_data.https_port);
+      }
+  } else {
+      if (https_port_num == 0) fprintf(stderr, "Could not parse HTTPS port from %s\n", s_https_addr);
+      if (cert_buf == NULL) fprintf(stderr, "Failed to read certificate file: %s\n", s_ssl_cert_path);
+      if (key_buf == NULL) fprintf(stderr, "Failed to read key file: %s\n", s_ssl_key_path);
+      fprintf(stderr, "HTTPS will not be enabled.\n");
+  }
+
+  // Set the user data pointer for the manager
+  mgr.userdata = &ws_data; 
+
+  // Create HTTP listener - this will handle both HTTP and WebSocket connections
+  if (webserver_debug_enabled) {
+      printf("Starting HTTP listener on %s\n", s_http_addr);
+  }
+  if (mg_http_listen(&mgr, s_http_addr, fn, &mgr) == NULL) {
+    fprintf(stderr, "Cannot listen on %s\n", s_http_addr);
+    // Consider cleanup: free cert/key buffers, mg_mgr_free
+    free(cert_buf);
+    free(key_buf);
+    mg_mgr_free(&mgr);
+    return NULL; // Exit thread if HTTP fails
+  }
+
+  // HTTPS Listener (using mg_http_listen)
+  // Only attempt if TLS data was prepared successfully
+  if (ws_data.https_port > 0 && ws_data.tls_opts.cert.len > 0) {
+      if (webserver_debug_enabled) {
+          printf("Starting HTTPS listener on %s\n", s_https_addr);
+      }
+      // Use mg_http_listen instead of mg_listen
+      if (mg_http_listen(&mgr, s_https_addr, fn, &mgr) == NULL) {
+          fprintf(stderr, "Cannot listen on %s\n", s_https_addr);
+          // Non-fatal? Or should we abort?
+          // For now, just print warning, HTTP might still work.
+      }
+  } else {
+      if (webserver_debug_enabled) {
+          printf("Skipping HTTPS listener setup due to missing cert/key/port.\n");
+      }
+  }
+
+  // Start event loop
+  if (webserver_debug_enabled) {
+      printf("Webserver started.\n");
+  }
+
+  // Event loop
+  while(1) {
+    mg_mgr_poll(&mgr, 100); // Poll events every 100ms
+  }
+
+  // Cleanup (won't be reached in this infinite loop, but good practice)
+  free(cert_buf); // Free the buffers
+  free(key_buf);
+  mg_mgr_free(&mgr);
+  return NULL;
 }
 
 void webserver_stop(){

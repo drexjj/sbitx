@@ -143,6 +143,7 @@
                 </div>
             </div><!-- It's nice to mute e.g. the FT8 sond in the browser
             --><button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button><!--
+            --><button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic OFF</button><!--
             --><br />
             <div class="linear" id="linear_DRIVE">
                 <div class="linear-label">DRIVE</div>
@@ -252,7 +253,7 @@
             </div><!-- end of help text -->
             <div id="login_panel">
                 <div class="help_text">
-                    <h1>sBitx v3</h1>
+                    <h1>sBitx v4.4</h1>
                     <p>The sBitx is an open-source, hackable, next generation radio.</p>
                     <p>Enter passkey to access your sbitx.</p>
                     <div id="login_error"></div>
@@ -260,9 +261,13 @@
                            name="passkey" autocomplete="off" placeholder="passkey" />
                     <button class="logger-button" id="start_login">Start</button>
                     <p>New user? Try 123 as the passkey. Change it when prompted.</p>
+                    <div style="margin-top: 15px; padding: 5px 8px; border: 1px solid #fdfbfb; background-color: #000000; display: inline-block; max-width: fit-content;">
+                        <p style="margin: 3px 0;"><strong>Remote SSB TX is now supported from your browser!</strong></p>
+                        <p style="margin: 3px 0;"><small>Note: You may need to accept the self-signed certificate warning.</small></p>
+                    </div>
                     <p>
-                        Released under General Public Licens v3.0.<br />
-                        (c) Ashhar Farhan, 2023
+                        Released under General Public License v3.0.<br />
+                        (c) Ashhar Farhan, 2023, Extended by the sBitx 64bit Dev Team 2025
                     </p>
                 </div>
             </div><!-- end of login -->
@@ -602,7 +607,27 @@
 
     /* socket handlers */
     var socket = null;
-
+    
+    // Helper function to determine if we're using HTTPS
+    function isSecureConnection() {
+        return window.location.protocol === 'https:';
+    }
+    
+    // Helper function to get the correct WebSocket protocol (ws:// or wss://)
+    function getWebSocketProtocol() {
+        return isSecureConnection() ? 'wss://' : 'ws://';
+    }
+    
+    // Helper function to get the correct port
+    function getWebSocketPort() {
+        return isSecureConnection() ? '8443' : '8080';
+    }
+    
+    // Helper function to get the correct WebSocket path
+    function getWebSocketPath() {
+        return '/websocket';
+    }
+    
     function on_open(event) {
         log("socket is connected");
         websocket_send("login=" + el("passkey").value);
@@ -660,29 +685,50 @@
 
     function do_login() {
         log("requesting full screen");
-        if (document.location.hostname == "127.0.0.1")
+        if (document.location.hostname == "127.0.0.1") {
             go_fullscreen();
-        //	document.documentElement.requestFullscreen();
-        log("done full screen");
-        if (socket != null)
-            socket.close();
-        log("reset the socket, if any");
+        }
+        
+        // Check passkey for non-local connections
         if (el("passkey").value.length < 3 && document.location.hostname != "127.0.0.1") {
             alert("Enter the passkey (three characters or more)");
             return false;
         }
-        log("creating a new socket, if any");
-        socket = new WebSocket("ws://" + location.host + "/websocket");
-        log("created the new socket");
-        socket.onopen = on_open;
-        socket.onmessage = on_message;
-        socket.onclose = on_close;
-        socket.onerror = on_error;
-        if (document.location.hostname != "127.0.0.1")
-            audio_start();
+        
+        if (socket != null) {
+            socket.close();
+            socket = null;
+        }
+
+        // Use the helper functions to determine protocol and port
+        var wsProtocol = getWebSocketProtocol();
+        var wsPort = getWebSocketPort();
+        var wsPath = getWebSocketPath();
+        var hostname = window.location.hostname;
+        if (hostname == "") {
+            hostname = "localhost";
+        }
+        
+        var wsUrl = wsProtocol + hostname + ":" + wsPort + wsPath;
+        
+        log("opening socket to " + wsUrl);
+        try {
+            socket = new WebSocket(wsUrl);
+            socket.binaryType = "arraybuffer";
+            socket.onopen = on_open;
+            socket.onclose = on_close;
+            socket.onmessage = on_message;
+            socket.onerror = on_error;
+            
+            // Start audio for non-local connections
+            if (document.location.hostname != "127.0.0.1") {
+                audio_start();
+            }
+        } catch (e) {
+            log("socket error: " + e);
+            end_login("Failed to connect to sBitx");
+        }
     }
-
-
 
     // ui panel switchers
     function show_login() {
@@ -1435,15 +1481,211 @@ function change_freq(event) {
     /* audio stuff (this needs to work with webrtc data packets rather than websockets */
     //setup the audio
     var player = null;
+    var micStream = null;
+    var micContext = null;
+    // Set up variables for browser microphone - single global object to prevent duplication
+    window.sbitxMic = window.sbitxMic || {
+        enabled: false,
+        initialized: false,
+        stream: null,
+        context: null,
+        workletNode: null,        // AudioWorklet node (replaces processor)
+        buffer: [],
+        bufferSize: 512,          // Buffer size for audio processing
+        bufferThreshold: 256,     // Send when buffer reaches this size
+        sendIntervalMs: 50,       // Send interval in milliseconds
+        sendInterval: null,       // Interval reference
+        lastSendTime: 0,          // Timestamp of last audio send
+        initCount: 0              // Track initialization attempts
+    };
+
+    function toggleBrowserMic() {
+        // Toggle mic state using the global object
+        window.sbitxMic.enabled = !window.sbitxMic.enabled;
+        var micBtn = document.getElementById('browser_mic');
+        
+        if (window.sbitxMic.enabled) {
+            micBtn.textContent = "Browser Mic ON";
+            //micBtn.style.backgroundColor = "yellow";
+            console.log("Browser microphone enabled");
+            
+            // Initialize microphone if not already done
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                // Only initialize once
+                if (!window.sbitxMic.initialized) {
+                    console.log("Initializing browser mic");
+                    initBrowserMic();
+                }
+                
+                // Set up the audio send interval only once
+                if (!window.sbitxMic.sendInterval) {
+                    setupAudioSendInterval();
+                }
+            } else {
+                console.log("Browser microphone not supported");
+            }
+        } else {
+            micBtn.textContent = "Browser Mic OFF";
+            micBtn.style.backgroundColor = "";
+            console.log("Browser microphone disabled");
+            
+            // Clear the audio buffer when mic is disabled
+            window.sbitxMic.buffer = [];
+        }
+    }
 
     function audio_start() {
-        player = new PCMPlayer({
-            encoding: '16bitInt',
-            channels: 1,
-            sampleRate: 48000,
-            flushingTime: 200
-        });
+        try {
+            // Create new PCM player if not already created
+            if (!player) {
+                player = new PCMPlayer({
+                    encoding: '16bitInt',
+                    channels: 1,
+                    sampleRate: 48000,  // Use 48kHz sample rate for better audio quality
+                    flushingTime: 100
+                });
+                log("PCM player initialized successfully");
+            } else {
+                log("PCM player already initialized");
+            }
+        } catch (e) {
+            log("audio player error: " + e);
+        }
     }
+
+window.sbitxMic = window.sbitxMic || {
+    enabled: false,
+    initialized: false,
+    stream: null,
+    context: null,
+    workletNode: null,        // AudioWorklet node 
+    buffer: [],
+    bufferSize: 512,          // Buffer size for audio processing
+    bufferThreshold: 256,     // Send when buffer reaches this size
+    sendIntervalMs: 50,       // Send interval in milliseconds
+    sendInterval: null,       // Interval reference
+    lastSendTime: 0,          // Timestamp of last audio send
+    initCount: 0              // Track initialization attempts
+};
+
+async function initBrowserMic() {
+    // Track initialization attempts
+    window.sbitxMic.initCount++;
+    console.log("Browser mic initialization attempt #" + window.sbitxMic.initCount);
+    
+    // Skip if already initialized
+    if (window.sbitxMic.initialized && window.sbitxMic.stream) {
+        console.log("Browser microphone already initialized, skipping");
+        return;
+    }
+    
+    try {
+        // Request microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                sampleRate: 8000,            // Request 8kHz directly to match our needs
+                channelCount: 1,             // Mono audio
+                echoCancellation: true,      // Enable echo cancellation
+                noiseSuppression: true,      // Enable noise suppression
+                autoGainControl: true        // Enable auto gain control
+            }
+        });
+        
+        // Initialize audio context
+        window.sbitxMic.stream = stream;
+        window.sbitxMic.context = new (window.AudioContext || window.webkitAudioContext)();
+        window.sbitxMic.initialized = true; // Mark as initialized
+        console.log("Audio context sample rate: " + window.sbitxMic.context.sampleRate + "Hz");
+        
+        // Load the audio worklet module
+        try {
+            await window.sbitxMic.context.audioWorklet.addModule('micProcessor.js');
+            console.log("AudioWorklet module loaded successfully");
+            
+            // Create audio nodes
+            const source = window.sbitxMic.context.createMediaStreamSource(stream);
+            window.sbitxMic.workletNode = new AudioWorkletNode(
+                window.sbitxMic.context, 
+                'mic-audio-processor'
+            );
+            
+            // Connect the audio processing chain
+            source.connect(window.sbitxMic.workletNode);
+            window.sbitxMic.workletNode.connect(window.sbitxMic.context.destination);
+            
+            // Handle messages from the processor
+            window.sbitxMic.workletNode.port.onmessage = (event) => {
+                if (in_tx && window.sbitxMic.enabled) {
+                    const { audioData } = event.data;
+                    
+                    // Add processed audio to buffer for sending
+                    for (let i = 0; i < audioData.length; i++) {
+                        window.sbitxMic.buffer.push(audioData[i]);
+                    }
+                    
+                    // Limit buffer size to prevent memory issues
+                    if (window.sbitxMic.buffer.length > 10000) {
+                        window.sbitxMic.buffer = window.sbitxMic.buffer.slice(0, 5000);
+                    }
+                }
+            };
+            
+            console.log("Browser microphone initialized with AudioWorklet");
+        } catch (workletError) {
+            console.error("Failed to load AudioWorklet, falling back to ScriptProcessor: " + workletError);
+            // If AudioWorklet fails, we could add a fallback to ScriptProcessor here
+            // But for simplicity, we'll just report the error
+            throw workletError;
+        }
+    } catch (err) {
+        console.log("Error accessing microphone: " + err);
+        window.sbitxMic.initialized = false;
+    }
+}
+
+// Setup the interval to send audio data at regular intervals
+function setupAudioSendInterval() {
+    // Clear any existing interval first
+    if (window.sbitxMic.sendInterval) {
+        clearInterval(window.sbitxMic.sendInterval);
+        window.sbitxMic.sendInterval = null;
+    }
+        
+        // Create the interval directly with an inline function
+        window.sbitxMic.sendInterval = setInterval(function() {
+            if (in_tx && window.sbitxMic.enabled && socket && socket.readyState === WebSocket.OPEN) {
+                var now = Date.now();
+                if (window.sbitxMic.buffer.length >= window.sbitxMic.bufferThreshold || 
+                    (now - window.sbitxMic.lastSendTime > 200 && window.sbitxMic.buffer.length > 0)) {
+                    // Take what we have in the buffer, up to bufferSize
+                    var samplesToSend = Math.min(window.sbitxMic.buffer.length, window.sbitxMic.bufferSize);
+                    var dataToSend = window.sbitxMic.buffer.slice(0, samplesToSend);
+                    window.sbitxMic.buffer = window.sbitxMic.buffer.slice(samplesToSend);
+                    
+                    // Note: Audio processing is now done in the AudioWorklet
+                    // We just need to convert to 16-bit PCM for transmission
+                    var pcmData = new Int16Array(dataToSend.length);
+                    for (var i = 0; i < dataToSend.length; i++) {
+                        // Apply soft clipping to prevent harsh distortion
+                        var sample = dataToSend[i];
+                        if (sample > 0.8) {
+                            sample = 0.8 + (sample - 0.8) / (1 + Math.pow((sample - 0.8) / 0.2, 2));
+                        } else if (sample < -0.8) {
+                            sample = -0.8 - ((-sample) - 0.8) / (1 + Math.pow(((-sample) - 0.8) / 0.2, 2));
+                        }
+                        
+                        pcmData[i] = Math.round(sample * 32767);
+                    }
+                    
+                    // Send the audio data to the server
+                    socket.send(pcmData.buffer);
+                    window.sbitxMic.lastSendTime = now;
+                }
+            }
+        }, window.sbitxMic.sendIntervalMs);
+    }
+    
+    
 
     function move_caret(elem, caretPos) {
 
@@ -1593,6 +1835,11 @@ function change_freq(event) {
         log("setting in_tx true");
         $("#tx_meters").show();
         in_tx = true;
+        
+        // Resume audio context if it's suspended (needed for some browsers)
+        if (micContext && micContext.state === 'suspended') {
+            micContext.resume();
+        }
     }
 
     function switch_to_rx() {
@@ -1620,9 +1867,6 @@ function change_freq(event) {
         var confidence_score = token_list[1];
         var signal_strength = token_list[2];
         var rx_frequency = token_list[3];
-        var contact_callsign = token_list[5];
-        var sender_callsign = token_list[6];
-        var message = token_list[7];
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
         var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
 
@@ -2181,11 +2425,6 @@ function show_in_qrz_window(callsign) {
         logbook_reset();
     }
 
-    function open_logbook(event) {
-        open_panel("logbook_panel");
-    }
-
-
     /* settings panel */
 
     function open_settings() {
@@ -2392,6 +2631,7 @@ function show_in_qrz_window(callsign) {
         var cmd = "";
         var args = "";
 
+        // Handle binary data (audio samples)
         if (response instanceof Blob) {
             f = new FileReader();
             f.onload = () => {
@@ -2410,6 +2650,33 @@ function show_in_qrz_window(callsign) {
                 }
             }
             f.readAsArrayBuffer(response);
+            return;
+        }
+        
+        // Handle ArrayBuffer data (binary audio data)
+        if (response instanceof ArrayBuffer || 
+            (typeof response === 'object' && response.constructor && 
+             response.constructor.name === 'ArrayBuffer')) {
+            if (player != null && !sound_mute) {
+                var samples = new Int16Array(response);
+                var upsample = new Int16Array(samples.length * intp_factor);
+                var j = 0;
+                //interpolate, generating higher sampling rate
+                for (var i = 0; i < samples.length; i++)
+                    for (var x = 0; x < intp_factor; x++) {
+                        upsample[j++] = ((prev_sample * (intp_factor - x - 1))
+                            + (samples[i] * (x + 1))) / intp_factor;
+                        prev_sample = samples[i];
+                    }
+                player.feed(upsample);
+            }
+            return;
+        }
+        
+        // Handle string data
+        // Make sure response is a string before using string methods
+        if (typeof response !== 'string') {
+            // Silently ignore non-string, non-binary data
             return;
         }
 
@@ -2772,4 +3039,20 @@ function show_in_qrz_window(callsign) {
         con.fadeOut(6000);
     }
 </script>
+<script>
+    function setDebug(on) {
+        ws.send("DEBUG:"+on);
+    }
+
+    // Hide Browser Mic button if not on HTTPS
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const browserMicButton = document.getElementById('browser_mic');
+        if (browserMicButton && window.location.protocol !== 'https:') {
+            console.log('Not on HTTPS, hiding Browser Mic button.');
+            browserMicButton.style.display = 'none';
+        }
+    });
+
+</script>
+</body>
 </html>
