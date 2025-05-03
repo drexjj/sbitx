@@ -539,6 +539,7 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 struct field *active_layout = NULL;
@@ -593,6 +594,8 @@ struct field main_controls[] = {
 	 "", 1, 100, 1, COMMON_CONTROL},
 	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
+	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 150, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
 	{"#step", NULL, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -3279,7 +3282,12 @@ void menu2_display(int show)
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
-		if (!strcmp(field_str("WFCALLOPT"), "ON"))
+		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
+		const char *current_mode = field_str("MODE");
+		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
+		    strcmp(current_mode, "FT8") != 0 && 
+		    strcmp(current_mode, "CW") != 0 && 
+		    strcmp(current_mode, "CWR") != 0)
 		{
 			field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
 		}
@@ -4521,6 +4529,25 @@ int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		set_field("#toggle_kbd", "OFF");
 		focus_field(f_last_text); // this will prevent the controls from bouncing
 
+		return 1;
+	}
+	return 0;
+}
+
+// Function to launch freq-direct.py keypad when VFO area is touched
+int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == FIELD_DRAW)
+	{
+		// Don't draw anything - make it completely transparent
+		// This ensures the VFO display remains visible
+		return 1; // Return 1 to indicate we've handled the drawing
+	}
+	else if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT)
+	{
+		// Use the focus_keypad.sh script to either focus the existing keypad
+		// or launch a new one if it's not running
+		system("/home/pi/sbitx/src/focus_keypad.sh &");
 		return 1;
 	}
 	return 0;
