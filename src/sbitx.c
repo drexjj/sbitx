@@ -2026,6 +2026,8 @@ void setup()
 	jitter_buffer_read = 0;
 	jitter_buffer_samples = 0;
 
+	modem_init();
+	
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
