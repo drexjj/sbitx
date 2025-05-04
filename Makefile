@@ -3,7 +3,7 @@ SOURCES = $(wildcard src/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 HEADERS = $(wildcard src/*.h)
 CFLAGS = -g `pkg-config --cflags gtk+-3.0`
-LIBS = -lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lncurses -lsqlite3 -lnsl -lrt -lssl -lcrypto src/ft8_lib/libft8.a `pkg-config --libs gtk+-3.0`
+LIBS = -lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lsqlite3 -lnsl -lrt -lssl -lcrypto src/ft8_lib/libft8.a `pkg-config --libs gtk+-3.0`
 CC = gcc
 LINK = gcc
 STRIP = strip
