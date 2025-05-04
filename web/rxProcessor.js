@@ -2,51 +2,43 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super();
         
-        // Get sample rate information from options if available
         const processorOptions = options.processorOptions || {};
         
-        this.bufferSize = 4096; // Increased buffer size for smoother playback
+        this.bufferSize = 4096;
         this.buffer = new Float32Array(this.bufferSize);
         this.writePos = 0;
         this.readPos = 0;
         this.availableSamples = 0;
         this.isReady = false;
-        this.minBufferThreshold = 1536; // ~32ms at 16kHz
+        this.minBufferThreshold = 1536;
         
-        // The sBitx system uses 96kHz internally, decimated to 16kHz for the browser
         this.inputSampleRate = processorOptions.inputSampleRate || 16000;
         this.outputSampleRate = processorOptions.outputSampleRate || sampleRate;
-        
-        // Calculate the sample rate ratio for resampling
         this.sampleRateRatio = this.outputSampleRate / this.inputSampleRate;
         
-        // Debug flag - set to false to hide buffer messages
         this.debug = processorOptions.debug || false;
-        
-        // Initialize the force silence counter (used during TX transition)
         this.forceSilence = 0;
-        
-        // Log the actual AudioContext sample rate when first sample arrives
         this.sampleRateLogged = false;
 
+        // Set default volume to 5 (0 dB gain)
+        this.setVolume(11);
+
         this.port.onmessage = (event) => {
-            // Check if this is a command message
             if (event.data && typeof event.data === 'object' && event.data.command) {
-                // Handle command messages
+                if (event.data.command === 'set_volume') {
+                    const volume = Math.max(0, Math.min(10, event.data.value));
+                    this.setVolume(volume);
+                    this.port.postMessage({ status: "volume_set", value: volume });
+                    return;
+                }
                 if (event.data.command === 'clear_buffer') {
-                    // Completely clear the buffer and reset all state
-                    this.buffer = new Float32Array(this.bufferSize); // Create a fresh buffer
+                    this.buffer = new Float32Array(this.bufferSize);
                     this.writePos = 0;
                     this.readPos = 0;
                     this.availableSamples = 0;
                     this.isReady = false;
-                    
-                    // Force silence output for the next few process calls
-                    this.forceSilence = 30; // Force silence for ~30 process calls (about 300ms at typical rates)
-                    
-                    // Send acknowledgment
+                    this.forceSilence = 30;
                     this.port.postMessage({ status: "buffer_cleared" });
-                    
                     if (this.debug) {
                         console.log('[RX Worklet] Buffer completely cleared and reset');
                     }
@@ -55,13 +47,11 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
                 return;
             }
             
-            // Handle regular audio data
             if (this.availableSamples >= this.bufferSize) {
                 this.port.postMessage({ status: "buffer_full" });
                 return;
             }
             
-            // Log the actual AudioContext sample rate once if debug is enabled
             if (!this.sampleRateLogged && this.debug) {
                 console.log(`[RX Worklet] Audio context sample rate: ${sampleRate}Hz, Input rate: ${this.inputSampleRate}Hz`);
                 this.sampleRateLogged = true;
@@ -70,7 +60,6 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
             const int16Data = new Int16Array(event.data);
             const float32Data = new Float32Array(int16Data.length);
 
-            // Log sample statistics
             let min = 32767, max = -32768, sum = 0;
             for (let i = 0; i < int16Data.length; i++) {
                 if (int16Data[i] < min) min = int16Data[i];
@@ -79,22 +68,14 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
             }
             const mean = sum / int16Data.length;
             
-            // Normalize samples to float32 (-1.0 to 1.0 range)
             for (let i = 0; i < int16Data.length; i++) {
-                // Standard Int16 normalization
                 let sample = int16Data[i] / 32768.0;
-                
-                // Apply very slight DC offset correction if needed
-                if (Math.abs(mean) > 100) { // Only correct if there's a significant DC offset
-                    sample = sample - (mean / 32768.0 * 0.5); // Apply 50% correction to avoid over-correction
+                if (Math.abs(mean) > 100) {
+                    sample = sample - (mean / 32768.0 * 0.5);
                 }
-                
-                float32Data[i] = Math.max(-1.0, Math.min(1.0, sample)); // Ensure we stay in valid range
+                float32Data[i] = Math.max(-1.0, Math.min(1.0, sample));
             }
 
-            //console.log("Received samples:", int16Data.length);
-
-            // Write to circular buffer
             let writeIndex = this.writePos;
             for (let i = 0; i < float32Data.length && this.availableSamples < this.bufferSize; i++) {
                 this.buffer[writeIndex] = float32Data[i];
@@ -112,11 +93,20 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
         };
     }
 
+    setVolume(volume) {
+        // Map 0-10 to 0.0-4.0 gain
+        // 0 = 0.0 (-100%), 5 = 1.0 (0%), 10 = 4.0 (+400%)
+        const normalizedVolume = volume / 2.5; // Maps 0-10 to 0.0-4.0
+        this.gain = normalizedVolume;
+        if (this.debug) {
+            console.log(`[RX Worklet] Volume set to ${volume}/10 (gain: ${this.gain.toFixed(2)}x)`);
+        }
+    }
+
     process(inputs, outputs, parameters) {
         const output = outputs[0][0];
         const samplesNeeded = output.length;
 
-        // Check if we're in forced silence mode (after buffer clear)
         if (this.forceSilence && this.forceSilence > 0) {
             output.fill(0);
             this.forceSilence--;
@@ -124,63 +114,50 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
         }
 
         if (!this.isReady || this.availableSamples < samplesNeeded) {
-            // Buffer underrun - fill with silence
             output.fill(0);
             this.port.postMessage({ status: "buffer_low" });
+            if (this.debug) {
+                console.log('[RX Worklet] Buffer underrun, samples needed:', samplesNeeded, 'available:', this.availableSamples);
+            }
             return true;
         }
 
-        // Use the pre-calculated sample rate ratio from the constructor
-        // This is critical for maintaining the correct pitch
-        
         if (this.sampleRateRatio === 1.0) {
-            // No resampling needed - direct copy
             for (let i = 0; i < samplesNeeded; i++) {
                 if (i < this.availableSamples) {
-                    output[i] = Math.max(-1, Math.min(1, this.buffer[this.readPos]));
+                    output[i] = Math.max(-1, Math.min(1, this.buffer[this.readPos] * this.gain));
                     this.buffer[this.readPos] = 0;
                     this.readPos = (this.readPos + 1) % this.bufferSize;
                 } else {
-                    output[i] = 0; // Pad with silence if we run out of samples
+                    output[i] = 0;
                 }
             }
             this.availableSamples -= Math.min(samplesNeeded, this.availableSamples);
         } else {
-            // Resampling needed - linear interpolation for simplicity and low CPU usage
             let inputIndex = 0;
             let inputIndexFloat = 0;
             
             for (let i = 0; i < samplesNeeded; i++) {
-                // Calculate the exact position in the input buffer
                 inputIndexFloat = i / this.sampleRateRatio;
                 inputIndex = Math.floor(inputIndexFloat);
                 
                 if (inputIndex < this.availableSamples) {
-                    // Get the two adjacent samples for interpolation
                     const readPos1 = (this.readPos + inputIndex) % this.bufferSize;
                     const readPos2 = (this.readPos + Math.min(inputIndex + 1, this.availableSamples - 1)) % this.bufferSize;
-                    
-                    // Calculate the fractional part for interpolation
                     const fraction = inputIndexFloat - inputIndex;
-                    
-                    // Linear interpolation between the two samples
-                    output[i] = (1 - fraction) * this.buffer[readPos1] + fraction * this.buffer[readPos2];
-                    
-                    // Ensure we stay in the valid range
-                    output[i] = Math.max(-1, Math.min(1, output[i]));
+                    const sample = ((1 - fraction) * this.buffer[readPos1] + fraction * this.buffer[readPos2]) * this.gain;
+                    output[i] = Math.max(-1, Math.min(1, sample));
                 } else {
-                    output[i] = 0; // Pad with silence if we run out of samples
+                    output[i] = 0;
                 }
             }
             
-            // Update read position and available samples count
             const samplesConsumed = Math.min(Math.ceil(samplesNeeded / this.sampleRateRatio), this.availableSamples);
             this.readPos = (this.readPos + samplesConsumed) % this.bufferSize;
             this.availableSamples -= samplesConsumed;
         }
 
-        // Log estimated latency (occasionally) only if debug is enabled
-        if (this.debug && Math.random() < 0.01) { // Only log about 1% of the time to reduce console spam
+        if (this.debug && Math.random() < 0.01) {
             const latencyMs = (this.availableSamples / this.inputSampleRate) * 1000;
             console.log(`[RX Worklet] Buffer: ${this.availableSamples} samples, Latency: ${latencyMs.toFixed(1)}ms`);
         }

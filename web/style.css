@@ -456,13 +456,17 @@ input {
 
 /* Waterfall and spectrum */
 #pan_adapter {
+    clear: both;
     width: 100%;
     box-sizing: border-box; 
     border: 4px solid #333;
     border-radius: 12px;
     padding: 5px;
+    margin: 2px;
     background: linear-gradient(to bottom, #2a2a2a, #1f1f1f);
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 6px 16px rgba(0, 0, 0, 0.7);
+    text-align: left;
+    vertical-align: top;
 
 }
 
@@ -888,6 +892,7 @@ input {
 
 
 #keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
+    clear: both;
     width: 100%;
     box-sizing: border-box; 
     border: 4px solid #333;
@@ -963,3 +968,98 @@ input {
     text-decoration: underline;
 }
 
+#browser_mic {
+    white-space: pre-line;  /* This respects newlines and wraps text */
+    text-align: center;    /* Center the text if desired */
+}
+
+#keypad_panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #333;
+    border: 2px solid #555;
+    padding: 8px;
+    z-index: 1000;
+    width: 200px; /* Reduced width */
+    max-width: 90%;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+#keypad_input {
+    margin-bottom: 8px;
+}
+
+#freq_input {
+    width: 100%;
+    padding: 4px;
+    font-size: 14px; /* Smaller font size for smaller panel */
+    text-align: right;
+    background-color: #222;
+    color: #fff;
+    border: 1px solid #555;
+    box-sizing: border-box;
+}
+
+#keypad_buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px; /* Reduced gap for tighter layout */
+}
+
+.keypad-btn {
+    background-color: #444;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 8px; /* Smaller padding */
+    font-size: 14px; /* Smaller font size */
+    cursor: pointer;
+    text-align: center;
+}
+
+.keypad-btn:hover {
+    background-color: #555;
+}
+
+#keypad_clear, #keypad_delete, #keypad_enter {
+    grid-column: span 1;
+}
+
+#keypad_enter {
+    background-color: #1a75ff;
+}
+
+#keypad_enter:hover {
+    background-color: #0d47a1;
+}
+
+#keypad_clear {
+    background-color: #ff4444;
+}
+
+#keypad_clear:hover {
+    background-color: #cc0000;
+}
+
+#keypad_delete {
+    background-color: #ffaa00;
+}
+
+#keypad_delete:hover {
+    background-color: #cc8800;
+}
+
+/* Adjust panel title for smaller width */
+#keypad_panel .sbitx-panel-title {
+    font-size: 14px; /* Smaller title font */
+    margin: 0 0 8px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#keypad_panel .sbitx-btn-back {
+    font-size: 12px; /* Smaller close button */
+    padding: 4px 8px;
+}

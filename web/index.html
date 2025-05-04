@@ -53,7 +53,31 @@
     <input type="hidden" id="REC" value="OFF">
     <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="">
     <input type="hidden" id="VFO" value="A"> <!-- Fixed id from VFOx to VFO -->
-
+    <div id="keypad_panel" class="sbitx-panel" style="display: none;">
+        <h2 class="sbitx-panel-title">
+            Enter Frequency
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <div id="keypad_input">
+            <input type="text" id="freq_input" class="sbitx-text-input" placeholder="Enter frequency (kHz)" readonly>
+        </div>
+        <div id="keypad_buttons">
+            <button class="keypad-btn">1</button>
+            <button class="keypad-btn">2</button>
+            <button class="keypad-btn">3</button>
+            <button class="keypad-btn">4</button>
+            <button class="keypad-btn">5</button>
+            <button class="keypad-btn">6</button>
+            <button class="keypad-btn">7</button>
+            <button class="keypad-btn">8</button>
+            <button class="keypad-btn">9</button>
+            <button class="keypad-btn">0</button>
+            <button class="keypad-btn">.</button>
+            <button class="keypad-btn" id="keypad_clear">Clear</button>
+            <button class="keypad-btn" id="keypad_delete">Del</button>
+            <button class="keypad-btn" id="keypad_enter">Enter</button>
+        </div>
+    </div>
     <div id="sdr_page">
         <section id="maincontrols">
             <div class="sbitxv3-control">
@@ -342,10 +366,45 @@
                         <input type="range" class="linear-slider" id="slider_MIC" max="100" min="0" step="1" value="13">
                     </div>
                 </div>
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="DSP">DSP</label>
+                    <select class="sbitxv3-selection sbitx-selection" id="DSP">
+                        <option value="OFF">OFF</option>
+                        <option value="ON">ON</option>
+                    </select>
+                </div>
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="ANR">ANR</label>
+                    <select class="sbitxv3-selection sbitx-selection" id="ANR">
+                        <option value="OFF">OFF</option>
+                        <option value="ON">ON</option>
+                    </select>
+                </div>
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="RXEQ">RXEQ</label>
+                    <select class="sbitxv3-selection sbitx-selection" id="RXEQ">
+                        <option value="OFF">OFF</option>
+                        <option value="ON">ON</option>
+                    </select>
+                </div>
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="TXEQ">TXEQ</label>
+                    <select class="sbitxv3-selection sbitx-selection" id="TXEQ">
+                        <option value="OFF">OFF</option>
+                        <option value="ON">ON</option>
+                    </select>
+                </div>
+                <div class="linear rx-control" id="compresseion">
+                    <label class="linear-label" for="COMP">COMP</label>
+                    <input type="number" id="COMP" min="0" max="10" class="linear-value">
+                    <div class="linear-dropdown">
+                        <input type="range" class="linear-slider" id="slider_COMP" max="10" min="0" step="1" value="5">
+                    </div>
+                </div>
                 <button id="ptt_tx">TX</button>
                 <button id="ptt_rx">RX</button>
-                <button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic
-                    OFF</button>
+                <button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic<br>OFF</button>
+
 
             </section>
 
@@ -543,6 +602,70 @@
 
     /* oz7bx gridmap */
     GRIDMAP.init(document.getElementById("gridmap"), 360, 360);
+
+    // Keypad functionality
+    function show_keypad() {
+        $("#keypad_panel").show();
+        el("freq_input").value = "";
+        el("freq_input").focus();
+    }
+
+    function hide_keypad() {
+        $("#keypad_panel").hide();
+        el("freq_input").value = "";
+    }
+
+    // Handle keypad button clicks
+    function keypad_button_clicked(event) {
+        var btn = event.currentTarget;
+        var input = el("freq_input");
+        var currentValue = input.value;
+
+        if (btn.id === "keypad_clear") {
+            input.value = "";
+        } else if (btn.id === "keypad_delete") {
+            input.value = currentValue.slice(0, -1);
+        } else if (btn.id === "keypad_enter") {
+            submit_frequency();
+        } else {
+            // Append the button's value (number or decimal point)
+            var newChar = btn.innerHTML;
+            // Prevent multiple decimal points
+            if (newChar === "." && currentValue.includes(".")) {
+                return;
+            }
+            input.value = currentValue + newChar;
+        }
+    }
+
+    // Validate and submit the frequency
+    function submit_frequency() {
+        var input = el("freq_input").value;
+        // Remove any trailing decimal point
+        if (input.endsWith(".")) {
+            input = input.slice(0, -1);
+        }
+        // Validate input: must be a number, optionally with one decimal point
+        if (!/^\d+(\.\d{0,3})?$/.test(input)) {
+            alert("Please enter a valid frequency in kHz (e.g., 7.040 or 14.0745)");
+            return;
+        }
+        // Convert kHz to Hz (multiply by 1000)
+        var freqHz = Math.round(parseFloat(input) * 1000);
+        // Basic validation: ensure frequency is within a reasonable range (e.g., 1 MHz to 30 MHz)
+        if (freqHz < 1000000 || freqHz > 30000000) {
+            alert("Frequency must be between 1 MHz and 30 MHz.");
+            return;
+        }
+        // Update the frequency using the existing update_freq function
+        update_freq(freqHz.toString());
+        hide_keypad();
+    }
+
+    // Attach event handlers for keypad
+    $("#dial").on("click", show_keypad);
+    $(".keypad-btn").on("click", keypad_button_clicked);
+    $("#keypad_panel .sbitx-btn-back").on("click", hide_keypad);
 
     /* a few helper functions */
     function el(element_id) {
@@ -1003,12 +1126,18 @@
         update_freq(freq);
     }
 
-    //Mouse drag W4WHL
     // Waterfall drag handling
     let isDragging = false;
     let lastX = 0;
+    let lastTime = 0; // Track time of last drag event
+    let lastUpdateTime = 0; // Track time of last frequency update
     let accumulatedPixels = 0; // Accumulator for pixel movement
     const pixelsPerStep = 100; // Pixels required to trigger one step (adjustable)
+    const maxMultiplier = 5; // Maximum step size multiplier
+    const minSpeed = 100; // Pixels/sec for 1x multiplier (adjustable)
+    const maxSpeed = 1000; // Pixels/sec for 5x multiplier (adjustable)
+    const debounceInterval = 100; // Minimum time (ms) between frequency updates
+    const residualThreshold = pixelsPerStep * 0.3; // Ignore residuals < 30% of pixelsPerStep on release
 
     function handleWaterfallDrag(event, isTouch = false) {
         if (!isDragging) return;
@@ -1016,15 +1145,29 @@
         // Get clientX from mouse or touch event
         const currentX = isTouch ? event.touches[0].clientX : event.clientX;
         const deltaX = currentX - lastX; // Positive if moving right, negative if left
+        const currentTime = performance.now(); // Current time in milliseconds
+        const deltaTime = (currentTime - lastTime) / 1000; // Time difference in seconds
         const stepSize = getStepSize(); // e.g., 10, 100, 1000 Hz
+
+        // Calculate drag speed (pixels per second)
+        const speed = deltaTime > 0 ? Math.abs(deltaX / deltaTime) : 0; // Avoid division by zero
+
+        // Compute multiplier based on speed (linear interpolation between minSpeed and maxSpeed)
+        let multiplier = 1;
+        if (speed >= minSpeed) {
+            multiplier = 1 + (speed - minSpeed) * (maxMultiplier - 1) / (maxSpeed - minSpeed);
+            multiplier = Math.min(maxMultiplier, Math.max(1, multiplier)); // Clamp between 1 and 5
+        }
 
         // Accumulate raw pixel movement
         accumulatedPixels += deltaX;
 
-        // Calculate number of steps based on accumulated pixels
-        const steps = Math.floor(accumulatedPixels / pixelsPerStep); // Integer steps
+        // Calculate number of steps based on accumulated pixels, adjusted by multiplier
+        const effectivePixelsPerStep = pixelsPerStep / multiplier; // Smaller threshold for faster drags
+        const steps = Math.floor(accumulatedPixels / effectivePixelsPerStep); // Integer steps
 
-        if (steps !== 0) {
+        // Apply frequency update only if steps exist and debounce interval has passed
+        if (steps !== 0 && (currentTime - lastUpdateTime) >= debounceInterval) {
             // Update frequency: dragging right (deltaX > 0) decreases freq
             let freq = parseInt(el('FREQ').value);
             freq -= steps * stepSize; // Apply steps * stepSize (e.g., -1000 Hz for 1 kHz step)
@@ -1033,14 +1176,16 @@
             // Apply update if frequency changed
             if (freq !== parseInt(el('FREQ').value)) {
                 update_freq(freq);
-                console.log(`Waterfall drag freq: ${freq} (deltaX: ${deltaX}, accumulatedPixels: ${accumulatedPixels}, steps: ${steps})`);
+                console.log(`Waterfall drag freq: ${freq} (deltaX: ${deltaX}, speed: ${speed.toFixed(2)} px/s, multiplier: ${multiplier.toFixed(2)}, steps: ${steps})`);
             }
 
             // Reduce accumulated pixels by the amount used
-            accumulatedPixels -= steps * pixelsPerStep;
+            accumulatedPixels -= steps * effectivePixelsPerStep;
+            lastUpdateTime = currentTime; // Update last update time
         }
 
         lastX = currentX; // Update last position
+        lastTime = currentTime; // Update last time
         if (!isTouch) event.preventDefault(); // Prevent text selection for mouse
     }
 
@@ -1048,29 +1193,42 @@
         if (isTouch && event.touches.length !== 1) return;
         isDragging = true;
         lastX = isTouch ? event.touches[0].clientX : event.clientX;
+        lastTime = performance.now(); // Initialize time
+        lastUpdateTime = 0; // Reset last update time
         accumulatedPixels = 0; // Reset accumulator
         event.preventDefault();
     }
 
     function stopWaterfallDrag() {
-        if (isDragging) {
-            // Apply any remaining accumulated pixels
+    if (isDragging) {
+        setTimeout(() => {
             const stepSize = getStepSize();
             let freq = parseInt(el('FREQ').value);
-            const steps = Math.round(accumulatedPixels / pixelsPerStep); // Round final delta
+            let effectiveSteps = 0;
 
-            if (steps !== 0) {
-                freq -= steps * stepSize;
-                freq = Math.round(freq / stepSize) * stepSize;
+            // Determine drag direction and apply steps based on threshold
+            const threshold = pixelsPerStep * 0.5; // Require 50% of pixelsPerStep to trigger a step
+            if (accumulatedPixels > threshold) {
+                // Right drag (positive pixels): decrease frequency
+                effectiveSteps = Math.floor(accumulatedPixels / pixelsPerStep); // Round down
+            } else if (accumulatedPixels < -threshold) {
+                // Left drag (negative pixels): increase frequency
+                effectiveSteps = Math.ceil(accumulatedPixels / pixelsPerStep); // Round up
+            }
+
+            if (effectiveSteps !== 0) {
+                freq -= effectiveSteps * stepSize; // Apply steps (negative steps increase freq)
+                freq = Math.round(freq / stepSize) * stepSize; // Snap to step grid
                 if (freq !== parseInt(el('FREQ').value)) {
                     update_freq(freq);
-                    console.log(`Waterfall drag end freq: ${freq} (final steps: ${steps}, accumulatedPixels: ${accumulatedPixels})`);
+                    console.log(`Waterfall drag end freq: ${freq} (final steps: ${effectiveSteps}, accumulatedPixels: ${accumulatedPixels})`);
                 }
             }
-        }
-        isDragging = false;
-        accumulatedPixels = 0;
+            accumulatedPixels = 0; // Reset after processing
+        }, 50); // Small delay for touch events
     }
+    isDragging = false;
+}
 
     // Attach event listeners
     const waterfallCanvas = el("waterfall");
@@ -1466,7 +1624,7 @@
         var micBtn = document.getElementById('browser_mic');
 
         if (window.sbitxMic.enabled) {
-            micBtn.textContent = "Browser Mic ON";
+            micBtn.textContent = "Browser Mic\nON";
             //micBtn.style.backgroundColor = "yellow";
             console.log("Browser microphone enabled");
 
@@ -1486,7 +1644,7 @@
                 console.log("Browser microphone not supported");
             }
         } else {
-            micBtn.textContent = "Browser Mic OFF";
+            micBtn.textContent = "Browser Mic\nOFF";
             micBtn.style.backgroundColor = "";
             console.log("Browser microphone disabled");
 
@@ -1501,12 +1659,12 @@
             if (!rxAudioInitialized) {
                 // Create audio context
                 rxAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
+
                 // Load the audio worklet module
                 try {
                     await rxAudioContext.audioWorklet.addModule('rxProcessor.js');
                     log("RX AudioWorklet module loaded successfully");
-                    
+
                     // Create the worklet node with processor options
                     rxWorkletNode = new AudioWorkletNode(
                         rxAudioContext,
@@ -1520,14 +1678,14 @@
                             }
                         }
                     );
-                    
+
                     // Connect the node to the audio output
                     rxWorkletNode.connect(rxAudioContext.destination);
-                    
+
                     // Handle messages from the processor
                     rxWorkletNode.port.onmessage = (event) => {
                         const { status, level } = event.data;
-                        
+
                         if (status === "buffer_low") {
                             // Buffer is running low, could log or handle this
                             // console.log("Audio buffer running low");
@@ -1539,10 +1697,10 @@
                             // console.log(`Buffer level: ${level * 100}%`);
                         }
                     };
-                    
+
                     rxAudioInitialized = true;
                     log("RX audio worklet initialized successfully");
-                    
+
                     // Request audio data from the server after initialization
                     if (session_id !== 'nullsession') {
                         websocket_send("audio");
@@ -1558,7 +1716,7 @@
                     });
                     log("PCM player initialized as fallback");
                     rxAudioInitialized = true; // Mark as initialized even though we're using fallback
-                    
+
                     // Request audio data from the server after initialization
                     if (session_id !== 'nullsession') {
                         websocket_send("audio");
@@ -1583,7 +1741,7 @@
                 });
                 log("PCM player initialized as emergency fallback");
                 rxAudioInitialized = true;
-                
+
                 // Request audio data from the server
                 if (session_id !== 'nullsession') {
                     websocket_send("audio");
@@ -1706,14 +1864,14 @@
                     // Note: Audio processing is now done in the AudioWorklet
                     // We just need to convert to 16-bit PCM for transmission
                     var pcmData = new Int16Array(dataToSend.length);
-                    
+
                     // Check if we're in the silence period for TX transition
                     var silenceAudio = false;
                     if (window.txSilenceUntil && now < window.txSilenceUntil) {
                         silenceAudio = true;
                         console.log("Silencing TX audio during transition");
                     }
-                    
+
                     for (var i = 0; i < dataToSend.length; i++) {
                         // If in silence period, use zero samples
                         if (silenceAudio) {
@@ -1726,11 +1884,11 @@
                             } else if (sample < -0.8) {
                                 sample = -0.8 - ((-sample) - 0.8) / (1 + Math.pow(((-sample) - 0.8) / 0.2, 2));
                             }
-                            
+
                             pcmData[i] = Math.round(sample * 32767);
                         }
                     }
-                    
+
                     // Clear the silence flag if we've passed the time
                     if (window.txSilenceUntil && now >= window.txSilenceUntil) {
                         window.txSilenceUntil = null;
@@ -1899,17 +2057,17 @@
         log("setting in_tx true");
         $("#tx_meters").show();
         in_tx = true;
-        
+
         // Clear the RX audio buffer
         if (rxAudioInitialized && rxWorkletNode) {
             rxWorkletNode.port.postMessage({ command: 'clear_buffer' });
             log("RX audio buffer cleared");
         }
-        
+
         // Set a flag to silence the first 100ms of TX audio
         window.txSilenceUntil = Date.now() + 100; // 100ms silence
         log("TX audio silenced for transition");
-        
+
         // Resume microphone audio context if it's suspended
         if (micContext && micContext.state === 'suspended') {
             micContext.resume();
@@ -1921,15 +2079,15 @@
         $("#tx_meters").hide();
         log("setting in_tx false");
         in_tx = false;
-        
+
         // Clear any lingering TX audio data
         if (window.sbitxMic && window.sbitxMic.buffer) {
             window.sbitxMic.buffer = [];
         }
-        
+
         // Clear any TX silence timing
         window.txSilenceUntil = null;
-        
+
         // Request fresh audio data from the server
         if (session_id !== 'nullsession' && rxAudioInitialized) {
             websocket_send("audio");
@@ -2748,12 +2906,12 @@
             f.onload = () => {
                 if (!sound_mute) {
                     var samples = new Int16Array(f.result);
-                    
+
                     // If we have the worklet initialized, use it
                     if (rxAudioInitialized && rxWorkletNode) {
                         // Send the raw Int16Array data directly to the worklet
                         rxWorkletNode.port.postMessage(samples.buffer);
-                    } 
+                    }
                     // Otherwise fall back to PCMPlayer if available
                     else if (typeof player !== 'undefined' && player) {
                         var upsample = new Int16Array(samples.length * intp_factor);
@@ -2779,12 +2937,12 @@
                 response.constructor.name === 'ArrayBuffer')) {
             if (!sound_mute) {
                 var samples = new Int16Array(response);
-                
+
                 // If we have the worklet initialized, use it
                 if (rxAudioInitialized && rxWorkletNode) {
                     // Send the raw Int16Array data directly to the worklet
                     rxWorkletNode.port.postMessage(samples.buffer);
-                } 
+                }
                 // Otherwise fall back to PCMPlayer if available
                 else if (typeof player !== 'undefined' && player) {
                     var upsample = new Int16Array(samples.length * intp_factor);
@@ -3111,11 +3269,11 @@
         if (div_el.style.display == "block") {
             div_el.style.display = "";
             // Show logger controls again when slider is hidden
-            $("#logger-controls").show();
+            //$("#logger-controls").show();
         } else {
             div_el.style.display = "block";
             // Hide logger controls when slider is shown
-            $("#logger-controls").hide();
+            //$("#logger-controls").hide();
 
             // send this value to the radio to get the focus here
             // this will enable the control encoder to work
