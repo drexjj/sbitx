@@ -1419,7 +1419,11 @@
         ctx.fillStyle = "white";
         ctx.font = "12px Sans";
         let rx_x;
-        if (mode === 'CWR' || mode === 'LSB') {
+        
+        // For SSB modes (USB, LSB) and DIGI, always draw the RX line at the center (0 Hz)
+        if (mode === 'USB' || mode === 'LSB' || mode === 'DIGI') {
+            rx_x = width / 2;  // Center of the spectrum (0 Hz)
+        } else if (mode === 'CWR') {
             rx_x = width / 2 - (rx_pitch * hz_per_pixel);
         } else if (mode === 'AM') {
             rx_x = width / 2;
@@ -1460,7 +1464,19 @@
 
         // Calculate repeat and spot positions
         const repeat = mode === 'FT8' ? 1 : mode === 'CW' || mode === 'CWR' ? 2 : 2;
-        const rx_spot = Math.round(width / 2 + (rx_pitch * hz_per_pixel * (mode === 'CWR' || mode === 'LSB' ? -1 : 1)));
+        
+        // For SSB modes (USB, LSB) and DIGI, always place the RX line at the center (0 Hz)
+        let rx_spot;
+        if (mode === 'USB' || mode === 'LSB' || mode === 'DIGI') {
+            rx_spot = Math.round(width / 2);  // Center of the waterfall (0 Hz)
+        } else if (mode === 'CWR') {
+            rx_spot = Math.round(width / 2 - (rx_pitch * hz_per_pixel));
+        } else if (mode === 'AM') {
+            rx_spot = Math.round(width / 2);
+        } else {
+            rx_spot = Math.round(width / 2 + (rx_pitch * hz_per_pixel));
+        }
+        
         const tx_spot = mode === 'FT8' ? Math.round(width / 2 + (tx_pitch * hz_per_pixel)) : -1;
 
         // Shift existing image down
