@@ -1287,10 +1287,10 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		}
 
 		// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-		for (i = 0; i < MAX_BINS / 2; i += 6)
-		{
-			q_write(&qremote, output_speaker[i]);
-		}
+		//for (i = 0; i < MAX_BINS / 2; i += 6)
+		//{
+		//	q_write(&qremote, output_speaker[i]);
+		//}
 	}
 
 	if (mute_count)
@@ -1327,7 +1327,14 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         }
     }
 }
-
+// Push the samples to the remote audio queue, decimated to 16000 samples/sec
+// Moved after EQ processing so qremote gets the equalized audio when applicable
+	if (rx_list->output == 0) {
+		for (i = 0; i < MAX_BINS / 2; i += 6)
+		{
+			q_write(&qremote, output_speaker[i]);
+		}
+	}
 }
 void read_power()
 {
