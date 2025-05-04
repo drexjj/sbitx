@@ -652,6 +652,27 @@ int is_remote_browser_active() {
   return active_websocket_connections > 0;
 }
 
+// Function to check if the only active connection is from localhost (127.0.0.1)
+int is_localhost_connection_only() {
+  // If no connections are active, return false
+  if (active_websocket_connections == 0) {
+    return 0;
+  }
+  
+  // Check if all active connections are from localhost
+  for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+    if (ws_connections[i].active) {
+      // If any connection is not from localhost, return false
+      if (strcmp(ws_connections[i].ip_addr, "127.0.0.1") != 0) {
+        return 0;
+      }
+    }
+  }
+  
+  // If we get here, all active connections are from localhost
+  return 1;
+}
+
 // Function to get the IP addresses of active connections
 // Returns a comma-separated list of IP addresses in the provided buffer
 // Returns the number of active connections

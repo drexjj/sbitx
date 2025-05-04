@@ -2224,8 +2224,8 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
-	// Check if remote browser session is active
-	if (is_remote_browser_active())
+	// Check if remote browser session is active and not from localhost (127.0.0.1)
+	if (is_remote_browser_active() && !is_localhost_connection_only())
 	{
 		// Display message instead of rendering waterfall
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2417,8 +2417,8 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
-	// Check if remote browser session is active
-	if (is_remote_browser_active())
+	// Check if remote browser session is active and not from localhost (127.0.0.1)
+	if (is_remote_browser_active() && !is_localhost_connection_only())
 	{
 		// Display message instead of rendering spectrum
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
