@@ -17,7 +17,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <ctype.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <ncurses.h>
+#include <stdbool.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 #include <gdk/gdkx.h>
