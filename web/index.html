@@ -1626,9 +1626,9 @@
                 audio: {
                     sampleRate: 8000,            // Request 8kHz directly to match our needs
                     channelCount: 1,             // Mono audio
-                    echoCancellation: false,     // False to help prevent rx audio ducking 
-                    noiseSuppression: false,      // Enable noise suppression
-                    autoGainControl: false        // Enable auto gain control
+                    echoCancellation: {exact: false},     // Disable echo cancellation to prevent audio ducking
+                    noiseSuppression: {exact: false},      // Disable noise suppression to prevent audio ducking
+                    autoGainControl: {exact: false}        // Disable auto gain control to prevent audio ducking
                 }
             });
 
