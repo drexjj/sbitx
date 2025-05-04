@@ -27,10 +27,14 @@ extern int is_browser_mic_active();
 static const char *s_http_addr = "0.0.0.0:8080";  // Plain address without protocol
 static const char *s_https_addr = "0.0.0.0:8443";  // Plain address without protocol
 
-// Hardcoded self-signed certificate and key for HTTPS
-// This eliminates file reading issues with OpenSSL
 static const char *s_ssl_cert_path = "/home/pi/sbitx/ssl/cert.pem";
 static const char *s_ssl_key_path = "/home/pi/sbitx/ssl/key.pem";
+
+// Global buffers for TLS certificate and key to prevent memory issues
+static char *g_cert_buf = NULL;
+static char *g_key_buf = NULL;
+static size_t g_cert_len = 0;
+static size_t g_key_len = 0;
 
 static char s_web_root[1000];
 static char session_cookie[100];
@@ -104,7 +108,11 @@ static char *read_file_content(const char *path, size_t *size) {
 }
 
 static void web_respond(struct mg_connection *c, char *message){
-	mg_ws_send(c, message, strlen(message), WEBSOCKET_OP_TEXT);
+	// Check if connection is still valid before sending
+	if (c && !c->is_closing) {
+		// Send the message
+		mg_ws_send(c, message, strlen(message), WEBSOCKET_OP_TEXT);
+	}
 }
 
 static void get_console(struct mg_connection *c){
@@ -325,6 +333,31 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
         inet_ntop(af, c->rem.ip, addr, sizeof(addr));
         printf("MG_EV_CLOSE: Conn from %s\n", addr);
     }
+    
+    // Check if this was a WebSocket connection
+    if (c->is_websocket) {
+      // Remove from our connection tracking array
+      for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+        if (ws_connections[i].active && ws_connections[i].conn == c) {
+          ws_connections[i].active = 0;
+          ws_connections[i].conn = NULL;
+          break;
+        }
+      }
+      
+      active_websocket_connections--;
+      if (active_websocket_connections < 0) active_websocket_connections = 0; // Safety check
+      
+      if (webserver_debug_enabled) {
+        printf("WebSocket connection closed, active connections: %d\n", active_websocket_connections);
+      }
+      
+      // Just update the connection status - the regular UI update cycle will handle the transition
+      if (active_websocket_connections == 0) {
+        // Send a simple refresh message
+        web_update("refresh");
+      }
+    }
   } else if (ev == MG_EV_TLS_HS) {
     // Log TLS Handshake result only if debugging
     if (webserver_debug_enabled) {
@@ -429,33 +462,8 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
     if (webserver_debug_enabled) {
       printf("WebSocket connection opened, active connections: %d\n", active_websocket_connections);
     }
-  } else if (ev == MG_EV_CLOSE) {
-    // Check if this was a WebSocket connection
-    if (c->is_websocket) {
-      // Remove from our connection tracking array
-      for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
-        if (ws_connections[i].active && ws_connections[i].conn == c) {
-          ws_connections[i].active = 0;
-          ws_connections[i].conn = NULL;
-          break;
-        }
-      }
-      
-      active_websocket_connections--;
-      if (active_websocket_connections < 0) active_websocket_connections = 0; // Safety check
-      
-      if (webserver_debug_enabled) {
-        printf("WebSocket connection closed, active connections: %d\n", active_websocket_connections);
-      }
-      
-      // Just update the connection status - the regular UI update cycle will handle the transition
-      if (active_websocket_connections == 0) {
-        // Send a simple refresh message
-        web_update("refresh");
-      }
-    }
+
   }
-  // No additional data needed
 }
 
 // Check for stale connections and send pings
@@ -469,7 +477,7 @@ void check_websocket_connections() {
     
     // Check each connection
     for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
-      if (ws_connections[i].active) {
+      if (ws_connections[i].active && ws_connections[i].conn != NULL) {
         // Check if connection has timed out
         if (current_time - ws_connections[i].last_active_time > WS_CONNECTION_TIMEOUT_MS) {
           // Connection timed out, mark as inactive
@@ -477,14 +485,24 @@ void check_websocket_connections() {
             printf("WebSocket connection timed out and closed\n");
           }
           
-          // Close the connection
-          mg_ws_send(ws_connections[i].conn, "", 0, WEBSOCKET_OP_CLOSE);
+          // Close the connection safely
+          struct mg_connection *conn = ws_connections[i].conn;
+          if (conn && !conn->is_closing) {
+            // Only try to send close frame if connection is still valid
+            mg_ws_send(conn, "", 0, WEBSOCKET_OP_CLOSE);
+          }
+          
+          // Mark as inactive regardless of close success
           ws_connections[i].active = 0;
           ws_connections[i].conn = NULL;
           connections_closed++;
         } else {
           // Send a ping to keep the connection alive
-          mg_ws_send(ws_connections[i].conn, "ping", 4, WEBSOCKET_OP_PING);
+          // Only if connection is still valid
+          struct mg_connection *conn = ws_connections[i].conn;
+          if (conn && !conn->is_closing) {
+            mg_ws_send(conn, "ping", 4, WEBSOCKET_OP_PING);
+          }
         }
       }
     }
@@ -504,11 +522,21 @@ void check_websocket_connections() {
 }
 
 void *webserver_thread_function(void *server){
-  struct mg_mgr mgr;
+  // Initialize global manager
   mg_mgr_init(&mgr);
   
+  // Note: Mongoose version may not support mg_mgr_set_option
+  // We'll handle buffer issues with careful connection management instead
+  
   // Prepare webserver data (TLS opts and port) for event handler
-  webserver_data_t ws_data = {0};
+  // Allocate on heap instead of stack to ensure it persists
+  webserver_data_t *ws_data = (webserver_data_t *)calloc(1, sizeof(webserver_data_t));
+  if (ws_data == NULL) {
+    fprintf(stderr, "Failed to allocate memory for webserver data\n");
+    mg_mgr_free(&mgr);
+    return NULL;
+  }
+  
   uint16_t https_port_num = 0;
 
   // Parse HTTPS port from address string
@@ -518,27 +546,36 @@ void *webserver_thread_function(void *server){
       https_port_num = (uint16_t)atoi(port_str + 1);
   }
 
-  // Read certificate and key files into memory buffers
-  size_t cert_len = 0, key_len = 0;
-  char *cert_buf = read_file(s_ssl_cert_path, &cert_len);
-  char *key_buf = read_file(s_ssl_key_path, &key_len);
+  // Free previous buffers if they exist (for potential server restart)
+  if (g_cert_buf != NULL) {
+    free(g_cert_buf);
+    g_cert_buf = NULL;
+  }
+  if (g_key_buf != NULL) {
+    free(g_key_buf);
+    g_key_buf = NULL;
+  }
 
-  if (https_port_num > 0 && cert_buf != NULL && key_buf != NULL) {
-      ws_data.https_port = https_port_num;
-      ws_data.tls_opts.cert = mg_str_n(cert_buf, cert_len);
-      ws_data.tls_opts.key = mg_str_n(key_buf, key_len);
+  // Read certificate and key files into memory buffers
+  g_cert_buf = read_file(s_ssl_cert_path, &g_cert_len);
+  g_key_buf = read_file(s_ssl_key_path, &g_key_len);
+
+  if (https_port_num > 0 && g_cert_buf != NULL && g_key_buf != NULL) {
+      ws_data->https_port = https_port_num;
+      ws_data->tls_opts.cert = mg_str_n(g_cert_buf, g_cert_len);
+      ws_data->tls_opts.key = mg_str_n(g_key_buf, g_key_len);
       if (webserver_debug_enabled) {
-          printf("TLS data prepared for port %d\n", ws_data.https_port);
+          printf("TLS data prepared for port %d\n", ws_data->https_port);
       }
   } else {
       if (https_port_num == 0) fprintf(stderr, "Could not parse HTTPS port from %s\n", s_https_addr);
-      if (cert_buf == NULL) fprintf(stderr, "Failed to read certificate file: %s\n", s_ssl_cert_path);
-      if (key_buf == NULL) fprintf(stderr, "Failed to read key file: %s\n", s_ssl_key_path);
+      if (g_cert_buf == NULL) fprintf(stderr, "Failed to read certificate file: %s\n", s_ssl_cert_path);
+      if (g_key_buf == NULL) fprintf(stderr, "Failed to read key file: %s\n", s_ssl_key_path);
       fprintf(stderr, "HTTPS will not be enabled.\n");
   }
 
   // Set the user data pointer for the manager
-  mgr.userdata = &ws_data; 
+  mgr.userdata = ws_data; 
 
   // Create HTTP listener - this will handle both HTTP and WebSocket connections
   if (webserver_debug_enabled) {
@@ -546,16 +583,19 @@ void *webserver_thread_function(void *server){
   }
   if (mg_http_listen(&mgr, s_http_addr, fn, &mgr) == NULL) {
     fprintf(stderr, "Cannot listen on %s\n", s_http_addr);
-    // Consider cleanup: free cert/key buffers, mg_mgr_free
-    free(cert_buf);
-    free(key_buf);
+    // Clean up resources
+    free(g_cert_buf);
+    free(g_key_buf);
+    g_cert_buf = NULL;
+    g_key_buf = NULL;
+    free(ws_data);
     mg_mgr_free(&mgr);
     return NULL; // Exit thread if HTTP fails
   }
 
   // HTTPS Listener (using mg_http_listen)
   // Only attempt if TLS data was prepared successfully
-  if (ws_data.https_port > 0 && ws_data.tls_opts.cert.len > 0) {
+  if (ws_data->https_port > 0 && ws_data->tls_opts.cert.len > 0) {
       if (webserver_debug_enabled) {
           printf("Starting HTTPS listener on %s\n", s_https_addr);
       }
@@ -584,9 +624,25 @@ void *webserver_thread_function(void *server){
     check_websocket_connections();
   }
 
-  // Cleanup (won't be reached in this infinite loop, but good practice)
-  free(cert_buf); // Free the buffers
-  free(key_buf);
+  // Cleanup (will be reached when quit_webserver is set)
+  // First, close all active connections gracefully
+  for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
+    if (ws_connections[i].active && ws_connections[i].conn != NULL) {
+      struct mg_connection *conn = ws_connections[i].conn;
+      if (conn && !conn->is_closing) {
+        mg_ws_send(conn, "", 0, WEBSOCKET_OP_CLOSE);
+      }
+      ws_connections[i].active = 0;
+      ws_connections[i].conn = NULL;
+    }
+  }
+  
+  // Free resources
+  free(g_cert_buf);
+  free(g_key_buf);
+  g_cert_buf = NULL;
+  g_key_buf = NULL;
+  free(ws_data);
   mg_mgr_free(&mgr);
   return NULL;
 }
@@ -635,7 +691,12 @@ void web_update(char *message) {
 	// Iterate through all active connections and send the message
 	for (int i = 0; i < MAX_WS_CONNECTIONS; i++) {
 		if (ws_connections[i].active && ws_connections[i].conn != NULL) {
-			mg_ws_send(ws_connections[i].conn, message, strlen(message), WEBSOCKET_OP_TEXT);
+			struct mg_connection *conn = ws_connections[i].conn;
+			// Only send if connection is still valid
+			if (conn && !conn->is_closing) {
+				// Send the message, no exception handling in C
+				mg_ws_send(conn, message, strlen(message), WEBSOCKET_OP_TEXT);
+			}
 		}
 	}
 }
