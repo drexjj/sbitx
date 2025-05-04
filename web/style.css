@@ -11,7 +11,38 @@
     --font-primary: 'Helvetica', 'Verdana', sans-serif;
     --font-mono: 'Courier New', monospace;
 }
+/* Scale up for 1080p (1920x1080) at ~100% DPI */
+@media screen and (min-width: 1920px) and (max-width: 2559px) and (min-resolution: 0.8dppx) and (max-resolution: 1.2dppx) {
+  body {
+    transform: scale(1.3); /* 130% zoom for 1080p */
+    transform-origin: top left;
+    width: 76.92%; /* 100 / 1.3 */
+    height: 76.92%;
+  }
+}
 
+/* Scale up for 1440p (2560x1440) at ~100% DPI or 1080p at ~150% DPI */
+@media screen and (min-width: 2560px) and (max-width: 3839px) and (min-resolution: 0.8dppx) and (max-resolution: 1.2dppx),
+       screen and (min-width: 1707px) and (max-width: 1919px) and (min-resolution: 1.3dppx) and (max-resolution: 1.7dppx) {
+  body {
+    transform: scale(2.0); /* 200% zoom for 1440p */
+    transform-origin: top left;
+    width: 50%; /* 100 / 2.0 */
+    height: 50%;
+  }
+}
+
+/* Scale up for 4K (3840x2160) at ~100% DPI or 1080p/1440p at higher DPI */
+@media screen and (min-width: 3840px) and (max-width: 5119px) and (min-resolution: 0.8dppx) and (max-resolution: 1.2dppx),
+       screen and (min-width: 1920px) and (max-width: 2559px) and (min-resolution: 1.8dppx) and (max-resolution: 2.2dppx),
+       screen and (min-width: 1280px) and (max-width: 1706px) and (min-resolution: 2.3dppx) and (max-resolution: 3.2dppx) {
+  body {
+    transform: scale(3.0); /* 300% zoom for 4K */
+    transform-origin: top left;
+    width: 33.33%; /* 100 / 3.0 */
+    height: 33.33%;
+  }
+}
 
 body {
     overflow-x: hidden;
