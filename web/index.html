@@ -1144,197 +1144,11 @@
         update_freq(freq);
     }
 
-    // Waterfall and filter drag handling
-    let isFilterDragging = false; // Flag to indicate if a filter edge is being dragged
-    let filterDragEdge = null; // Which edge is being dragged ('left' or 'right')
-    let isDragging = false; // Flag to indicate if waterfall is being dragged
-    let lastX = 0; // Last X position for calculating drag delta
-    let lastTime = 0; // Last time for calculating drag speed
+    // Waterfall drag handling
+    let isDragging = false;
+    let lastX = 0;
+    let lastTime = 0; // Track time of last drag event
     let lastUpdateTime = 0; // Track time of last frequency update
-    const FILTER_EDGE_DETECTION_WIDTH = 40; // Width in pixels for the filter edge detection area
-    
-    // Function to get the canvas coordinates from client coordinates
-    function getCanvasCoordinates(clientX, clientY, canvas) {
-        const rect = canvas.getBoundingClientRect();
-        
-        // Calculate the ratio between the canvas's internal dimensions and its display dimensions
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        
-        // Convert client coordinates to canvas coordinates
-        const canvasX = (clientX - rect.left) * scaleX;
-        const canvasY = (clientY - rect.top) * scaleY;
-        
-        // Store the current scale factors for reference
-        window.currentScaleX = scaleX;
-        window.currentScaleY = scaleY;
-        
-        return { x: canvasX, y: canvasY };
-    }
-    
-    // Function to get the appropriate edge detection width based on device
-    function getEdgeDetectionWidth(isTouch = false) {
-        // Use a wider detection area for touch devices
-        if (isTouch || ('ontouchstart' in window)) {
-            return FILTER_EDGE_DETECTION_WIDTH * 1.5; // 50% wider for touch devices
-        }
-        return FILTER_EDGE_DETECTION_WIDTH;
-    }
-    
-    // Function to check if mouse is over a filter edge
-    function isOverFilterEdge(clientX, clientY, canvas) {
-        if (!canvas) canvas = el("spectrum");
-        
-        // Convert client coordinates to canvas coordinates
-        const { x, y } = getCanvasCoordinates(clientX, clientY, canvas);
-        
-        const { width, height } = canvas;
-        const drawHeight = height - 15;
-        
-        // Calculate filter edge positions directly
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
-        const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2;
-        
-        // Get current filter values
-        const mode = el("MODE").value;
-        const bw = parseFloat(el("BW").value);
-        const low = parseFloat(el("LOW").value);
-        const high = parseFloat(el("HIGH").value);
-        
-        let filterLeftX, filterRightX, visualLeftEdgeX, visualRightEdgeX;
-        
-        if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
-        } else if (mode === "AM") {
-            const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
-        } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
-        }
-        
-        // Calculate the visual edge positions (where the edges are actually drawn)
-        visualLeftEdgeX = filterLeftX;
-        visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
-        
-        // Store these calculated positions for reference
-        window.filterLeftEdgeX = filterLeftX;
-        window.filterRightEdgeX = filterRightX;
-        window.visualLeftEdgeX = visualLeftEdgeX;
-        window.visualRightEdgeX = visualRightEdgeX;
-        
-        // Use the appropriate detection width based on device type
-        const edgeWidth = getEdgeDetectionWidth();
-        
-        // Only detect if within the vertical area of the filter
-        if (y >= 0 && y < drawHeight) {
-            // Check left edge
-            if (Math.abs(x - visualLeftEdgeX) < edgeWidth) {
-                console.log(`Left edge detected at canvas x: ${x}, visualLeftEdgeX: ${visualLeftEdgeX}`);
-                return 'left';
-            }
-            // Check right edge using the visual edge position
-            if (Math.abs(x - visualRightEdgeX) < edgeWidth) {
-                console.log(`Right edge detected at canvas x: ${x}, visualRightEdgeX: ${visualRightEdgeX}`);
-                return 'right';
-            }
-        }
-        
-        return null;
-    }
-    
-    // Handle filter edge dragging with proper scaling support
-    function handleFilterDrag(event, isTouch = false) {
-        if (!isFilterDragging) return;
-        
-        const currentX = isTouch ? event.touches[0].clientX : event.clientX;
-        const deltaX = currentX - lastX;
-        lastX = currentX;
-        
-        if (deltaX === 0) return;
-        
-        const canvas = el("spectrum");
-        const rect = canvas.getBoundingClientRect();
-        
-        // Calculate the scaling ratio between canvas and display
-        const scaleX = canvas.width / rect.width;
-        
-        // Adjust delta based on scaling ratio
-        const adjustedDelta = deltaX * scaleX;
-        
-        const { width } = canvas;
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
-        const hz_per_pixel = width / calculated_span;
-        
-        // Get current filter values
-        const mode = el("MODE").value;
-        const bw = parseFloat(el("BW").value);
-        let low = parseFloat(el("LOW").value);
-        let high = parseFloat(el("HIGH").value);
-        
-        // Calculate Hz change based on pixel movement
-        // Apply a multiplier to make dragging more responsive
-        const multiplier = 1.5;
-        const hzChange = Math.round((adjustedDelta / hz_per_pixel) * multiplier);
-        
-        console.log(`Dragging ${filterDragEdge} edge in ${mode} mode, deltaX: ${deltaX}, adjustedDelta: ${adjustedDelta}, scaleX: ${scaleX}, hzChange: ${hzChange}`);
-        console.log(`Current filter values - low: ${low}, high: ${high}`);
-        if (mode === "LSB" || mode === "CWR") {
-            if (filterDragEdge === 'left') {
-                // Left edge in LSB/CWR controls the high cut
-                high -= hzChange;
-                // Ensure high is at least 50 Hz greater than low
-                high = Math.max(high, low + 50);
-                // Limit high to reasonable values
-                high = Math.min(Math.max(high, 300), 5000);
-                websocket_send(`HIGH=${high}`);
-                console.log(`Updated high to ${high}`);
-            } else { // right edge
-                // Right edge in LSB/CWR controls the low cut
-                low -= hzChange;
-                // Ensure low is at least 50 Hz less than high
-                low = Math.min(low, high - 50);
-                // Limit low to reasonable values
-                low = Math.min(Math.max(low, 50), 4800);
-                websocket_send(`LOW=${low}`);
-                console.log(`Updated low to ${low}`);
-            }
-        } else if (mode === "AM") {
-            // For AM, both edges move symmetrically to adjust bandwidth
-            if (filterDragEdge === 'left' || filterDragEdge === 'right') {
-                let newBw = bw + (hzChange / (filterDragEdge === 'left' ? -1 : 1));
-                // Limit bandwidth to reasonable values
-                newBw = Math.min(Math.max(newBw, 1000), 6000);
-                websocket_send(`BW=${newBw}`);
-                console.log(`Updated BW to ${newBw}`);
-            }
-        } else { // USB, CW, etc.
-            if (filterDragEdge === 'left') {
-                // Left edge in USB controls the low cut
-                low += hzChange;
-                // Ensure low is at least 50 Hz less than high
-                low = Math.min(low, high - 50);
-                // Limit low to reasonable values
-                low = Math.min(Math.max(low, 50), 4800);
-                websocket_send(`LOW=${low}`);
-                console.log(`Updated low to ${low}`);
-            } else { // right edge
-                // Right edge in USB controls the high cut
-                high += hzChange;
-                // Ensure high is at least 50 Hz greater than low
-                high = Math.max(high, low + 50);
-                // Limit high to reasonable values
-                high = Math.min(Math.max(high, 300), 5000);
-                websocket_send(`HIGH=${high}`);
-                console.log(`Updated high to ${high}`);
-            }
-        }
-    }
     let accumulatedPixels = 0; // Accumulator for pixel movement
     const pixelsPerStep = 100; // Pixels required to trigger one step (adjustable)
     const maxMultiplier = 5; // Maximum step size multiplier
@@ -1344,11 +1158,6 @@
     const residualThreshold = pixelsPerStep * 0.3; // Ignore residuals < 30% of pixelsPerStep on release
 
     function handleWaterfallDrag(event, isTouch = false) {
-        if (isFilterDragging) {
-            handleFilterDrag(event, isTouch);
-            return;
-        }
-        
         if (!isDragging) return;
 
         // Get clientX from mouse or touch event
@@ -1400,74 +1209,6 @@
 
     function startWaterfallDrag(event, isTouch = false) {
         if (isTouch && event.touches.length !== 1) return;
-        
-        // Check if we're clicking on a filter edge in the spectrum display
-        const canvas = isTouch ? event.touches[0].target : event.target;
-        if (canvas.id === "spectrum") {
-            const rect = canvas.getBoundingClientRect();
-            const x = (isTouch ? event.touches[0].clientX : event.clientX) - rect.left;
-            const y = (isTouch ? event.touches[0].clientY : event.clientY) - rect.top;
-            
-            // Force recalculation of filter edges
-            const spectrumCanvas = el("spectrum");
-            const { width, height } = spectrumCanvas;
-            const drawHeight = height - 15;
-            const nbins = 1024; // Typical value for spectrum
-            const calculated_span = nbins * 46.875;
-            const hz_per_pixel = width / calculated_span;
-            const half_width = width / 2;
-            
-            // Get current filter values
-            const mode = el("MODE").value;
-            const bw = parseFloat(el("BW").value);
-            const low = parseFloat(el("LOW").value);
-            const high = parseFloat(el("HIGH").value);
-            
-            let filterLeftX, filterRightX;
-            
-            if (mode === "LSB" || mode === "CWR") {
-                filterLeftX = half_width - hz_per_pixel * high;
-                filterRightX = half_width - hz_per_pixel * low;
-            } else if (mode === "AM") {
-                const blockWidth = bw * hz_per_pixel * 2;
-                filterLeftX = half_width - blockWidth / 2;
-                filterRightX = half_width + blockWidth / 2;
-            } else {
-                filterLeftX = half_width + hz_per_pixel * low;
-                filterRightX = half_width + hz_per_pixel * high;
-            }
-            
-            // Use a wider detection area (20 pixels) for clicking
-            const edgeWidth = getEdgeDetectionWidth(false);
-            let edge = null;
-            
-            // For LSB/CWR, the left edge is high cut and right edge is low cut
-            // For USB/CW/others, the left edge is low cut and right edge is high cut
-            // For AM, both edges adjust bandwidth symmetrically
-            
-            // Check left edge first (closer to the left side of the canvas)
-            if (Math.abs(x - filterLeftX) < edgeWidth && y < drawHeight) {
-                edge = 'left';
-            } 
-            // Then check right edge (closer to the right side of the canvas)
-            else if (Math.abs(x - filterRightX) < edgeWidth && y < drawHeight) {
-                edge = 'right';
-            }
-            
-            console.log(`Clicked at x: ${x}, y: ${y}, filterLeftX: ${filterLeftX}, filterRightX: ${filterRightX}, edge detected: ${edge}`);
-            
-            if (edge) {
-                isFilterDragging = true;
-                filterDragEdge = edge;
-                lastX = isTouch ? event.touches[0].clientX : event.clientX;
-                canvas.style.cursor = 'ew-resize';
-                console.log(`Started dragging ${edge} filter edge`);
-                event.preventDefault();
-                return;
-            }
-        }
-        
-        // If not dragging a filter edge, proceed with normal waterfall drag
         isDragging = true;
         lastX = isTouch ? event.touches[0].clientX : event.clientX;
         lastTime = performance.now(); // Initialize time
@@ -1477,16 +1218,6 @@
     }
 
     function stopWaterfallDrag() {
-        // Handle filter edge dragging stop
-        if (isFilterDragging) {
-            console.log('Stopped filter edge dragging');
-            isFilterDragging = false;
-            filterDragEdge = null;
-            // Reset cursor
-            el("spectrum").style.cursor = 'default';
-            return;
-        }
-        
         if (isDragging) {
             setTimeout(() => {
                 const stepSize = getStepSize();
@@ -1519,187 +1250,16 @@
 
     // Attach event listeners
     const waterfallCanvas = el("waterfall");
-    const spectrumCanvas = el("spectrum");
-    
-    // Mouse events for waterfall
     waterfallCanvas.addEventListener("mousedown", (e) => startWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mousemove", (e) => handleWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mouseup", stopWaterfallDrag);
     waterfallCanvas.addEventListener("mouseleave", stopWaterfallDrag);
-    
-    // Function to handle cursor changes when hovering over filter edges
-    function handleFilterEdgeHover(event) {
-        const canvas = el("spectrum");
-        
-        // Use our new edge detection function that handles scaling properly
-        const edge = isOverFilterEdge(event.clientX, event.clientY, canvas);
-        
-        if (edge) {
-            canvas.style.cursor = 'ew-resize';
-            return true;
-        } else {
-            canvas.style.cursor = 'default';
-            return false;
-        }
-    }
-    
-    // Mouse events for spectrum (filter dragging)
-    spectrumCanvas.addEventListener("mousedown", (e) => {
-        // Get canvas coordinates directly
-        const rect = spectrumCanvas.getBoundingClientRect();
-        const scaleX = spectrumCanvas.width / rect.width;
-        const scaleY = spectrumCanvas.height / rect.height;
-        
-        // Convert client coordinates to canvas coordinates
-        const canvasX = (e.clientX - rect.left) * scaleX;
-        const canvasY = (e.clientY - rect.top) * scaleY;
-        
-        // Get the current visual edge positions
-        const visualLeftEdgeX = window.visualLeftEdgeX;
-        const visualRightEdgeX = window.visualRightEdgeX;
-        
-        // Use a very wide detection area for better usability
-        const edgeWidth = getEdgeDetectionWidth(false);
-        
-        let edge = null;
-        
-        // Check if we're clicking on a filter edge
-        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
-            edge = 'left';
-            console.log(`Left edge clicked at canvas x: ${canvasX}, visualLeftEdgeX: ${visualLeftEdgeX}`);
-        } else if (Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
-            edge = 'right';
-            console.log(`Right edge clicked at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
-        }
-        
-        if (edge) {
-            // If over a filter edge, start filter dragging
-            isFilterDragging = true;
-            filterDragEdge = edge;
-            lastX = e.clientX; // Keep original clientX for dragging
-            spectrumCanvas.style.cursor = 'ew-resize';
-            console.log(`Started dragging ${edge} filter edge directly`);
-            e.preventDefault();
-            e.stopPropagation(); // Prevent waterfall drag from activating
-        } else {
-            // Otherwise, proceed with normal waterfall drag
-            startWaterfallDrag(e, false);
-        }
-    });
-    
-    spectrumCanvas.addEventListener("mousemove", (e) => {
-        // Check if we're already dragging a filter edge
-        if (isFilterDragging) {
-            handleFilterDrag(e, false);
-            e.preventDefault();
-            e.stopPropagation(); // Prevent waterfall drag from activating
-            return;
-        }
-        
-        // Get canvas coordinates directly
-        const rect = spectrumCanvas.getBoundingClientRect();
-        const scaleX = spectrumCanvas.width / rect.width;
-        const scaleY = spectrumCanvas.height / rect.height;
-        
-        // Convert client coordinates to canvas coordinates
-        const canvasX = (e.clientX - rect.left) * scaleX;
-        const canvasY = (e.clientY - rect.top) * scaleY;
-        
-        // Get the current visual edge positions
-        const visualLeftEdgeX = window.visualLeftEdgeX;
-        const visualRightEdgeX = window.visualRightEdgeX;
-        
-        // Use a very wide detection area for better usability
-        const edgeWidth = getEdgeDetectionWidth(false);
-        
-        // Check if we're hovering over a filter edge
-        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth || 
-            Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
-            // Over a filter edge
-            spectrumCanvas.style.cursor = 'ew-resize';
-            // Don't handle waterfall drag
-        } else {
-            // Not over a filter edge
-            spectrumCanvas.style.cursor = 'default';
-            // Handle waterfall drag if active
-            if (isDragging) {
-                handleWaterfallDrag(e, false);
-            }
-        }
-    });
-    
-    spectrumCanvas.addEventListener("mouseup", stopWaterfallDrag);
-    spectrumCanvas.addEventListener("mouseleave", stopWaterfallDrag);
-    
-    // Global mouse up to ensure drag stops even if cursor leaves canvas
     document.addEventListener("mouseup", stopWaterfallDrag);
 
-    // Touch events for waterfall
     waterfallCanvas.addEventListener("touchstart", (e) => startWaterfallDrag(e, true));
     waterfallCanvas.addEventListener("touchmove", (e) => handleWaterfallDrag(e, true));
     waterfallCanvas.addEventListener("touchend", stopWaterfallDrag);
     waterfallCanvas.addEventListener("touchcancel", stopWaterfallDrag);
-    
-    // Touch events for spectrum (filter dragging)
-    spectrumCanvas.addEventListener("touchstart", (e) => {
-        // Get canvas coordinates directly
-        if (e.touches.length !== 1) return;
-        
-        const rect = spectrumCanvas.getBoundingClientRect();
-        const scaleX = spectrumCanvas.width / rect.width;
-        const scaleY = spectrumCanvas.height / rect.height;
-        
-        // Convert client coordinates to canvas coordinates
-        const canvasX = (e.touches[0].clientX - rect.left) * scaleX;
-        const canvasY = (e.touches[0].clientY - rect.top) * scaleY;
-        
-        // Get the current visual edge positions
-        const visualLeftEdgeX = window.visualLeftEdgeX;
-        const visualRightEdgeX = window.visualRightEdgeX;
-        
-        // Use a wider detection area for touch devices
-        const edgeWidth = getEdgeDetectionWidth(true);
-        
-        let edge = null;
-        
-        // Check if we're touching a filter edge
-        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
-            edge = 'left';
-            console.log(`Left edge touched at canvas x: ${canvasX}, visualLeftEdgeX: ${visualLeftEdgeX}`);
-        } else if (Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
-            edge = 'right';
-            console.log(`Right edge touched at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
-        }
-        
-        if (edge) {
-            // If over a filter edge, start filter dragging
-            isFilterDragging = true;
-            filterDragEdge = edge;
-            lastX = e.touches[0].clientX; // Keep original clientX for dragging
-            console.log(`Started dragging ${edge} filter edge on touch device`);
-            e.preventDefault();
-            e.stopPropagation(); // Prevent waterfall drag from activating
-        } else {
-            // Otherwise, proceed with normal waterfall drag
-            startWaterfallDrag(e, true);
-        }
-    });
-    
-    spectrumCanvas.addEventListener("touchmove", (e) => {
-        // Check if we're already dragging a filter edge
-        if (isFilterDragging) {
-            handleFilterDrag(e, true);
-            e.preventDefault();
-            e.stopPropagation(); // Prevent waterfall drag from activating
-            return;
-        }
-        
-        // Otherwise, proceed with normal waterfall drag
-        handleWaterfallDrag(e, true);
-    });
-    
-    spectrumCanvas.addEventListener("touchend", stopWaterfallDrag);
-    spectrumCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     // created by OZ7BX
 
     function calcGradientFarhan(v) {
@@ -1831,46 +1391,14 @@
 
         // Draw filter block
         ctx.fillStyle = "#444";
-        let filterLeftX, filterRightX;
-        
         if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
-            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
+            ctx.fillRect(half_width - hz_per_pixel * high, 0, (high - low) * hz_per_pixel, drawHeight);
         } else if (mode === "AM") {
             const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
-            ctx.fillRect(filterLeftX, 0, blockWidth, drawHeight);
+            ctx.fillRect(half_width - blockWidth / 2, 0, blockWidth, drawHeight);
         } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
-            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
+            ctx.fillRect(half_width + hz_per_pixel * low, 0, (high - low) * hz_per_pixel, drawHeight);
         }
-        
-        // Calculate the visual edge positions (where the edges are actually drawn)
-        const visualLeftEdgeX = filterLeftX;
-        const visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
-        
-        // Store both the filter positions and visual edge positions for detection
-        window.filterLeftEdgeX = filterLeftX;
-        window.filterRightEdgeX = filterRightX;
-        window.visualLeftEdgeX = visualLeftEdgeX;
-        window.visualRightEdgeX = visualRightEdgeX;
-        
-        // Draw filter edges with a more prominent color to indicate they're draggable
-        ctx.fillStyle = "#666";
-        ctx.fillRect(visualLeftEdgeX, 0, 6, drawHeight); // Left edge
-        ctx.fillRect(visualRightEdgeX, 0, 6, drawHeight); // Right edge
-        
-        // Add a highlight effect at the top of the edges
-        //ctx.fillStyle = "#aaa";
-        //ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
-        //ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
-        
-        // Debug visualization removed for production
-        
-        // Debug logging removed for production
 
         // Draw grid
         ctx.beginPath();
