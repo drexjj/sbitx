@@ -1145,13 +1145,13 @@
     }
 
     // Waterfall and filter drag handling
-    let isDragging = false;
-    let isFilterDragging = false;
-    let filterDragEdge = null; // 'left' or 'right'
-    let lastX = 0;
-    let lastTime = 0; // Track time of last drag event
+    let isFilterDragging = false; // Flag to indicate if a filter edge is being dragged
+    let filterDragEdge = null; // Which edge is being dragged ('left' or 'right')
+    let isDragging = false; // Flag to indicate if waterfall is being dragged
+    let lastX = 0; // Last X position for calculating drag delta
+    let lastTime = 0; // Last time for calculating drag speed
     let lastUpdateTime = 0; // Track time of last frequency update
-    const filterEdgeWidth = 8; // Width in pixels for the filter edge grab area
+    const FILTER_EDGE_DETECTION_WIDTH = 40; // Width in pixels for the filter edge detection area
     
     // Function to get the canvas coordinates from client coordinates
     function getCanvasCoordinates(clientX, clientY, canvas) {
@@ -1214,8 +1214,8 @@
         window.visualLeftEdgeX = visualLeftEdgeX;
         window.visualRightEdgeX = visualRightEdgeX;
         
-        // Make the detection area wider for easier grabbing
-        const edgeWidth = 25; // Wider detection area for better usability
+        // Use the global detection width constant
+        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
         
         // Only detect if within the vertical area of the filter
         if (y >= 0 && y < drawHeight) {
@@ -1425,7 +1425,7 @@
             }
             
             // Use a wider detection area (20 pixels) for clicking
-            const edgeWidth = 20;
+            const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
             let edge = null;
             
             // For LSB/CWR, the left edge is high cut and right edge is low cut
@@ -1546,7 +1546,7 @@
         const visualRightEdgeX = window.visualRightEdgeX;
         
         // Use a very wide detection area for better usability
-        const edgeWidth = 40;
+        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
         
         let edge = null;
         
@@ -1597,7 +1597,7 @@
         const visualRightEdgeX = window.visualRightEdgeX;
         
         // Use a very wide detection area for better usability
-        const edgeWidth = 40;
+        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
         
         // Check if we're hovering over a filter edge
         if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth || 
