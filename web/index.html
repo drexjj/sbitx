@@ -302,7 +302,9 @@
                                 value="3">
                         </div>
                     </div>
+                    <button class="sbitxv3-btn" id="menu-open">Menu</button>
                 </div>
+
             </section>
             <!-- cw pane -->
             <section id="CW_ui" class="sbitx-panel mode-panel">
@@ -343,21 +345,27 @@
                                 value="600">
                         </div>
                     </div>
-                    <div class="sbitx-control longer-control">
-                        <label class="sbitxv3-label" for="CW_INPUT">INPUT</label>
+                    <div class="linear">
+                        <label class="linear-label" for="CW_INPUT">INPUT</label>
                         <select class="sbitxv3-selection sbitx-selection" id="CW_INPUT">
                             <option value="IAMBIC">IAMBIC</option>
                             <option value="IAMBICB">IAMBIC-B</option>
                             <option value="STRAIGHT">STRAIGHT</option>
                         </select>
                     </div>
+                    <button class="sbitxv3-btn" id="menu-open2">Menu</button>
                 </div>
                 <div id="data_chat">
                     <button id="data_chat_tx">TX</button>
                     <button id="data_chat_rx">RX</button>
                 </div>
+
             </section>
             <!-- ssb/2tone pane -->
+            <section id="digi_ui" class="sbitx-panel mode-panel">
+                <button class="sbitxv3-btn" id="xpra_launch" type="button">Apps</button>
+                <button class="sbitxv3-btn" id="menu-open4">Menu</button>
+            </section>
             <section id="Voice_ui" class="sbitx-panel mode-panel">
                 <div class="linear" id="linear_MIC">
                     <label class="linear-label" for="MIC">MIC</label>
@@ -404,184 +412,194 @@
                 <button id="ptt_tx">TX</button>
                 <button id="ptt_rx">RX</button>
                 <button class="sbitxv3-btn" id="browser_mic" type="button" onclick="toggleBrowserMic()">Browser Mic<br>OFF</button>
+                <button class="sbitxv3-btn" id="menu-open3">Menu</button>
 
 
             </section>
 
         </main>
     </div>
-    <div id="keybd-container">
-
-        <div id="more_keys">
-            <div class="sbitxv3-MACRO">
-                <label class="sbitxv3-label" for="MACRO">MACRO</label>
-                <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
-            </div>
-
-            <button class="sbitxv3-btn" id="esc">ESC</button>
-            <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
-            <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
-            <button class="sbitxv3-btn macro-btn" id="F3">F3</button>
-            <button class="sbitxv3-btn macro-btn" id="F4">F4</button>
-            <button class="sbitxv3-btn macro-btn" id="F5">F5</button>
-            <button class="sbitxv3-btn macro-btn" id="F6">F6</button>
-            <button class="sbitxv3-btn macro-btn" id="F7">F7</button>
-            <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
-            <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
-            <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
-            <button class="sbitxv3-btn" id="console-open">CMD</button>
-            <button class="sbitxv3-btn" id="telnet-open">TEL</button>
-            <button class="sbitxv3-btn" id="recorder-open">REC</button>
-            <button class="sbitxv3-btn" id="settings-open">SET</button>
 
 
+    <div id="more_keys">
+        <div class="sbitxv3-MACRO">
+            <label class="sbitxv3-label" for="MACRO">MACRO</label>
+            <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
         </div>
-        <!-- TX panel -->
-        <!-- console panel -->
-        <section id="console_panel" class="sbitx-panel">
-            <h2 class="sbitx-panel-title">
-                Terminal
-                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
-            </h2>
-            <div id="console_window"></div>
-            <div id="command_bar">
-                <input type="text" class="sbitx-text-input" id="text_in">
-            </div>
-        </section>
-        <!-- telnet panel -->
-        <section id="telnet_panel" class="sbitx-panel">
-            <h2 class="sbitx-panel-title">
-                Telnet
-                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
-            </h2>
-            <button id="telnet" class="logger-button sbitx-btn">Start</button>
-            <button id="tclose" class="logger-button sbitx-btn">Stop</button>
-            <div id="telnet_window"></div>
-            <div id="telnet_command_bar">
-                <input type="text" class="sbitx-text-input" id="telnet_in">
-            </div>
-        </section>
-        <!-- settings panel -->
-        <section id="settings_panel" class="sbitx-panel">
-            <h2 class="sbitx-panel-title">
-                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
-            </h2>
-            <div class="settings-element">
-                <label class="settings-label" for="PASSKEY">Passkey:</label>
-                <input id="PASSKEY" class="settings_input sbitx-text-input" type="text">
-            </div>
-            <div class="settings-element">
-                <label class="settings-label" for="MYCALLSIGN">My Callsign:</label>
-                <input id="MYCALLSIGN" class="settings_input sbitx-text-input" type="text">
-            </div>
-            <div class="settings-element">
-                <label class="settings-label" for="MYGRID">My Grid:</label>
-                <input id="MYGRID" class="settings_input sbitx-text-input" type="text">
-            </div>
-            <div class="settings-element">
-                <label class="settings-label" for="TELNETURL">Telnet Server:</label>
-                <input type="text" class="settings_input sbitx-text-input" id="TELNETURL"
-                    placeholder="e.g., dxc.nc7j.com:7373">
-            </div>
-            <div class="settings-element">
-                <button id="settings_save" class="logger-button">Update</button>
-            </div>
-        </section>
-        <!-- login panel -->
-        <section id="login_panel">
-            <div class="help_text">
-                <h1>sBitx v4.5 SLC</h1>
-                <p>The sBitx is an open-source, hackable, next generation radio.</p>
-                <p>Enter passkey to access your sbitx.</p>
-                <div id="login_error"></div>
-                <input type="text" class="sbitx-text-input" id="passkey" name="passkey" autocomplete="off"
-                    placeholder="passkey">
-                <button class="sbitxv3-btn" id="start_login">Start</button>
-                <p>New user? Try 123 as the passkey. Change it when prompted.</p>
-                <p>
-                    Released under General Public License v3.0.<br>
-                    (c) Ashhar Farhan, 2023 forked by the 64Bit Team, 2025.
-                </p>
-                <canvas id="canvas" width="350" height="120"></canvas>
-                <script>
-                    const canvas = document.getElementById('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const text_animation = "sBitx 64bit";
-                    const fontSize = 60;
-                    let letters = [];
-                    let time = 0;
 
-                    class Letter {
-                        constructor(char, x, y, delay) {
-                            this.char = char;
-                            this.x = x;
-                            this.y = y;
-                            this.delay = delay;
-                            this.opacity = 0;
-                        }
+        <button class="sbitxv3-btn" id="esc">ESC</button>
+        <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
+        <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
+        <button class="sbitxv3-btn macro-btn" id="F3">F3</button>
+        <button class="sbitxv3-btn macro-btn" id="F4">F4</button>
+        <button class="sbitxv3-btn macro-btn" id="F5">F5</button>
+        <button class="sbitxv3-btn macro-btn" id="F6">F6</button>
+        <button class="sbitxv3-btn macro-btn" id="F7">F7</button>
+        <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
+        <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
+        <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
 
-                        update() {
-                            if (time >= this.delay) {
-                                this.opacity = Math.min(this.opacity + 0.015, 1); // Smooth fade-in
-                            }
-                        }
 
-                        draw() {
-                            ctx.save();
-                            ctx.globalAlpha = this.opacity;
-                            ctx.font = `${fontSize}px Arial`;
-                            ctx.fillStyle = '#D3D3D3'; // White/grey color
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(this.char, this.x, this.y);
-                            ctx.restore();
+
+    </div>
+    <!-- menu panel -->
+    <section id="menu_panel" class="sbitx-panel">
+        <h2 class="sbitx-panel-title">
+            Menu
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <button class="sbitxv3-btn" id="console-open">CMD</button>
+        <button class="sbitxv3-btn" id="telnet-open">TEL</button>
+        <button class="sbitxv3-btn" id="recorder-open">REC</button>
+        <button class="sbitxv3-btn" id="settings-open">SET</button>
+    </section>
+    <!-- console panel -->
+    <section id="console_panel" class="sbitx-panel">
+        <h2 class="sbitx-panel-title">
+            Terminal
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <div id="console_window"></div>
+        <div id="command_bar">
+            <input type="text" class="sbitx-text-input" id="text_in">
+        </div>
+    </section>
+    <!-- telnet panel -->
+    <section id="telnet_panel" class="sbitx-panel">
+        <h2 class="sbitx-panel-title">
+            Telnet
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <button id="telnet" class="logger-button sbitx-btn">Start</button>
+        <button id="tclose" class="logger-button sbitx-btn">Stop</button>
+        <div id="telnet_window"></div>
+        <div id="telnet_command_bar">
+            <input type="text" class="sbitx-text-input" id="telnet_in">
+        </div>
+    </section>
+    <!-- settings panel -->
+    <section id="settings_panel" class="sbitx-panel">
+        <h2 class="sbitx-panel-title" style="display: flex; align-items: center; width: 100%;">
+            Settings
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <div>
+            <label class="settings-label" for="PASSKEY">Passkey:</label>
+            <input id="PASSKEY" class="settings_input sbitx-text-input" type="text">
+        </div>
+        <div class="settings-element">
+            <label class="settings-label" for="MYCALLSIGN">My Callsign:</label>
+            <input id="MYCALLSIGN" class="settings_input sbitx-text-input" type="text">
+        </div>
+        <div class="settings-element">
+            <label class="settings-label" for="MYGRID">My Grid:</label>
+            <input id="MYGRID" class="settings_input sbitx-text-input" type="text">
+        </div>
+        <div class="settings-element">
+            <label class="settings-label" for="TELNETURL">Telnet Server:</label>
+            <input type="text" class="settings_input sbitx-text-input" id="TELNETURL"
+                placeholder="e.g., dxc.nc7j.com:7373">
+        </div>
+        <div class="settings-element">
+            <button id="settings_save" class="logger-button">Update</button>
+        </div>
+
+    </section>
+    <!-- login panel -->
+    <section id="login_panel">
+        <div class="help_text">
+            <h1>sBitx v4.5 SLC</h1>
+            <p>The sBitx is an open-source, hackable, next generation radio.</p>
+            <p>Enter passkey to access your sbitx.</p>
+            <div id="login_error"></div>
+            <input type="text" class="sbitx-text-input" id="passkey" name="passkey" autocomplete="off"
+                placeholder="passkey">
+            <button class="sbitxv3-btn" id="start_login">Start</button>
+            <p>New user? Try 123 as the passkey. Change it when prompted.</p>
+            <p>
+                Released under General Public License v3.0.<br>
+                (c) Ashhar Farhan, 2023 forked by the 64Bit Team, 2025.
+            </p>
+            <canvas id="canvas" width="350" height="120"></canvas>
+            <script>
+                const canvas = document.getElementById('canvas');
+                const ctx = canvas.getContext('2d');
+                const text_animation = "sBitx 64bit";
+                const fontSize = 60;
+                let letters = [];
+                let time = 0;
+
+                class Letter {
+                    constructor(char, x, y, delay) {
+                        this.char = char;
+                        this.x = x;
+                        this.y = y;
+                        this.delay = delay;
+                        this.opacity = 0;
+                    }
+
+                    update() {
+                        if (time >= this.delay) {
+                            this.opacity = Math.min(this.opacity + 0.015, 1); // Smooth fade-in
                         }
                     }
 
-                    function init() {
+                    draw() {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
                         ctx.font = `${fontSize}px Arial`;
-                        const textWidth = ctx.measureText(text_animation).width;
-                        const startX = canvas.width / 2 - textWidth / 2;
-                        let x = startX;
-
-                        for (let i = 0; i < text_animation.length; i++) {
-                            const metrics = ctx.measureText(text_animation[i]);
-                            x += metrics.width / 2;
-                            letters.push(new Letter(text_animation[i], x, canvas.height / 2, i * 15));
-                            x += metrics.width / 2;
-                        }
+                        ctx.fillStyle = '#D3D3D3'; // White/grey color
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(this.char, this.x, this.y);
+                        ctx.restore();
                     }
+                }
 
-                    function animate() {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        letters.forEach(letter => {
-                            letter.update();
-                            letter.draw();
-                        });
-                        time++;
-                        requestAnimationFrame(animate);
+                function init() {
+                    ctx.font = `${fontSize}px Arial`;
+                    const textWidth = ctx.measureText(text_animation).width;
+                    const startX = canvas.width / 2 - textWidth / 2;
+                    let x = startX;
+
+                    for (let i = 0; i < text_animation.length; i++) {
+                        const metrics = ctx.measureText(text_animation[i]);
+                        x += metrics.width / 2;
+                        letters.push(new Letter(text_animation[i], x, canvas.height / 2, i * 15));
+                        x += metrics.width / 2;
                     }
+                }
 
-                    init();
-                    animate();
-                </script>
-                <p>
-                    Join our Discord at <a href="https://discord.gg/tCCjw5g5Pf">https://discord.gg/tCCjw5g5Pf</a>
-                </p>
-            </div>
-        </section>
-        <!-- recorder panel -->
-        <div id="recorder_panel" class="sbitx-panel mode-panel">
-            <h2 class="sbitx-panel-title">
-                <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
-            </h2>
-            <div class="menu_item">
-                <button class="logger-button" id="record_start">REC</button>
-                <button class="logger-button" id="record_stop">STOP</button>
+                function animate() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    letters.forEach(letter => {
+                        letter.update();
+                        letter.draw();
+                    });
+                    time++;
+                    requestAnimationFrame(animate);
+                }
 
-            </div>
-            <span id="record_duration">00:00</span>
+                init();
+                animate();
+            </script>
+            <p>
+                Join our Discord at <a href="https://discord.gg/tCCjw5g5Pf">https://discord.gg/tCCjw5g5Pf</a>
+            </p>
         </div>
+    </section>
+    <!-- recorder panel -->
+    <div id="recorder_panel" class="sbitx-panel mode-panel">
+        <h2 class="sbitx-panel-title">
+            <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
+        </h2>
+        <div class="menu_item">
+            <button class="logger-button" id="record_start">REC</button>
+            <button class="logger-button" id="record_stop">STOP</button>
+
+        </div>
+        <span id="record_duration">00:00</span>
+
     </div>
 </body>
 
@@ -1126,11 +1144,203 @@
         update_freq(freq);
     }
 
-    // Waterfall drag handling
-    let isDragging = false;
-    let lastX = 0;
-    let lastTime = 0; // Track time of last drag event
+    // Waterfall and filter drag handling
+    let isFilterDragging = false; // Flag to indicate if a filter edge is being dragged
+    let filterDragEdge = null; // Which edge is being dragged ('left' or 'right')
+    let isDragging = false; // Flag to indicate if waterfall is being dragged
+    let lastX = 0; // Last X position for calculating drag delta
+    let lastTime = 0; // Last time for calculating drag speed
     let lastUpdateTime = 0; // Track time of last frequency update
+    const FILTER_EDGE_DETECTION_WIDTH = 40; // Width in pixels for the filter edge detection area
+    
+    // Function to get the canvas coordinates from client coordinates
+    function getCanvasCoordinates(clientX, clientY, canvas) {
+        const rect = canvas.getBoundingClientRect();
+        
+        // Calculate the ratio between the canvas's internal dimensions and its display dimensions
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        // Convert client coordinates to canvas coordinates
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
+        
+        // Store the current scale factors for reference
+        window.currentScaleX = scaleX;
+        window.currentScaleY = scaleY;
+        
+        return { x: canvasX, y: canvasY };
+    }
+    
+    // Function to get the appropriate edge detection width based on device
+    function getEdgeDetectionWidth(isTouch = false) {
+        // Use a wider detection area for touch devices
+        if (isTouch || ('ontouchstart' in window)) {
+            return FILTER_EDGE_DETECTION_WIDTH * 1.5; // 50% wider for touch devices
+        }
+        return FILTER_EDGE_DETECTION_WIDTH;
+    }
+    
+    // Function to check if mouse is over a filter edge
+    function isOverFilterEdge(clientX, clientY, canvas) {
+        if (!canvas) canvas = el("spectrum");
+        
+        // Convert client coordinates to canvas coordinates
+        const { x, y } = getCanvasCoordinates(clientX, clientY, canvas);
+        
+        const { width, height } = canvas;
+        const drawHeight = height - 15;
+        
+        // Calculate filter edge positions directly
+        const nbins = 1024; // Typical value for spectrum
+        const calculated_span = nbins * 46.875;
+        const hz_per_pixel = width / calculated_span;
+        const half_width = width / 2;
+        
+        // Get current filter values
+        const mode = el("MODE").value;
+        
+        // Skip filter edge detection for FT8 mode
+        if (mode === "FT8") {
+            return null;
+        }
+        
+        const bw = parseFloat(el("BW").value);
+        const low = parseFloat(el("LOW").value);
+        const high = parseFloat(el("HIGH").value);
+        
+        let filterLeftX, filterRightX, visualLeftEdgeX, visualRightEdgeX;
+        
+        if (mode === "LSB" || mode === "CWR") {
+            filterLeftX = half_width - hz_per_pixel * high;
+            filterRightX = half_width - hz_per_pixel * low;
+        } else if (mode === "AM") {
+            const blockWidth = bw * hz_per_pixel * 2;
+            filterLeftX = half_width - blockWidth / 2;
+            filterRightX = half_width + blockWidth / 2;
+        } else {
+            filterLeftX = half_width + hz_per_pixel * low;
+            filterRightX = half_width + hz_per_pixel * high;
+        }
+        
+        // Calculate the visual edge positions (where the edges are actually drawn)
+        visualLeftEdgeX = filterLeftX;
+        visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
+        
+        // Store these calculated positions for reference
+        window.filterLeftEdgeX = filterLeftX;
+        window.filterRightEdgeX = filterRightX;
+        window.visualLeftEdgeX = visualLeftEdgeX;
+        window.visualRightEdgeX = visualRightEdgeX;
+        
+        // Use the appropriate detection width based on device type
+        const edgeWidth = getEdgeDetectionWidth();
+        
+        // Only detect if within the vertical area of the filter
+        if (y >= 0 && y < drawHeight) {
+            // Check left edge
+            if (Math.abs(x - visualLeftEdgeX) < edgeWidth) {
+                console.log(`Left edge detected at canvas x: ${x}, visualLeftEdgeX: ${visualLeftEdgeX}`);
+                return 'left';
+            }
+            // Check right edge using the visual edge position
+            if (Math.abs(x - visualRightEdgeX) < edgeWidth) {
+                console.log(`Right edge detected at canvas x: ${x}, visualRightEdgeX: ${visualRightEdgeX}`);
+                return 'right';
+            }
+        }
+        
+        return null;
+    }
+    
+    // Handle filter edge dragging with proper scaling support
+    function handleFilterDrag(event, isTouch = false) {
+        if (!isFilterDragging) return;
+        
+        const currentX = isTouch ? event.touches[0].clientX : event.clientX;
+        const deltaX = currentX - lastX;
+        lastX = currentX;
+        
+        if (deltaX === 0) return;
+        
+        const canvas = el("spectrum");
+        const rect = canvas.getBoundingClientRect();
+        
+        // Calculate the scaling ratio between canvas and display
+        const scaleX = canvas.width / rect.width;
+        
+        // Adjust delta based on scaling ratio
+        const adjustedDelta = deltaX * scaleX;
+        
+        const { width } = canvas;
+        const nbins = 1024; // Typical value for spectrum
+        const calculated_span = nbins * 46.875;
+        const hz_per_pixel = width / calculated_span;
+        
+        // Get current filter values
+        const mode = el("MODE").value;
+        const bw = parseFloat(el("BW").value);
+        let low = parseFloat(el("LOW").value);
+        let high = parseFloat(el("HIGH").value);
+        
+        // Calculate Hz change based on pixel movement
+        // Apply a multiplier to make dragging more responsive
+        const multiplier = 1.5;
+        const hzChange = Math.round((adjustedDelta / hz_per_pixel) * multiplier);
+        
+        console.log(`Dragging ${filterDragEdge} edge in ${mode} mode, deltaX: ${deltaX}, adjustedDelta: ${adjustedDelta}, scaleX: ${scaleX}, hzChange: ${hzChange}`);
+        console.log(`Current filter values - low: ${low}, high: ${high}`);
+        if (mode === "LSB" || mode === "CWR") {
+            if (filterDragEdge === 'left') {
+                // Left edge in LSB/CWR controls the high cut
+                high -= hzChange;
+                // Ensure high is at least 50 Hz greater than low
+                high = Math.max(high, low + 50);
+                // Limit high to reasonable values
+                high = Math.min(Math.max(high, 300), 5000);
+                websocket_send(`HIGH=${high}`);
+                console.log(`Updated high to ${high}`);
+            } else { // right edge
+                // Right edge in LSB/CWR controls the low cut
+                low -= hzChange;
+                // Ensure low is at least 50 Hz less than high
+                low = Math.min(low, high - 50);
+                // Limit low to reasonable values
+                low = Math.min(Math.max(low, 50), 4800);
+                websocket_send(`LOW=${low}`);
+                console.log(`Updated low to ${low}`);
+            }
+        } else if (mode === "AM") {
+            // For AM, both edges move symmetrically to adjust bandwidth
+            if (filterDragEdge === 'left' || filterDragEdge === 'right') {
+                let newBw = bw + (hzChange / (filterDragEdge === 'left' ? -1 : 1));
+                // Limit bandwidth to reasonable values
+                newBw = Math.min(Math.max(newBw, 1000), 6000);
+                websocket_send(`BW=${newBw}`);
+                console.log(`Updated BW to ${newBw}`);
+            }
+        } else { // USB, CW, etc.
+            if (filterDragEdge === 'left') {
+                // Left edge in USB controls the low cut
+                low += hzChange;
+                // Ensure low is at least 50 Hz less than high
+                low = Math.min(low, high - 50);
+                // Limit low to reasonable values
+                low = Math.min(Math.max(low, 50), 4800);
+                websocket_send(`LOW=${low}`);
+                console.log(`Updated low to ${low}`);
+            } else { // right edge
+                // Right edge in USB controls the high cut
+                high += hzChange;
+                // Ensure high is at least 50 Hz greater than low
+                high = Math.max(high, low + 50);
+                // Limit high to reasonable values
+                high = Math.min(Math.max(high, 300), 5000);
+                websocket_send(`HIGH=${high}`);
+                console.log(`Updated high to ${high}`);
+            }
+        }
+    }
     let accumulatedPixels = 0; // Accumulator for pixel movement
     const pixelsPerStep = 100; // Pixels required to trigger one step (adjustable)
     const maxMultiplier = 5; // Maximum step size multiplier
@@ -1140,6 +1350,11 @@
     const residualThreshold = pixelsPerStep * 0.3; // Ignore residuals < 30% of pixelsPerStep on release
 
     function handleWaterfallDrag(event, isTouch = false) {
+        if (isFilterDragging) {
+            handleFilterDrag(event, isTouch);
+            return;
+        }
+        
         if (!isDragging) return;
 
         // Get clientX from mouse or touch event
@@ -1191,6 +1406,74 @@
 
     function startWaterfallDrag(event, isTouch = false) {
         if (isTouch && event.touches.length !== 1) return;
+        
+        // Check if we're clicking on a filter edge in the spectrum display
+        const canvas = isTouch ? event.touches[0].target : event.target;
+        if (canvas.id === "spectrum") {
+            const rect = canvas.getBoundingClientRect();
+            const x = (isTouch ? event.touches[0].clientX : event.clientX) - rect.left;
+            const y = (isTouch ? event.touches[0].clientY : event.clientY) - rect.top;
+            
+            // Force recalculation of filter edges
+            const spectrumCanvas = el("spectrum");
+            const { width, height } = spectrumCanvas;
+            const drawHeight = height - 15;
+            const nbins = 1024; // Typical value for spectrum
+            const calculated_span = nbins * 46.875;
+            const hz_per_pixel = width / calculated_span;
+            const half_width = width / 2;
+            
+            // Get current filter values
+            const mode = el("MODE").value;
+            const bw = parseFloat(el("BW").value);
+            const low = parseFloat(el("LOW").value);
+            const high = parseFloat(el("HIGH").value);
+            
+            let filterLeftX, filterRightX;
+            
+            if (mode === "LSB" || mode === "CWR") {
+                filterLeftX = half_width - hz_per_pixel * high;
+                filterRightX = half_width - hz_per_pixel * low;
+            } else if (mode === "AM") {
+                const blockWidth = bw * hz_per_pixel * 2;
+                filterLeftX = half_width - blockWidth / 2;
+                filterRightX = half_width + blockWidth / 2;
+            } else {
+                filterLeftX = half_width + hz_per_pixel * low;
+                filterRightX = half_width + hz_per_pixel * high;
+            }
+            
+            // Use a wider detection area (20 pixels) for clicking
+            const edgeWidth = getEdgeDetectionWidth(false);
+            let edge = null;
+            
+            // For LSB/CWR, the left edge is high cut and right edge is low cut
+            // For USB/CW/others, the left edge is low cut and right edge is high cut
+            // For AM, both edges adjust bandwidth symmetrically
+            
+            // Check left edge first (closer to the left side of the canvas)
+            if (Math.abs(x - filterLeftX) < edgeWidth && y < drawHeight) {
+                edge = 'left';
+            } 
+            // Then check right edge (closer to the right side of the canvas)
+            else if (Math.abs(x - filterRightX) < edgeWidth && y < drawHeight) {
+                edge = 'right';
+            }
+            
+            console.log(`Clicked at x: ${x}, y: ${y}, filterLeftX: ${filterLeftX}, filterRightX: ${filterRightX}, edge detected: ${edge}`);
+            
+            if (edge) {
+                isFilterDragging = true;
+                filterDragEdge = edge;
+                lastX = isTouch ? event.touches[0].clientX : event.clientX;
+                canvas.style.cursor = 'ew-resize';
+                console.log(`Started dragging ${edge} filter edge`);
+                event.preventDefault();
+                return;
+            }
+        }
+        
+        // If not dragging a filter edge, proceed with normal waterfall drag
         isDragging = true;
         lastX = isTouch ? event.touches[0].clientX : event.clientX;
         lastTime = performance.now(); // Initialize time
@@ -1200,48 +1483,229 @@
     }
 
     function stopWaterfallDrag() {
-    if (isDragging) {
-        setTimeout(() => {
-            const stepSize = getStepSize();
-            let freq = parseInt(el('FREQ').value);
-            let effectiveSteps = 0;
+        // Handle filter edge dragging stop
+        if (isFilterDragging) {
+            console.log('Stopped filter edge dragging');
+            isFilterDragging = false;
+            filterDragEdge = null;
+            // Reset cursor
+            el("spectrum").style.cursor = 'default';
+            return;
+        }
+        
+        if (isDragging) {
+            setTimeout(() => {
+                const stepSize = getStepSize();
+                let freq = parseInt(el('FREQ').value);
+                let effectiveSteps = 0;
 
-            // Determine drag direction and apply steps based on threshold
-            const threshold = pixelsPerStep * 0.5; // Require 50% of pixelsPerStep to trigger a step
-            if (accumulatedPixels > threshold) {
-                // Right drag (positive pixels): decrease frequency
-                effectiveSteps = Math.floor(accumulatedPixels / pixelsPerStep); // Round down
-            } else if (accumulatedPixels < -threshold) {
-                // Left drag (negative pixels): increase frequency
-                effectiveSteps = Math.ceil(accumulatedPixels / pixelsPerStep); // Round up
-            }
-
-            if (effectiveSteps !== 0) {
-                freq -= effectiveSteps * stepSize; // Apply steps (negative steps increase freq)
-                freq = Math.round(freq / stepSize) * stepSize; // Snap to step grid
-                if (freq !== parseInt(el('FREQ').value)) {
-                    update_freq(freq);
-                    console.log(`Waterfall drag end freq: ${freq} (final steps: ${effectiveSteps}, accumulatedPixels: ${accumulatedPixels})`);
+                // Determine drag direction and apply steps based on threshold
+                const threshold = pixelsPerStep * 0.5; // Require 50% of pixelsPerStep to trigger a step
+                if (accumulatedPixels > threshold) {
+                    // Right drag (positive pixels): decrease frequency
+                    effectiveSteps = Math.floor(accumulatedPixels / pixelsPerStep); // Round down
+                } else if (accumulatedPixels < -threshold) {
+                    // Left drag (negative pixels): increase frequency
+                    effectiveSteps = Math.ceil(accumulatedPixels / pixelsPerStep); // Round up
                 }
-            }
-            accumulatedPixels = 0; // Reset after processing
-        }, 50); // Small delay for touch events
+
+                if (effectiveSteps !== 0) {
+                    freq -= effectiveSteps * stepSize; // Apply steps (negative steps increase freq)
+                    freq = Math.round(freq / stepSize) * stepSize; // Snap to step grid
+                    if (freq !== parseInt(el('FREQ').value)) {
+                        update_freq(freq);
+                        console.log(`Waterfall drag end freq: ${freq} (final steps: ${effectiveSteps}, accumulatedPixels: ${accumulatedPixels})`);
+                    }
+                }
+                accumulatedPixels = 0; // Reset after processing
+            }, 50); // Small delay for touch events
+        }
+        isDragging = false;
     }
-    isDragging = false;
-}
 
     // Attach event listeners
     const waterfallCanvas = el("waterfall");
+    const spectrumCanvas = el("spectrum");
+    
+    // Mouse events for waterfall
     waterfallCanvas.addEventListener("mousedown", (e) => startWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mousemove", (e) => handleWaterfallDrag(e, false));
     waterfallCanvas.addEventListener("mouseup", stopWaterfallDrag);
     waterfallCanvas.addEventListener("mouseleave", stopWaterfallDrag);
+    
+    // Function to handle cursor changes when hovering over filter edges
+    function handleFilterEdgeHover(event) {
+        const canvas = el("spectrum");
+        
+        // Use our new edge detection function that handles scaling properly
+        const edge = isOverFilterEdge(event.clientX, event.clientY, canvas);
+        
+        if (edge) {
+            canvas.style.cursor = 'ew-resize';
+            return true;
+        } else {
+            canvas.style.cursor = 'default';
+            return false;
+        }
+    }
+    
+    // Mouse events for spectrum (filter dragging)
+    spectrumCanvas.addEventListener("mousedown", (e) => {
+        // Get canvas coordinates directly
+        const rect = spectrumCanvas.getBoundingClientRect();
+        const scaleX = spectrumCanvas.width / rect.width;
+        const scaleY = spectrumCanvas.height / rect.height;
+        
+        // Convert client coordinates to canvas coordinates
+        const canvasX = (e.clientX - rect.left) * scaleX;
+        const canvasY = (e.clientY - rect.top) * scaleY;
+        
+        // Get the current visual edge positions
+        const visualLeftEdgeX = window.visualLeftEdgeX;
+        const visualRightEdgeX = window.visualRightEdgeX;
+        
+        // Use a very wide detection area for better usability
+        const edgeWidth = getEdgeDetectionWidth(false);
+        
+        let edge = null;
+        
+        // Check if we're clicking on a filter edge
+        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
+            edge = 'left';
+            console.log(`Left edge clicked at canvas x: ${canvasX}, visualLeftEdgeX: ${visualLeftEdgeX}`);
+        } else if (Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
+            edge = 'right';
+            console.log(`Right edge clicked at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
+        }
+        
+        if (edge) {
+            // If over a filter edge, start filter dragging
+            isFilterDragging = true;
+            filterDragEdge = edge;
+            lastX = e.clientX; // Keep original clientX for dragging
+            spectrumCanvas.style.cursor = 'ew-resize';
+            console.log(`Started dragging ${edge} filter edge directly`);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+        } else {
+            // Otherwise, proceed with normal waterfall drag
+            startWaterfallDrag(e, false);
+        }
+    });
+    
+    spectrumCanvas.addEventListener("mousemove", (e) => {
+        // Check if we're already dragging a filter edge
+        if (isFilterDragging) {
+            handleFilterDrag(e, false);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+            return;
+        }
+        
+        // Get canvas coordinates directly
+        const rect = spectrumCanvas.getBoundingClientRect();
+        const scaleX = spectrumCanvas.width / rect.width;
+        const scaleY = spectrumCanvas.height / rect.height;
+        
+        // Convert client coordinates to canvas coordinates
+        const canvasX = (e.clientX - rect.left) * scaleX;
+        const canvasY = (e.clientY - rect.top) * scaleY;
+        
+        // Get the current visual edge positions
+        const visualLeftEdgeX = window.visualLeftEdgeX;
+        const visualRightEdgeX = window.visualRightEdgeX;
+        
+        // Use a very wide detection area for better usability
+        const edgeWidth = getEdgeDetectionWidth(false);
+        
+        // Check if we're hovering over a filter edge
+        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth || 
+            Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
+            // Over a filter edge
+            spectrumCanvas.style.cursor = 'ew-resize';
+            // Don't handle waterfall drag
+        } else {
+            // Not over a filter edge
+            spectrumCanvas.style.cursor = 'default';
+            // Handle waterfall drag if active
+            if (isDragging) {
+                handleWaterfallDrag(e, false);
+            }
+        }
+    });
+    
+    spectrumCanvas.addEventListener("mouseup", stopWaterfallDrag);
+    spectrumCanvas.addEventListener("mouseleave", stopWaterfallDrag);
+    
+    // Global mouse up to ensure drag stops even if cursor leaves canvas
     document.addEventListener("mouseup", stopWaterfallDrag);
 
+    // Touch events for waterfall
     waterfallCanvas.addEventListener("touchstart", (e) => startWaterfallDrag(e, true));
     waterfallCanvas.addEventListener("touchmove", (e) => handleWaterfallDrag(e, true));
     waterfallCanvas.addEventListener("touchend", stopWaterfallDrag);
     waterfallCanvas.addEventListener("touchcancel", stopWaterfallDrag);
+    
+    // Touch events for spectrum (filter dragging)
+    spectrumCanvas.addEventListener("touchstart", (e) => {
+        // Get canvas coordinates directly
+        if (e.touches.length !== 1) return;
+        
+        const rect = spectrumCanvas.getBoundingClientRect();
+        const scaleX = spectrumCanvas.width / rect.width;
+        const scaleY = spectrumCanvas.height / rect.height;
+        
+        // Convert client coordinates to canvas coordinates
+        const canvasX = (e.touches[0].clientX - rect.left) * scaleX;
+        const canvasY = (e.touches[0].clientY - rect.top) * scaleY;
+        
+        // Get the current visual edge positions
+        const visualLeftEdgeX = window.visualLeftEdgeX;
+        const visualRightEdgeX = window.visualRightEdgeX;
+        
+        // Use a wider detection area for touch devices
+        const edgeWidth = getEdgeDetectionWidth(true);
+        
+        let edge = null;
+        
+        // Check if we're touching a filter edge
+        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
+            edge = 'left';
+            console.log(`Left edge touched at canvas x: ${canvasX}, visualLeftEdgeX: ${visualLeftEdgeX}`);
+        } else if (Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
+            edge = 'right';
+            console.log(`Right edge touched at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
+        }
+        
+        if (edge) {
+            // If over a filter edge, start filter dragging
+            isFilterDragging = true;
+            filterDragEdge = edge;
+            lastX = e.touches[0].clientX; // Keep original clientX for dragging
+            console.log(`Started dragging ${edge} filter edge on touch device`);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+        } else {
+            // Otherwise, proceed with normal waterfall drag
+            startWaterfallDrag(e, true);
+        }
+    });
+    
+    spectrumCanvas.addEventListener("touchmove", (e) => {
+        // Check if we're already dragging a filter edge
+        if (isFilterDragging) {
+            handleFilterDrag(e, true);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+            return;
+        }
+        
+        // Otherwise, proceed with normal waterfall drag
+        handleWaterfallDrag(e, true);
+    });
+    
+    spectrumCanvas.addEventListener("touchend", stopWaterfallDrag);
+    spectrumCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     // created by OZ7BX
 
     function calcGradientFarhan(v) {
@@ -1317,53 +1781,114 @@
 
     var nbins = 0;
 
+    // Cache DOM elements (assumed to be stable) outside the function
+    const spectrumEl = el("spectrum");
+    const modeEl = el("MODE");
+    const bwEl = el("BW");
+    const lowEl = el("LOW");
+    const highEl = el("HIGH");
+    const statusEl = el("STATUS");
+    const freqEl = el("FREQ");
+    const pitchEl = el("PITCH");
+    const txPitchEl = el("TX_PITCH");
+
+    // Precompute gradient if calcGradient is deterministic
+    const gradientCache = new Map(); // Cache gradient colors for values of v
+    let cachedGradient = null; // Cache the linear gradient
+
+
+    // Global declarations
+    let activeSpots = new Map(); // Map<callsign, { spot, last_seen }>
+    const SPOT_TIMEOUT = 15000; // 15 seconds
+
     function spectrum_update(update) {
-        const w = el("spectrum");
-        const { width, height } = w;
-        const ctx = w.getContext("2d");
-        nbins = update.length - 3;
+        const { width, height } = spectrumEl;
+        const ctx = spectrumEl.getContext("2d");
+        const nbins = update.length - 3;
         const scale = width / nbins;
-        const drawHeight = height - 15;
+        const drawHeight = height - 15; // Keep original height allocation
         const calculated_span = nbins * 46.875;
         const hz_per_pixel = width / calculated_span;
+        const half_width = width / 2;
 
         // Clear canvas
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, width, height);
 
-        // Create gradient (consider caching if static)
-        const grad = ctx.createLinearGradient(0, 0, 0, drawHeight);
-        for (let v = 0; v <= 100; v++) {
-            const clr = calcGradient(100 - v);
-            grad.addColorStop(v / 100.0, `rgb(${clr.r}, ${clr.g}, ${clr.b})`);
+        // Create or reuse gradient
+        if (!cachedGradient) {
+            cachedGradient = ctx.createLinearGradient(0, 0, 0, drawHeight);
+            for (let v = 0; v <= 100; v++) {
+                let clr = gradientCache.get(100 - v);
+                if (!clr) {
+                    clr = calcGradient(100 - v);
+                    gradientCache.set(100 - v, clr);
+                }
+                cachedGradient.addColorStop(v / 100, `rgb(${clr.r},${clr.g},${clr.b})`);
+            }
         }
 
         // Cache DOM values
-        const mode = el("MODE").value;
-        const bw = parseFloat(el("BW").value);
-        const low = parseFloat(el("LOW").value);
-        const high = parseFloat(el("HIGH").value);
-        const status = el("STATUS").value;
+        const mode = modeEl.value;
+        const bw = parseFloat(bwEl.value);
+        const low = parseFloat(lowEl.value);
+        const high = parseFloat(highEl.value);
+        const status = statusEl.value;
 
         // Draw filter block
         ctx.fillStyle = "#444";
-        if (mode === 'LSB' || mode === 'CWR') {
-            ctx.fillRect(width / 2 - (hz_per_pixel * high), 0, (high - low) * hz_per_pixel, drawHeight);
-        } else if (mode === 'AM') {
+        let filterLeftX, filterRightX;
+        
+        if (mode === "LSB" || mode === "CWR") {
+            filterLeftX = half_width - hz_per_pixel * high;
+            filterRightX = half_width - hz_per_pixel * low;
+            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
+        } else if (mode === "AM") {
             const blockWidth = bw * hz_per_pixel * 2;
-            ctx.fillRect(width / 2 - blockWidth / 2, 0, blockWidth, drawHeight);
+            filterLeftX = half_width - blockWidth / 2;
+            filterRightX = half_width + blockWidth / 2;
+            ctx.fillRect(filterLeftX, 0, blockWidth, drawHeight);
         } else {
-            ctx.fillRect(width / 2 + (hz_per_pixel * low), 0, (high - low) * hz_per_pixel, drawHeight);
+            filterLeftX = half_width + hz_per_pixel * low;
+            filterRightX = half_width + hz_per_pixel * high;
+            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         }
+        
+        // Skip filter visualization for FT8 mode
+        if (mode !== "FT8") {
+            // Calculate the visual edge positions (where the edges are actually drawn)
+            const visualLeftEdgeX = filterLeftX;
+            const visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
+            
+            // Store both the filter positions and visual edge positions for detection
+            window.filterLeftEdgeX = filterLeftX;
+            window.filterRightEdgeX = filterRightX;
+            window.visualLeftEdgeX = visualLeftEdgeX;
+            window.visualRightEdgeX = visualRightEdgeX;
+            
+            // Draw filter edges with a more prominent color to indicate they're draggable
+            ctx.fillStyle = "#666";
+            ctx.fillRect(visualLeftEdgeX, 0, 6, drawHeight); // Left edge
+            ctx.fillRect(visualRightEdgeX, 0, 6, drawHeight); // Right edge
+        }
+        
+        // Add a highlight effect at the top of the edges
+        //ctx.fillStyle = "#aaa";
+        //ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
+        //ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
+        
+        // Debug visualization removed for production
+        
+        // Debug logging removed for production
 
         // Draw grid
         ctx.beginPath();
-        for (let x = 0; x < 10; x++) {
+        for (let x = 0; x <= 10; x++) {
             const px = width * x / 10;
             ctx.moveTo(px, 0);
             ctx.lineTo(px, drawHeight);
         }
-        for (let y = 0; y < 8; y++) {
+        for (let y = 0; y <= 8; y++) {
             const py = drawHeight * y / 8;
             ctx.moveTo(0, py);
             ctx.lineTo(width, py);
@@ -1376,16 +1901,29 @@
             ctx.beginPath();
             ctx.moveTo(width, drawHeight - (update.charCodeAt(0) - 32));
             for (let x = 0; x < nbins; x++) {
-                ctx.lineTo((nbins - x - 1) * scale, drawHeight - (((update.charCodeAt(x + 3) - 32) / 100) * drawHeight));
+                const px = (nbins - x - 1) * scale;
+                const py = drawHeight - ((update.charCodeAt(x + 3) - 32) / 100) * drawHeight;
+                ctx.lineTo(px, py);
             }
             ctx.strokeStyle = "#ffff00";
             ctx.stroke();
         } else {
+            const binWidth = Math.max(1, scale);
             for (let x = 0; x < nbins; x++) {
                 const px = (nbins - x - 1) * scale;
-                const ph = -(((update.charCodeAt(x + 3) - 32) * drawHeight * 2) / 100);
-                ctx.fillStyle = grad;
-                ctx.fillRect(px, drawHeight - 1, scale, ph);
+                
+                // Adjust the spectrum level calculation for FT8 mode
+                let ph;
+                if (mode === "FT8") {
+                    // Use a more appropriate scaling for FT8 mode
+                    ph = -((update.charCodeAt(x + 3) - 32) * drawHeight) / 100;
+                } else {
+                    // Original calculation for other modes
+                    ph = -((update.charCodeAt(x + 3) - 32) * drawHeight * 2) / 100;
+                }
+                
+                ctx.fillStyle = cachedGradient;
+                ctx.fillRect(px, drawHeight - 1, binWidth, ph);
             }
         }
 
@@ -1395,95 +1933,139 @@
         ctx.fillText(status, 20, 14);
 
         // Draw spots
-        const freq = parseInt(el("FREQ").value) / 1000;
-        const dups = new Set();
-        let spot_count = 0;
-        let spot_report = "";
-        for (let i = 0; i < spots.length && spot_count < 10; i++) {
-            if (Math.abs(spots[i].frequency - freq) < 25 && !dups.has(spots[i].callsign)) {
-                spot_report += ` ${spots[i].frequency}/${spots[i].callsign}/${spots[i].mode}`;
-                dups.add(spots[i].callsign);
-                spot_count++;
+        const freq = parseInt(freqEl.value) / 1000; // Current frequency in kHz
+        const spots_with_x = [];
+
+        // Update active spots and filter by timeout
+        const currentTime = Date.now();
+        const newSpots = new Map();
+
+        // Process incoming spots, keeping newest per callsign
+        for (const spot of spots) {
+            if (Math.abs(spot.frequency - freq) < 25) {
+                const existing = newSpots.get(spot.callsign);
+                if (!existing || (spot.timestamp || currentTime) > (existing.spot.timestamp || 0)) {
+                    newSpots.set(spot.callsign, {
+                        spot,
+                        last_seen: currentTime
+                    });
+                }
             }
         }
-        ctx.font = "12px Sans";
+
+        // Merge new spots with active spots, removing timed-out entries
+        for (const [callsign, entry] of activeSpots) {
+            if (currentTime - entry.last_seen <= SPOT_TIMEOUT) {
+                newSpots.set(callsign, entry);
+            }
+        }
+        activeSpots = newSpots;
+
+        // Collect spots for drawing
+        for (const [callsign, { spot }] of activeSpots) {
+            if (Math.abs(spot.frequency - freq) < 25) {
+                const spot_freq = spot.frequency * 1000;
+                const relative_freq = spot_freq - freq * 1000;
+                const spot_x = half_width + relative_freq * hz_per_pixel;
+                spots_with_x.push({ x: spot_x, callsign, timestamp: spot.timestamp || currentTime });
+            }
+        }
+
+        // Sort spots by x-coordinate for overlap handling
+        spots_with_x.sort((a, b) => a.x - b.x);
+
+        // Draw spot lines and labels (only if label fits)
+        ctx.strokeStyle = "yellow";
         ctx.fillStyle = "white";
-        ctx.fillText(spot_report, 0, drawHeight + 12);
+        ctx.font = "12px Sans";
+        let last_x = -100;
+
+        for (const spot of spots_with_x) {
+            const label_x = spot.x - 10;
+            const min_gap = ctx.measureText(spot.callsign).width + 5;
+            if (Math.abs(label_x - last_x) > min_gap) {
+                // Draw line and label only if label fits
+                ctx.beginPath();
+                ctx.moveTo(spot.x, 0);
+                ctx.lineTo(spot.x, drawHeight);
+                ctx.stroke();
+                ctx.fillText(spot.callsign, label_x, drawHeight + 12);
+                last_x = label_x;
+            }
+        }
 
         // Draw RX/TX lines
-        const rx_pitch = parseFloat(el("PITCH").value);
-        const tx_pitch = mode === 'AM' ? 0 : parseFloat(el("TX_PITCH").value);
+        const rx_pitch = parseFloat(pitchEl.value);
+        const tx_pitch = mode === "AM" ? 0 : parseFloat(txPitchEl.value);
 
         ctx.beginPath();
         ctx.strokeStyle = "cyan";
         ctx.fillStyle = "white";
         ctx.font = "12px Sans";
         let rx_x;
-        
-        // For SSB modes (USB, LSB) and DIGI, always draw the RX line at the center (0 Hz)
-        if (mode === 'USB' || mode === 'LSB' || mode === 'DIGI') {
-            rx_x = width / 2;  // Center of the spectrum (0 Hz)
-        } else if (mode === 'CWR') {
-            rx_x = width / 2 - (rx_pitch * hz_per_pixel);
-        } else if (mode === 'AM') {
-            rx_x = width / 2;
+
+        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM") {
+            rx_x = half_width;
+        } else if (mode === "CWR") {
+            rx_x = half_width - rx_pitch * hz_per_pixel;
         } else {
-            rx_x = width / 2 + (rx_pitch * hz_per_pixel);
+            rx_x = half_width + rx_pitch * hz_per_pixel;
         }
         ctx.moveTo(rx_x, 0);
         ctx.lineTo(rx_x, drawHeight);
         ctx.fillText("RX", rx_x - 10, drawHeight + 12);
         ctx.stroke();
 
-        if (mode === 'FT8') {
+        if (mode === "FT8") {
             ctx.beginPath();
             ctx.strokeStyle = "red";
             ctx.fillStyle = "red";
-            const tx_x = mode === 'CWR' || mode === 'LSB' ? width / 2 - (tx_pitch * hz_per_pixel) : width / 2 + (tx_pitch * hz_per_pixel);
+            const tx_x = half_width + tx_pitch * hz_per_pixel;
             ctx.moveTo(tx_x, 0);
             ctx.lineTo(tx_x, drawHeight);
             ctx.fillText("TX", tx_x - 10, drawHeight + 12);
             ctx.stroke();
         }
     }
+    // Cache DOM elements (assumed to be stable) outside the function
+    const waterfallEl = el("waterfall");
+
     function waterfall_update(update) {
-        const w = el("waterfall");
-        const { width, height } = w;
+        const { width, height } = waterfallEl;
         if (width === 0 || height === 0) return;
 
-        const ctx = w.getContext("2d", { willReadFrequently: true });
+        const ctx = waterfallEl.getContext("2d", { willReadFrequently: true });
         const nbins = update.length - 3;
         const scale = nbins / width;
         const calculated_span = nbins * 46.875;
         const hz_per_pixel = width / calculated_span;
+        const half_width = width / 2; // Precompute for reuse
 
         // Get mode and pitch values
-        const mode = el("MODE").value;
-        const rx_pitch = parseFloat(el("PITCH").value);
-        const tx_pitch = mode === 'FT8' ? parseFloat(el("TX_PITCH").value) : 0;
+        const mode = modeEl.value;
+        const rx_pitch = parseFloat(pitchEl.value);
+        const tx_pitch = mode === "FT8" ? parseFloat(txPitchEl.value) : 0;
 
         // Calculate repeat and spot positions
-        const repeat = mode === 'FT8' ? 1 : mode === 'CW' || mode === 'CWR' ? 2 : 2;
-        
-        // For SSB modes (USB, LSB) and DIGI, always place the RX line at the center (0 Hz)
+        const repeat = mode === "FT8" ? 1 : mode === "CW" || mode === "CWR" ? 2 : 2;
+
+        // Simplify rx_spot calculation
         let rx_spot;
-        if (mode === 'USB' || mode === 'LSB' || mode === 'DIGI') {
-            rx_spot = Math.round(width / 2);  // Center of the waterfall (0 Hz)
-        } else if (mode === 'CWR') {
-            rx_spot = Math.round(width / 2 - (rx_pitch * hz_per_pixel));
-        } else if (mode === 'AM') {
-            rx_spot = Math.round(width / 2);
+        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM") {
+            rx_spot = Math.round(half_width);
+        } else if (mode === "CWR") {
+            rx_spot = Math.round(half_width - rx_pitch * hz_per_pixel);
         } else {
-            rx_spot = Math.round(width / 2 + (rx_pitch * hz_per_pixel));
+            rx_spot = Math.round(half_width + rx_pitch * hz_per_pixel);
         }
-        
-        const tx_spot = mode === 'FT8' ? Math.round(width / 2 + (tx_pitch * hz_per_pixel)) : -1;
+
+        const tx_spot = mode === "FT8" ? Math.round(half_width + tx_pitch * hz_per_pixel) : -1;
 
         // Shift existing image down
         const img = ctx.getImageData(0, 0, width, height);
         ctx.putImageData(img, 0, repeat);
 
-        // Create new strip (1 pixel high)
+        // Create and fill strip data
         const strip = ctx.createImageData(width, 1);
         const data = strip.data; // Uint8ClampedArray
         let i = 0;
@@ -1493,19 +2075,27 @@
             let v = (update.charCodeAt(bin + 3) - 32) * 2;
             v = Math.min(v, 100);
 
-            // Compute color using calcGradient
-            const clr = calcGradient(v);
+            // Use cached gradient if available
+            let clr = gradientCache.get(v);
+            if (!clr) {
+                clr = calcGradient(v);
+                gradientCache.set(v, clr);
+            }
 
-            // Set pixel data
+            // Set pixel data efficiently
             data[i++] = x === tx_spot ? 255 : clr.r;
             data[i++] = x === rx_spot ? 255 : clr.g;
             data[i++] = x === rx_spot ? 255 : clr.b;
             data[i++] = 255; // Alpha
         }
 
-        // Draw the strip
-        for (let i = 0; i < repeat; i++) {
-            ctx.putImageData(strip, 0, i);
+        // Draw the strip once (avoid looping if repeat is small)
+        if (repeat === 1) {
+            ctx.putImageData(strip, 0, 0);
+        } else {
+            for (let i = 0; i < repeat; i++) {
+                ctx.putImageData(strip, 0, i);
+            }
         }
     }
 
@@ -1795,16 +2385,24 @@
         }
 
         try {
-            // Request microphone access
+         // Request microphone access 
+         if ('audioSession' in navigator) {
+                navigator.audioSession.type = 'play-and-record';
+            }
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate: 8000,            // Request 8kHz directly to match our needs
-                    channelCount: 1,             // Mono audio
-                    echoCancellation: {exact: false},     // Disable echo cancellation to prevent audio ducking
-                    noiseSuppression: {exact: false},      // Disable noise suppression to prevent audio ducking
-                    autoGainControl: {exact: false}        // Disable auto gain control to prevent audio ducking
+                    sampleRate: 8000,
+                    channelCount: 1,
+                    echoCancellation: false, // Disable echo cancellation to prevent audio ducking
+                    noiseSuppression: false, // Disable noise suppression to prevent audio ducking
+                    autoGainControl: false, // Disable auto gain control to prevent audio ducking
+                    latency: 0,
+                    deviceId: 'default'
                 }
             });
+            if ('audioSession' in navigator) {
+                navigator.audioSession.type = 'playback';
+            }
 
             // Initialize audio context
             window.sbitxMic.stream = stream;
@@ -1937,6 +2535,8 @@
             }
         }
     }
+    
+
 
     //user interaction handlers
 
@@ -2704,6 +3304,11 @@
         el("PASSKEY").focus();
     }
 
+    function open_menu() {
+        open_panel("menu_panel");
+
+    }
+
     function save_settings() {
         websocket_send("MYCALLSIGN " + el("MYCALLSIGN").value);
         websocket_send("MYGRID " + el("MYGRID").value);
@@ -2712,6 +3317,12 @@
         websocket_send("TELNETURL " + el("TELNETURL").value);
         $("#settings_panel").hide();
     }
+
+    function close_settings() {
+
+        $("#settings_panel").hide();
+    }
+
 
     /* recorder panel */
 
@@ -2856,6 +3467,7 @@
         var sp = el("spectrum");
         wf.height = 100;
         sp.height = 100;
+        cachedGradient = null;
 
         $(".mode-panel").hide();
         switch (new_mode) {
@@ -2865,22 +3477,30 @@
                 sp.height = 100;
                 cw_open(new_mode);
                 $("#CW_ui").show();
+                $("#more_keys").show();
                 logger_set_macro("CW1");
                 break;
             case "AM":
             case "LSB":
             case "USB":
             case "2TONE":
+                wf.height = 225;
+                sp.height = 125;
+                $("#Voice_ui").show();
+                $("#more_keys").hide();
+                break;
+            case "DIGI":
                 wf.height = 150;
                 sp.height = 100;
-                $("#Voice_ui").show();
-                logger_set_macro("CW1");
+                $("#digi_ui").show();
+                $("#more_keys").hide();
                 break;
             case 'FT8':
                 sp.height = 50;
                 wf.height = 50;
                 FT8_open();
                 $(".FT8_ui").show();
+                $("#more_keys").show();
                 logger_set_macro("FT8");
                 sound_mute = false;
                 break;
@@ -2888,6 +3508,7 @@
                 wf.height = 150;
                 var panel_name = "#" + new_mode + "_ui";
                 var active_panel = $(panel_name);
+                $("#more_keys").hide();
                 logger_set_macro("CW1");
                 if (active_panel.length > 0)
                     $(panel_name).show();
@@ -2907,7 +3528,7 @@
 
     // Waterfall throttling variables
     var lastWaterfallUpdate = 0;
-    var waterfallUpdateInterval = 100; // Update every 100ms (adjust to slow more/less)
+    var waterfallUpdateInterval = 200; // Update every 100ms (adjust to slow more/less)
 
     //audio interpolation variables
     var prev_sample = 0;
@@ -3019,9 +3640,10 @@
                     show_main();
                     resize_ui();
                 }
-                else
+                else {
                     alert("Incorrect passkey.\r\nIf you have forgotten your pass key\r\n" +
                         "You can see it in user_settings.ini in sbitx/data folder");
+                }
                 break;
             case 'QSO':
                 logbook_update(args);
@@ -3220,7 +3842,14 @@
 
     //settings buttons
     $("#settings-open").on("click", open_settings);
+
+    $("#menu-open").on("click", open_menu);
+    $("#menu-open2").on("click", open_menu);
+    $("#menu-open3").on("click", open_menu);
+    $("#menu-open4").on("click", open_menu);
     $("#settings_save").on("click", save_settings);
+    $("#close_button").on("click", close_settings);
+
 
     //recorder buttons
     $("#recorder-open").on("click", open_recorder);
@@ -3350,6 +3979,18 @@
         if (browserMicButton && window.location.protocol !== 'https:') {
             console.log('Not on HTTPS, hiding Browser Mic button.');
             browserMicButton.style.display = 'none';
+        }
+        
+        // Auto-start browser mic if this is a remote session (not localhost/127.0.0.1)
+        const isRemote = document.location.hostname !== "127.0.0.1" && document.location.hostname !== "localhost";
+        if (isRemote) {
+            console.log("Remote session detected, auto-starting browser microphone");
+            setTimeout(function() {
+                // Use the existing toggleBrowserMic function to initialize and enable the mic
+                if (!window.sbitxMic.enabled) {
+                    toggleBrowserMic();
+                }
+            }, 2000); // Small delay to ensure everything else is loaded
         }
     });
 
