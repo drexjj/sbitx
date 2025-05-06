@@ -1165,7 +1165,20 @@
         const canvasX = (clientX - rect.left) * scaleX;
         const canvasY = (clientY - rect.top) * scaleY;
         
+        // Store the current scale factors for reference
+        window.currentScaleX = scaleX;
+        window.currentScaleY = scaleY;
+        
         return { x: canvasX, y: canvasY };
+    }
+    
+    // Function to get the appropriate edge detection width based on device
+    function getEdgeDetectionWidth(isTouch = false) {
+        // Use a wider detection area for touch devices
+        if (isTouch || ('ontouchstart' in window)) {
+            return FILTER_EDGE_DETECTION_WIDTH * 1.5; // 50% wider for touch devices
+        }
+        return FILTER_EDGE_DETECTION_WIDTH;
     }
     
     // Function to check if mouse is over a filter edge
@@ -1214,8 +1227,8 @@
         window.visualLeftEdgeX = visualLeftEdgeX;
         window.visualRightEdgeX = visualRightEdgeX;
         
-        // Use the global detection width constant
-        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
+        // Use the appropriate detection width based on device type
+        const edgeWidth = getEdgeDetectionWidth();
         
         // Only detect if within the vertical area of the filter
         if (y >= 0 && y < drawHeight) {
@@ -1425,7 +1438,7 @@
             }
             
             // Use a wider detection area (20 pixels) for clicking
-            const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
+            const edgeWidth = getEdgeDetectionWidth(false);
             let edge = null;
             
             // For LSB/CWR, the left edge is high cut and right edge is low cut
@@ -1546,7 +1559,7 @@
         const visualRightEdgeX = window.visualRightEdgeX;
         
         // Use a very wide detection area for better usability
-        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
+        const edgeWidth = getEdgeDetectionWidth(false);
         
         let edge = null;
         
@@ -1597,7 +1610,7 @@
         const visualRightEdgeX = window.visualRightEdgeX;
         
         // Use a very wide detection area for better usability
-        const edgeWidth = FILTER_EDGE_DETECTION_WIDTH;
+        const edgeWidth = getEdgeDetectionWidth(false);
         
         // Check if we're hovering over a filter edge
         if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth || 
@@ -1628,8 +1641,63 @@
     waterfallCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     
     // Touch events for spectrum (filter dragging)
-    spectrumCanvas.addEventListener("touchstart", (e) => startWaterfallDrag(e, true));
-    spectrumCanvas.addEventListener("touchmove", (e) => handleWaterfallDrag(e, true));
+    spectrumCanvas.addEventListener("touchstart", (e) => {
+        // Get canvas coordinates directly
+        if (e.touches.length !== 1) return;
+        
+        const rect = spectrumCanvas.getBoundingClientRect();
+        const scaleX = spectrumCanvas.width / rect.width;
+        const scaleY = spectrumCanvas.height / rect.height;
+        
+        // Convert client coordinates to canvas coordinates
+        const canvasX = (e.touches[0].clientX - rect.left) * scaleX;
+        const canvasY = (e.touches[0].clientY - rect.top) * scaleY;
+        
+        // Get the current visual edge positions
+        const visualLeftEdgeX = window.visualLeftEdgeX;
+        const visualRightEdgeX = window.visualRightEdgeX;
+        
+        // Use a wider detection area for touch devices
+        const edgeWidth = getEdgeDetectionWidth(true);
+        
+        let edge = null;
+        
+        // Check if we're touching a filter edge
+        if (Math.abs(canvasX - visualLeftEdgeX) < edgeWidth) {
+            edge = 'left';
+            console.log(`Left edge touched at canvas x: ${canvasX}, visualLeftEdgeX: ${visualLeftEdgeX}`);
+        } else if (Math.abs(canvasX - visualRightEdgeX) < edgeWidth) {
+            edge = 'right';
+            console.log(`Right edge touched at canvas x: ${canvasX}, visualRightEdgeX: ${visualRightEdgeX}`);
+        }
+        
+        if (edge) {
+            // If over a filter edge, start filter dragging
+            isFilterDragging = true;
+            filterDragEdge = edge;
+            lastX = e.touches[0].clientX; // Keep original clientX for dragging
+            console.log(`Started dragging ${edge} filter edge on touch device`);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+        } else {
+            // Otherwise, proceed with normal waterfall drag
+            startWaterfallDrag(e, true);
+        }
+    });
+    
+    spectrumCanvas.addEventListener("touchmove", (e) => {
+        // Check if we're already dragging a filter edge
+        if (isFilterDragging) {
+            handleFilterDrag(e, true);
+            e.preventDefault();
+            e.stopPropagation(); // Prevent waterfall drag from activating
+            return;
+        }
+        
+        // Otherwise, proceed with normal waterfall drag
+        handleWaterfallDrag(e, true);
+    });
+    
     spectrumCanvas.addEventListener("touchend", stopWaterfallDrag);
     spectrumCanvas.addEventListener("touchcancel", stopWaterfallDrag);
     // created by OZ7BX
@@ -1791,14 +1859,14 @@
         window.visualRightEdgeX = visualRightEdgeX;
         
         // Draw filter edges with a more prominent color to indicate they're draggable
-        ctx.fillStyle = "#888";
+        ctx.fillStyle = "#666";
         ctx.fillRect(visualLeftEdgeX, 0, 6, drawHeight); // Left edge
         ctx.fillRect(visualRightEdgeX, 0, 6, drawHeight); // Right edge
         
         // Add a highlight effect at the top of the edges
-        ctx.fillStyle = "#aaa";
-        ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
-        ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
+        //ctx.fillStyle = "#aaa";
+        //ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
+        //ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
         
         // Debug visualization removed for production
         
