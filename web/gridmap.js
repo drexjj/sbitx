@@ -12,7 +12,7 @@ const GRIDMAP = (function gridmap() {
   const canvasDiv = document.createElement("div");
   const onsCanvas = document.createElement("canvas");
   const onsCtx = onsCanvas.getContext('2d');
-  const fixedWidth = 640; // Fixed canvas width
+  const fixedWidth = 520; // Fixed canvas width
   const fixedHeight = 360; // Fixed canvas height
 
   const slider = document.createElement("input");
@@ -31,10 +31,10 @@ const GRIDMAP = (function gridmap() {
   const kx = projection.forward([180, 0])[0]; // x-coordinate at (180°, 0°) in meters
   const ky = projection.forward([0, 85])[1];  // y-coordinate at (0°, 85°) in meters
 
-  const scaleMin = 30;
+  const scaleMin = 25;
   const scaleMax = 200;
   const scaleStep = 5;
-  var scaleCur = 30; // Changed to 30% initial size
+  var scaleCur = 25; // Changed to 30% initial size
 
   const btnGridsLogged = document.createElement("button");
   const gridsLogged = new Set();
@@ -407,7 +407,7 @@ const GRIDMAP = (function gridmap() {
     console.log(`Map dimensions: ${img.width}x${img.height}`); // Debug
 
     // Center map horizontally at 30% scale
-    const fScale = scaleCur / 100; // 0.3 for 30%
+    const fScale = scaleCur / 100; 
     const scaledWidth = ofsCanvas.width * fScale;
     viewOffsetX = (scaledWidth - fixedWidth) / 2; // Center horizontally
     viewOffsetY = 0; // Top-aligned, as in original
@@ -459,7 +459,7 @@ const GRIDMAP = (function gridmap() {
   canvasDiv.addEventListener("mousedown", (event) => gmPick(event));
 
   return {
-    init: function (moduleDiv, w = 640, h = 360) {
+    init: function (moduleDiv, w = 520, h = 360) {
       width = w;
       height = h;
       containerDiv = moduleDiv;

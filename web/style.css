@@ -474,14 +474,14 @@ input {
 .sbitx-panel-title {
     float: left;
     display: inline-block;
-    background-color: var(--primary-bg);
-    font-size: 14pt;
+   font-size: 14pt;
 }
 
 .sbitx-btn-back {
-    font-size: 12pt;
+    font-size: 14pt;
     background: linear-gradient(to bottom, #444, #222);
     color: var(--primary-text);
+    margin-right: 20px;
     border: none;
 }
 
@@ -922,7 +922,7 @@ input {
 }
 
 
-#keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
+#digi_ui, #menu_panel, #keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
     clear: both;
     width: 100%;
     box-sizing: border-box; 
@@ -1093,4 +1093,24 @@ input {
 #keypad_panel .sbitx-btn-back {
     font-size: 12px; /* Smaller close button */
     padding: 4px 8px;
+}
+
+#menu-open, #menu-open2, #menu-open3, #menu-open4 {
+  float: right;
+  margin-right: 30px;
+}
+
+
+#gridmap {
+    display: inline-block;
+    border: 4px solid #333;
+    border-radius: 10px;
+    background: #1a1a1a;
+    justify-content: center;
+    padding: 8px;
+    margin-top: 0px;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05),
+                0 4px 12px rgba(0, 0, 0, 0.5);
+    vertical-align: top;
+    overflow-x: hidden
 }
