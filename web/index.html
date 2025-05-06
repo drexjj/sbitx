@@ -1291,7 +1291,7 @@
                 // Ensure high is at least 50 Hz greater than low
                 high = Math.max(high, low + 50);
                 // Limit high to reasonable values
-                high = Math.min(Math.max(high, 300), 4000);
+                high = Math.min(Math.max(high, 300), 5000);
                 websocket_send(`HIGH=${high}`);
                 console.log(`Updated high to ${high}`);
             } else { // right edge
@@ -1300,7 +1300,7 @@
                 // Ensure low is at least 50 Hz less than high
                 low = Math.min(low, high - 50);
                 // Limit low to reasonable values
-                low = Math.min(Math.max(low, 50), 1000);
+                low = Math.min(Math.max(low, 50), 4800);
                 websocket_send(`LOW=${low}`);
                 console.log(`Updated low to ${low}`);
             }
@@ -1320,7 +1320,7 @@
                 // Ensure low is at least 50 Hz less than high
                 low = Math.min(low, high - 50);
                 // Limit low to reasonable values
-                low = Math.min(Math.max(low, 50), 1000);
+                low = Math.min(Math.max(low, 50), 4800);
                 websocket_send(`LOW=${low}`);
                 console.log(`Updated low to ${low}`);
             } else { // right edge
@@ -1329,7 +1329,7 @@
                 // Ensure high is at least 50 Hz greater than low
                 high = Math.max(high, low + 50);
                 // Limit high to reasonable values
-                high = Math.min(Math.max(high, 300), 4000);
+                high = Math.min(Math.max(high, 300), 5000);
                 websocket_send(`HIGH=${high}`);
                 console.log(`Updated high to ${high}`);
             }
