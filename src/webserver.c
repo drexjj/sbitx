@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include "dynamic_content.h"
 
 // Function declarations for browser microphone handling
 extern int browser_mic_input(int16_t *samples, int count);
@@ -410,9 +411,42 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       // Serve REST response
       mg_http_reply(c, 200, "", "{\"result\": %d}\n", 123);
     } else {
-      // Serve static files
-      struct mg_http_serve_opts opts = {.root_dir = s_web_root};
-      mg_http_serve_dir(c, ev_data, &opts);
+      // Check if this is an HTML file request
+      struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+      if (mg_match(hm->uri, mg_str("/index.html"), NULL) || 
+          mg_match(hm->uri, mg_str("/"), NULL)) {
+        // This is a request for the main index.html file
+        char file_path[1024];
+        snprintf(file_path, sizeof(file_path), "%s/index.html", s_web_root);
+        
+        // Read the file content
+        size_t content_size;
+        char *content = read_file_content(file_path, &content_size);
+        
+        if (content) {
+          // Process the content to replace version string
+          size_t new_size;
+          char *processed_content = process_dynamic_content(content, content_size, &new_size);
+          
+          if (processed_content) {
+            // Send the processed content
+            mg_http_reply(c, 200, "Content-Type: text/html\r\n", "%.*s", (int)new_size, processed_content);
+            free(processed_content);
+          } else {
+            // If processing failed, serve the original content
+            mg_http_reply(c, 200, "Content-Type: text/html\r\n", "%.*s", (int)content_size, content);
+          }
+          
+          free(content);
+        } else {
+          // If file reading failed, serve 404
+          mg_http_reply(c, 404, "", "Not found\n");
+        }
+      } else {
+        // Serve other static files normally
+        struct mg_http_serve_opts opts = {.root_dir = s_web_root};
+        mg_http_serve_dir(c, ev_data, &opts);
+      }
     }
   } else if (ev == MG_EV_WS_MSG) {
     // Got websocket frame. Received data is wm->data
