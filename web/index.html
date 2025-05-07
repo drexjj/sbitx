@@ -1899,10 +1899,16 @@
         // Plot spectrum
         if (update.startsWith("TX")) {
             ctx.beginPath();
-            ctx.moveTo(width, drawHeight - (update.charCodeAt(0) - 32));
+            const centerY = drawHeight * 4.5/8; // Exactly between the middle grid lines
+            // Get the first sample value normalized to -1 to 1 range
+            const firstSample = ((update.charCodeAt(3) - 32) / 50) - 1;
+            ctx.moveTo(width, centerY + (firstSample * (drawHeight/8) * 2)); // Scale by 2 grid cells
+            
             for (let x = 0; x < nbins; x++) {
                 const px = (nbins - x - 1) * scale;
-                const py = drawHeight - ((update.charCodeAt(x + 3) - 32) / 100) * drawHeight;
+                // Normalize the sample value to -1 to 1 range and center it
+                const sampleValue = ((update.charCodeAt(x + 3) - 32) / 50) - 1;
+                const py = centerY + (sampleValue * (drawHeight/8) * 2); // Scale by 2 grid cells to match moveTo
                 ctx.lineTo(px, py);
             }
             ctx.strokeStyle = "#ffff00";
