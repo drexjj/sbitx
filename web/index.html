@@ -460,8 +460,9 @@
             <button class="sbitx-btn-back" data-for="panel_bar">X Close</button>
         </h2>
         <div id="console_window"></div>
+        <div class="console-help-text" style="color: #aaa; font-size: 0.9em; margin: 5px 0; padding: 0 5px;">Enter terminal commands without leading backslash. i.e. ANR ON</div>
         <div id="command_bar">
-            <input type="text" class="sbitx-text-input" id="text_in">
+            <input type="text" class="sbitx-text-input" id="text_in" placeholder="Enter command without backslash...">
         </div>
     </section>
     <!-- telnet panel -->
@@ -2160,6 +2161,9 @@
             move_caret(text_focus, caret - 1);
         }//enter key when the focus is on text_in
         else if ((key == "\u8617" || key == '\n') && text_focus.id == "text_in") {
+        if (text_focus.value.toUpperCase() === "CLEAR") {
+          FT8_lists_clear(); 
+         }
             websocket_send(text_focus.value);
             text_focus.value = "";
         }
@@ -2917,6 +2921,7 @@
     function FT8_lists_clear() {
         document.querySelector('#wsjtx-activity ol').innerHTML = "";
         document.querySelector('#wsjtx-rx ol').innerHTML = "";
+        console.log("FT8 lists cleared");
     }
     function FT8_new_message(text, style) {
         //log("ft8:" + text + ":" + style);
@@ -3816,6 +3821,10 @@
             e.preventDefault();
         }
         else if (e.key == "Enter" && text_focus != null && text_focus.id == "text_in") {
+            // Special handling for CLEAR command
+            if (text_focus.value.toUpperCase() === "CLEAR") {
+                FT8_lists_clear(); // Clear the FT8 lists in the web interface
+            }
             websocket_send(text_focus.value);
             text_focus.value = "";
         }
