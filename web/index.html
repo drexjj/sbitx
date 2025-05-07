@@ -1941,13 +1941,13 @@
 
         // Draw spots
         const freq = parseInt(freqEl.value) / 1000; // Current frequency in kHz
+        const currentTime = Date.now();
         const spots_with_x = [];
 
-        // Update active spots and filter by timeout
-        const currentTime = Date.now();
+        // Update active spots: process new spots and remove expired ones
         const newSpots = new Map();
 
-        // Process incoming spots, keeping newest per callsign
+        // Process incoming spots, keeping newest per callsign within frequency range
         for (const spot of spots) {
             if (Math.abs(spot.frequency - freq) < 25) {
                 const existing = newSpots.get(spot.callsign);
@@ -1960,22 +1960,22 @@
             }
         }
 
-        // Merge new spots with active spots, removing timed-out entries
+        // Copy still-valid spots from activeSpots, excluding expired ones
         for (const [callsign, entry] of activeSpots) {
-            if (currentTime - entry.last_seen <= SPOT_TIMEOUT) {
+            if (currentTime - entry.last_seen <= SPOT_TIMEOUT && Math.abs(entry.spot.frequency - freq) < 25) {
                 newSpots.set(callsign, entry);
             }
         }
+
+        // Update activeSpots with filtered spots
         activeSpots = newSpots;
 
         // Collect spots for drawing
         for (const [callsign, { spot }] of activeSpots) {
-            if (Math.abs(spot.frequency - freq) < 25) {
-                const spot_freq = spot.frequency * 1000;
-                const relative_freq = spot_freq - freq * 1000;
-                const spot_x = half_width + relative_freq * hz_per_pixel;
-                spots_with_x.push({ x: spot_x, callsign, timestamp: spot.timestamp || currentTime });
-            }
+            const spot_freq = spot.frequency * 1000;
+            const relative_freq = spot_freq - freq * 1000;
+            const spot_x = half_width + relative_freq * hz_per_pixel;
+            spots_with_x.push({ x: spot_x, callsign, timestamp: spot.timestamp || currentTime });
         }
 
         // Sort spots by x-coordinate for overlap handling
@@ -2018,9 +2018,28 @@
         } else {
             rx_x = half_width + rx_pitch * hz_per_pixel;
         }
+
+        // Check for overlap with spot labels
+        const rx_label_x = rx_x - 10;
+        let rx_label_overlaps = false;
+        const rx_label_width = ctx.measureText("RX").width + 5;
+
+        for (const spot of spots_with_x) {
+            const spot_label_x = spot.x - 10;
+            const spot_label_width = ctx.measureText(spot.callsign).width + 5;
+            const min_gap = Math.max(rx_label_width, spot_label_width);
+            if (Math.abs(rx_label_x - spot_label_x) < min_gap) {
+                rx_label_overlaps = true;
+                break;
+            }
+        }
+
+        // Draw RX line and conditionally draw RX label
         ctx.moveTo(rx_x, 0);
         ctx.lineTo(rx_x, drawHeight);
-        ctx.fillText("RX", rx_x - 10, drawHeight + 12);
+        if (!rx_label_overlaps) {
+            ctx.fillText("RX", rx_label_x, drawHeight + 12);
+        }
         ctx.stroke();
 
         if (mode === "FT8") {
@@ -3022,41 +3041,66 @@
     /* telnet functionality */
 
     function telnet_update(text) {
-        var window = el("telnet_window");
-        window.innerHTML = window.innerHTML + text;
+        const window = el("telnet_window");
+        const MAX_LINES = 100; // Maximum number of lines to display
+        let lines = window.innerHTML ? window.innerHTML.split('\n') : []; // Current lines
+
+        // Split new text into lines and filter out empty ones
+        const newLines = text.split('\n').filter(line => line.trim());
+
+        // Add new lines to the FIFO buffer
+        lines.push(...newLines);
+
+        // Trim oldest lines if exceeding MAX_LINES
+        if (lines.length > MAX_LINES) {
+            lines = lines.slice(lines.length - MAX_LINES);
+        }
+
+        // Update window content
+        window.innerHTML = lines.join('\n');
         window.scrollTop = window.scrollHeight;
 
-        let word = text.split(' ');
+        // Existing spot parsing logic remains unchanged
+        const word = text.split(' ');
         let i = 0;
-        if (word[i] != 'DX')
-            return;
+        if (word[i] !== 'DX') return;
         i++;
-        while (word[i] == '') i++;
+        while (word[i] === '') i++;
 
-        if (word[i] != 'de')
-            return;
-
+        if (word[i] !== 'de') return;
         i++;
-        while (word[i] == '') i++;
+        while (word[i] === '') i++;
 
-        i++; //skip the spotter's callsign
-        while (word[i] == '') i++;
+        i++; // Skip the spotter's callsign
+        while (word[i] === '') i++;
 
-        let freq = parseInt(word[i++]);
+        const freq = parseInt(word[i++]);
+        while (word[i] === '') i++;
 
-        while (word[i] == '') i++;
+        const call = word[i++];
+        while (word[i] === '') i++;
 
-        let call = word[i++];
-        while (word[i] == '') i++;
+        const mode = word[i];
 
-        let m = word[i];
-
-        let s = {
+        const currentTime = Date.now();
+        const s = {
             frequency: freq,
             callsign: call,
-            mode: m,
-        }
+            mode: mode,
+            timestamp: currentTime
+        };
+
         spots.unshift(s);
+
+        const MAX_SPOTS = 1000;
+        if (spots.length > MAX_SPOTS) {
+            spots.pop();
+        }
+
+        const SPOT_TIMEOUT = 300000;
+        while (spots.length > 0 && currentTime - spots[spots.length - 1].timestamp > SPOT_TIMEOUT) {
+            spots.pop();
+        }
     }
 
     function show_telnet_panel() {
