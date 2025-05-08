@@ -671,6 +671,18 @@ input {
     width: 70px;
 }
 
+/* CW_INPUT dropdown */
+#CW_INPUT {
+    min-width: 100px;
+}
+
+/* Make the CW_INPUT container wider */
+#linear_CW_INPUT {
+    min-width: 97px;
+    width: auto;
+    padding-left: 7px;
+}
+
 .sbitxv3-btn,
 .logger-button {
     height: 45px;
