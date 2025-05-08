@@ -651,7 +651,7 @@ input {
     min-width: 35px;
     max-width: 50px;
     padding-top: var(--spacing-sm);
-    padding-left: 3px;
+    padding-left: 5px;
     height: 36px;
     border: 1px solid #333;
     font-size: 12px;
