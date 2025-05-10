@@ -59,7 +59,7 @@ static int64_t last_ping_time = 0;  // Time of last ping check
 static struct mg_mgr mgr;  // Event manager
 
 // Debug flag for webserver logging
-static int webserver_debug_enabled = 0; // Set to 1 to enable verbose logging
+static int webserver_debug_enabled = 1; // Set to 1 to enable verbose logging
 
 // Helper function to read a file into a dynamically allocated buffer
 // Returns NULL on error, caller must free the buffer.
@@ -227,6 +227,60 @@ typedef struct {
   struct mg_tls_opts tls_opts;
   uint16_t https_port;
 } webserver_data_t;
+
+// Execute a shell script and return the result
+static void execute_shell_script(struct mg_connection *c, const char *script_name) {
+  char script_path[1024];
+  char command[2048];
+  char output[8192] = {0};
+  FILE *script_output;
+  size_t bytes_read = 0;
+  char buffer[1024];
+  
+  // Validate script name to prevent command injection
+  if (!script_name || strlen(script_name) == 0 || 
+      strchr(script_name, '/') != NULL || 
+      strchr(script_name, '\\') != NULL || 
+      strchr(script_name, '"') != NULL || 
+      strchr(script_name, '\'') != NULL || 
+      strchr(script_name, ';') != NULL || 
+      strchr(script_name, '|') != NULL || 
+      strchr(script_name, '&') != NULL) {
+    mg_http_reply(c, 400, "Content-Type: application/json\r\n", 
+                 "{\"status\":\"error\",\"message\":\"Invalid script name\"}\n");
+    return;
+  }
+  
+  // Check if script exists and has .sh extension
+  snprintf(script_path, sizeof(script_path), "%s/scripts/%s", s_web_root, script_name);
+  
+  if (access(script_path, F_OK) != 0 || !strstr(script_name, ".sh")) {
+    mg_http_reply(c, 404, "Content-Type: application/json\r\n", 
+                 "{\"status\":\"error\",\"message\":\"Script not found\"}\n");
+    return;
+  }
+  
+  // Execute the script with nohup to allow it to continue running after the request completes
+  //snprintf(command, sizeof(command), "nohup sudo /bin/bash %s > /dev/null 2>&1 &", script_path);
+  // Run as pi and not root
+  snprintf(command, sizeof(command), "nohup /bin/bash %s > /dev/null 2>&1 &", script_path); 
+
+  if (webserver_debug_enabled) {
+    printf("Executing script: %s\n", command);
+  }
+  
+  // Execute the command
+  int result = system(command);
+  
+  if (result == 0) {
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", 
+                 "{\"status\":\"success\",\"message\":\"Script %s started successfully\"}\n", 
+                 script_name);
+  } else {
+    mg_http_reply(c, 500, "Content-Type: application/json\r\n", 
+                 "{\"status\":\"error\",\"message\":\"Failed to execute script\"}\n");
+  }
+}
 
 static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
 	// Check if this is binary data (browser microphone audio)
@@ -410,11 +464,100 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
     } else if (mg_match(hm->uri, mg_str("/rest"), NULL)) {
       // Serve REST response
       mg_http_reply(c, 200, "", "{\"result\": %d}\n", 123);
+    } else if (strncmp(hm->uri.buf, "/cgi-bin/", 9) == 0) {
+      // Check if this is a PHP file
+      char uri[256];
+      mg_url_decode(hm->uri.buf, hm->uri.len, uri, sizeof(uri), 0);
+      
+      // Check if the URI ends with .php
+      size_t uri_len = strlen(uri);
+      if (uri_len > 4 && strcmp(uri + uri_len - 4, ".php") == 0) {
+        // Handle PHP files in cgi-bin directory
+        char file_path[1024];
+        snprintf(file_path, sizeof(file_path), "%s%s", s_web_root, uri);
+      
+        if (webserver_debug_enabled) {
+          printf("PHP request: %s\n", file_path);
+        }
+        
+        // Execute PHP directly
+        char command[1500];
+        snprintf(command, sizeof(command),
+                "cd %s && php -f %s",
+                s_web_root,
+                file_path);
+        
+        if (webserver_debug_enabled) {
+          printf("PHP command: %s\n", file_path);
+          printf("Running command: %s\n", command);
+        }
+        
+        // Execute the command and capture output
+        FILE *php_output = popen(command, "r");
+        if (php_output) {
+          char output[16384] = "";
+          size_t bytes_read = 0;
+          size_t chunk_size;
+          char buffer[1024];
+          
+          // Read all output
+          while ((chunk_size = fread(buffer, 1, sizeof(buffer) - 1, php_output)) > 0) {
+            if (bytes_read + chunk_size < sizeof(output) - 1) {
+              memcpy(output + bytes_read, buffer, chunk_size);
+              bytes_read += chunk_size;
+            } else {
+              break; // Prevent buffer overflow
+            }
+          }
+          output[bytes_read] = '\0';
+          pclose(php_output);
+          
+          if (webserver_debug_enabled) {
+            printf("PHP output (%zu bytes): %s\n", bytes_read, output);
+          }
+          
+          // Send the response
+          mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", output);
+        } else {
+          if (webserver_debug_enabled) {
+            printf("Failed to execute PHP script: %s\n", file_path);
+          }
+          mg_http_reply(c, 500, "", "Failed to execute PHP script\n");
+        }
+      }
     } else {
-      // Check if this is an HTML file request
+      // Check if this is a script execution request or HTML file request
       struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-      if (mg_match(hm->uri, mg_str("/index.html"), NULL) || 
-          mg_match(hm->uri, mg_str("/"), NULL)) {
+      if (mg_match(hm->uri, mg_str("/execute-script"), NULL)) {
+        // Handle script execution request
+        char script_name[256] = {0};
+        struct mg_str *script_param = mg_http_get_header(hm, "X-Script-Name");
+        
+        // First try to get script name from header
+        if (script_param != NULL && script_param->len > 0) {
+          // Copy the header value to our buffer
+          int len = script_param->len < sizeof(script_name) - 1 ? script_param->len : sizeof(script_name) - 1;
+          // Use memcpy with the raw data from the mg_str
+          memcpy(script_name, script_param->buf, len);
+          script_name[len] = '\0';
+        } else {
+          // Try to get script name from query parameter
+          mg_http_get_var(&hm->query, "script", script_name, sizeof(script_name));
+        }
+        
+        // If still no script name, try to get it from form data (POST)
+        if (script_name[0] == '\0' && hm->body.len > 0) {
+          mg_http_get_var(&hm->body, "script", script_name, sizeof(script_name));
+        }
+        
+        if (script_name[0] != '\0') {
+          execute_shell_script(c, script_name);
+        } else {
+          mg_http_reply(c, 400, "Content-Type: application/json\r\n", 
+                       "{\"status\":\"error\",\"message\":\"No script specified\"}\n");
+        }
+      } else if (mg_match(hm->uri, mg_str("/index.html"), NULL) || 
+                 mg_match(hm->uri, mg_str("/"), NULL)) {
         // This is a request for the main index.html file
         char file_path[1024];
         snprintf(file_path, sizeof(file_path), "%s/index.html", s_web_root);

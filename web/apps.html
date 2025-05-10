@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xpra Apps Launcher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-message { display: none; }
+        .status-message.show { display: block; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-4 text-center">xpra Apps Launcher</h1>
+        <div id="script-buttons" class="space-y-2"></div>
+        <div id="status" class="mt-4 p-2 rounded text-center status-message"></div>
+    </div>
+
+    <script>
+        // Fetch scripts from the server
+        async function loadScripts() {
+            try {
+                // We still use the PHP script to list available scripts
+                const response = await fetch('/cgi-bin/run_script.php', { method: 'GET' });
+                const data = await response.json();
+                if (data.error) {
+                    showStatus(data.error, 'bg-red-100 text-red-700');
+                    return;
+                }
+                const scriptButtons = document.getElementById('script-buttons');
+                
+                data.scripts.forEach(script => {
+                    const button = document.createElement('button');
+                    button.className = 'w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded';
+                    button.textContent = `Run ${script.replace('.sh', '')}`;
+                    button.onclick = () => runScript(script);
+                    scriptButtons.appendChild(button);
+                });
+            } catch (error) {
+                showStatus(`Error loading scripts: ${error.message}`, 'bg-red-100 text-red-700');
+            }
+        }
+
+        // Run a script using the new direct endpoint in webserver.c
+        async function runScript(scriptName) {
+            try {
+                // Use the new /execute-script endpoint directly from webserver.c
+                const response = await fetch(`/execute-script?script=${encodeURIComponent(scriptName)}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Script-Name': scriptName
+                    }
+                });
+                const data = await response.json();
+                if (data.status === 'error') {
+                    showStatus(data.message, 'bg-red-100 text-red-700');
+                } else {
+                    showStatus(data.message, 'bg-green-100 text-green-700');
+                }
+            } catch (error) {
+                showStatus(`Error running script: ${error.message}`, 'bg-red-100 text-red-700');
+            }
+        }
+
+        // Show status message
+        function showStatus(message, className) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `mt-4 p-2 rounded text-center status-message show ${className}`;
+            setTimeout(() => {
+                statusDiv.className = 'mt-4 p-2 rounded text-center status-message';
+            }, 3000);
+        }
+
+        // Load scripts on page load
+        window.onload = loadScripts;
+    </script>
+</body>
+</html>
