@@ -2267,7 +2267,8 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 }
 
 static int waterfall_offset = 30;
-static int *wf = NULL;
+static float wf_offset = 0; // updated in draw_waterfall
+static int wf[(MAX_BINS / 2) * sizeof(int)];
 GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 
@@ -2316,19 +2317,7 @@ void init_waterfall()
 
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
-
-	if (wf)
-	{
-		free(wf);
-	}
-	// Allocate memory for wf buffer
-	wf = malloc((MAX_BINS / 2) * f->height * sizeof(int));
-	if (!wf)
-	{
-		puts("*Error: malloc failed on waterfall buffer (wf)");
-		exit(0);
-	}
-	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
+	memset(wf, 0, (MAX_BINS / 2) * sizeof(int));
 
 	if (waterfall_map)
 	{
@@ -2339,7 +2328,6 @@ void init_waterfall()
 	if (!waterfall_map)
 	{
 		puts("*Error: malloc failed on waterfall buffer (waterfall_map)");
-		free(wf); // Clean up previously allocated memory
 		exit(0);
 	}
 
@@ -2422,8 +2410,8 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	float initial_wf_max = 100.0f;
 
 	float min_db = (wf_min - 1.0f) * 100.0f;
-
 	float max_db = initial_wf_max * wf_max;
+	const bool autoscope = !strcmp(field_str("AUTOSCOPE"), "ON");
 
 	if (in_tx)
 	{
@@ -2448,7 +2436,6 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			f->width * (f->height - 1) * 3);
 
 	int index = 0;
-	static float wf_offset = 0;
 	for (int i = 0; i < f->width; i++)
 	{
 		// Scale the input value (original behavior restored)
@@ -2457,7 +2444,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Normalize data to the range [0, 100] based on adjusted min/max
 		float normalized = 0;
 
-		if (!strcmp(field_str("AUTOSCOPE"), "ON")&& !in_tx) {
+		if (autoscope && !in_tx) {
 			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
 		} else {
 			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
@@ -2627,6 +2614,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	struct field *f;
 	long freq, freq_div;
 	char freq_text[20];
+	const bool autoscope = !strcmp(field_str("AUTOSCOPE"), "ON");
 
 	if (in_tx)
 	{
@@ -3256,7 +3244,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		int enhanced_y = y;												// Start with the original y
 		float averaged_value = averaged_spectrum[i]; // Use averaged data
 
-                if (!strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx)
+		if (autoscope && !in_tx)
 			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
 		else
 			averaged_value += waterfall_offset;
