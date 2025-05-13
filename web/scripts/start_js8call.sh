@@ -8,22 +8,29 @@ chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
 chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
 
 # Check if JS8Call is already running
-pid=$(pgrep -f js8call)
+pid=$(pgrep -x js8call)
 if [ -n "$pid" ]; then
-    echo "JS8Call is already running"
+    echo "JS8Call is already running with PID: $pid" >> /home/pi/x11vnc_js8call.log
+    ps -p $pid -o cmd= >> /home/pi/x11vnc_js8call.log
     exit 0
 fi
 
 # Start Xvfb for display :3
-Xvfb :3 -screen 0 1600x900x24 &
+Xvfb :3 -screen 0 1280x1024x16 &
 XVFB_PID=$!
 echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_js8call.log
 
 # Wait for Xvfb to start
 sleep 1
 
+# Check if port 5903 is in use
+if netstat -tuln | grep -q :5903; then
+    echo "Port 5903 is already in use, attempting to kill process" >> /home/pi/x11vnc_js8call.log
+    fuser -k 5903/tcp
+    sleep 1
+fi
+
 # Start x11vnc on display :3, port 5903
-# Start without SSL - we'll handle encryption at the webserver level
 x11vnc -display :3 -rfbport 5903 -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_js8call.log &
 X11VNC_PID=$!
 echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_js8call.log
