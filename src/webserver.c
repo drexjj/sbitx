@@ -708,74 +708,102 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
         }
       } else if (mg_match(hm->uri, mg_str("/app-status"), NULL)) {
       // Handle app status request
-      char output[1024] = "";
+      char output[4096] = "{"; // Increased buffer size for more applications
+      char cmd[512];
       FILE *fp;
+      int first_app = 1;
       
-      // Check status of each application
-      int wsjtx_running = 0;
-      int fldigi_running = 0;
-      int js8call_running = 0;
-      int main_vnc_running = 0;
+      // Directory containing start scripts
+      char scripts_dir[256];
+      snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", s_web_root);
       
-      // Check WSJT-X
-      fp = popen("pgrep -x wsjtx > /dev/null && echo 1 || echo 0", "r");
+      // Command to list all start_*.sh files
+      snprintf(cmd, sizeof(cmd), "find %s -name 'start_*.sh' -type f -printf '%%f\\n'", scripts_dir);
+      
+      fp = popen(cmd, "r");
       if (fp != NULL) {
-        char result[10];
-        if (fgets(result, sizeof(result), fp) != NULL) {
-          wsjtx_running = (result[0] == '1');
-        }
-        pclose(fp);
-      }
-      
-      // Check FLDigi
-      fp = popen("pgrep -x fldigi > /dev/null && echo 1 || echo 0", "r");
-      if (fp != NULL) {
-        char result[10];
-        if (fgets(result, sizeof(result), fp) != NULL) {
-          fldigi_running = (result[0] == '1');
-        }
-        pclose(fp);
-      }
-      
-      // Check JS8Call
-      fp = popen("pgrep -x js8call > /dev/null && echo 1 || echo 0", "r");
-      if (fp != NULL) {
-        char result[10];
-        if (fgets(result, sizeof(result), fp) != NULL) {
-          js8call_running = (result[0] == '1');
-        }
-        pclose(fp);
-      }
-      
-      // Check Main VNC - more reliable check using ps and grep
-      fp = popen("ps aux | grep 'x11vnc.*-rfbport 5900' | grep -v grep > /dev/null && echo 1 || echo 0", "r");
-      if (fp != NULL) {
-        char result[10];
-        if (fgets(result, sizeof(result), fp) != NULL) {
-          main_vnc_running = (result[0] == '1');
-        }
-        pclose(fp);
-      }
-      
-      // Double check with the PID file
-      fp = popen("[ -f /tmp/main_x11vnc.pid ] && kill -0 $(cat /tmp/main_x11vnc.pid) 2>/dev/null && echo 1 || echo 0", "r");
-      if (fp != NULL) {
-        char result[10];
-        if (fgets(result, sizeof(result), fp) != NULL) {
-          // Only set to true if both checks pass, or keep existing value if already false
-          if (main_vnc_running) {
-            main_vnc_running = (result[0] == '1');
+        char script_name[128];
+        
+        // Process each start script
+        while (fgets(script_name, sizeof(script_name), fp) != NULL) {
+          // Remove newline character
+          script_name[strcspn(script_name, "\n")] = 0;
+          
+          // Extract app name from script name (remove 'start_' prefix and '.sh' suffix)
+          char app_name[128] = "";
+          if (strncmp(script_name, "start_", 6) == 0) {
+            strncpy(app_name, script_name + 6, sizeof(app_name) - 1);
+            app_name[strcspn(app_name, ".")] = 0; // Remove .sh extension
+            
+            // Skip novnc_proxy as it's a helper script, not an application
+            if (strcmp(app_name, "novnc_proxy") == 0) {
+              continue;
+            }
+            
+            int app_running = 0;
+            
+            // Special case for main_vnc which needs a different check
+            if (strcmp(app_name, "main_vnc") == 0) {
+              // Check Main VNC using ps and grep
+              FILE *app_fp = popen("ps aux | grep 'x11vnc.*-rfbport 5900' | grep -v grep > /dev/null && echo 1 || echo 0", "r");
+              if (app_fp != NULL) {
+                char result[10];
+                if (fgets(result, sizeof(result), app_fp) != NULL) {
+                  app_running = (result[0] == '1');
+                }
+                pclose(app_fp);
+              }
+              
+              // Double check with the PID file
+              app_fp = popen("[ -f /tmp/main_x11vnc.pid ] && kill -0 $(cat /tmp/main_x11vnc.pid) 2>/dev/null && echo 1 || echo 0", "r");
+              if (app_fp != NULL) {
+                char result[10];
+                if (fgets(result, sizeof(result), app_fp) != NULL) {
+                  // Only set to true if both checks pass, or keep existing value if already false
+                  if (app_running) {
+                    app_running = (result[0] == '1');
+                  }
+                }
+                pclose(app_fp);
+              }
+            } else {
+              // For other applications, use pgrep to check if they're running
+              // Extract the actual process name from app_name (e.g., wsjtx, fldigi, js8call)
+              char process_name[128];
+              strcpy(process_name, app_name);
+              
+              // Check if the application is running
+              char check_cmd[256];
+              snprintf(check_cmd, sizeof(check_cmd), "pgrep -x %s > /dev/null && echo 1 || echo 0", process_name);
+              
+              FILE *app_fp = popen(check_cmd, "r");
+              if (app_fp != NULL) {
+                char result[10];
+                if (fgets(result, sizeof(result), app_fp) != NULL) {
+                  app_running = (result[0] == '1');
+                }
+                pclose(app_fp);
+              }
+            }
+            
+            // Add comma if not the first app
+            if (!first_app) {
+              strcat(output, ",");
+            } else {
+              first_app = 0;
+            }
+            
+            // Add app status to JSON
+            char app_status[256];
+            snprintf(app_status, sizeof(app_status), "\"%s\":%s", app_name, app_running ? "true" : "false");
+            strcat(output, app_status);
           }
         }
         pclose(fp);
       }
       
-      // Format JSON response
-      snprintf(output, sizeof(output), "{\"wsjtx\":%s,\"fldigi\":%s,\"js8call\":%s,\"main_vnc\":%s}", 
-               wsjtx_running ? "true" : "false",
-               fldigi_running ? "true" : "false",
-               js8call_running ? "true" : "false",
-               main_vnc_running ? "true" : "false");
+      // Close JSON object
+      strcat(output, "}");
       
       // Send the response
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", output);
