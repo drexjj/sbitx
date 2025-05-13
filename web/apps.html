@@ -3,78 +3,235 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>xpra Apps Launcher</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Ham Radio Apps Control</title>
     <style>
-        .status-message { display: none; }
-        .status-message.show { display: block; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .app-container {
+            margin: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 3px;
+            color: white;
+        }
+        button.start {
+            background-color: #4CAF50;
+        }
+        button.start:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button.start:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        button.stop {
+            background-color: #f44336;
+        }
+        button.stop:hover {
+            background-color: #da190b;
+        }
+        #vnc-link {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+        #vnc-link:hover {
+            background-color: #1976D2;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        .status-running {
+            background-color: #4CAF50;
+        }
+        .status-stopped {
+            background-color: #f44336;
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h1 class="text-2xl font-bold mb-4 text-center">xpra Apps Launcher</h1>
-        <div id="script-buttons" class="space-y-2"></div>
-        <div id="status" class="mt-4 p-2 rounded text-center status-message"></div>
+<body>
+    <h1>Ham Radio Apps Control</h1>
+    <div class="app-container">
+        <h2>WSJT-X<span id="wsjtx-status" class="status-dot status-stopped"></span></h2>
+        <button class="start" id="wsjtx-start" onclick="controlApp('wsjtx', 'start', 5901, 6081)">Start WSJT-X</button>
+        <button class="stop" onclick="controlApp('wsjtx', 'stop')">Stop WSJT-X</button>
+    </div>
+    <div class="app-container">
+        <h2>FLDigi<span id="fldigi-status" class="status-dot status-stopped"></span></h2>
+        <button class="start" id="fldigi-start" onclick="controlApp('fldigi', 'start', 5902, 6082)">Start FLDigi</button>
+        <button class="stop" onclick="controlApp('fldigi', 'stop')">Stop FLDigi</button>
+    </div>
+    <div class="app-container">
+        <h2>JS8Call<span id="js8call-status" class="status-dot status-stopped"></span></h2>
+        <button class="start" id="js8call-start" onclick="controlApp('js8call', 'start', 5903, 6083)">Start JS8Call</button>
+        <button class="stop" onclick="controlApp('js8call', 'stop')">Stop JS8Call</button>
+    </div>
+    <div class="app-container">
+        <h2>Main VNC<span id="main_vnc-status" class="status-dot status-stopped"></span></h2>
+        <button class="start" id="main_vnc-start" onclick="controlApp('main_vnc', 'start', 5900, 6080)">Start Main VNC</button>
+        <button class="stop" onclick="controlApp('main_vnc', 'stop')">Stop Main VNC</button>
     </div>
 
+    <!-- <button class="start" id="main-vnc-button" onclick="startMainVNC()">Open Main VNC Desktop</button>
+    
     <script>
-        // Fetch scripts from the server
-        async function loadScripts() {
+        async function startMainVNC() {
             try {
-                // We still use the PHP script to list available scripts
-                const response = await fetch('/cgi-bin/run_script.php', { method: 'GET' });
-                const data = await response.json();
-                if (data.error) {
-                    showStatus(data.error, 'bg-red-100 text-red-700');
-                    return;
-                }
-                const scriptButtons = document.getElementById('script-buttons');
+                // Execute the start_main_vnc.sh script
+                const response = await fetch('/execute-script', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `script=${encodeURIComponent('start_main_vnc.sh')}`
+                });
+                const result = await response.json();
                 
-                data.scripts.forEach(script => {
-                    const button = document.createElement('button');
-                    button.className = 'w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded';
-                    button.textContent = `Run ${script.replace('.sh', '')}`;
-                    button.onclick = () => runScript(script);
-                    scriptButtons.appendChild(button);
-                });
-            } catch (error) {
-                showStatus(`Error loading scripts: ${error.message}`, 'bg-red-100 text-red-700');
-            }
-        }
-
-        // Run a script using the new direct endpoint in webserver.c
-        async function runScript(scriptName) {
-            try {
-                // Use the new /execute-script endpoint directly from webserver.c
-                const response = await fetch(`/execute-script?script=${encodeURIComponent(scriptName)}`, {
-                    method: 'GET',
-                    headers: {
-                        'X-Script-Name': scriptName
-                    }
-                });
-                const data = await response.json();
-                if (data.status === 'error') {
-                    showStatus(data.message, 'bg-red-100 text-red-700');
-                } else {
-                    showStatus(data.message, 'bg-green-100 text-green-700');
+                // Wait a moment for the VNC server to start
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Open the NoVNC viewer in a new window with improved parameters
+                const newWindow = window.open('https://sbitx.local:6080/vnc.html?host=sbitx&port=6080&password=sbitx&autoconnect=true&encrypt=1&resize=scale&scale=auto&quality=8&compression=0&view_only=0&shared=1', '_blank');
+                
+                if (newWindow) {
+                    // Set up a timer to check if the window is closed
+                    const checkWindowInterval = setInterval(() => {
+                        if (newWindow.closed) {
+                            clearInterval(checkWindowInterval);
+                            console.log('Main VNC window was closed, stopping the VNC server');
+                            // Stop the main VNC server when the window is closed
+                            fetch('/execute-script', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: `script=${encodeURIComponent('stop_main_vnc.sh')}`
+                            }).then(() => {
+                                // Update status after stopping
+                                updateStatus();
+                            }).catch(error => {
+                                console.error('Error stopping main VNC:', error);
+                            });
+                        }
+                    }, 2000); // Check every 2 seconds
                 }
             } catch (error) {
-                showStatus(`Error running script: ${error.message}`, 'bg-red-100 text-red-700');
+                alert('Error starting main VNC desktop: ' + error.message);
+            }
+        }
+    </script>-->
+
+    <script>
+        async function controlApp(app, action, vncPort, webPort) {
+            try {
+                // Format script name with underscores instead of hyphens
+                const appName = app.replace('-', '_');
+                const script = `${action}_${appName}.sh`;
+                const response = await fetch('/execute-script', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `script=${encodeURIComponent(script)}`
+                });
+                const result = await response.json();
+                alert(result.message || 'Operation completed');
+
+                if (result.status === 'success' && action === 'start') {
+                    try {
+                        // The NoVNC proxy is started by the application start script
+                        // Wait a moment for it to initialize
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        // Calculate the NoVNC port (6081 for 5901, etc.)
+                        const novncPort = vncPort + 180; // 5901 -> 6081
+                        
+                        // Open NoVNC in a new window with improved parameters
+                        const vncUrl = `http://sbitx.local:${novncPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
+                        const newWindow = window.open(vncUrl, '_blank');
+                        
+                        if (!newWindow) {
+                            alert('Popup blocked! Please allow popups for this site to use the VNC viewer.');
+                        } else {
+                            // Set up a timer to check if the window is closed
+                            const checkWindowInterval = setInterval(() => {
+                                if (newWindow.closed) {
+                                    clearInterval(checkWindowInterval);
+                                    console.log(`NoVNC window for ${app} was closed, stopping the application`);
+                                    // Stop the application when the window is closed
+                                    controlApp(app, 'stop');
+                                }
+                            }, 2000); // Check every 2 seconds
+                        }
+                    } catch (error) {
+                        alert('Error starting VNC connection: ' + error.message);
+                    }
+                }
+
+                // Update status
+                updateStatus();
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
 
-        // Show status message
-        function showStatus(message, className) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.className = `mt-4 p-2 rounded text-center status-message show ${className}`;
-            setTimeout(() => {
-                statusDiv.className = 'mt-4 p-2 rounded text-center status-message';
-            }, 3000);
+        async function updateStatus() {
+            try {
+                const response = await fetch('/app-status', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const status = await response.json();
+
+                // Update WSJT-X
+                document.getElementById('wsjtx-status').className = `status-dot ${status.wsjtx ? 'status-running' : 'status-stopped'}`;
+                document.getElementById('wsjtx-start').disabled = status.wsjtx;
+
+                // Update FLDigi
+                document.getElementById('fldigi-status').className = `status-dot ${status.fldigi ? 'status-running' : 'status-stopped'}`;
+                document.getElementById('fldigi-start').disabled = status.fldigi;
+
+                // Update JS8Call
+                document.getElementById('js8call-status').className = `status-dot ${status.js8call ? 'status-running' : 'status-stopped'}`;
+                document.getElementById('js8call-start').disabled = status.js8call;
+                
+                // Update Main VNC
+                document.getElementById('main_vnc-status').className = `status-dot ${status.main_vnc ? 'status-running' : 'status-stopped'}`;
+                document.getElementById('main_vnc-start').disabled = status.main_vnc;
+            } catch (error) {
+                console.error('Status update failed:', error);
+            }
         }
 
-        // Load scripts on page load
-        window.onload = loadScripts;
+        // Poll status every 5 seconds
+        setInterval(updateStatus, 5000);
+
+        // Initial status update
+        updateStatus();
     </script>
 </body>
 </html>

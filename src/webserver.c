@@ -18,11 +18,24 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include "dynamic_content.h"
 
 // Function declarations for browser microphone handling
 extern int browser_mic_input(int16_t *samples, int count);
 extern int is_browser_mic_active();
+
+// VNC proxy connection structure
+typedef struct {
+    struct mg_connection *client;  // WebSocket client connection
+    struct mg_connection *server;  // Connection to VNC server
+    int vnc_port;                  // VNC server port
+    int active;                    // Whether this proxy is active
+} vnc_proxy_t;
+
+#define MAX_VNC_PROXIES 10
+static vnc_proxy_t vnc_proxies[MAX_VNC_PROXIES] = {0};
 
 // HTTP and HTTPS endpoints
 static const char *s_http_addr = "0.0.0.0:8080";  // Plain address without protocol
@@ -229,6 +242,110 @@ typedef struct {
 } webserver_data_t;
 
 // Execute a shell script and return the result
+// Handle VNC proxy WebSocket connections
+static void handle_vnc_proxy(struct mg_connection *c, int ev, void *ev_data) {
+    // Get proxy data from connection's user_data
+    vnc_proxy_t *proxy = (vnc_proxy_t *)c->fn_data;
+    
+    if (ev == MG_EV_READ) {
+        // Forward data from VNC server to WebSocket client
+        if (proxy && proxy->client && !proxy->client->is_closing) {
+            // Send data from VNC server to WebSocket client
+            mg_ws_send(proxy->client, c->recv.buf, c->recv.len, WEBSOCKET_OP_BINARY);
+            // Clear the receive buffer after forwarding
+            mg_iobuf_del(&c->recv, 0, c->recv.len);
+        }
+    } else if (ev == MG_EV_CLOSE) {
+        // VNC server connection closed
+        if (proxy) {
+            if (webserver_debug_enabled) {
+                printf("VNC server connection closed\n");
+            }
+            
+            // Mark this proxy as inactive
+            proxy->active = 0;
+            proxy->server = NULL;
+            
+            // Close the client connection if it's still open
+            if (proxy->client && !proxy->client->is_closing) {
+                proxy->client->is_closing = 1;
+            }
+        }
+    } else if (ev == MG_EV_ERROR) {
+        // Connection error
+        if (webserver_debug_enabled) {
+            printf("VNC proxy error: %s\n", (char *)ev_data);
+        }
+    }
+}
+
+// Create a new VNC proxy connection
+static void create_vnc_proxy(struct mg_connection *c, int vnc_port) {
+    // Find an available proxy slot
+    int proxy_index = -1;
+    for (int i = 0; i < MAX_VNC_PROXIES; i++) {
+        if (!vnc_proxies[i].active) {
+            proxy_index = i;
+            break;
+        }
+    }
+    
+    if (proxy_index == -1) {
+        // No available proxy slots
+        if (webserver_debug_enabled) {
+            printf("No available VNC proxy slots\n");
+        }
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", 
+                     "{\"status\":\"error\",\"message\":\"No available VNC proxy slots\"}\n");
+        return;
+    }
+    
+    // Create a connection to the VNC server
+    char addr[32];
+    snprintf(addr, sizeof(addr), "127.0.0.1:%d", vnc_port);
+    
+    if (webserver_debug_enabled) {
+        printf("Creating VNC proxy to %s\n", addr);
+    }
+    
+    // Connect to the VNC server
+    struct mg_connection *server_conn = mg_connect(c->mgr, addr, handle_vnc_proxy, &vnc_proxies[proxy_index]);
+    // Note: The connection's fn_data will be set to &vnc_proxies[proxy_index] by mg_connect
+    if (server_conn == NULL) {
+        // Failed to connect to VNC server
+        if (webserver_debug_enabled) {
+            printf("Failed to connect to VNC server at %s\n", addr);
+        }
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", 
+                     "{\"status\":\"error\",\"message\":\"Failed to connect to VNC server\"}\n");
+        return;
+    }
+    
+    // Store the connections in the proxy structure
+    vnc_proxies[proxy_index].client = c;
+    vnc_proxies[proxy_index].server = server_conn;
+    vnc_proxies[proxy_index].vnc_port = vnc_port;
+    vnc_proxies[proxy_index].active = 1;
+    
+    // Respond with success
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", 
+                 "{\"status\":\"success\",\"message\":\"VNC proxy created\"}\n");
+}
+
+// Handle WebSocket messages for VNC proxy
+static void handle_vnc_ws(struct mg_connection *c, struct mg_ws_message *wm) {
+    // Find the proxy for this client connection
+    for (int i = 0; i < MAX_VNC_PROXIES; i++) {
+        if (vnc_proxies[i].active && vnc_proxies[i].client == c) {
+            // Forward data from WebSocket client to VNC server
+            if (vnc_proxies[i].server && !vnc_proxies[i].server->is_closing) {
+                mg_send(vnc_proxies[i].server, wm->data.buf, wm->data.len);
+            }
+            return;
+        }
+    }
+}
+
 static void execute_shell_script(struct mg_connection *c, const char *script_name) {
   char script_path[1024];
   char command[2048];
@@ -274,7 +391,7 @@ static void execute_shell_script(struct mg_connection *c, const char *script_nam
   
   if (result == 0) {
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", 
-                 "{\"status\":\"success\",\"message\":\"Script %s started successfully\"}\n", 
+                 "{\"status\":\"success\",\"message\":\"Executing script: %s\"}\n", 
                  script_name);
   } else {
     mg_http_reply(c, 500, "Content-Type: application/json\r\n", 
@@ -283,7 +400,18 @@ static void execute_shell_script(struct mg_connection *c, const char *script_nam
 }
 
 static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
-	// Check if this is binary data (browser microphone audio)
+	// Check if this is a VNC proxy WebSocket
+    for (int i = 0; i < MAX_VNC_PROXIES; i++) {
+        if (vnc_proxies[i].active && vnc_proxies[i].client == c) {
+            // Forward data from WebSocket client to VNC server
+            if (vnc_proxies[i].server && !vnc_proxies[i].server->is_closing) {
+                mg_send(vnc_proxies[i].server, wm->data.buf, wm->data.len);
+            }
+            return;
+        }
+    }
+    
+    // Check if this is binary data (browser microphone audio)
 	if (wm->data.len > 0 && wm->flags & 2) { 
 		// Binary data flag
 		// Process browser microphone data
@@ -528,7 +656,29 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
     } else {
       // Check if this is a script execution request or HTML file request
       struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-      if (mg_match(hm->uri, mg_str("/execute-script"), NULL)) {
+      if (mg_match(hm->uri, mg_str("/vnc-proxy"), NULL)) {
+        // Handle VNC proxy request
+        char vnc_port_str[16] = {0};
+        int vnc_port = 5901;  // Default VNC port
+        
+        // Get VNC port from query parameter
+        mg_http_get_var(&hm->query, "vnc_port", vnc_port_str, sizeof(vnc_port_str));
+        if (vnc_port_str[0] != '\0') {
+            vnc_port = atoi(vnc_port_str);
+        }
+        
+        if (vnc_port <= 0 || vnc_port > 65535) {
+            // Invalid port number
+            mg_http_reply(c, 400, "Content-Type: application/json\r\n", 
+                         "{\"status\":\"error\",\"message\":\"Invalid VNC port\"}\n");
+        } else {
+            // Create a new VNC proxy
+            create_vnc_proxy(c, vnc_port);
+        }
+      } else if (mg_match(hm->uri, mg_str("/vnc-ws"), NULL)) {
+        // Upgrade to WebSocket for VNC proxy
+        mg_ws_upgrade(c, hm, NULL);
+      } else if (mg_match(hm->uri, mg_str("/execute-script"), NULL)) {
         // Handle script execution request
         char script_name[256] = {0};
         struct mg_str *script_param = mg_http_get_header(hm, "X-Script-Name");
@@ -556,6 +706,79 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
           mg_http_reply(c, 400, "Content-Type: application/json\r\n", 
                        "{\"status\":\"error\",\"message\":\"No script specified\"}\n");
         }
+      } else if (mg_match(hm->uri, mg_str("/app-status"), NULL)) {
+      // Handle app status request
+      char output[1024] = "";
+      FILE *fp;
+      
+      // Check status of each application
+      int wsjtx_running = 0;
+      int fldigi_running = 0;
+      int js8call_running = 0;
+      int main_vnc_running = 0;
+      
+      // Check WSJT-X
+      fp = popen("pgrep -x wsjtx > /dev/null && echo 1 || echo 0", "r");
+      if (fp != NULL) {
+        char result[10];
+        if (fgets(result, sizeof(result), fp) != NULL) {
+          wsjtx_running = (result[0] == '1');
+        }
+        pclose(fp);
+      }
+      
+      // Check FLDigi
+      fp = popen("pgrep -x fldigi > /dev/null && echo 1 || echo 0", "r");
+      if (fp != NULL) {
+        char result[10];
+        if (fgets(result, sizeof(result), fp) != NULL) {
+          fldigi_running = (result[0] == '1');
+        }
+        pclose(fp);
+      }
+      
+      // Check JS8Call
+      fp = popen("pgrep -x js8call > /dev/null && echo 1 || echo 0", "r");
+      if (fp != NULL) {
+        char result[10];
+        if (fgets(result, sizeof(result), fp) != NULL) {
+          js8call_running = (result[0] == '1');
+        }
+        pclose(fp);
+      }
+      
+      // Check Main VNC - more reliable check using ps and grep
+      fp = popen("ps aux | grep 'x11vnc.*-rfbport 5900' | grep -v grep > /dev/null && echo 1 || echo 0", "r");
+      if (fp != NULL) {
+        char result[10];
+        if (fgets(result, sizeof(result), fp) != NULL) {
+          main_vnc_running = (result[0] == '1');
+        }
+        pclose(fp);
+      }
+      
+      // Double check with the PID file
+      fp = popen("[ -f /tmp/main_x11vnc.pid ] && kill -0 $(cat /tmp/main_x11vnc.pid) 2>/dev/null && echo 1 || echo 0", "r");
+      if (fp != NULL) {
+        char result[10];
+        if (fgets(result, sizeof(result), fp) != NULL) {
+          // Only set to true if both checks pass, or keep existing value if already false
+          if (main_vnc_running) {
+            main_vnc_running = (result[0] == '1');
+          }
+        }
+        pclose(fp);
+      }
+      
+      // Format JSON response
+      snprintf(output, sizeof(output), "{\"wsjtx\":%s,\"fldigi\":%s,\"js8call\":%s,\"main_vnc\":%s}", 
+               wsjtx_running ? "true" : "false",
+               fldigi_running ? "true" : "false",
+               js8call_running ? "true" : "false",
+               main_vnc_running ? "true" : "false");
+      
+      // Send the response
+      mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", output);
       } else if (mg_match(hm->uri, mg_str("/index.html"), NULL) || 
                  mg_match(hm->uri, mg_str("/"), NULL)) {
         // This is a request for the main index.html file
@@ -608,6 +831,26 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       // Just update the timestamp, which we already did above
       if (webserver_debug_enabled) {
         printf("Received pong from client\n");
+      }
+    } else if (wm->flags == WEBSOCKET_OP_BINARY) {
+      // Check if this is a VNC proxy WebSocket
+      int is_vnc_ws = 0;
+      for (int i = 0; i < MAX_VNC_PROXIES; i++) {
+        if (vnc_proxies[i].active && vnc_proxies[i].client == c) {
+          is_vnc_ws = 1;
+          handle_vnc_ws(c, wm);
+          break;
+        }
+      }
+      
+      // If not a VNC proxy WebSocket, check if it's a browser microphone
+      if (!is_vnc_ws) {
+        // Process browser microphone data
+        int16_t *audio_samples = (int16_t *)wm->data.buf;
+        int sample_count = wm->data.len / sizeof(int16_t);
+        
+        // Pass the browser microphone data to the audio processing chain
+        browser_mic_input(audio_samples, sample_count);
       }
     } else {
       // Regular message
