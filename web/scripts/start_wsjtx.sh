@@ -36,6 +36,9 @@ x11vnc -display :1 -rfbport 5901 -rfbauth /home/pi/.vnc/passwd -shared -forever 
 X11VNC_PID=$!
 echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_wsjtx.log
 
+# Initialize window manager to add titlebars/decorations
+/home/pi/sbitx/web/scripts/init_window_manager.sh 1
+
 # Start WSJT-X on display :1
 DISPLAY=:1 wsjtx &
 APP_PID=$!

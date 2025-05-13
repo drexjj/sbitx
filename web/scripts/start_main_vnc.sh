@@ -10,6 +10,19 @@ else
     X11VNC_PID=$!
     echo "Main x11vnc started with PID: $X11VNC_PID"
     echo "$X11VNC_PID" > /tmp/main_x11vnc.pid
+    
+    # Make sure xfwm4 is running on the main display
+    if ! pgrep -f "xfwm4 --display :0" > /dev/null; then
+        echo "Starting xfwm4 on main display :0"
+        DISPLAY=:0 xfwm4 --daemon &
+        XFWM_PID=$!
+        echo "xfwm4 started with PID: $XFWM_PID"
+        echo "$XFWM_PID" > /tmp/xfwm4_0.pid
+        # Wait a moment for window manager to initialize
+        sleep 1
+    else
+        echo "xfwm4 already running on display :0"
+    fi
 fi
 
 # Start NoVNC proxy for the main VNC port

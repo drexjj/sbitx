@@ -22,6 +22,9 @@ sleep 1
 x11vnc -display :2 -rfbport 5902 -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_fldigi.log &
 X11VNC_PID=$!
 
+# Initialize window manager to add titlebars/decorations
+/home/pi/sbitx/web/scripts/init_window_manager.sh 2
+
 # Start FLDigi on display :2
 DISPLAY=:2 fldigi &
 APP_PID=$!
@@ -32,3 +35,6 @@ echo "$X11VNC_PID" > /tmp/fldigi_x11vnc.pid
 echo "$APP_PID" > /tmp/fldigi_app.pid
 
 echo "FLDigi started"
+
+# Start NoVNC proxy for this VNC port
+/home/pi/sbitx/web/scripts/start_novnc_proxy.sh 5902
