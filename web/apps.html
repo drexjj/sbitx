@@ -95,17 +95,20 @@
             height: 20px;
             width: 20px;
             left: 2px;
-            bottom: 2px;
+            /* Center the knob vertically */
+            top: 50%;
+            transform: translateY(-50%);
             background-color: #fff;
             border-radius: 50%;
-            transition: transform 0.4s;
+            transition: transform 0.4s, left 0.4s;
         }
         input:checked + .slider {
             background-color: #00cc00;
             border-color: #00cc00;
         }
         input:checked + .slider:before {
-            transform: translateX(26px);
+            left: 28px;
+            transform: translateY(-50%);
         }
         .toggle-switch input:disabled + .slider {
             opacity: 0.6;
@@ -164,17 +167,6 @@
             .app-name {
                 font-size: 0.9rem;
             }
-            .toggle-switch {
-                width: 40px;
-                height: 20px;
-            }
-            .slider:before {
-                height: 16px;
-                width: 16px;
-            }
-            input:checked + .slider:before {
-                transform: translateX(20px);
-            }
             .app-item {
                 padding: 0.3rem 0.8rem;
             }
@@ -187,11 +179,11 @@
                 max-width: 100%;
             }
             .app-item {
-                flex-direction: column;
-                align-items: flex-start;
+                flex-direction: row;
+                align-items: center;
             }
             .toggle-switch {
-                margin-top: 0.5rem;
+                margin-top: 0;
             }
         }
     </style>
