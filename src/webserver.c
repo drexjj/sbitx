@@ -706,6 +706,146 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
           mg_http_reply(c, 400, "Content-Type: application/json\r\n", 
                        "{\"status\":\"error\",\"message\":\"No script specified\"}\n");
         }
+      } else if (mg_match(hm->uri, mg_str("/app-list"), NULL)) {
+      // Handle app list request - returns detailed information about available applications
+      char output[8192] = "["; // Larger buffer for app details
+      char cmd[512];
+      FILE *fp;
+      int first_app = 1;
+      
+      // Directory containing start scripts
+      char scripts_dir[256];
+      snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", s_web_root);
+      
+      // Command to list all start_*.sh files
+      snprintf(cmd, sizeof(cmd), "find %s -name 'start_*.sh' -type f -printf '%%f\n'", scripts_dir);
+      
+      fp = popen(cmd, "r");
+      if (fp != NULL) {
+        char script_name[128];
+        
+        // Process each start script
+        while (fgets(script_name, sizeof(script_name), fp) != NULL) {
+          // Remove newline character
+          script_name[strcspn(script_name, "\n")] = 0;
+          
+          // Extract app name from script name (remove 'start_' prefix and '.sh' suffix)
+          char app_name[128] = "";
+          if (strncmp(script_name, "start_", 6) == 0) {
+            strncpy(app_name, script_name + 6, sizeof(app_name) - 1);
+            app_name[strcspn(app_name, ".")] = 0; // Remove .sh extension
+            
+            // Skip novnc_proxy as it's a helper script, not an application
+            if (strcmp(app_name, "novnc_proxy") == 0) {
+              continue;
+            }
+            
+            // Determine VNC port and WebSocket port for this app
+            int vnc_port = 5900;  // Default port
+            int ws_port = 6080;   // Default WebSocket port
+            
+            // Try to extract port and display information from the start script
+            char script_path[512];
+            snprintf(script_path, sizeof(script_path), "%s/scripts/start_%s.sh", s_web_root, app_name);
+            
+            FILE *script_file = fopen(script_path, "r");
+            if (script_file != NULL) {
+              char line[512];
+              while (fgets(line, sizeof(line), script_file) != NULL) {
+                // Look for VNC_PORT=xxxx in the script
+                if (strstr(line, "VNC_PORT=") != NULL) {
+                  char *port_str = strstr(line, "VNC_PORT=") + 9; // Skip "VNC_PORT="
+                  vnc_port = atoi(port_str);
+                }
+                
+                // Look for WS_PORT=xxxx in the script
+                if (strstr(line, "WS_PORT=") != NULL) {
+                  char *port_str = strstr(line, "WS_PORT=") + 8; // Skip "WS_PORT="
+                  ws_port = atoi(port_str);
+                }
+                
+                // Look for DISPLAY_NUM=xxxx in the script (for future use)
+                if (strstr(line, "DISPLAY_NUM=") != NULL) {
+                  char *display_str = strstr(line, "DISPLAY_NUM=") + 12; // Skip "DISPLAY_NUM="
+                  // We could store this for future use if needed
+                  // int display_num = atoi(display_str);
+                }
+              }
+              fclose(script_file);
+            }
+            
+            // Fallback to known applications if ports weren't found in the script
+            // if (vnc_port == 5900 && ws_port == 6080) {
+            //   if (strcmp(app_name, "wsjtx") == 0) {
+            //     vnc_port = 5901;
+            //     ws_port = 6081;
+            //   } else if (strcmp(app_name, "wsjtx_jb") == 0) {
+            //     vnc_port = 5901;
+            //     ws_port = 6081;
+            //   } else if (strcmp(app_name, "fldigi") == 0) {
+            //     vnc_port = 5902;
+            //     ws_port = 6082;
+            //   } else if (strcmp(app_name, "js8call") == 0) {
+            //     vnc_port = 5903;
+            //     ws_port = 6083;
+            //   } else if (strcmp(app_name, "main_vnc") == 0) {
+            //     vnc_port = 5900;
+            //     ws_port = 6080;
+            //   } else {
+            //     // For new applications, use a dynamic port assignment
+            //     // This is a simple algorithm that assigns ports based on the app name
+            //     // to ensure consistency between restarts
+            //     unsigned int hash = 0;
+            //     for (int i = 0; app_name[i] != '\0'; i++) {
+            //       hash = hash * 31 + app_name[i];
+            //     }
+                
+            //     // Use the hash to generate a port number in the range 5904-5999
+            //     // This avoids conflicts with the known applications
+            //     vnc_port = 5904 + (hash % 95); // 95 = 5999 - 5904
+            //     ws_port = vnc_port + 180;      // Follow the pattern of adding 180
+            //   }
+            // }
+            
+            // Format the app name for display (capitalize first letter, replace underscores with spaces)
+            char display_name[128] = "";
+            strcpy(display_name, app_name);
+            
+            // Capitalize first letter
+            if (display_name[0] != '\0') {
+              display_name[0] = toupper(display_name[0]);
+            }
+            
+            // Replace underscores with spaces
+            for (int i = 0; display_name[i] != '\0'; i++) {
+                if (display_name[i] == '_') {
+                    display_name[i] = ' ';
+                }
+            }
+            
+            // Add comma if not the first app
+            if (!first_app) {
+              strcat(output, ",");
+            } else {
+              first_app = 0;
+            }
+            
+            // Add app details to JSON
+            char app_details[512];
+            snprintf(app_details, sizeof(app_details), 
+                     "{\"id\":\"%s\",\"name\":\"%s\",\"vncPort\":%d,\"wsPort\":%d}", 
+                     app_name, display_name, vnc_port, ws_port);
+            strcat(output, app_details);
+          }
+        }
+        pclose(fp);
+      }
+      
+      // Close JSON array
+      strcat(output, "]");
+      
+      // Send the response
+      mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", output);
       } else if (mg_match(hm->uri, mg_str("/app-status"), NULL)) {
       // Handle app status request
       char output[4096] = "{"; // Increased buffer size for more applications
@@ -718,7 +858,7 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", s_web_root);
       
       // Command to list all start_*.sh files
-      snprintf(cmd, sizeof(cmd), "find %s -name 'start_*.sh' -type f -printf '%%f\\n'", scripts_dir);
+      snprintf(cmd, sizeof(cmd), "find %s -name 'start_*.sh' -type f -printf '%%f\n'", scripts_dir);
       
       fp = popen(cmd, "r");
       if (fp != NULL) {

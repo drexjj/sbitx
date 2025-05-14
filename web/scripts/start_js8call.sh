@@ -1,4 +1,14 @@
 #!/bin/bash
+# Define the VNC and WebSocket ports for this application
+# The webserver will read these values to properly configure the web interface
+VNC_PORT=5903
+WS_PORT=6083
+DISPLAY_NUM=3
+
+# Define the application name and command
+APP_NAME="JS8Call"
+APP_COMMAND="js8call"
+
 # Stop other apps
 /home/pi/sbitx/web/scripts/stop_wsjtx.sh
 /home/pi/sbitx/web/scripts/stop_fldigi.sh
@@ -7,48 +17,48 @@
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
 chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
 
-# Check if JS8Call is already running
-pid=$(pgrep -x js8call)
+# Check if $APP_NAME is already running
+pid=$(pgrep -x $APP_COMMAND)
 if [ -n "$pid" ]; then
-    echo "JS8Call is already running with PID: $pid" >> /home/pi/x11vnc_js8call.log
+    echo "$APP_NAME is already running with PID: $pid" >> /home/pi/x11vnc_js8call.log
     ps -p $pid -o cmd= >> /home/pi/x11vnc_js8call.log
     exit 0
 fi
 
-# Start Xvfb for display :3
-Xvfb :3 -screen 0 1280x1024x16 &
+# Start Xvfb for our display
+Xvfb :$DISPLAY_NUM -screen 0 1280x1024x16 &
 XVFB_PID=$!
 echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_js8call.log
 
 # Wait for Xvfb to start
 sleep 1
 
-# Check if port 5903 is in use
-if netstat -tuln | grep -q :5903; then
-    echo "Port 5903 is already in use, attempting to kill process" >> /home/pi/x11vnc_js8call.log
-    fuser -k 5903/tcp
+# Check if port $VNC_PORT is in use
+if netstat -tuln | grep -q :$VNC_PORT; then
+    echo "Port $VNC_PORT is already in use, attempting to kill process" >> /home/pi/x11vnc_js8call.log
+    fuser -k $VNC_PORT/tcp
     sleep 1
 fi
 
-# Start x11vnc on display :3, port 5903
-x11vnc -display :3 -rfbport 5903 -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_js8call.log &
+# Start x11vnc on our display, port $VNC_PORT
+x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_js8call.log &
 X11VNC_PID=$!
 echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_js8call.log
 
 # Initialize window manager to add titlebars/decorations
-/home/pi/sbitx/web/scripts/init_window_manager.sh 3
+/home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
 
-# Start JS8Call on display :3
-DISPLAY=:3 js8call &
+# Start $APP_NAME on our display
+DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
 APP_PID=$!
-echo "JS8Call PID: $APP_PID" >> /home/pi/x11vnc_js8call.log
+echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_js8call.log
 
 # Save PIDs for cleanup
 echo "$XVFB_PID" > /tmp/js8call_xvfb.pid
 echo "$X11VNC_PID" > /tmp/js8call_x11vnc.pid
 echo "$APP_PID" > /tmp/js8call_app.pid
 
-echo "JS8Call started"
+echo "$APP_NAME started"
 
 # Start NoVNC proxy for this VNC port
-/home/pi/sbitx/web/scripts/start_novnc_proxy.sh 5903
+/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT

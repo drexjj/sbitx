@@ -77,77 +77,83 @@
         .status-stopped {
             background-color: #f44336;
         }
+        .loading-indicator {
+            padding: 20px;
+            text-align: center;
+            color: #555;
+            font-style: italic;
+        }
+        .error-message {
+            padding: 20px;
+            text-align: center;
+            color: #f44336;
+            background-color: #ffeeee;
+            border-radius: 5px;
+            margin: 20px;
+        }
     </style>
 </head>
 <body>
     <h1>Ham Radio Apps Control</h1>
-    <div class="app-container">
-        <h2>WSJT-X<span id="wsjtx-status" class="status-dot status-stopped"></span></h2>
-        <button class="start" id="wsjtx-start" onclick="controlApp('wsjtx', 'start', 5901, 6081)">Start WSJT-X</button>
-        <button class="stop" onclick="controlApp('wsjtx', 'stop')">Stop WSJT-X</button>
-    </div>
-    <div class="app-container">
-        <h2>FLDigi<span id="fldigi-status" class="status-dot status-stopped"></span></h2>
-        <button class="start" id="fldigi-start" onclick="controlApp('fldigi', 'start', 5902, 6082)">Start FLDigi</button>
-        <button class="stop" onclick="controlApp('fldigi', 'stop')">Stop FLDigi</button>
-    </div>
-    <div class="app-container">
-        <h2>JS8Call<span id="js8call-status" class="status-dot status-stopped"></span></h2>
-        <button class="start" id="js8call-start" onclick="controlApp('js8call', 'start', 5903, 6083)">Start JS8Call</button>
-        <button class="stop" onclick="controlApp('js8call', 'stop')">Stop JS8Call</button>
-    </div>
-    <div class="app-container">
-        <h2>Main VNC<span id="main_vnc-status" class="status-dot status-stopped"></span></h2>
-        <button class="start" id="main_vnc-start" onclick="controlApp('main_vnc', 'start', 5900, 6080)">Start Main VNC</button>
-        <button class="stop" onclick="controlApp('main_vnc', 'stop')">Stop Main VNC</button>
+    <div id="app-containers">
+        <!-- App containers will be dynamically generated here -->
+        <div class="loading-indicator">Loading applications...</div>
     </div>
 
-    <!-- <button class="start" id="main-vnc-button" onclick="startMainVNC()">Open Main VNC Desktop</button>
-    
+  
     <script>
-        async function startMainVNC() {
+        // Store the list of applications
+        let appList = [];
+        
+        // Load the application list from the server
+        async function loadAppList() {
             try {
-                // Execute the start_main_vnc.sh script
-                const response = await fetch('/execute-script', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `script=${encodeURIComponent('start_main_vnc.sh')}`
-                });
-                const result = await response.json();
+                const response = await fetch('/app-list');
+                appList = await response.json();
                 
-                // Wait a moment for the VNC server to start
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Generate app containers
+                generateAppContainers();
                 
-                // Open the NoVNC viewer in a new window with improved parameters
-                const newWindow = window.open('https://sbitx.local:6080/vnc.html?host=sbitx&port=6080&password=sbitx&autoconnect=true&encrypt=1&resize=scale&scale=auto&quality=8&compression=0&view_only=0&shared=1', '_blank');
-                
-                if (newWindow) {
-                    // Set up a timer to check if the window is closed
-                    const checkWindowInterval = setInterval(() => {
-                        if (newWindow.closed) {
-                            clearInterval(checkWindowInterval);
-                            console.log('Main VNC window was closed, stopping the VNC server');
-                            // Stop the main VNC server when the window is closed
-                            fetch('/execute-script', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `script=${encodeURIComponent('stop_main_vnc.sh')}`
-                            }).then(() => {
-                                // Update status after stopping
-                                updateStatus();
-                            }).catch(error => {
-                                console.error('Error stopping main VNC:', error);
-                            });
-                        }
-                    }, 2000); // Check every 2 seconds
-                }
+                // Initial status update
+                updateStatus();
             } catch (error) {
-                alert('Error starting main VNC desktop: ' + error.message);
+                console.error('Failed to load app list:', error);
+                document.getElementById('app-containers').innerHTML = 
+                    '<div class="error-message">Failed to load applications. Please refresh the page to try again.</div>';
             }
         }
-    </script>-->
-
-    <script>
+        
+        // Generate app containers based on the app list
+        function generateAppContainers() {
+            const container = document.getElementById('app-containers');
+            container.innerHTML = ''; // Clear loading indicator
+            
+            appList.forEach(app => {
+                const appContainer = document.createElement('div');
+                appContainer.className = 'app-container';
+                
+                const appTitle = document.createElement('h2');
+                appTitle.innerHTML = `${app.name}<span id="${app.id}-status" class="status-dot status-stopped"></span>`;
+                
+                const startButton = document.createElement('button');
+                startButton.className = 'start';
+                startButton.id = `${app.id}-start`;
+                startButton.textContent = `Start ${app.name}`;
+                startButton.onclick = () => controlApp(app.id, 'start', app.vncPort, app.wsPort);
+                
+                const stopButton = document.createElement('button');
+                stopButton.className = 'stop';
+                stopButton.textContent = `Stop ${app.name}`;
+                stopButton.onclick = () => controlApp(app.id, 'stop');
+                
+                appContainer.appendChild(appTitle);
+                appContainer.appendChild(startButton);
+                appContainer.appendChild(stopButton);
+                
+                container.appendChild(appContainer);
+            });
+        }
+        
         async function controlApp(app, action, vncPort, webPort) {
             try {
                 // Format script name with underscores instead of hyphens
@@ -167,11 +173,8 @@
                         // Wait a moment for it to initialize
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         
-                        // Calculate the NoVNC port (6081 for 5901, etc.)
-                        const novncPort = vncPort + 180; // 5901 -> 6081
-                        
                         // Open NoVNC in a new window with improved parameters
-                        const vncUrl = `http://sbitx.local:${novncPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
+                        const vncUrl = `http://sbitx.local:${webPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
                         const newWindow = window.open(vncUrl, '_blank');
                         
                         if (!newWindow) {
@@ -201,27 +204,20 @@
 
         async function updateStatus() {
             try {
-                const response = await fetch('/app-status', {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                const response = await fetch('/app-status');
                 const status = await response.json();
 
-                // Update WSJT-X
-                document.getElementById('wsjtx-status').className = `status-dot ${status.wsjtx ? 'status-running' : 'status-stopped'}`;
-                document.getElementById('wsjtx-start').disabled = status.wsjtx;
-
-                // Update FLDigi
-                document.getElementById('fldigi-status').className = `status-dot ${status.fldigi ? 'status-running' : 'status-stopped'}`;
-                document.getElementById('fldigi-start').disabled = status.fldigi;
-
-                // Update JS8Call
-                document.getElementById('js8call-status').className = `status-dot ${status.js8call ? 'status-running' : 'status-stopped'}`;
-                document.getElementById('js8call-start').disabled = status.js8call;
-                
-                // Update Main VNC
-                document.getElementById('main_vnc-status').className = `status-dot ${status.main_vnc ? 'status-running' : 'status-stopped'}`;
-                document.getElementById('main_vnc-start').disabled = status.main_vnc;
+                // Update status for each app in the list
+                appList.forEach(app => {
+                    const statusElement = document.getElementById(`${app.id}-status`);
+                    const startButton = document.getElementById(`${app.id}-start`);
+                    
+                    if (statusElement && startButton) {
+                        const isRunning = status[app.id] === true;
+                        statusElement.className = `status-dot ${isRunning ? 'status-running' : 'status-stopped'}`;
+                        startButton.disabled = isRunning;
+                    }
+                });
             } catch (error) {
                 console.error('Status update failed:', error);
             }
@@ -230,8 +226,8 @@
         // Poll status every 5 seconds
         setInterval(updateStatus, 5000);
 
-        // Initial status update
-        updateStatus();
+        // Load app list when the page loads
+        document.addEventListener('DOMContentLoaded', loadAppList);
     </script>
 </body>
 </html>

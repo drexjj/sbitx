@@ -1,4 +1,14 @@
 #!/bin/bash
+# Define the VNC and WebSocket ports for this application
+# The webserver will read these values to properly configure the web interface
+VNC_PORT=5901
+WS_PORT=6081
+DISPLAY_NUM=1
+
+# Define the application name and start command
+APP_NAME="WSJT-X"
+APP_COMMAND="wsjtx"
+
 # Stop other apps
 /home/pi/sbitx/web/scripts/stop_fldigi.sh
 /home/pi/sbitx/web/scripts/stop_js8call.sh
@@ -7,49 +17,49 @@
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
 chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
 
-# Check if WSJT-X is already running
-pid=$(pgrep -x wsjtx)
+# Check if $APP_NAME is already running
+pid=$(pgrep -x $APP_COMMAND)
 if [ -n "$pid" ]; then
-    echo "WSJT-X is already running with PID: $pid" >> /home/pi/x11vnc_wsjtx.log
+    echo "$APP_NAME is already running with PID: $pid" >> /home/pi/x11vnc_wsjtx.log
     ps -p $pid -o cmd= >> /home/pi/x11vnc_wsjtx.log
     exit 0
 fi
 
-# Start Xvfb for display :1
-Xvfb :1 -screen 0 1280x1024x16 &
+# Start Xvfb for our display
+Xvfb :$DISPLAY_NUM -screen 0 1280x1024x16 &
 XVFB_PID=$!
 echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_wsjtx.log
 
 # Wait for Xvfb to start
 sleep 1
 
-# Check if port 5901 is in use
-if netstat -tuln | grep -q :5901; then
-    echo "Port 5901 is already in use, attempting to kill process" >> /home/pi/x11vnc_wsjtx.log
-    fuser -k 5901/tcp
+# Check if port $VNC_PORT is in use
+if netstat -tuln | grep -q :$VNC_PORT; then
+    echo "Port $VNC_PORT is already in use, attempting to kill process" >> /home/pi/x11vnc_wsjtx.log
+    fuser -k $VNC_PORT/tcp
     sleep 1
 fi
 
-# Start x11vnc on display :1, port 5901
+# Start x11vnc on our display, port $VNC_PORT
 # Start without SSL - we'll handle encryption at the webserver level
-x11vnc -display :1 -rfbport 5901 -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_wsjtx.log &
+x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_wsjtx.log &
 X11VNC_PID=$!
 echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_wsjtx.log
 
 # Initialize window manager to add titlebars/decorations
-/home/pi/sbitx/web/scripts/init_window_manager.sh 1
+/home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
 
-# Start WSJT-X on display :1
-DISPLAY=:1 wsjtx &
+# Start $APP_NAME on our display
+DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
 APP_PID=$!
-echo "WSJT-X PID: $APP_PID" >> /home/pi/x11vnc_wsjtx.log
+echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_wsjtx.log
 
 # Save PIDs for cleanup
 echo "$XVFB_PID" > /tmp/wsjtx_xvfb.pid
 echo "$X11VNC_PID" > /tmp/wsjtx_x11vnc.pid
 echo "$APP_PID" > /tmp/wsjtx_app.pid
 
-echo "WSJT-X started"
+echo "$APP_NAME started"
 
 # Start NoVNC proxy for this VNC port
-/home/pi/sbitx/web/scripts/start_novnc_proxy.sh 5901
+/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT
