@@ -4105,7 +4105,90 @@
             specialIcon.addEventListener('click', function() {
                 specialSound.currentTime = 0;
                 specialSound.play();
+                createIconExplosion();
             });
+        }
+        
+        // Create explosion animation
+        function createIconExplosion() {
+            const explosionContainer = document.createElement('div');
+            explosionContainer.style.position = 'fixed';
+            explosionContainer.style.top = '0';
+            explosionContainer.style.left = '0';
+            explosionContainer.style.width = '100%';
+            explosionContainer.style.height = '100%';
+            explosionContainer.style.pointerEvents = 'none';
+            explosionContainer.style.zIndex = '-1'; // Set to negative z-index to appear behind the login card
+            document.body.appendChild(explosionContainer);
+            
+            // Create 30 flying icons
+            for (let i = 0; i < 30; i++) {
+                setTimeout(() => {
+                    const icon = document.createElement('div');
+                    
+                    // Use the same base64 image as the hidden icon
+                    const img = document.createElement('img');
+                    img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAABTpJREFUeF7tmleoXkUQx3+xYo8aE8SCLShiA0HB2AtiF1P0QbGgQQIqKr5YnlT0wQYqYkFFFFFsoKDYsaLmQUPELliivigm9u7+8awMm3P27J7v7nfz3e/M03fP2Z3y35nZmTl3GmNO08bcfnoAeg8YcwT6EBhzB+iTYB8CfQiMOQJ9CEySA6wDHAnMBXYHtgI2qHTZBXh3WHoN2wNWA04GrgY2bzByOrB8KgIwC3gI2Ddi3B/AWsMyXnKG5QE7Ak8DW7cY9wOw4VQDYDPgdWD7wDAZez+w0DyX6ysEhkbD8IDngIMDi54BTge+Bn4F1jTvBdSnw0KgNADK8op7S/cBpwF/Vg8XA3uaBdcAF00FAJTxPwB2MMa8BhwE/G6eXQJcYf7+G7jQhcINwwChpAfsA7xqjNCJ7wq8Hxi2cfVsZvD83io//FISiJIAyJV1kp4ecIae1GDMHEC5Yu2aXHEM8FspEEoC8AogwzzNcx7wcMSQwwCBJI+wVDQnlARAmXxbY4nK3S9bTnI28IhLnCqHPSlf7Ax8UsILSgKg6866tH7b5Ndkz6auT3gT2M4sUJK8bNQA+CdQOAdsFUe3mv0vA/uvqgDIXc8EDgW2AdZrUDQHAJ1+k8v/5Iqoz1xP8SxwO7B0EGBylArlqGm5Hjgb0J3fRjmyBOKPbQxdWPwF3FLdNinhtRLLHKXsZhn/ZE2JG9M5V1YYQjHeukI1X8gGIVcpr8TNwKKEE7JLcmXlACA5NwHnZOrUqR1WzL8NrG6EfeGGGOdXLa+6vJKkyZHyzVWum1Tb7UnhoOlS1jQp91QkTDX6eYHxewDflbS6hvcmwDvAluaddNNBJFMXAISwChNPbRVesjIdFs53ujxo9kk3W0S1suwCwAozwJQATXBKu32TIZJt54fZE6UuAOgeXtdopOHmNzUaHlUVM0pmKmx0a+RQyn7J/sow/TlSh9TK7gJAGAKnuJ5frWtISow+PvW7bR7YZb9k32M2qihSy51MOQBo7SHAjcBORsIy18DsVpMESwOgJLjEVYNbGF00azi3qhKTrtFUAGSwys6mkbYmPWpn5YKejgBuA3wIPJV8LP8tjO1XCGquqKFLHakVV3muiVSUUgA4EHjMlb0btfB63J3ICWbW1ya76/s1qpZZg5IYfQ8c56rVl2KL2gBQofFGgvFexp0V8knu1wEB6XsHcEbiXt0Qe8c8IQaA3qkNtVMdydVJXwe85aa3uhFyKbxG7f6u3wXUPO0FXAAcHSgUbaVjAKjcVJxZurgqQXONtusfdaX08Q0MVNScOAhzIJwyi52S9/N1fGMA3A2cajbp5I8dUDltV1jpS1E4+/vW5RqV1G1jsxQVpKv1hLuawiYGwEfBTF/z/BdTpCes0XzwWgfE4dVa3RCaIE+E8WKpL1FqkT19GDRO/7+IAaArTd/xPakLSxlSJNhffIl0Va7x1FghxgBQXb3+iAIQ9ggCo/YajwGgqsr223KrF4qf3cQICEPgvaCDTQoBVXFnGX2eANqKj4lRf3Au0lXNlCdNmDW7XIlyr8FL3afsKwfXrygH6Xh5IKHTNSgeyvoHBMyErqbB+nixqiRF5SpfCNmTl+q6/wVALbWVwvq0JUNnFD2zcsw1plMp/HFXALRvv6oZUvs5SqTCShWnOsNGavMAv1H/5KCkqGJoFEhurylU6wfVVAC80YqlBZVXqJqzdcJkAqNc9HnVvKmfqK376xTMBWAyjSwiuwegCKwjxLT3gBE6rCKq9h5QBNYRYtp7wAgdVhFVx94D/gUGttZBx+ED/QAAAABJRU5ErkJggg==';
+                    img.style.width = '30px';
+                    img.style.height = '30px';
+                    icon.appendChild(img);
+                    
+                    // Position randomly but start from center
+                    icon.style.position = 'absolute';
+                    icon.style.left = '50%';
+                    icon.style.top = '50%';
+                    icon.style.transform = 'translate(-50%, -50%)';
+                    icon.style.opacity = '0.9';
+                    
+                    explosionContainer.appendChild(icon);
+                    
+                    // Random direction and speed
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 30 + Math.random() * 70; // How far it goes
+                    const duration = 1000 + Math.random() * 2000; // Animation duration
+                    
+                    // Animate the icon
+                    const startTime = Date.now();
+                    const initialSize = 30 + Math.random() * 20;
+                    
+                    function animateIcon() {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        
+                        // Easing function for natural movement
+                        const easeOut = 1 - Math.pow(1 - progress, 3);
+                        
+                        // Calculate position
+                        const x = 50 + Math.cos(angle) * distance * easeOut;
+                        const y = 50 + Math.sin(angle) * distance * easeOut;
+                        
+                        // Calculate size and opacity
+                        const size = initialSize * (1 - 0.5 * easeOut);
+                        const opacity = 1 - easeOut;
+                        
+                        // Apply styles
+                        icon.style.left = x + '%';
+                        icon.style.top = y + '%';
+                        img.style.width = size + 'px';
+                        img.style.height = size + 'px';
+                        icon.style.opacity = opacity.toString();
+                        
+                        // Continue animation or remove
+                        if (progress < 1) {
+                            requestAnimationFrame(animateIcon);
+                        } else {
+                            icon.remove();
+                            
+                            // Remove container when all animations complete
+                            if (explosionContainer.children.length === 0) {
+                                explosionContainer.remove();
+                            }
+                        }
+                    }
+                    
+                    requestAnimationFrame(animateIcon);
+                }, Math.random() * 300); // Stagger the start times
+            }
         }
     });
 
