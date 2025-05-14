@@ -1,29 +1,51 @@
 #!/bin/bash
-# Define the application name
-APP_NAME="Main Desktop"
+# Define the application name and command
+APP_NAME="main_vnc"
+
 
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5900
 WS_PORT=6080
 
-# Script to stop the main VNC desktop and NoVNC proxy
+# Script to stop the application and clean up resources
 
-# Stop x11vnc
-pid=$(cat /tmp/main_x11vnc.pid 2>/dev/null)
-if [ -n "$pid" ]; then
-    kill $pid 2>/dev/null
-    rm /tmp/main_x11vnc.pid
-    echo "$APP_NAME x11vnc stopped"
-else
-    # Try to find and kill any running x11vnc processes on our port
-    pid=$(ps aux | grep "x11vnc.*-rfbport $VNC_PORT" | grep -v grep | awk '{print $2}')
-    if [ -n "$pid" ]; then
-        kill $pid 2>/dev/null
-        echo "Found and stopped x11vnc on port $VNC_PORT"
+# Check if the application is running
+if [ -f /tmp/${APP_NAME}_app.pid ]; then
+    APP_PID=$(cat /tmp/${APP_NAME}_app.pid)
+    if ps -p $APP_PID > /dev/null; then
+        echo "Stopping $APP_NAME (PID: $APP_PID)"
+        kill $APP_PID
+    else
+        echo "$APP_NAME process not found, but PID file exists"
     fi
+    rm -f /tmp/${APP_NAME}_app.pid
 fi
 
-# Stop the NoVNC proxy for the main VNC port
+# Stop x11vnc
+if [ -f /tmp/${APP_NAME}_x11vnc.pid ]; then
+    X11VNC_PID=$(cat /tmp/${APP_NAME}_x11vnc.pid)
+    if ps -p $X11VNC_PID > /dev/null; then
+        echo "Stopping x11vnc (PID: $X11VNC_PID)"
+        kill $X11VNC_PID
+    else
+        echo "x11vnc process not found, but PID file exists"
+    fi
+    rm -f /tmp/${APP_NAME}_x11vnc.pid
+fi
+
+# Stop Xvfb
+if [ -f /tmp/${APP_NAME}_xvfb.pid ]; then
+    XVFB_PID=$(cat /tmp/${APP_NAME}_xvfb.pid)
+    if ps -p $XVFB_PID > /dev/null; then
+        echo "Stopping Xvfb (PID: $XVFB_PID)"
+        kill $XVFB_PID
+    else
+        echo "Xvfb process not found, but PID file exists"
+    fi
+    rm -f /tmp/${APP_NAME}_xvfb.pid
+fi
+
+# Stop NoVNC proxy
 /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh $VNC_PORT $WS_PORT
 
 echo "$APP_NAME stopped"

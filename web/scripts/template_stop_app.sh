@@ -1,7 +1,7 @@
 #!/bin/bash
 # Define the application name and command
 APP_NAME="Application Name"
-APP_COMMAND="app_command"
+
 
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5910

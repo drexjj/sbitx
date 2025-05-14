@@ -8,37 +8,61 @@ DISPLAY_NUM=0
 # Define the widget label for the web interface
 WIDGET_LABEL="Main Desktop VNC"
 
-# Define the application name and command
-APP_NAME="Main Desktop"
+# Define the application name (lowercase, no spaces) and start command (use full path /home/pi/... and not ~/...)
+APP_NAME="main_vnc"
 APP_COMMAND="desktop"
 
-# Script to start the main VNC desktop
+# Stop other apps if needed
+# /home/pi/sbitx/web/scripts/stop_wsjtx.sh
+# /home/pi/sbitx/web/scripts/stop_fldigi.sh
+# /home/pi/sbitx/web/scripts/stop_js8call.sh
 
-# Check if x11vnc is already running on our port
-if netstat -tuln | grep -q :$VNC_PORT; then
-    echo "Port $VNC_PORT is already in use, x11vnc may already be running"
-else
-    # Start x11vnc on the main display, port $VNC_PORT
-    x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_main.log &
-    X11VNC_PID=$!
-    echo "Main x11vnc started with PID: $X11VNC_PID"
-    echo "$X11VNC_PID" > /tmp/main_x11vnc.pid
-    
-    # Make sure xfwm4 is running on the main display
-    if ! pgrep -f "xfwm4 --display :$DISPLAY_NUM" > /dev/null; then
-        echo "Starting xfwm4 on main display :$DISPLAY_NUM"
-        DISPLAY=:$DISPLAY_NUM xfwm4 --daemon &
-        XFWM_PID=$!
-        echo "xfwm4 started with PID: $XFWM_PID"
-        echo "$XFWM_PID" > /tmp/xfwm4_0.pid
-        # Wait a moment for window manager to initialize
-        sleep 1
-    else
-        echo "xfwm4 already running on display :$DISPLAY_NUM"
-    fi
+# Make sure the scripts are executable
+chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
+chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
+
+# Check if the application is already running
+pid=$(pgrep -x $APP_COMMAND)
+if [ -n "$pid" ]; then
+    echo "$APP_NAME is already running with PID: $pid" >> /home/pi/x11vnc_${APP_NAME}.log
+    ps -p $pid -o cmd= >> /home/pi/x11vnc_${APP_NAME}.log
+    exit 0
 fi
 
-# Start NoVNC proxy for the main VNC port
-/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT
+# Start Xvfb for our display
+Xvfb :$DISPLAY_NUM -screen 0 1280x1024x16 &
+XVFB_PID=$!
+echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
-echo "Main VNC desktop started"
+# Wait for Xvfb to start
+sleep 1
+
+# Check if port is in use
+if netstat -tuln | grep -q :$VNC_PORT; then
+    echo "Port $VNC_PORT is already in use, attempting to kill process" >> /home/pi/x11vnc_${APP_NAME}.log
+    fuser -k $VNC_PORT/tcp
+    sleep 1
+fi
+
+# Start x11vnc on our display, port $VNC_PORT
+x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_${APP_NAME}.log &
+X11VNC_PID=$!
+echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_${APP_NAME}.log
+
+# Initialize window manager to add titlebars/decorations
+/home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
+
+# Start the application on our display
+DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
+APP_PID=$!
+echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_${APP_NAME}.log
+
+# Save PIDs for cleanup
+echo "$XVFB_PID" > /tmp/app_name_xvfb.pid
+echo "$X11VNC_PID" > /tmp/app_name_x11vnc.pid
+echo "$APP_PID" > /tmp/app_name_app.pid
+
+echo "$APP_NAME started"
+
+# Start NoVNC proxy for this VNC port
+/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT
