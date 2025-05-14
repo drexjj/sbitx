@@ -7,7 +7,6 @@ APP_NAME="main_vnc"
 VNC_PORT=5900
 WS_PORT=6080
 
-# Script to stop the application and clean up resources
 
 # Check if the application is running
 if [ -f /tmp/${APP_NAME}_app.pid ]; then

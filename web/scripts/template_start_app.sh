@@ -58,9 +58,9 @@ APP_PID=$!
 echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
 # Save PIDs for cleanup
-echo "$XVFB_PID" > /tmp/app_name_xvfb.pid
-echo "$X11VNC_PID" > /tmp/app_name_x11vnc.pid
-echo "$APP_PID" > /tmp/app_name_app.pid
+echo "$XVFB_PID" > /tmp/${APP_NAME}_xvfb.pid
+echo "$X11VNC_PID" > /tmp/${APP_NAME}_x11vnc.pid
+echo "$APP_PID" > /tmp/${APP_NAME}_app.pid
 
 echo "$APP_NAME started"
 
