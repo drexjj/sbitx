@@ -1,11 +1,11 @@
 #!/bin/bash
-# Define the application name and command
-APP_NAME="Application Name"
-APP_COMMAND="app_command"
+# Define the application name
+APP_NAME="SB Launcher"
+
 
 # Define the VNC and WebSocket ports for this application
-VNC_PORT=5910
-WS_PORT=6090
+VNC_PORT=5911
+WS_PORT=6091
 
 # Script to stop the application and clean up resources
 

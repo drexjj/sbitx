@@ -6,8 +6,9 @@ WS_PORT=6090
 DISPLAY_NUM=10
 
 # Define the application name and command
-APP_NAME="Application Name"
-APP_COMMAND="app_command"
+APP_NAME="Spectrogram Generato"
+APP_COMMAND="python3"
+APP_ARGS="/home/pi/spectrum_painting/spectrogram-generator.py"
 
 # Stop other apps if needed
 # /home/pi/sbitx/web/scripts/stop_wsjtx.sh
@@ -19,45 +20,56 @@ chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
 chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
 
 # Check if the application is already running
-pid=$(pgrep -x $APP_COMMAND)
+pid=$(pgrep -f "$APP_COMMAND.*$APP_ARGS")
 if [ -n "$pid" ]; then
-    echo "$APP_NAME is already running with PID: $pid" >> /home/pi/x11vnc_app_name.log
-    ps -p $pid -o cmd= >> /home/pi/x11vnc_app_name.log
+    echo "$APP_NAME is already running with PID: $pid" >> /home/pi/x11vnc_spectrogram.log
+    ps -p $pid -o cmd= >> /home/pi/x11vnc_spectrogram.log
     exit 0
 fi
 
 # Start Xvfb for our display
 Xvfb :$DISPLAY_NUM -screen 0 1280x1024x16 &
 XVFB_PID=$!
-echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_app_name.log
+echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_spectrogram.log
 
 # Wait for Xvfb to start
 sleep 1
 
 # Check if port is in use
 if netstat -tuln | grep -q :$VNC_PORT; then
-    echo "Port $VNC_PORT is already in use, attempting to kill process" >> /home/pi/x11vnc_app_name.log
+    echo "Port $VNC_PORT is already in use, attempting to kill process" >> /home/pi/x11vnc_spectrogram.log
     fuser -k $VNC_PORT/tcp
     sleep 1
 fi
 
 # Start x11vnc on our display, port $VNC_PORT
-x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_app_name.log &
+x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -shared -forever -o /home/pi/x11vnc_spectrogram.log &
 X11VNC_PID=$!
-echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_app_name.log
+echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_spectrogram.log
 
 # Initialize window manager to add titlebars/decorations
 /home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
 
 # Start the application on our display
-DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
+export DISPLAY=:$DISPLAY_NUM
+export PYTHONUNBUFFERED=1
+export GDK_BACKEND=x11
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+
+# Make sure the directory exists
+mkdir -p $XDG_RUNTIME_DIR
+chmod 700 $XDG_RUNTIME_DIR
+
+# Start the application with proper environment
+cd /home/pi/spectrum_painting
+$APP_COMMAND $APP_ARGS --debug > /home/pi/spectrogram_app.log 2>&1 &
 APP_PID=$!
-echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_app_name.log
+echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_spectrogram.log
 
 # Save PIDs for cleanup
-echo "$XVFB_PID" > /tmp/app_name_xvfb.pid
-echo "$X11VNC_PID" > /tmp/app_name_x11vnc.pid
-echo "$APP_PID" > /tmp/app_name_app.pid
+echo "$XVFB_PID" > /tmp/spectrogram_xvfb.pid
+echo "$X11VNC_PID" > /tmp/spectrogram_x11vnc.pid
+echo "$APP_PID" > /tmp/spectrogram_app.pid
 
 echo "$APP_NAME started"
 

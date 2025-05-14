@@ -1,13 +1,13 @@
 #!/bin/bash
 # Define the VNC and WebSocket ports for this application
 # The webserver will read these values to properly configure the web interface
-VNC_PORT=5910
-WS_PORT=6090
-DISPLAY_NUM=10
+VNC_PORT=5911
+WS_PORT=6091
+DISPLAY_NUM=6
 
 # Define the application name and command
-APP_NAME="Application Name"
-APP_COMMAND="app_command"
+APP_NAME="SB Launcher"
+APP_COMMAND="/home/pi/sBITX-toolbox/sb_launcher"
 
 # Stop other apps if needed
 # /home/pi/sbitx/web/scripts/stop_wsjtx.sh

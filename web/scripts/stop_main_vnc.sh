@@ -1,7 +1,6 @@
 #!/bin/bash
-# Define the application name and command
+# Define the application name
 APP_NAME="Main Desktop"
-APP_COMMAND="desktop"
 
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5900

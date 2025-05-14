@@ -1,7 +1,6 @@
 #!/bin/bash
-# Define the application name and command
+# Define the application name
 APP_NAME="JS8Call"
-APP_COMMAND="js8call"
 
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5903
