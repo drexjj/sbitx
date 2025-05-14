@@ -807,20 +807,55 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
             //   }
             // }
             
-            // Format the app name for display (capitalize first letter, replace underscores with spaces)
-            char display_name[128] = "";
-            strcpy(display_name, app_name);
+            // Look for WIDGET_LABEL in the script file
+            char widget_label[128] = "";
+            int found_widget_label = 0;
             
-            // Capitalize first letter
-            if (display_name[0] != '\0') {
-              display_name[0] = toupper(display_name[0]);
+            FILE *label_file = fopen(script_path, "r");
+            if (label_file != NULL) {
+              char line[512];
+              while (fgets(line, sizeof(line), label_file) != NULL) {
+                // Look for WIDGET_LABEL="xxxx" in the script
+                if (strstr(line, "WIDGET_LABEL=") != NULL) {
+                  char *label_str = strstr(line, "WIDGET_LABEL=") + 13; // Skip "WIDGET_LABEL="
+                  
+                  // Extract the quoted string
+                  char *start = strchr(label_str, '"');
+                  if (start != NULL) {
+                    start++; // Skip the opening quote
+                    char *end = strchr(start, '"');
+                    if (end != NULL) {
+                      int len = end - start;
+                      if (len < sizeof(widget_label)) {
+                        strncpy(widget_label, start, len);
+                        widget_label[len] = '\0';
+                        found_widget_label = 1;
+                      }
+                    }
+                  }
+                }
+              }
+              fclose(label_file);
             }
             
-            // Replace underscores with spaces
-            for (int i = 0; display_name[i] != '\0'; i++) {
-                if (display_name[i] == '_') {
-                    display_name[i] = ' ';
-                }
+            // If no WIDGET_LABEL found, format the app name for display (capitalize first letter, replace underscores with spaces)
+            char display_name[128] = "";
+            if (found_widget_label) {
+              strcpy(display_name, widget_label);
+            } else {
+              strcpy(display_name, app_name);
+              
+              // Capitalize first letter
+              if (display_name[0] != '\0') {
+                display_name[0] = toupper(display_name[0]);
+              }
+              
+              // Replace underscores with spaces
+              for (int i = 0; display_name[i] != '\0'; i++) {
+                  if (display_name[i] == '_') {
+                      display_name[i] = ' ';
+                  }
+              }
             }
             
             // Add comma if not the first app

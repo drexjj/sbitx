@@ -5,6 +5,9 @@ VNC_PORT=5900
 WS_PORT=6080
 DISPLAY_NUM=0
 
+# Define the widget label for the web interface
+WIDGET_LABEL="Main Desktop VNC"
+
 # Define the application name and command
 APP_NAME="Main Desktop"
 APP_COMMAND="desktop"

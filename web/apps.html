@@ -2,119 +2,218 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ham Radio Apps Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>sBit-Xlauncher</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f0f0f0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #d0d0d0;
             margin: 0;
-            padding: 20px;
+            padding: 1rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
         }
-        .app-container {
-            margin: 20px;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 5px;
-            display: inline-block;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        
+        #smoke-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.5;
         }
         h1 {
-            color: #333;
+            color: #ffffff;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
         }
-        h2 {
-            color: #555;
-            margin-top: 0;
+        .app-list {
+            width: 100%;
+            max-width: 600px;
+            background-color: rgba(42, 42, 42, 0.85);
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 0.5rem;
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
-        button {
-            padding: 10px 20px;
-            margin: 5px;
-            font-size: 16px;
+        .app-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #444;
+        }
+        .app-item:last-child {
+            border-bottom: none;
+        }
+        .app-name {
+            font-family: 'Arial', sans-serif;
+            font-size: 1rem;
+            font-weight: bold;
+            margin: 0;
+            color: #d0d0d0;
+        }
+        /* Toggle Switch Styles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
             cursor: pointer;
-            border: none;
-            border-radius: 3px;
-            color: white;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cc0000;
+            border: 2px solid #444;
+            border-radius: 12px;
+            transition: background-color 0.4s;
         }
-        button.start {
-            background-color: #4CAF50;
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #fff;
+            border-radius: 50%;
+            transition: transform 0.4s;
         }
-        button.start:disabled {
-            background-color: #cccccc;
+        input:checked + .slider {
+            background-color: #00cc00;
+            border-color: #00cc00;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .toggle-switch input:disabled + .slider {
+            opacity: 0.6;
             cursor: not-allowed;
         }
-        button.start:hover:not(:disabled) {
-            background-color: #45a049;
-        }
-        button.stop {
-            background-color: #f44336;
-        }
-        button.stop:hover {
-            background-color: #da190b;
-        }
+        /* VNC Link */
         #vnc-link {
-            margin-top: 20px;
+            margin-top: 1rem;
             display: inline-block;
-            padding: 10px 20px;
-            background-color: #2196F3;
-            color: white;
+            padding: 0.8rem 1.5rem;
+            background-color: #0066cc;
+            color: #fff;
             text-decoration: none;
-            border-radius: 3px;
+            border: 2px solid #0066cc;
+            border-radius: 4px;
+            min-height: 44px;
+            line-height: 1.2;
+            font-family: inherit;
+            text-transform: uppercase;
         }
-        #vnc-link:hover {
-            background-color: #1976D2;
-        }
-        .status-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-left: 10px;
-        }
-        .status-running {
-            background-color: #4CAF50;
-        }
-        .status-stopped {
-            background-color: #f44336;
+        #vnc-link:hover,
+        #vnc-link:active {
+            background-color: #0055b3;
+            border-color: #0055b3;
         }
         .loading-indicator {
-            padding: 20px;
+            padding: 1rem;
             text-align: center;
-            color: #555;
+            color: #888;
             font-style: italic;
+            font-size: 1rem;
         }
         .error-message {
-            padding: 20px;
+            padding: 1rem;
             text-align: center;
-            color: #f44336;
-            background-color: #ffeeee;
-            border-radius: 5px;
-            margin: 20px;
+            color: #cc0000;
+            background-color: #3a1a1a;
+            border: 1px solid #cc0000;
+            border-radius: 4px;
+            margin: 1rem 0;
+            font-size: 1rem;
+        }
+        footer {
+            margin-top: 2rem;
+            padding: 1rem;
+            text-align: center;
+            color: #d0d0d0;
+            font-size: 0.9rem;
+            font-family: 'Arial', sans-serif;
+        }
+        /* Media Queries */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.6rem;
+            }
+            .app-name {
+                font-size: 0.9rem;
+            }
+            .toggle-switch {
+                width: 40px;
+                height: 20px;
+            }
+            .slider:before {
+                height: 16px;
+                width: 16px;
+            }
+            input:checked + .slider:before {
+                transform: translateX(20px);
+            }
+            .app-item {
+                padding: 0.3rem 0.8rem;
+            }
+            footer {
+                font-size: 0.8rem;
+            }
+        }
+        @media (max-width: 400px) {
+            .app-list {
+                max-width: 100%;
+            }
+            .app-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .toggle-switch {
+                margin-top: 0.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Ham Radio Apps Control</h1>
+    <canvas id="smoke-canvas"></canvas>
+    <h1>sBit-Xlauncher</h1>
     <div id="app-containers">
-        <!-- App containers will be dynamically generated here -->
         <div class="loading-indicator">Loading applications...</div>
     </div>
+    <footer>
+        Created by W2JON and W9JES for the sBitx transceiver
+    </footer>
 
-  
     <script>
-        // Store the list of applications
         let appList = [];
         
-        // Load the application list from the server
         async function loadAppList() {
             try {
                 const response = await fetch('/app-list');
                 appList = await response.json();
-                
-                // Generate app containers
                 generateAppContainers();
-                
-                // Initial status update
                 updateStatus();
             } catch (error) {
                 console.error('Failed to load app list:', error);
@@ -123,40 +222,49 @@
             }
         }
         
-        // Generate app containers based on the app list
         function generateAppContainers() {
             const container = document.getElementById('app-containers');
-            container.innerHTML = ''; // Clear loading indicator
+            container.innerHTML = '';
+            const appListDiv = document.createElement('div');
+            appListDiv.className = 'app-list';
             
             appList.forEach(app => {
-                const appContainer = document.createElement('div');
-                appContainer.className = 'app-container';
+                const appItem = document.createElement('div');
+                appItem.className = 'app-item';
                 
-                const appTitle = document.createElement('h2');
-                appTitle.innerHTML = `${app.name}<span id="${app.id}-status" class="status-dot status-stopped"></span>`;
+                const appName = document.createElement('span');
+                appName.className = 'app-name';
+                // Rename "Main vnc" to "Radio Screen"
+                appName.textContent = app.name === 'Main vnc' ? 'Radio Screen' : app.name;
                 
-                const startButton = document.createElement('button');
-                startButton.className = 'start';
-                startButton.id = `${app.id}-start`;
-                startButton.textContent = `Start ${app.name}`;
-                startButton.onclick = () => controlApp(app.id, 'start', app.vncPort, app.wsPort);
+                const toggleSwitch = document.createElement('label');
+                toggleSwitch.className = 'toggle-switch';
                 
-                const stopButton = document.createElement('button');
-                stopButton.className = 'stop';
-                stopButton.textContent = `Stop ${app.name}`;
-                stopButton.onclick = () => controlApp(app.id, 'stop');
+                const toggleInput = document.createElement('input');
+                toggleInput.type = 'checkbox';
+                toggleInput.id = `${app.id}-toggle`;
+                toggleInput.setAttribute('aria-label', `Toggle ${appName.textContent} application`);
+                toggleInput.onchange = () => {
+                    const action = toggleInput.checked ? 'start' : 'stop';
+                    controlApp(app.id, action, app.vncPort, app.wsPort);
+                };
                 
-                appContainer.appendChild(appTitle);
-                appContainer.appendChild(startButton);
-                appContainer.appendChild(stopButton);
+                const slider = document.createElement('span');
+                slider.className = 'slider';
                 
-                container.appendChild(appContainer);
+                toggleSwitch.appendChild(toggleInput);
+                toggleSwitch.appendChild(slider);
+                
+                appItem.appendChild(appName);
+                appItem.appendChild(toggleSwitch);
+                appListDiv.appendChild(appItem);
             });
+            
+            container.appendChild(appListDiv);
         }
         
         async function controlApp(app, action, vncPort, webPort) {
             try {
-                // Format script name with underscores instead of hyphens
                 const appName = app.replace('-', '_');
                 const script = `${action}_${appName}.sh`;
                 const response = await fetch('/execute-script', {
@@ -165,40 +273,33 @@
                     body: `script=${encodeURIComponent(script)}`
                 });
                 const result = await response.json();
-                alert(result.message || 'Operation completed');
 
                 if (result.status === 'success' && action === 'start') {
                     try {
-                        // The NoVNC proxy is started by the application start script
-                        // Wait a moment for it to initialize
                         await new Promise(resolve => setTimeout(resolve, 1000));
-                        
-                        // Open NoVNC in a new window with improved parameters
                         const vncUrl = `http://sbitx.local:${webPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
                         const newWindow = window.open(vncUrl, '_blank');
                         
                         if (!newWindow) {
-                            alert('Popup blocked! Please allow popups for this site to use the VNC viewer.');
+                            console.log('Popup blocked! Please allow popups for this site to use the VNC viewer.');
                         } else {
-                            // Set up a timer to check if the window is closed
                             const checkWindowInterval = setInterval(() => {
                                 if (newWindow.closed) {
                                     clearInterval(checkWindowInterval);
                                     console.log(`NoVNC window for ${app} was closed, stopping the application`);
-                                    // Stop the application when the window is closed
                                     controlApp(app, 'stop');
                                 }
-                            }, 2000); // Check every 2 seconds
+                            }, 2000);
                         }
                     } catch (error) {
-                        alert('Error starting VNC connection: ' + error.message);
+                        console.error('Error starting VNC connection:', error.message);
                     }
                 }
 
-                // Update status
                 updateStatus();
             } catch (error) {
-                alert('Error: ' + error.message);
+                console.error('Error:', error.message);
+                updateStatus();
             }
         }
 
@@ -207,15 +308,15 @@
                 const response = await fetch('/app-status');
                 const status = await response.json();
 
-                // Update status for each app in the list
                 appList.forEach(app => {
-                    const statusElement = document.getElementById(`${app.id}-status`);
-                    const startButton = document.getElementById(`${app.id}-start`);
-                    
-                    if (statusElement && startButton) {
+                    // Skip status updates for "Main vnc" (now "Radio Screen")
+                    if (app.name === 'Main vnc') {
+                        return;
+                    }
+                    const toggleInput = document.getElementById(`${app.id}-toggle`);
+                    if (toggleInput) {
                         const isRunning = status[app.id] === true;
-                        statusElement.className = `status-dot ${isRunning ? 'status-running' : 'status-stopped'}`;
-                        startButton.disabled = isRunning;
+                        toggleInput.checked = isRunning;
                     }
                 });
             } catch (error) {
@@ -223,11 +324,77 @@
             }
         }
 
-        // Poll status every 5 seconds
-        setInterval(updateStatus, 5000);
-
-        // Load app list when the page loads
-        document.addEventListener('DOMContentLoaded', loadAppList);
+        setInterval(updateStatus, 6000);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAppList();
+            initSmokeEffect();
+        });
+        
+        // Smoke effect implementation
+        function initSmokeEffect() {
+            const canvas = document.getElementById('smoke-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const particles = [];
+            const particleCount = 50;
+            
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height + Math.random() * 100,
+                    size: Math.random() * 15 + 10,
+                    speed: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.4 + 0.1,
+                    color: Math.random() > 0.5 ? '#3366cc' : '#336699',
+                    rotation: Math.random() * Math.PI * 2
+                });
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Update and draw particles
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    
+                    // Move particles upward
+                    p.y -= p.speed;
+                    p.x += Math.sin(p.y * 0.01) * 0.5;
+                    p.rotation += 0.005;
+                    
+                    // Reset particles that go off screen
+                    if (p.y < -50) {
+                        p.y = canvas.height + Math.random() * 50;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    
+                    // Draw number 5 as particle
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation);
+                    ctx.font = `${p.size}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillText('5', 0, 0);
+                    ctx.restore();
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+            
+            animate();
+        }
     </script>
 </body>
 </html>
