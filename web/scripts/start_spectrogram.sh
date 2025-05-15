@@ -31,7 +31,7 @@ if [ -n "$pid" ]; then
 fi
 
 # Start Xvfb for our display
-Xvfb :$DISPLAY_NUM -screen 0 1280x1024x16 &
+Xvfb :$DISPLAY_NUM -screen 0 450x600x16 &
 XVFB_PID=$!
 echo "Xvfb PID: $XVFB_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
