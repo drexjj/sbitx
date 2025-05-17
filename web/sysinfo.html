@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sBitx System Monitor</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent-color: #4CAF50;
+            --error-color: #ff4d4d;
+            --pre-bg: #2a2a2a;
+            --header-color: #80deea; /* Light cyan for header */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 1rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 1rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--header-color); /* Updated to light cyan */
+            text-align: center;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #444;
+            margin: 1rem 0;
+            width: 100%;
+        }
+
+        pre {
+            background-color: var(--pre-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            margin: 0.5rem 0;
+        }
+
+        p, ul {
+            margin: 0.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .error {
+            color: var(--error-color);
+            font-style: italic;
+            text-align: center;
+            margin: 1rem 0;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .container {
+                padding: 0.5rem;
+            }
+
+            h2 {
+                font-size: 1.25rem;
+            }
+
+            pre {
+                font-size: 0.85rem;
+            }
+
+            p, ul {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>sBitx System Monitor</h2>
+        <div id="system-info">Loading system information...</div>
+    </div>
+
+    <script>
+        // Track if we're currently fetching data
+        let isFetching = false;
+        let refreshButton;
+        
+        async function fetchSystemInfo(isManualRefresh = false) {
+            // Prevent multiple simultaneous requests
+            if (isFetching) return;
+            
+            isFetching = true;
+            
+            // Update button state if it exists and this is a manual refresh
+            if (isManualRefresh && refreshButton) {
+                refreshButton.textContent = 'Refreshing...';
+                refreshButton.disabled = true;
+            }
+            
+            try {
+                const response = await fetch('/cgi-bin/sysinfo.php');
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                const text = await response.text();
+
+                // Find the system-data div in the response
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                
+                // Get the system-data div content
+                const systemData = doc.querySelector('.system-data');
+                
+                if (systemData) {
+                    // Update the system-info div with the PHP output
+                    document.getElementById('system-info').innerHTML = systemData.innerHTML;
+                } else {
+                    // Fallback to using the body content if system-data div is not found
+                    document.getElementById('system-info').innerHTML = doc.body.innerHTML;
+                }
+                
+                // Add timestamp to show when data was last updated
+                const timestamp = document.createElement('div');
+                timestamp.className = 'update-time';
+                timestamp.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+                timestamp.style.fontSize = '0.8rem';
+                timestamp.style.color = '#999';
+                timestamp.style.textAlign = 'center';
+                timestamp.style.marginTop = '1rem';
+                
+                const existingTimestamp = document.querySelector('.update-time');
+                if (existingTimestamp) {
+                    existingTimestamp.replaceWith(timestamp);
+                } else {
+                    document.getElementById('system-info').appendChild(timestamp);
+                }
+                
+            } catch (error) {
+                console.error('Error fetching system info:', error);
+                document.getElementById('system-info').innerHTML = '<p class="error">Failed to load system information. Please try again later.</p>';
+            } finally {
+                isFetching = false;
+                
+                // Reset button state if it exists
+                if (refreshButton) {
+                    refreshButton.textContent = 'Refresh Now';
+                    refreshButton.disabled = false;
+                }
+            }
+        }
+
+        // Fetch data immediately when page loads
+        fetchSystemInfo();
+        
+        // Set up periodic updates every 3 seconds without page reload
+        const updateInterval = 3000; // 3 seconds
+        setInterval(() => fetchSystemInfo(), updateInterval);
+        
+        // Add a manual refresh button
+        function addRefreshButton() {
+            const container = document.querySelector('.container');
+            refreshButton = document.createElement('button');
+            refreshButton.textContent = 'Refresh Now';
+            refreshButton.style.marginTop = '1rem';
+            refreshButton.style.padding = '0.5rem 1rem';
+            refreshButton.style.backgroundColor = '#4CAF50';
+            refreshButton.style.color = 'white';
+            refreshButton.style.border = 'none';
+            refreshButton.style.borderRadius = '4px';
+            refreshButton.style.cursor = 'pointer';
+            refreshButton.addEventListener('click', () => fetchSystemInfo(true));
+            container.appendChild(refreshButton);
+        }
+        
+        // Add refresh button when the page loads
+        addRefreshButton();
+    </script>
+</body>
+</html>
