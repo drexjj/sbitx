@@ -159,64 +159,6 @@
             font-size: 0.9rem;
             font-family: 'Arial', sans-serif;
         }
-        
-        /* Login Panel Styles */
-        #login_panel {
-            display: block;
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 2rem;
-            background-color: rgba(42, 42, 42, 0.85);
-            border: 1px solid #444;
-            border-radius: 4px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            text-align: center;
-            backdrop-filter: blur(3px);
-            -webkit-backdrop-filter: blur(3px);
-        }
-        
-        #login_panel h1 {
-            margin-bottom: 1rem;
-        }
-        
-        #login_panel p {
-            margin-bottom: 1rem;
-            color: #d0d0d0;
-        }
-        
-        #login_error {
-            color: #ff5555;
-            margin-bottom: 1rem;
-            min-height: 1.2em;
-        }
-        
-        #passkey {
-            width: 100%;
-            max-width: 300px;
-            padding: 0.8rem;
-            margin-bottom: 1rem;
-            background-color: #333;
-            border: 1px solid #555;
-            border-radius: 4px;
-            color: #fff;
-            font-size: 1rem;
-        }
-        
-        #start_login {
-            padding: 0.8rem 1.5rem;
-            background-color: #0066cc;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        #start_login:hover {
-            background-color: #0055b3;
-        }
         /* Media Queries */
         @media (max-width: 600px) {
             h1 {
@@ -248,34 +190,13 @@
 </head>
 <body>
     <canvas id="smoke-canvas"></canvas>
-    
-    <!-- Login Panel (initially visible) -->
-    <section id="login_panel">
-        <div class="help_text">
-            <h1>sBit-Xlauncher</h1>
-            <p>Enter passkey to access your sBitx applications.</p>
-            <div id="login_error"></div>
-            <input type="text" class="sbitx-text-input" id="passkey" name="passkey" autocomplete="off"
-                placeholder="passkey">
-            <button class="sbitx-btn" id="start_login">Start</button>
-            <p>New user? Try 123 as the passkey.</p>
-            <p>
-                Released under General Public License v3.0.<br>
-                Created by W2JON and W9JES for the sBitx transceiver
-            </p>
-        </div>
-    </section>
-    
-    <!-- Main Content (initially hidden) -->
-    <div id="main_content" style="display: none;">
-        <h1>sBit-Xlauncher</h1>
-        <div id="app-containers">
-            <div class="loading-indicator">Loading applications...</div>
-        </div>
-        <footer>
-            Created by W2JON and W9JES for the sBitx transceiver
-        </footer>
+    <h1>sBit-Xlauncher</h1>
+    <div id="app-containers">
+        <div class="loading-indicator">Loading applications...</div>
     </div>
+    <footer>
+        Created by W2JON and W9JES for the sBitx transceiver
+    </footer>
 
     <script>
         let appList = [];
@@ -399,8 +320,7 @@
 
         setInterval(updateStatus, 6000);
         document.addEventListener('DOMContentLoaded', () => {
-            // Check if we're already authenticated from index.html
-            checkAuthentication();
+            loadAppList();
             initSmokeEffect();
         });
         
@@ -468,135 +388,6 @@
             });
             
             animate();
-        }
-        // Authentication functions
-        function checkAuthentication() {
-            // Auto-authenticate for localhost connections
-            if (document.location.hostname === '127.0.0.1' || 
-                document.location.hostname === 'localhost') {
-                showMainContent();
-                return;
-            }
-            
-            // First try to get session from the main interface
-            fetch('/get-session', {
-                method: 'GET',
-                credentials: 'same-origin' // Important: Send and receive cookies
-            })
-            .then(response => {
-                if (response.ok) {
-                    // Session exists, we can proceed
-                    return response.json().then(data => {
-                        if (data.status === 'success') {
-                            showMainContent();
-                            return;
-                        }
-                        // If we get here, something went wrong with the session
-                        throw new Error('Invalid session');
-                    });
-                } else {
-                    // No session from main interface, try localStorage
-                    const isLocalAuthenticated = localStorage.getItem('sbitx_authenticated');
-                    const storedPasskey = localStorage.getItem('sbitx_passkey');
-                    
-                    if (isLocalAuthenticated === 'true' && storedPasskey) {
-                        // Verify the passkey with the server
-                        verifyPasskey(storedPasskey);
-                    } else {
-                        // Show login panel
-                        showLoginPanel();
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error checking session:', error);
-                // Show login panel on error
-                showLoginPanel();
-            });
-        }
-        
-        function showLoginPanel() {
-            document.getElementById('login_panel').style.display = 'block';
-            document.getElementById('main_content').style.display = 'none';
-            
-            // Add event listener for login button
-            document.getElementById('start_login').addEventListener('click', doLogin);
-            
-            // Add event listener for Enter key on passkey input
-            document.getElementById('passkey').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    doLogin();
-                }
-            });
-        }
-        
-
-        
-        function doLogin() {
-            const passkey = document.getElementById('passkey').value;
-            
-            if (passkey.length < 3 && document.location.hostname !== '127.0.0.1' && document.location.hostname !== 'localhost') {
-                showLoginError('Enter the passkey (three characters or more)');
-                return;
-            }
-            
-            verifyPasskey(passkey);
-        }
-        
-        function verifyPasskey(passkey) {
-            // Send a request to verify the passkey
-            fetch('/verify-passkey', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                credentials: 'same-origin', // Important: Send and receive cookies
-                body: `passkey=${encodeURIComponent(passkey)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // Store authentication status
-                    localStorage.setItem('sbitx_authenticated', 'true');
-                    localStorage.setItem('sbitx_passkey', passkey);
-                    
-                    // Store the session cookie if provided
-                    if (data.cookie) {
-                        document.cookie = `session=${data.cookie}; path=/`;
-                    }
-                    
-                    // Show main content
-                    showMainContent();
-                } else {
-                    showLoginError('Invalid passkey. Please try again.');
-                    localStorage.removeItem('sbitx_authenticated');
-                    localStorage.removeItem('sbitx_passkey');
-                }
-            })
-            .catch(error => {
-                console.error('Authentication error:', error);
-                
-                // If we're on localhost, auto-authenticate for convenience
-                if (document.location.hostname === '127.0.0.1' || document.location.hostname === 'localhost') {
-                    localStorage.setItem('sbitx_authenticated', 'true');
-                    localStorage.setItem('sbitx_passkey', '123'); // Default passkey for local access
-                    showMainContent();
-                } else {
-                    showLoginError('Failed to verify passkey. Please try again.');
-                }
-            });
-        }
-        
-        function showLoginError(message) {
-            const errorElement = document.getElementById('login_error');
-            errorElement.textContent = message;
-            errorElement.style.color = 'red';
-        }
-        
-        function showMainContent() {
-            document.getElementById('login_panel').style.display = 'none';
-            document.getElementById('main_content').style.display = 'block';
-            
-            // Load the app list now that we're authenticated
-            loadAppList();
         }
     </script>
 </body>

@@ -173,11 +173,7 @@ static void do_login(struct mg_connection *c, char *key){
 	}
 	
 	hd_createGridList(); // oz7bx: Make the list up to date at the beginning of a session
-	
-	// Generate a new session cookie
 	sprintf(session_cookie, "%x", rand());
-	
-	// Send the cookie via WebSocket for the current connection
 	char response[100];
 	sprintf(response, "login %s", session_cookie);
 	web_respond(c, response);	
@@ -885,97 +881,6 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       
       // Send the response
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", output);
-      } else if (mg_match(hm->uri, mg_str("/get-session"), NULL)) {
-        // This endpoint returns the current session cookie for apps.html
-        // It only works if there is an active session
-        
-        // Check if there's an active WebSocket connection (which means someone is logged in)
-        if (strlen(session_cookie) > 0 && active_websocket_connections > 0) {
-          // Set HTTP cookie for the session
-          char headers[256];
-          snprintf(headers, sizeof(headers), 
-                  "Content-Type: application/json\r\n"
-                  "Set-Cookie: session=%s; Path=/; SameSite=Lax\r\n", 
-                  session_cookie);
-          
-          mg_http_reply(c, 200, headers, 
-                       "{\"status\":\"success\",\"message\":\"Session cookie set\"}");
-        } else {
-          // No active session
-          mg_http_reply(c, 401, "Content-Type: application/json\r\n", 
-                       "{\"status\":\"error\",\"message\":\"No active session\"}");
-        }
-      } else if (mg_match(hm->uri, mg_str("/verify-passkey"), NULL)) {
-        // Handle passkey verification for apps.html
-        char passkey[20] = {0};
-        char stored_passkey[20] = {0};
-        char cookie_value[100] = {0};
-        int authenticated = 0;
-        
-        // First check if the user has a valid session cookie from index.html
-        struct mg_str *cookie = mg_http_get_header(hm, "Cookie");
-        if (cookie != NULL) {
-          // Extract session cookie value manually
-          char cookie_buf[256] = {0};
-          char *session_str = strstr(cookie->buf, "session=");
-          
-          if (session_str) {
-            // Move past "session="
-            session_str += 8;
-            
-            // Copy until semicolon or end of string
-            int i = 0;
-            while (i < sizeof(cookie_buf) - 1 && 
-                   i < cookie->len - (session_str - cookie->buf) && 
-                   session_str[i] != ';' && session_str[i] != '\0') {
-              cookie_buf[i] = session_str[i];
-              i++;
-            }
-            cookie_buf[i] = '\0';
-            
-            // Check if the cookie matches our session cookie
-            if (strlen(cookie_buf) > 0 && strcmp(cookie_buf, session_cookie) == 0) {
-              authenticated = 1;
-            }
-          }
-        }
-        
-        // If not authenticated by cookie, check passkey
-        if (!authenticated) {
-          // Try to get passkey from form data (POST)
-          if (hm->body.len > 0) {
-            mg_http_get_var(&hm->body, "passkey", passkey, sizeof(passkey));
-          }
-          
-          // Get stored passkey
-          get_field_value("#passkey", stored_passkey);
-          
-          // Check if IP is 127.0.0.1 (localhost)
-          int is_localhost = (c->rem.ip[0] == 127 && c->rem.ip[1] == 0 && 
-                             c->rem.ip[2] == 0 && c->rem.ip[3] == 1);
-          
-          // Verify passkey (allow any passkey for localhost)
-          if (is_localhost || (passkey[0] != '\0' && strcmp(stored_passkey, passkey) == 0)) {
-            authenticated = 1;
-          }
-        }
-        
-        // Send response based on authentication status
-        if (authenticated) {
-          // Authentication successful - set HTTP cookie
-          char headers[256];
-          snprintf(headers, sizeof(headers), 
-                  "Content-Type: application/json\r\n"
-                  "Set-Cookie: session=%s; Path=/; SameSite=Lax\r\n", 
-                  session_cookie);
-          
-          mg_http_reply(c, 200, headers, 
-                       "{\"status\":\"success\",\"message\":\"Authentication successful\"}");
-        } else {
-          // Authentication failed
-          mg_http_reply(c, 401, "Content-Type: application/json\r\n", 
-                       "{\"status\":\"error\",\"message\":\"Invalid passkey\"}");
-        }
       } else if (mg_match(hm->uri, mg_str("/app-status"), NULL)) {
       // Handle app status request
       char output[4096] = "{"; // Increased buffer size for more applications
@@ -1039,64 +944,28 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
             } else {
               // For other applications, use pgrep to check if they're running
               // Extract the actual process name from app_name (e.g., wsjtx, fldigi, js8call)
+              char process_name[128];
+              strcpy(process_name, app_name);
               
-              int app_running = 0;
+              // Check if the application is running
+              char check_cmd[256];
+              snprintf(check_cmd, sizeof(check_cmd), "pgrep -x %s > /dev/null && echo 1 || echo 0", process_name);
               
-              // Special case for main_vnc which needs a different check
-              if (strcmp(app_name, "main_vnc") == 0) {
-                // Check Main VNC using ps and grep
-                FILE *app_fp = popen("ps aux | grep 'x11vnc.*-rfbport 5900' | grep -v grep > /dev/null && echo 1 || echo 0", "r");
-                if (app_fp != NULL) {
-                  char result[10];
-                  if (fgets(result, sizeof(result), app_fp) != NULL) {
-                    app_running = (result[0] == '1');
-                  }
-                  pclose(app_fp);
+              FILE *app_fp = popen(check_cmd, "r");
+              if (app_fp != NULL) {
+                char result[10];
+                if (fgets(result, sizeof(result), app_fp) != NULL) {
+                  app_running = (result[0] == '1');
                 }
-                
-                // Double check with the PID file
-                app_fp = popen("[ -f /tmp/main_x11vnc.pid ] && kill -0 $(cat /tmp/main_x11vnc.pid) 2>/dev/null && echo 1 || echo 0", "r");
-                if (app_fp != NULL) {
-                  char result[10];
-                  if (fgets(result, sizeof(result), app_fp) != NULL) {
-                    // Only set to true if both checks pass, or keep existing value if already false
-                    if (app_running) {
-                      app_running = (result[0] == '1');
-                    }
-                  }
-                  pclose(app_fp);
-                }
-              } else {
-                // For other applications, use pgrep to check if they're running
-                // Extract the actual process name from app_name (e.g., wsjtx, fldigi, js8call)
-                char process_name[128];
-                strcpy(process_name, app_name);
-                
-                // Check if the application is running
-                char check_cmd[256];
-                snprintf(check_cmd, sizeof(check_cmd), "pgrep -x %s > /dev/null && echo 1 || echo 0", process_name);
-                
-                FILE *app_fp = popen(check_cmd, "r");
-                if (app_fp != NULL) {
-                  char result[10];
-                  if (fgets(result, sizeof(result), app_fp) != NULL) {
-                    app_running = (result[0] == '1');
-                  }
-                  pclose(app_fp);
-                }
+                pclose(app_fp);
               }
-              
-              // Add comma if not the first app
-              if (!first_app) {
-                strcat(output, ",");
-              } else {
-                first_app = 0;
-              }
-              
-              // Add app status to JSON
-              char app_status[256];
-              snprintf(app_status, sizeof(app_status), "\"%s\":%s", app_name, app_running ? "true" : "false");
-              strcat(output, app_status);
+            }
+            
+            // Add comma if not the first app
+            if (!first_app) {
+              strcat(output, ",");
+            } else {
+              first_app = 0;
             }
             
             // Add app status to JSON
