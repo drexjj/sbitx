@@ -269,7 +269,9 @@
                 if (result.status === 'success' && action === 'start') {
                     try {
                         await new Promise(resolve => setTimeout(resolve, 2000));
-                        const vncUrl = `http://sbitx.local:${webPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
+                        // Use the current hostname but always use HTTP protocol for VNC
+                        const currentHostname = window.location.hostname;
+                        const vncUrl = `http://${currentHostname}:${webPort}/vnc.html?autoconnect=true&resize=scale&scale=auto&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
                         const newWindow = window.open(vncUrl, '_blank');
                         
                         if (!newWindow) {
