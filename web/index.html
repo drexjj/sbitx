@@ -67,6 +67,8 @@
     <input type="hidden" id="REC" value="OFF">
     <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="">
     <input type="hidden" id="VFO" value="A"> <!-- Fixed id from VFOx to VFO -->
+    <input type="hidden" id="VOLTAGE" value="0">
+    <input type="hidden" id="CURRENT" value="0">
     <div id="keypad_panel" class="sbitx-panel" style="display: none;">
         <h2 class="sbitx-panel-title">
             Enter Frequency
@@ -93,6 +95,10 @@
         </div>
     </div>
     <div id="sdr_page">
+        <!-- Battery status display if INA260 is equipped -->
+        <div id="battery_status" style="display: none; text-align: left; padding: 5px; color: white; font-size: 14px;">
+            BATT:  <span id="voltage_display">0.00V</span> / <span id="current_display">0.00A</span>
+        </div>
         <section id="maincontrols">
             <div class="sbitxv3-control">
                 <label class="sbitxv3-label" for="MODE">MODE</label>
@@ -3753,6 +3759,16 @@
                 break;
             case 'macros_list':
                 logger_list_macros(args);
+                break;
+            case 'VOLTAGE':
+                el("VOLTAGE").value = args;
+                document.getElementById("voltage_display").textContent = parseFloat(args).toFixed(2) + "V";
+                document.getElementById("battery_status").style.display = "block";
+                break;
+            case 'CURRENT':
+                el("CURRENT").value = args;
+                document.getElementById("current_display").textContent = parseFloat(args).toFixed(2) + "A";
+                document.getElementById("battery_status").style.display = "block";
                 break;
             case 'MACRO':
                 logger_macro_changed_from_sdr(args);

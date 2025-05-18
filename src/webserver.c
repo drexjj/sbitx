@@ -22,6 +22,11 @@
 #include <netdb.h>
 #include "dynamic_content.h"
 
+// External variables for voltage and current readings from INA260 sensor
+extern float voltage;
+extern float current;
+extern int has_ina260;
+
 // Function declarations for browser microphone handling
 extern int browser_mic_input(int16_t *samples, int count);
 extern int is_browser_mic_active();
@@ -144,6 +149,15 @@ static void get_updates(struct mg_connection *c, int all){
 	int i = 0;
 
 	get_console(c);
+
+	// Send voltage and current readings if INA260 is equipped
+	if (has_ina260 == 1) {
+		sprintf(buff, "VOLTAGE %.2f", voltage);
+		mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
+		
+		sprintf(buff, "CURRENT %.2f", current);
+		mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
+	}
 
 	while(1){
 		int update = remote_update_field(i, buff);
