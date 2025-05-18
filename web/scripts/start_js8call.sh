@@ -56,10 +56,16 @@ DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
 APP_PID=$!
 echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
+# Maximize the window with wmctrl
+DISPLAY=:$DISPLAY_NUM wmctrl -r "${APP_NAME}" -b add,maximized_vert,maximized_horz &
+WMCTRL_PID=$!
+echo "wmctrl PID: $WMCTRL_PID" >> /home/pi/wmctrl_${APP_NAME}.log
+
 # Save PIDs for cleanup
 echo "$XVFB_PID" > /tmp/${APP_NAME}_xvfb.pid
 echo "$X11VNC_PID" > /tmp/${APP_NAME}_x11vnc.pid
 echo "$APP_PID" > /tmp/${APP_NAME}_app.pid
+echo "$WMCTRL_PID" > /tmp/${APP_NAME}_wmctrl.pid
 
 echo "$APP_NAME started"
 

@@ -27,6 +27,13 @@ if [ -n "$pid" ]; then
     rm /tmp/${APP_NAME}_xvfb.pid
 fi
 
+# Stop wmctrl
+pid=$(cat /tmp/${APP_NAME}_wmctrl.pid 2>/dev/null)
+if [ -n "$pid" ]; then
+    kill $pid 2>/dev/null
+    rm /tmp/${APP_NAME}_wmctrl.pid
+fi
+
 # Stop the NoVNC proxy for this VNC port
 /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh $VNC_PORT $WS_PORT
 

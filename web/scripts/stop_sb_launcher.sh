@@ -34,15 +34,17 @@ if [ -f /tmp/${APP_NAME}_x11vnc.pid ]; then
 fi
 
 # Stop Xvfb
-if [ -f /tmp/${APP_NAME}_xvfb.pid ]; then
-    XVFB_PID=$(cat /tmp/${APP_NAME}_xvfb.pid)
-    if ps -p $XVFB_PID > /dev/null; then
-        echo "Stopping Xvfb (PID: $XVFB_PID)"
-        kill $XVFB_PID
-    else
-        echo "Xvfb process not found, but PID file exists"
-    fi
-    rm -f /tmp/${APP_NAME}_xvfb.pid
+pid=$(cat /tmp/${APP_NAME}_xvfb.pid 2>/dev/null)
+if [ -n "$pid" ]; then
+    kill $pid 2>/dev/null
+    rm /tmp/${APP_NAME}_xvfb.pid
+fi
+
+# Stop wmctrl
+pid=$(cat /tmp/${APP_NAME}_wmctrl.pid 2>/dev/null)
+if [ -n "$pid" ]; then
+    kill $pid 2>/dev/null
+    rm /tmp/${APP_NAME}_wmctrl.pid
 fi
 
 # Stop NoVNC proxy

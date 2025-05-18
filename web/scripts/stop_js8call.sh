@@ -13,6 +13,15 @@ if [ -n "$pid" ]; then
     rm /tmp/${APP_NAME}_app.pid
 fi
 
+# Stop js8
+js8_pid=$(pgrep js8)
+if [ -n "$js8_pid" ]; then
+    kill $js8_pid 2>/dev/null
+    echo "js8 stopped"
+else
+    echo "js8 was not running"
+fi
+
 # Stop x11vnc
 pid=$(cat /tmp/${APP_NAME}_x11vnc.pid 2>/dev/null)
 if [ -n "$pid" ]; then
@@ -25,6 +34,13 @@ pid=$(cat /tmp/${APP_NAME}_xvfb.pid 2>/dev/null)
 if [ -n "$pid" ]; then
     kill $pid 2>/dev/null
     rm /tmp/${APP_NAME}_xvfb.pid
+fi
+
+# Stop wmctrl
+pid=$(cat /tmp/${APP_NAME}_wmctrl.pid 2>/dev/null)
+if [ -n "$pid" ]; then
+    kill $pid 2>/dev/null
+    rm /tmp/${APP_NAME}_wmctrl.pid
 fi
 
 # Stop the NoVNC proxy for this VNC port
