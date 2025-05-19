@@ -271,10 +271,10 @@
 
                 if (result.status === 'success' && action === 'start') {
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        await new Promise(resolve => setTimeout(resolve, 3000));
                         // Use the current hostname but always use HTTP protocol for VNC
                         const currentHostname = window.location.hostname;
-                        const vncUrl = `http://${currentHostname}:${webPort}/vnc_auto.html?autoconnect=true&resize=remote&clip=1&quality=8&compression=0&password=sbitx&view_only=0&shared=1`;
+                        const vncUrl = `http://${currentHostname}:${webPort}/vnc_auto.html?autoconnect=true&resize=remote&clip=1&quality=8&compression=0&password=sbitx&view_only=0&shared=1&reconnect=true&reconnect_delay=1000&retry_count=60`;
                         const newWindow = window.open(vncUrl, '_blank');
                         
                         if (!newWindow) {
@@ -283,7 +283,7 @@
                             const checkWindowInterval = setInterval(() => {
                                 if (newWindow.closed) {
                                     clearInterval(checkWindowInterval);
-                                    console.log(`NoVNC window for ${app} was closed, stopping the application`);
+                                    console.log(`NoVNC window for ${app.name} was closed, stopping the application`);
                                     controlApp(app, 'stop');
                                 }
                             }, 2000);

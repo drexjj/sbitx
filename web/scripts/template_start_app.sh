@@ -49,16 +49,22 @@ x11vnc -display :$DISPLAY_NUM -rfbport $VNC_PORT -rfbauth /home/pi/.vnc/passwd -
 X11VNC_PID=$!
 echo "x11vnc PID: $X11VNC_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
-# Initialize window manager to add titlebars/decorations
-/home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
+# Start NoVNC proxy for this VNC port
+/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT
 
 # Start the application on our display
 DISPLAY=:$DISPLAY_NUM $APP_COMMAND &
 APP_PID=$!
 echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 
+# Initialize window manager to add titlebars/decorations
+/home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
+
+# Add sleep to let everything start before maximizing the window
+sleep 5
+
 # Maximize the window with wmctrl
-DISPLAY=:$DISPLAY_NUM wmctrl -r "${APP_NAME}" -b add,maximized_vert,maximized_horz &
+DISPLAY=:$DISPLAY_NUM wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz &
 WMCTRL_PID=$!
 echo "wmctrl PID: $WMCTRL_PID" >> /home/pi/wmctrl_${APP_NAME}.log
 
@@ -69,6 +75,3 @@ echo "$APP_PID" > /tmp/${APP_NAME}_app.pid
 echo "$WMCTRL_PID" > /tmp/${APP_NAME}_wmctrl.pid
 
 echo "$APP_NAME started"
-
-# Start NoVNC proxy for this VNC port
-/home/pi/sbitx/web/scripts/start_novnc_proxy.sh $VNC_PORT $WS_PORT
