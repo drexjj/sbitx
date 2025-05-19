@@ -60,7 +60,7 @@ echo "$APP_NAME PID: $APP_PID" >> /home/pi/x11vnc_${APP_NAME}.log
 /home/pi/sbitx/web/scripts/init_window_manager.sh $DISPLAY_NUM
 
 # Add sleep to let everything start before maximizing the window
-sleep 5
+sleep 1
 
 # Maximize the window with wmctrl
 DISPLAY=:$DISPLAY_NUM wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz &
