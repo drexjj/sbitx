@@ -6,6 +6,7 @@ APP_NAME="sb_launcher"
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5911
 WS_PORT=6091
+DISPLAY_NUM=6
 
 # Script to stop the application and clean up resources
 
@@ -45,6 +46,13 @@ pid=$(cat /tmp/${APP_NAME}_wmctrl.pid 2>/dev/null)
 if [ -n "$pid" ]; then
     kill $pid 2>/dev/null
     rm /tmp/${APP_NAME}_wmctrl.pid
+fi
+
+# Stop xfwm4
+pid=$(cat /tmp/xfwm4_${DISPLAY_NUM}.pid 2>/dev/null)
+if [ -n "$pid" ]; then
+    kill $pid 2>/dev/null
+    rm /tmp/xfwm4_${DISPLAY_NUM}.pid
 fi
 
 # Stop NoVNC proxy
