@@ -30,6 +30,18 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #smoke-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.5;
         }
 
         .container {
@@ -99,6 +111,7 @@
     </style>
 </head>
 <body>
+    <canvas id="smoke-canvas"></canvas>
     <div class="container">
         <h2>sBitx System Monitor</h2>
         <div id="system-info">Loading system information...</div>
@@ -196,6 +209,75 @@
         
         // Add refresh button when the page loads
         addRefreshButton();
+
+        // Smoke effect implementation
+        function initSmokeEffect() {
+            const canvas = document.getElementById('smoke-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const particles = [];
+            const particleCount = 50;
+            
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height + Math.random() * 100,
+                    size: Math.random() * 15 + 10,
+                    speed: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.4 + 0.1,
+                    color: Math.random() > 0.5 ? '#3366cc' : '#336699',
+                    rotation: Math.random() * Math.PI * 2
+                });
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Update and draw particles
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    
+                    // Move particles upward
+                    p.y -= p.speed;
+                    p.x += Math.sin(p.y * 0.01) * 0.5;
+                    p.rotation += 0.005;
+                    
+                    // Reset particles that go off screen
+                    if (p.y < -50) {
+                        p.y = canvas.height + Math.random() * 50;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    
+                    // Draw number 5 as particle
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation);
+                    ctx.font = `${p.size}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillText('5', 0, 0);
+                    ctx.restore();
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+            
+            animate();
+        }
+
+        // Initialize smoke effect when page loads
+        initSmokeEffect();
     </script>
 </body>
 </html>
