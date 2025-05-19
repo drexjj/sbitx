@@ -36,6 +36,7 @@
     <script src="jquery.min.js"></script>
     <script src="jquery.knob.js"></script>
     <script src="pcm-player.js"></script>
+    <script src="nosleep.min.js"></script>
     <script src="proj4.js"></script>
     <script src="gridmap.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -4078,7 +4079,19 @@
     }
 
     // Hide Browser Mic button if not on HTTPS
+        // Initialize NoSleep to prevent device from sleeping
+    const noSleep = new NoSleep();
+    
+    // Function to enable/disable wake lock
+    function enableWakeLock() {
+        noSleep.enable();
+        console.log('Wake Lock is enabled');
+    }
+
     document.addEventListener('DOMContentLoaded', (event) => {
+        // Enable wake lock when page loads
+        enableWakeLock();
+        
         const browserMicButton = document.getElementById('browser_mic');
         if (browserMicButton && window.location.protocol !== 'https:') {
             console.log('Not on HTTPS, hiding Browser Mic button.');
