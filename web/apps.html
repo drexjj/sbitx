@@ -37,9 +37,12 @@
             letter-spacing: 2px;
             text-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
         }
-        .app-list {
+        .app-list-wrapper {
             width: 100%;
-            max-width: 600px;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        .app-list {
             background-color: rgba(42, 42, 42, 0.85);
             border: 1px solid #444;
             border-radius: 4px;
@@ -47,6 +50,17 @@
             backdrop-filter: blur(3px);
             -webkit-backdrop-filter: blur(3px);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .ios-notice {
+            text-align: center;
+            color: #666;
+            font-size: 0.75rem;
+            padding: 0.25rem;
+            font-style: italic;
+            margin-top: 0.5rem;
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: auto;
         }
         .app-item {
             display: flex;
@@ -113,6 +127,49 @@
         .toggle-switch input:disabled + .slider {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+        .vnc-link-container {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        .vnc-direct-link {
+            display: inline-flex;
+            align-items: center;
+            color: #0066cc;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: bold;
+            padding-left: 24px;
+        }
+        .vnc-direct-link:hover {
+            color: #0088ff;
+        }
+        .launch-arrow {
+            position: absolute;
+            left: 0;
+            font-size: 18px;
+            animation: bounceArrow 1s infinite;
+            color: #0066cc;
+        }
+        @keyframes bounceArrow {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(5px); }
+        }
+        .launch-text {
+            position: absolute;
+            left: 24px;
+            top: -20px;
+            font-size: 12px;
+            color: #0066cc;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(5px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .vnc-link-container:hover .launch-text {
+            opacity: 1;
+            transform: translateY(0);
         }
         /* VNC Link */
         #vnc-link {
@@ -220,17 +277,45 @@
         function generateAppContainers() {
             const container = document.getElementById('app-containers');
             container.innerHTML = '';
+
+            // Create a wrapper for consistent width
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.className = 'app-list-wrapper';
+            container.appendChild(wrapperDiv);
+
             const appListDiv = document.createElement('div');
             appListDiv.className = 'app-list';
+
+            // Create the notice div that we'll append later
+            let noticeDiv;
+            if (isSafariIOS()) {
+                noticeDiv = document.createElement('div');
+                noticeDiv.className = 'ios-notice';
+                noticeDiv.innerHTML = 'IOS DETECTED: Due to limitations imposed by your browser you may also need to touch the name of the application to open the session once it has started';
+            }
             
             appList.forEach(app => {
                 const appItem = document.createElement('div');
                 appItem.className = 'app-item';
+                appItem.setAttribute('data-app-id', app.id);
+                appItem.setAttribute('data-vnc-port', app.vncPort);
+                appItem.setAttribute('data-ws-port', app.wsPort);
                 
-                const appName = document.createElement('span');
-                appName.className = 'app-name';
-                // Rename "Main vnc" to "Radio Screen"
-                appName.textContent = app.name === 'Main vnc' ? 'Radio Screen' : app.name;
+                const nameContainer = document.createElement('div');
+                nameContainer.className = 'app-name';
+                
+                // Create both the text span and link container
+                const appNameSpan = document.createElement('span');
+                appNameSpan.textContent = app.name === 'Main vnc' ? 'Radio Screen' : app.name;
+                nameContainer.appendChild(appNameSpan);
+                
+                if (isSafariIOS()) {
+                    const linkContainer = document.createElement('div');
+                    linkContainer.id = `${app.id}-link-container`;
+                    linkContainer.className = 'vnc-link-container';
+                    linkContainer.style.display = 'none'; // Initially hidden
+                    nameContainer.appendChild(linkContainer);
+                }
                 
                 const toggleSwitch = document.createElement('label');
                 toggleSwitch.className = 'toggle-switch';
@@ -238,7 +323,7 @@
                 const toggleInput = document.createElement('input');
                 toggleInput.type = 'checkbox';
                 toggleInput.id = `${app.id}-toggle`;
-                toggleInput.setAttribute('aria-label', `Toggle ${appName.textContent} application`);
+                toggleInput.setAttribute('aria-label', `Toggle ${appNameSpan.textContent} application`);
                 toggleInput.onchange = () => {
                     const action = toggleInput.checked ? 'start' : 'stop';
                     controlApp(app.id, action, app.vncPort, app.wsPort);
@@ -250,14 +335,27 @@
                 toggleSwitch.appendChild(toggleInput);
                 toggleSwitch.appendChild(slider);
                 
-                appItem.appendChild(appName);
+                appItem.appendChild(nameContainer);
                 appItem.appendChild(toggleSwitch);
+                
                 appListDiv.appendChild(appItem);
             });
             
-            container.appendChild(appListDiv);
+            wrapperDiv.appendChild(appListDiv);
+
+            // Add the notice after the app list if we're on Safari/iOS
+            if (noticeDiv) {
+                container.appendChild(noticeDiv);
+            }
         }
         
+        function isSafariIOS() {
+            const ua = navigator.userAgent;
+            return /iPad|iPhone|iPod/.test(ua) || 
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+                   /Safari/.test(ua) && !/Chrome/.test(ua);
+        }
+
         async function controlApp(app, action, vncPort, webPort) {
             try {
                 const appName = app.replace('-', '_');
@@ -272,24 +370,54 @@
                 if (result.status === 'success' && action === 'start') {
                     try {
                         await new Promise(resolve => setTimeout(resolve, 3000));
-                        // Use the current hostname but always use HTTP protocol for VNC
                         const currentHostname = window.location.hostname;
                         const vncUrl = `http://${currentHostname}:${webPort}/vnc_auto.html?autoconnect=true&resize=remote&clip=1&quality=8&compression=0&password=sbitx&view_only=0&shared=1&reconnect=true&reconnect_delay=1000&retry_count=60`;
-                        const newWindow = window.open(vncUrl, '_blank');
                         
-                        if (!newWindow) {
-                            console.log('Popup blocked! Please allow popups for this site to use the VNC viewer.');
+                        if (isSafariIOS()) {
+                            // For Safari/iOS, show a direct link in the existing container
+                            const linkContainer = document.getElementById(`${app}-link-container`);
+                            const appNameSpan = linkContainer?.parentElement?.querySelector('span');
+                            if (linkContainer && appNameSpan) {
+                                appNameSpan.style.display = 'none';
+                                linkContainer.style.display = 'block';
+                                linkContainer.innerHTML = `
+                                    <span class="launch-arrow">👉</span>
+                                    <span class="launch-text">Touch Name to Launch</span>
+                                    <a href="${vncUrl}" target="_blank" class="vnc-direct-link">
+                                        ${appNameSpan.textContent}
+                                    </a>
+                                `;
+                            }
                         } else {
-                            const checkWindowInterval = setInterval(() => {
-                                if (newWindow.closed) {
-                                    clearInterval(checkWindowInterval);
-                                    console.log(`NoVNC window for ${app.name} was closed, stopping the application`);
-                                    controlApp(app, 'stop');
-                                }
-                            }, 2000);
+                            // For other browsers, use popup
+                            const newWindow = window.open(vncUrl, '_blank');
+                            if (!newWindow) {
+                                console.log('Popup blocked! Please allow popups for this site to use the VNC viewer.');
+                            } else {
+                                const checkWindowInterval = setInterval(() => {
+                                    if (newWindow.closed) {
+                                        clearInterval(checkWindowInterval);
+                                        console.log(`NoVNC window for ${app} was closed, stopping the application`);
+                                        controlApp(app, 'stop');
+                                    }
+                                }, 2000);
+                            }
                         }
                     } catch (error) {
                         console.error('Error starting VNC connection:', error.message);
+                    }
+                } else if (action === 'stop') {
+                    // Hide link and show original app name
+                    const linkContainer = document.getElementById(`${app}-link-container`);
+                    const appNameSpan = linkContainer?.parentElement?.querySelector('span');
+                    if (linkContainer && appNameSpan) {
+                        linkContainer.style.display = 'none';
+                        appNameSpan.style.display = 'inline';
+                        // Find the app in appList to get its name
+                        const appInfo = appList.find(a => a.id === app);
+                        if (appInfo) {
+                            appNameSpan.textContent = appInfo.name === 'Main vnc' ? 'Radio Screen' : appInfo.name;
+                        }
                     }
                 }
 
