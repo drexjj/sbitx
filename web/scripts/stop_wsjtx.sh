@@ -1,6 +1,6 @@
 #!/bin/bash
-# Define the application name
-APP_NAME="wsjtx_ft8"
+# Define the application name ** APP_NAME MUST match the script name (after the start_  prefix) for proper app-status API tracking **
+APP_NAME="wsjtx"  
 
 # Define the VNC and WebSocket ports for this application
 VNC_PORT=5901
@@ -14,13 +14,13 @@ if [ -n "$pid" ]; then
     rm /tmp/${APP_NAME}_app.pid
 fi
 
-# Stop jt9
-jt9_pid=$(pgrep jt9)
-if [ -n "$jt9_pid" ]; then
-    kill $jt9_pid 2>/dev/null
-    echo "jt9 stopped"
+# Stop js8
+js8_pid=$(pgrep js8)
+if [ -n "$js8_pid" ]; then
+    kill $js8_pid 2>/dev/null
+    echo "js8 stopped"
 else
-    echo "jt9 was not running"
+    echo "js8 was not running"
 fi
 
 # Stop x11vnc

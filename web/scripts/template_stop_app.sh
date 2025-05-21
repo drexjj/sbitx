@@ -1,5 +1,5 @@
 #!/bin/bash
-# Define the application name and command
+# Define the application name and command ** APP_NAME MUST match the script name (after the start_  prefix) for proper app-status API tracking **
 APP_NAME="Application Name"
 
 

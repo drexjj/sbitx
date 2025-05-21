@@ -9,12 +9,12 @@ DISPLAY_NUM=1
 WIDGET_LABEL="WSJT-X FT8"
 
 # Define the application name and start command
-APP_NAME="wsjtx_ft8"
+APP_NAME="wsjtx"  # ** APP_NAME MUST match the script name (after the start_  prefix) for proper app-status API tracking **
 APP_COMMAND="wsjtx"
 
 # Stop other apps
+#/home/pi/sbitx/web/scripts/stop_wsjtx.sh
 /home/pi/sbitx/web/scripts/stop_fldigi.sh
-/home/pi/sbitx/web/scripts/stop_js8call.sh
 
 # Make sure the scripts are executable
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
@@ -63,9 +63,9 @@ echo "$APP_NAME PID: $APP_PID" >> /tmp/x11vnc_${APP_NAME}.log
 sleep 1
 
 # Maximize the window with wmctrl
-#DISPLAY=:$DISPLAY_NUM wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz &
-#WMCTRL_PID=$!
-#echo "wmctrl PID: $WMCTRL_PID" >> /home/pi/wmctrl_${APP_NAME}.log
+DISPLAY=:$DISPLAY_NUM wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz &
+WMCTRL_PID=$!
+echo "wmctrl PID: $WMCTRL_PID" >> /tmp/wmctrl_${APP_NAME}.log
 
 # Save PIDs for cleanup
 echo "$XVFB_PID" > /tmp/${APP_NAME}_xvfb.pid

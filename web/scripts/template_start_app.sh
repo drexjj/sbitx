@@ -9,7 +9,7 @@ DISPLAY_NUM=10
 WIDGET_LABEL="Application Name"
 
 # Define the application name (lowercase, no spaces) and start command (use full path /home/pi/... and not ~/...)
-APP_NAME="application_name"
+APP_NAME="application_name"  # ** APP_NAME MUST match the script name (after the start_  prefix) for proper app-status API tracking **
 APP_COMMAND="app_command"
 
 # Stop other apps if needed
