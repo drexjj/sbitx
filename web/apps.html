@@ -275,6 +275,7 @@
         }
         
         function generateAppContainers() {
+            const isIOS = isSafariIOS();
             const container = document.getElementById('app-containers');
             container.innerHTML = '';
 
@@ -324,9 +325,25 @@
                 toggleInput.type = 'checkbox';
                 toggleInput.id = `${app.id}-toggle`;
                 toggleInput.setAttribute('aria-label', `Toggle ${appNameSpan.textContent} application`);
-                toggleInput.onchange = () => {
+                toggleInput.onchange = async () => {
+                    toggleInput.disabled = true;
                     const action = toggleInput.checked ? 'start' : 'stop';
-                    controlApp(app.id, action, app.vncPort, app.wsPort);
+                    await controlApp(app.id, action, app.vncPort, app.wsPort);
+                    toggleInput.disabled = false;
+                    
+                    // Force immediate visual update for iOS
+                    if (isIOS) {
+                        const slider = toggleInput.nextElementSibling;
+                        if (slider && slider.classList.contains('slider')) {
+                            if (toggleInput.checked) {
+                                slider.style.backgroundColor = '#00cc00';
+                                slider.style.borderColor = '#00cc00';
+                            } else {
+                                slider.style.backgroundColor = '#cc0000';
+                                slider.style.borderColor = '#444';
+                            }
+                        }
+                    }
                 };
                 
                 const slider = document.createElement('span');
@@ -442,6 +459,19 @@
                     if (toggleInput) {
                         const isRunning = status[app.id] === true;
                         toggleInput.checked = isRunning;
+                        // Force UI update for iOS devices
+                        if (isSafariIOS()) {
+                            const slider = toggleInput.nextElementSibling;
+                            if (slider && slider.classList.contains('slider')) {
+                                if (isRunning) {
+                                    slider.style.backgroundColor = '#00cc00';
+                                    slider.style.borderColor = '#00cc00';
+                                } else {
+                                    slider.style.backgroundColor = '#cc0000';
+                                    slider.style.borderColor = '#444';
+                                }
+                            }
+                        }
                     }
                 });
             } catch (error) {
