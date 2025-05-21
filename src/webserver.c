@@ -963,15 +963,18 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
               
               // Check if the application is running
               char check_cmd[256];
-              snprintf(check_cmd, sizeof(check_cmd), "pgrep -x %s > /dev/null && echo 1 || echo 0", process_name);
+              FILE *app_fp;
+              char result[10];
+              app_running = 0;  // Start with not running
               
-              FILE *app_fp = popen(check_cmd, "r");
+              // Check if the PID file exists and process is running
+              snprintf(check_cmd, sizeof(check_cmd), "[ -f /tmp/%s_app.pid ] && ps -p $(cat /tmp/%s_app.pid) > /dev/null 2>&1 && echo 1 || echo 0", app_name, app_name);
+              app_fp = popen(check_cmd, "r");
               if (app_fp != NULL) {
-                char result[10];
-                if (fgets(result, sizeof(result), app_fp) != NULL) {
-                  app_running = (result[0] == '1');
-                }
-                pclose(app_fp);
+                  if (fgets(result, sizeof(result), app_fp) != NULL) {
+                      app_running = (result[0] == '1');
+                  }
+                  pclose(app_fp);
               }
             }
             
