@@ -163,6 +163,7 @@
                 </div>
             </div>
             <button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button>
+            <button class="sbitxv3-btn" id="tune_button" type="button">Tune</button>
             <div class="linear" id="linear_DRIVE">
                 <label class="linear-label" for="DRIVE">DRIVE</label>
                 <input type="number" id="DRIVE" min="1" max="100" class="linear-value">
@@ -773,13 +774,20 @@
     }
 
     function websocket_send(str) {
-        //adds the session id
         if (socket == null)
             return;
 
         var request = session_id + "\n" + str;
         //	log("ws tx:[" + request + "]");
         socket.send(request);
+
+        // Check if this is a mode change message
+        if (str.startsWith("MODE ")) {
+            var mode = str.split(" ")[1];
+            if ((mode === "FT8" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
+                toggleBrowserMic(); // Turn off browser mic
+            }
+        }
     }
 
     function on_error(event) {
@@ -4006,6 +4014,14 @@
             select_control.value = options[0].text;
 
         websocket_send(id + " " + select_control.value);
+
+        // If this is the MODE control, check if we need to disable browser mic
+        if (id === "MODE") {
+            var mode = select_control.value;
+            if ((mode === "FT8" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
+                toggleBrowserMic(); // Turn off browser mic
+            }
+        }
     }
 
 
@@ -4077,6 +4093,13 @@
     function setDebug(on) {
         ws.send("DEBUG:" + on);
     }
+
+    // Function to handle tune button click
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('tune_button').addEventListener('click', function() {
+            websocket_send('tune on');
+        });
+    });
 
     // Hide Browser Mic button if not on HTTPS
         // Initialize NoSleep to prevent device from sleeping
