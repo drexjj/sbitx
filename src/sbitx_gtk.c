@@ -3493,6 +3493,7 @@ static void layout_ui()
 		field_move("F8", 525, y1, 75, 45);
 		field_move("SIDETONE", 600, y1, 75, 45);
 		field_move("ESC", 675, y1, 75, 45);
+		field_move("TUNE", 1000, -1000, 40, 40);
 		break;
 
 	case MODE_CW:
@@ -3542,6 +3543,8 @@ static void layout_ui()
 		field_move("F8", 525, y1, 75, 45);
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
+		field_move("TUNE", 1000, -1000, 40, 40);
+		
 		break;
 	case MODE_USB:
 	case MODE_LSB:
@@ -3571,6 +3574,8 @@ static void layout_ui()
 		field_move("HIGH", 160, y1, 95, 45);
 		field_move("TX", 260, y1, 95, 45);
 		field_move("RX", 360, y1, 95, 45);
+		field_move("TUNE", 460, 5, 40, 40);
+		 
 		break;
 	case MODE_DIGITAL: // W9JES
 		// N1QM
@@ -3596,6 +3601,7 @@ static void layout_ui()
 		field_move("HIGH", 160, y1, 95, 45);
 		field_move("TX", 260, y1, 95, 45);
 		field_move("RX", 360, y1, 95, 45);
+		field_move("TUNE", 460, 5, 40, 40);
 		// Don't show pitch field in DIGI mode
 		// field_move("PITCH", 460, y1, 95, 45);
 		field_move("SIDETONE", 460, y1, 95, 45); // Added back in for ext modes W9JES

@@ -52,6 +52,31 @@
         .mode-panel {
             position: relative;
         }
+        
+        .tune-disabled {
+            position: relative;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .tune-disabled::before,
+        .tune-disabled::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100%;
+            background: red;
+        }
+        
+        .tune-disabled::before {
+            transform: rotate(45deg);
+        }
+        
+        .tune-disabled::after {
+            transform: rotate(-45deg);
+        }
     </style>
 </head>
 
@@ -204,8 +229,8 @@
                 </select>
             </div>
             <div class="sbitxv3-control">
-                <label class="sbitxv3-label" for="QRO">ePTT</label>
-                <select class="sbitxv3-selection sbitx-selection" id="QRO">
+                <label class="sbitxv3-label" for="ePTT">ePTT</label>
+                <select class="sbitxv3-selection sbitx-selection" id="ePTT">
                     <option value="OFF">OFF</option>
                     <option value="ON">ON</option>
                 </select>
@@ -4096,13 +4121,44 @@
 
     // Function to handle tune button click
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('tune_button').addEventListener('click', function() {
-            websocket_send('tune on');
+        const tuneButton = document.getElementById('tune_button');
+        const modeSelect = document.getElementById('MODE');
+        
+        // Function to check if tune should be disabled
+        function checkTuneState() {
+            const disabledModes = ['CW', 'CWR', 'FT8'];
+            const currentMode = modeSelect.value;
+            
+            if (disabledModes.includes(currentMode)) {
+                tuneButton.classList.add('tune-disabled');
+                tuneButton.disabled = true;
+            } else {
+                tuneButton.classList.remove('tune-disabled');
+                tuneButton.disabled = false;
+            }
+        }
+        
+        // Initial check
+        checkTuneState();
+        
+        // Listen for mode changes
+        modeSelect.addEventListener('change', checkTuneState);
+        
+        // Tune button click handler
+        tuneButton.addEventListener('click', function() {
+            if (!this.disabled) {
+                websocket_send('tune on');
+            }
+        });
+
+        // ePTT button handler
+        document.getElementById('ePTT').addEventListener('change', function() {
+            websocket_send('eptt ' + this.value.toLowerCase());
         });
     });
 
     // Hide Browser Mic button if not on HTTPS
-        // Initialize NoSleep to prevent device from sleeping
+    // Initialize NoSleep to prevent device from sleeping
     const noSleep = new NoSleep();
     
     // Function to enable/disable wake lock
