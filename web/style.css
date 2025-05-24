@@ -649,7 +649,7 @@ input {
 
     text-align: left;
     min-width: 35px;
-    max-width: 55px;
+    max-width: 50px;
     padding-top: var(--spacing-sm);
     padding-left: 5px;
     height: 36px;
@@ -661,7 +661,7 @@ input {
 
 .sbitxv3-selection {
     border: 0;
-    font-size: 11px;
+    font-size: 12px;
     margin-left: -4px;
     min-width: 30px;
 }
