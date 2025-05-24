@@ -22,6 +22,9 @@
 #include <netdb.h>
 #include "dynamic_content.h"
 
+// Function declaration for S-meter
+extern int calculate_s_meter(struct rx *r, double rx_gain);
+
 // External variables for voltage and current readings from INA260 sensor
 extern float voltage;
 extern float current;
@@ -149,6 +152,16 @@ static void get_updates(struct mg_connection *c, int all){
 	int i = 0;
 
 	get_console(c);
+
+	// Send S-meter value 
+	struct rx *current_rx = rx_list;
+	double rx_gain = (double)get_rx_gain();
+	int s_meter_value = calculate_s_meter(current_rx, rx_gain);
+	int s_units = s_meter_value / 100;
+	int additional_db = s_meter_value % 100;
+	sprintf(buff, "SMETER %d %d", s_units, additional_db);
+	mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
+
 
 	// Send voltage and current readings if INA260 is equipped
 	if (has_ina260 == 1) {

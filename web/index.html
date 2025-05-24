@@ -41,6 +41,40 @@
     <script src="gridmap.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
+        #spectrum_header {
+            color: #fff;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 0 2px;
+        }
+        #spectrum-wrap {
+            margin-bottom: 2px;
+        }
+        .smeter-labels {
+            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+            font-weight: bold;
+            letter-spacing: -0.5px;
+            margin-top: 3px;
+        }
+        .smeter-box {
+            flex: 1;
+            height: 8px;
+            background-color: #222;
+            border: 1px solid #333;
+            transition: background-color 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+        .smeter-box.active {
+            background-color: #00ff00;
+            box-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+            border-color: #00ff00;
+        }
+        .smeter-box[data-level="20+"].active {
+            background-color: #ff0000;
+            box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
+            border-color: #ff0000;
+        }
         .bottom-bar {
             display: flex;
             position: relative;
@@ -121,10 +155,14 @@
         </div>
     </div>
     <div id="sdr_page">
-        <!-- Battery status display if INA260 is equipped -->
-        <div id="battery_status" style="display: none; text-align: left; padding: 5px; color: white; font-size: 14px;">
-            BATT:  <span id="voltage_display">0.00V</span> / <span id="current_display">0.00A</span>
+        <!-- Battery status bar -->
+        <div style="padding: 5px; background: #1a1a1a;">
+            <!-- Battery status display if INA260 is equipped -->
+            <div id="battery_status" style="display: none; color: white; font-size: 14px;">
+                BATT: <span id="voltage_display">0.00V</span> / <span id="current_display">0.00A</span>
+            </div>
         </div>
+
         <section id="maincontrols">
             <div class="sbitxv3-control">
                 <label class="sbitxv3-label" for="MODE">MODE</label>
@@ -288,7 +326,28 @@
 
             <!-- pan adapter and waterfall -->
             <section id="pan_adapter">
-                <div id="console">Hello</div>
+                <div id="spectrum_header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; min-height: 24px;">
+                    <!-- S-meter display -->
+                    <div id="smeter_display" style="width: 120px; margin-top: 4px; margin-left: 4px;">
+                        <div class="smeter-boxes" style="display: flex; gap: 2px; height: 8px; margin-bottom: 2px;">
+                            <div class="smeter-box" data-level="1"></div>
+                            <div class="smeter-box" data-level="3"></div>
+                            <div class="smeter-box" data-level="5"></div>
+                            <div class="smeter-box" data-level="7"></div>
+                            <div class="smeter-box" data-level="9"></div>
+                            <div class="smeter-box" data-level="20+"></div>
+                        </div>
+                        <div class="smeter-labels" style="display: flex; gap: 2px; font-size: 10px; color: #fff;">
+                            <div style="flex: 1; text-align: center;">1</div>
+                            <div style="flex: 1; text-align: center;">3</div>
+                            <div style="flex: 1; text-align: center;">5</div>
+                            <div style="flex: 1; text-align: center;">7</div>
+                            <div style="flex: 1; text-align: center;">9</div>
+                            <div style="flex: 1; text-align: center;">+20</div>
+                        </div>
+                    </div>
+                    <div id="console" style="text-align: right; margin-right: 4px; margin-top: 4px;">Hello</div>
+                </div>
                 <div id="tx_meters">
                     <div class="menu-item">
                         <label class="slider-label" for="POWER_meter">Watts</label>
@@ -302,7 +361,7 @@
                     </div>
                 </div>
 
-                <div id="spectrum-wrap">
+                <div id="spectrum-wrap" style="position: relative; border: 2px solid #333; border-radius: 4px; padding: 8px; background: #1a1a1a; box-shadow: inset 0 0 2px rgba(0,0,0,0.5);">
                     <canvas id="spectrum" width="600" height="80"></canvas>
                 </div>
                 <canvas id="waterfall" width="600" height="80"></canvas>
@@ -3658,6 +3717,20 @@
         var cmd = "";
         var args = "";
 
+        // Function to update S-meter display
+        function updateSMeter(s_units, additional_db) {
+            const boxes = document.querySelectorAll('.smeter-box');
+            boxes.forEach(box => {
+                const level = parseInt(box.dataset.level) || 20;
+                if (level === 20) {
+                    // Special case for 20+ box
+                    box.classList.toggle('active', s_units >= 9 && additional_db > 0);
+                } else {
+                    box.classList.toggle('active', s_units >= level);
+                }
+            });
+        }
+
         // Handle binary data (audio samples)
         if (response instanceof Blob) {
             f = new FileReader();
@@ -3793,6 +3866,10 @@
                 break;
             case 'macros_list':
                 logger_list_macros(args);
+                break;
+            case 'SMETER':
+                const [s_units, additional_db] = args.split(' ').map(Number);
+                updateSMeter(s_units, additional_db);
                 break;
             case 'VOLTAGE':
                 el("VOLTAGE").value = args;
