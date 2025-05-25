@@ -20,6 +20,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <ncurses.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
+#include <gdk/gdkx.h>
+#include <gtk/gtkx.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -48,7 +50,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 #include <time.h>
-
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -73,8 +74,6 @@ static float wf_max = 1.0f; // Default to 100%
 
 int scope_avg = 10; // Default value for SCOPEAVG
 float sp_baseline = 0;
-
-// Declare global variables for WFSPD and SCOPEGAIN
 int wf_spd = 50;		// Default value for WFSPD
 float scope_gain = 1.0; // Default value for SCOPEGAIN
 int scope_size = 100;	// Default size
@@ -882,7 +881,8 @@ struct field main_controls[] = {
 	 "", 500000, 30000000, 1, 0},
 	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
-
+	{"#zero_beat", NULL, 1000, -1000, 50, 50, "ZEROBEAT", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	 "", 0, 5, 1, CW_CONTROL},
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
 	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -1989,6 +1989,26 @@ static gpointer transmit_callsign_thread(gpointer user_data)
     g_free(tdata);
     return NULL;
 }
+
+static void on_zero_beat_button_click(GtkWidget *widget, gpointer data)
+{
+    GError *error = NULL;
+    gchar *argv[] = {"/home/pi/sBITX-toolbox/apps/sb_cwd", NULL};
+    
+    if (!g_spawn_async(NULL,  // working directory (NULL = current)
+                    argv,
+                    NULL,  // environment
+                    G_SPAWN_DEFAULT,  // flags
+                    NULL,  // child setup function
+                    NULL,  // user data
+                    NULL,  // child pid
+                    &error)) {
+        g_print("Error spawning sb_cwd: %s\n", error->message);
+        g_error_free(error);
+    }
+}
+
+
 
 static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 {
@@ -3531,6 +3551,7 @@ static void layout_ui()
 		field_move("CW_INPUT", 375, y1, 75, 45);
 		field_move("SIDETONE", 450, y1, 75, 45);
 		field_move("MACRO", 525, y1, 75, 45); 
+		field_move("ZEROBEAT", 600, y1, 75, 45);
 		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
@@ -7197,6 +7218,10 @@ void do_control_action(char *cmd)
 	{
 		on_wf_call_button_click(NULL, NULL);
 	}
+	else if (!strcmp(request, "ZEROBEAT"))
+	{
+		on_zero_beat_button_click(NULL, NULL);
+	}	
 	else if (!strcmp(request, "LOG"))
 	{
 		logbook_list_open();
