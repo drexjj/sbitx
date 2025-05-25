@@ -993,81 +993,7 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	//		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
 }
 
-// Global variables for zero beat detection
-#define ZEROBEAT_TARGET 700  // Target frequency in Hz
-#define ZEROBEAT_TOLERANCE 100  // Maximum detection range in Hz (±100 Hz from target)
-#define ZEROBEAT_MIN_MAG 0.2  // Minimum magnitude threshold
-#define ZEROBEAT_HYST 0.05  // Hysteresis for magnitude threshold
-static int zero_beat_indicator = 0;
-static double last_max_magnitude = 0.0;
 
-// Function to calculate zero beat indicator (1-5)
-int calculate_zero_beat(struct rx *r, double sampling_rate) {
-    if (!r) {
-        printf("Error: rx_list is NULL\n");
-        return 0;
-    }
-    if (!r->fft_freq) {
-        printf("Error: fft_freq is NULL\n");
-        return 0;
-    }
-
-    double bin_width = sampling_rate / MAX_BINS;
-    int start_bin = (int)((ZEROBEAT_TARGET - ZEROBEAT_TOLERANCE) / bin_width);
-    int end_bin = (int)((ZEROBEAT_TARGET + ZEROBEAT_TOLERANCE) / bin_width);
-    int max_bin = 0;
-    double max_magnitude = 0.0;
-    double peak_freq = 0.0;
-
-    // Find the strongest signal within the tolerance range
-    for (int i = start_bin; i <= end_bin; i++) {
-        if (i >= 0 && i < MAX_BINS) {
-            double magnitude = cabs(r->fft_freq[i]);
-            double freq = i * bin_width;
-            if (magnitude > max_magnitude) {
-                max_magnitude = magnitude;
-                max_bin = i;
-                peak_freq = freq;
-            }
-        }
-    }
-
-    // Use a lower threshold appropriate for weaker signals
-    const double FFT_THRESHOLD = 0.1;
-    
-    // If signal is below threshold, return 0 (gray indicators)
-    if (max_magnitude < FFT_THRESHOLD) {
-        last_max_magnitude = max_magnitude;
-        return 0;
-    }
-    
-    last_max_magnitude = max_magnitude;
-    
-    // Calculate frequency difference from target (700 Hz)
-    double freq_diff = peak_freq - ZEROBEAT_TARGET;
-    
-    // Return value mapping:
-    // 0: No signal or below threshold (gray)
-    // 1: Far below (-100 to -50 Hz) (red)
-    // 2: Slightly below (-50 to -5 Hz) (yellow)
-    // 3: Centered (±5 Hz) (green)
-    // 4: Slightly above (5 to 50 Hz) (yellow)
-    // 5: Far above (50 to 100 Hz) (red)
-    
-    if (fabs(freq_diff) <= 5.0)
-        return 3;       // Centered (green)
-    else if (freq_diff < -50.0)
-        return 1;       // Far below (red)
-    else if (freq_diff < -5.0)
-        return 2;       // Slightly below (yellow)
-    else if (freq_diff <= 50.0)
-        return 4;       // Slightly above (yellow)
-    else if (freq_diff <= 100.0)
-        return 5;       // Far above (red)
-    
-
-    return 0;   // Default case - no signal or out of range
-}
 
 // rx_linear with Spectral Subtraction and Wiener Filter DSP filtering - W2JON
 void rx_linear(int32_t *input_rx, int32_t *input_mic,
@@ -1119,18 +1045,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		r->fft_freq[i] = fft_out[b];
 	}
 
-	// Calculate zero beat indicator for CW modes
-	if (r->mode == MODE_CW || r->mode == MODE_CWR) {
-		int prev_indicator = zero_beat_indicator;
-		zero_beat_indicator = calculate_zero_beat(r, 96000.0);
-		// Only print when the indicator changes to avoid console spam
-		if (prev_indicator != zero_beat_indicator) {
-			const char* indicators[] = {"No Signal", "Much Lower", "Slightly Lower", "Centered", "Slightly Higher", "Much Higher"};
-			 //printf("Zero Beat: %s (%d)\n", indicators[zero_beat_indicator], zero_beat_indicator);
-		}
-	} else {
-		zero_beat_indicator = 0;
-	}
+
 
 	static int rx_eq_initialized = 0;
 
