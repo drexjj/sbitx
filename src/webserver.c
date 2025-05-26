@@ -162,6 +162,13 @@ static void get_updates(struct mg_connection *c, int all){
 	sprintf(buff, "SMETER %d %d", s_units, additional_db);
 	mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
 
+	// Send zerobeat value for CW modes
+	if (!strcmp(field_str("MODE"), "CW") || !strcmp(field_str("MODE"), "CWR")) {
+		int zerobeat_value = calculate_zero_beat(current_rx, 96000.0);
+		sprintf(buff, "ZEROBEAT %d", zerobeat_value);
+		mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
+	}
+
 
 	// Send voltage and current readings if INA260 is equipped
 	if (has_ina260 == 1) {

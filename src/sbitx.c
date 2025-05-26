@@ -993,6 +993,152 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	//		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
 }
 
+// Global variables for zero beat detection (sbitx.c)
+#define ZEROBEAT_TOLERANCE 50    // ±50 Hz from target
+#define ZEROBEAT_HYST 0.05       // Not currently used — replaced with scaled hysteresis
+#define ZEROBEAT_AVG_LEN 8       // Moving average length
+#define ZEROBEAT_UPDATE_MS 50    // Update interval (20 Hz)
+#define SIGNAL_TIMEOUT_MS 250    // Time to clear cache if no signal
+#define MIN_SIGNAL_HOLD_MS 80    // Hold signal for at least 80ms
+#define ZEROBEAT_DEBUG 0         // Set to 1 to enable debug output
+
+static int zero_beat_indicator = 0;
+static double last_max_magnitude = 0.0;
+static double mag_history[ZEROBEAT_AVG_LEN] = {0};
+static double freq_history[ZEROBEAT_AVG_LEN] = {0};
+static int history_index = 0;
+static struct timespec last_update_time = {0, 0};
+static struct timespec last_signal_time = {0, 0};
+static int last_result = 0;
+
+int calculate_zero_beat(struct rx *r, double sampling_rate) {
+    if (!r || !r->fft_freq) {
+        printf("Error: rx or fft_freq is NULL\n");
+        return 0;
+    }
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    long diff_ms = (current_time.tv_sec - last_update_time.tv_sec) * 1000 +
+                   (current_time.tv_nsec - last_update_time.tv_nsec) / 1000000;
+
+    long signal_diff_ms = (current_time.tv_sec - last_signal_time.tv_sec) * 1000 +
+                          (current_time.tv_nsec - last_signal_time.tv_nsec) / 1000000;
+
+    if (signal_diff_ms > SIGNAL_TIMEOUT_MS && diff_ms > MIN_SIGNAL_HOLD_MS) {
+        last_result = 0;
+        last_max_magnitude = 0.0;
+        memset(mag_history, 0, sizeof(mag_history));
+        memset(freq_history, 0, sizeof(freq_history));
+    }
+
+    if (diff_ms < ZEROBEAT_UPDATE_MS || (last_result != 0 && diff_ms < MIN_SIGNAL_HOLD_MS)) {
+        return last_result;
+    }
+
+    last_update_time = current_time;
+
+    double bin_width = sampling_rate / MAX_BINS;
+
+    int start_bin = (int)((zero_beat_target_frequency - ZEROBEAT_TOLERANCE) / bin_width);
+    int end_bin = (int)((zero_beat_target_frequency + ZEROBEAT_TOLERANCE) / bin_width);
+    start_bin = start_bin < 0 ? 0 : (start_bin >= MAX_BINS ? MAX_BINS - 1 : start_bin);
+    end_bin = end_bin < 0 ? 0 : (end_bin >= MAX_BINS ? MAX_BINS - 1 : end_bin);
+
+    int max_bin = 0;
+    double max_magnitude = 0.0;
+    double peak_freq = 0.0;
+    double noise_floor = 0.0;
+    int sample_count = 0;
+
+    // Estimate noise floor
+    for (int i = start_bin - 5; i < start_bin; i++) {
+        if (i >= 0 && i < MAX_BINS) {
+            noise_floor += 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+            sample_count++;
+        }
+    }
+    for (int i = end_bin + 1; i <= end_bin + 5; i++) {
+        if (i >= 0 && i < MAX_BINS) {
+            noise_floor += 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+            sample_count++;
+        }
+    }
+    noise_floor = sample_count > 0 ? noise_floor / sample_count : -120.0;
+
+    // Find max peak within range (no pre-thresholding here)
+    for (int i = start_bin; i <= end_bin; i++) {
+        double magnitude = 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+        double freq = i * bin_width;
+
+        if (magnitude > max_magnitude) {
+            max_magnitude = magnitude;
+            max_bin = i;
+            peak_freq = freq;
+        }
+    }
+
+    int sensitivity_level = zero_beat_min_magnitude; // 1–10
+    double dB_threshold = 20.0 - (sensitivity_level - 1) * (17.0 / 9.0);
+    if (dB_threshold < 2.0) dB_threshold = 2.0;
+
+    double base_threshold = noise_floor + dB_threshold;
+
+    // Scaled hysteresis: 3.0 dB at low sensitivity, down to 0.5 dB at high sensitivity
+    double hysteresis = 3.0 - (sensitivity_level - 1) * (2.5 / 9.0);
+    if (hysteresis < 0.5) hysteresis = 0.5;
+
+    double current_threshold = last_max_magnitude >= base_threshold ?
+                               base_threshold - hysteresis : base_threshold;
+
+    if (max_magnitude < current_threshold || max_bin == 0) {
+        last_max_magnitude = max_magnitude;
+        return 0;
+    }
+
+    last_signal_time = current_time;
+
+    // Update history
+    mag_history[history_index] = max_magnitude;
+    freq_history[history_index] = peak_freq - zero_beat_target_frequency;
+
+    double avg_magnitude = 0.0, avg_freq_diff = 0.0;
+    for (int i = 0; i < ZEROBEAT_AVG_LEN; i++) {
+        avg_magnitude += mag_history[i];
+        avg_freq_diff += freq_history[i];
+    }
+    avg_magnitude /= ZEROBEAT_AVG_LEN;
+    avg_freq_diff /= ZEROBEAT_AVG_LEN;
+
+    if (avg_magnitude > base_threshold + 3.0)
+        last_max_magnitude = avg_magnitude;
+
+    history_index = (history_index + 1) % ZEROBEAT_AVG_LEN;
+
+    int result;
+    if (fabs(avg_freq_diff) <= 5.0)
+        result = 3;       // Centered
+    else if (avg_freq_diff < -20.0)
+        result = 1;       // Far below
+    else if (avg_freq_diff < -5.0)
+        result = 2;       // Slightly below
+    else if (avg_freq_diff <= 20.0)
+        result = 4;       // Slightly above
+    else if (avg_freq_diff <= 50.0)
+        result = 5;       // Far above
+    else
+        result = 0;
+
+    last_result = result;
+
+#if ZEROBEAT_DEBUG
+    printf("Freq=%.1fHz, Δ=%.1fHz, Mag=%.1fdB, NF=%.1fdB, Thr=%.1fdB, Res=%d\n",
+           peak_freq, avg_freq_diff, avg_magnitude, noise_floor, current_threshold, result);
+#endif
+
+    return result;
+}
 
 
 // rx_linear with Spectral Subtraction and Wiener Filter DSP filtering - W2JON
@@ -1045,7 +1191,20 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		r->fft_freq[i] = fft_out[b];
 	}
 
-
+	// STEP 4a Calculate zero beat indicator for CW modes if in CW modes
+	if (r->mode == MODE_CW || r->mode == MODE_CWR) {
+		int prev_indicator = zero_beat_indicator;
+		zero_beat_indicator = calculate_zero_beat(r, 96000.0);
+		// Only print when the indicator changes to avoid console spam
+		if (prev_indicator != zero_beat_indicator) {
+			const char* indicators[] = {"No Signal", "Much Lower", "Slightly Lower", "Centered", "Slightly Higher", "Much Higher"};
+			//printf("Zero Beat: %s (%d)\n", indicators[zero_beat_indicator], zero_beat_indicator);
+			//printf("Zero Beat Target Frequency: %d\n", zero_beat_target_frequency);
+			//printf("Zero Beat Sense: %d\n", zero_beat_min_magnitude);
+		}
+	} else {
+		zero_beat_indicator = 0;
+	}
 
 	static int rx_eq_initialized = 0;
 

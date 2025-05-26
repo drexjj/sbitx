@@ -115,6 +115,10 @@ char pins[15] = {0, 2, 3, 6, 7,
 // between the system cloc and the actual time set by \utc command
 static long time_delta = 0;
 
+// Zero beat detection
+int zero_beat_target_frequency = 700;
+int zero_beat_min_magnitude = 0;
+
 // INA260 I2C Address and Register Definitions
 #define INA260_ADDRESS 0x40
 #define CONFIG_REGISTER 0x00
@@ -540,6 +544,8 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_zero_beat_freq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -881,8 +887,11 @@ struct field main_controls[] = {
 	 "", 500000, 30000000, 1, 0},
 	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
-	{"#zero_beat", NULL, 1000, -1000, 50, 50, "ZEROBEAT", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 5, 1, CW_CONTROL},
+	{"#zero_freq", do_zero_beat_freq_edit, 1000, -1000, 50, 50, "ZEROFREQ", 40, "700", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 600, 750, 1, CW_CONTROL},
+	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, CW_CONTROL},
+
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
 	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -1990,26 +1999,6 @@ static gpointer transmit_callsign_thread(gpointer user_data)
     return NULL;
 }
 
-static void on_zero_beat_button_click(GtkWidget *widget, gpointer data)
-{
-    GError *error = NULL;
-    gchar *argv[] = {"/home/pi/sBITX-toolbox/apps/sb_cwd", NULL};
-    
-    if (!g_spawn_async(NULL,  // working directory (NULL = current)
-                    argv,
-                    NULL,  // environment
-                    G_SPAWN_DEFAULT,  // flags
-                    NULL,  // child setup function
-                    NULL,  // user data
-                    NULL,  // child pid
-                    &error)) {
-        g_print("Error spawning sb_cwd: %s\n", error->message);
-        g_error_free(error);
-    }
-}
-
-
-
 static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 {
     const char *callsign = get_field("#mycallsign")->value;
@@ -2808,6 +2797,84 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 
+		// --- Zero Beat indicator
+		const char *zerobeat_text = "ZBEAT";
+		cairo_set_font_size(gfx, FONT_SMALL);
+	
+		
+		// Only show zero beat indicator in CW/CWR modes
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
+			// Get zero beat value from calculate_zero_beat
+			int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
+	
+	
+			// Position and draw the text in gray
+			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
+			int zerobeat_text_y = f_spectrum->y + 30;
+	
+			// Draw text in gray always
+			cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray text
+			cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
+			cairo_show_text(gfx, zerobeat_text);
+	
+			// Draw LED indicators
+			int box_width = 15;
+			int box_height = 5;
+			int spacing = 2;
+			int led_y = zerobeat_text_y - 5;
+			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
+	
+			// Draw LED background
+			cairo_save(gfx);
+			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
+			cairo_rectangle(gfx, led_x - 2, led_y - 2, 
+						   (box_width + spacing) * 5 + 4, box_height + 4);
+			cairo_fill(gfx);
+	
+			// Draw 5 LEDs
+	
+			
+			for(int i = 0; i < 5; i++) {
+				cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width, box_height);
+				
+				// Set LED color based on zero beat value and position
+				if (i == 0 && zerobeat_value == 1) { // Far below
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+				}
+				else if (i == 1 && zerobeat_value == 2) { // Slightly below
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+				}
+				else if (i == 2 && zerobeat_value == 3) { // Centered
+		
+		
+					cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
+				}
+				else if (i == 3 && zerobeat_value == 4) { // Slightly above
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+				}
+				else if (i == 4 && zerobeat_value == 5) { // Far above
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+				}
+				else {
+		
+		
+					cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Inactive LED
+				}
+	
+				cairo_fill(gfx);
+			}
+			cairo_restore(gfx);
+		}
+	
+
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
 						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
@@ -3548,10 +3615,12 @@ static void layout_ui()
 		field_move("WPM", 75, y1, 75, 45);
 		field_move("PITCH", 150, y1, 75, 45);
 		field_move("CW_DELAY", 225, y1, 75, 45);
-		field_move("CW_INPUT", 375, y1, 75, 45);
-		field_move("SIDETONE", 450, y1, 75, 45);
-		field_move("MACRO", 525, y1, 75, 45); 
-		field_move("ZEROBEAT", 600, y1, 75, 45);
+		field_move("CW_INPUT", 300, y1, 75, 45);
+		field_move("SIDETONE", 375, y1, 75, 45);
+		field_move("MACRO", 450, y1, 75, 45); 
+		field_move("ZEROFREQ", 525, y1, 75, 45);
+		field_move("ZEROSENS", 600, y1, 75, 45);
+
 		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
@@ -5082,6 +5151,22 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	const char *txmon_control_field = field_str("TXMON");
 	int txmon_control_level_value = atoi(txmon_control_field);
 	txmon_control_level = txmon_control_level_value;
+	return 0;
+}
+
+int do_zero_beat_freq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *zero_beat_freq_field = field_str("ZEROFREQ");
+	int zero_beat_freq_value = atoi(zero_beat_freq_field);
+	zero_beat_target_frequency = zero_beat_freq_value;
+	return 0;
+}
+
+int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *zero_beat_sense_field = field_str("ZEROSENS");
+	int zero_beat_sense_value = atoi(zero_beat_sense_field);
+	zero_beat_min_magnitude = zero_beat_sense_value;
 	return 0;
 }
 
@@ -7218,10 +7303,7 @@ void do_control_action(char *cmd)
 	{
 		on_wf_call_button_click(NULL, NULL);
 	}
-	else if (!strcmp(request, "ZEROBEAT"))
-	{
-		on_zero_beat_button_click(NULL, NULL);
-	}	
+
 	else if (!strcmp(request, "LOG"))
 	{
 		logbook_list_open();
