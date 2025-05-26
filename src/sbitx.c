@@ -997,9 +997,9 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 #define ZEROBEAT_TOLERANCE 50    // ±50 Hz from target
 #define ZEROBEAT_HYST 0.05       // Not currently used — replaced with scaled hysteresis
 #define ZEROBEAT_AVG_LEN 4       // Moving average length (higher values = more stable but slower response to changes)
-#define ZEROBEAT_UPDATE_MS 30    // Update interval (20 Hz)
+#define ZEROBEAT_UPDATE_MS 20    // Update interval (20 Hz)
 #define SIGNAL_TIMEOUT_MS 250    // Time to clear cache if no signal
-#define MIN_SIGNAL_HOLD_MS 80    // Hold signal for at least 80ms
+#define MIN_SIGNAL_HOLD_MS 30    // Hold signal for at least 30ms
 #define ZEROBEAT_DEBUG 0         // Set to 1 to enable debug output
 
 static int zero_beat_indicator = 0;

@@ -68,6 +68,7 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
+int zero_beat_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -885,7 +886,9 @@ struct field main_controls[] = {
 	 "", 500000, 30000000, 1, 0},
 	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
-	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
+	{"#zero_beat", do_toggle_option, 1000, -1000, 40, 40, "ZEROBEAT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, CW_CONTROL},
 
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -2793,6 +2796,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 
+	if (zero_beat_enabled)
+	{
 		// --- Zero Beat indicator
 		const char *zerobeat_text = "ZBEAT";
 		cairo_set_font_size(gfx, FONT_SMALL);
@@ -2869,7 +2874,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			}
 			cairo_restore(gfx);
 		}
-	
+	}
 
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
@@ -3614,8 +3619,7 @@ static void layout_ui()
 		field_move("CW_INPUT", 300, y1, 75, 45);
 		field_move("SIDETONE", 375, y1, 75, 45);
 		field_move("MACRO", 450, y1, 75, 45); 
-		field_move("ZEROFREQ", 525, y1, 75, 45);
-		field_move("ZEROSENS", 600, y1, 75, 45);
+		field_move("ZEROBEAT", 600, y1, 75, 45);
 
 		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
@@ -5339,6 +5343,18 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
 	struct field *ina260_stat = get_field("#ina260_option");
+	struct field *zero_beat_stat = get_field("#zero_beat");
+	if (zero_beat_stat)
+	{
+		if (!strcmp(zero_beat_stat->value, "ON"))
+		{
+			zero_beat_enabled = 1;
+		}
+		else if (!strcmp(zero_beat_stat->value, "OFF"))
+		{
+			zero_beat_enabled = 0;
+		}
+	}	
 	if (ina260_stat)
 	{
 		if (!strcmp(ina260_stat->value, "ON"))

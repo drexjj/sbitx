@@ -3938,6 +3938,10 @@
                     log("session_id set to " + session_id);
                     show_main();
                     resize_ui();
+                    // Initialize mode state after successful login
+                    setTimeout(() => {
+                        checkTuneState();
+                    }, 500);
                 }
                 else {
                     alert("Incorrect passkey.\r\nIf you have forgotten your pass key\r\n" +
@@ -4327,38 +4331,42 @@
         });
     }
 
-    // Function to handle tune button click
-    document.addEventListener('DOMContentLoaded', function() {
+    // Function to check if tune should be disabled
+    function checkTuneState() {
         const tuneButton = document.getElementById('tune_button');
         const modeSelect = document.getElementById('MODE');
+        const zerobeatContainer = document.getElementById('zerobeat-container');
         
-        // Function to check if tune should be disabled
-        function checkTuneState() {
-            const disabledModes = ['CW', 'CWR', 'FT8'];
-            const currentMode = modeSelect.value;
-            const zerobeatContainer = document.getElementById('zerobeat-container');
-            
-            if (disabledModes.includes(currentMode)) {
-                tuneButton.classList.add('tune-disabled');
-                tuneButton.disabled = true;
-                
-                // Show zerobeat indicator only in CW/CWR modes
-                if (currentMode === 'CW' || currentMode === 'CWR') {
-                    zerobeatContainer.style.display = 'block';
-                    document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'block');
-                } else {
-                    zerobeatContainer.style.display = 'none';
-                    document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'none');
-                }
-            } else {
-                tuneButton.classList.remove('tune-disabled');
-                tuneButton.disabled = false;
-                zerobeatContainer.style.display = 'none';
-            }
+        if (!tuneButton || !modeSelect || !zerobeatContainer) {
+            console.log('Required elements not found for checkTuneState');
+            return;
         }
         
-        // Initial check
-        checkTuneState();
+        const disabledModes = ['CW', 'CWR', 'FT8'];
+        const currentMode = modeSelect.value;
+        
+        if (disabledModes.includes(currentMode)) {
+            tuneButton.classList.add('tune-disabled');
+            tuneButton.disabled = true;
+            
+            // Show zerobeat indicator only in CW/CWR modes
+            if (currentMode === 'CW' || currentMode === 'CWR') {
+                zerobeatContainer.style.display = 'block';
+                document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'block');
+            } else {
+                zerobeatContainer.style.display = 'none';
+                document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'none');
+            }
+        } else {
+            tuneButton.classList.remove('tune-disabled');
+            tuneButton.disabled = false;
+            zerobeatContainer.style.display = 'none';
+        }
+    }
+
+    // Function to handle tune button click
+    document.addEventListener('DOMContentLoaded', function() {
+        const modeSelect = document.getElementById('MODE');
         
         // Listen for mode changes
         modeSelect.addEventListener('change', checkTuneState);
