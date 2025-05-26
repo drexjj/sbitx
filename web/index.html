@@ -194,7 +194,6 @@
     <input type="hidden" id="VOLTAGE" value="0">
     <input type="hidden" id="CURRENT" value="0">
     <input type="hidden" id="ZEROBEAT" value="0">
-    <input type="hidden" id="ZEROFREQ_hidden" value="700">
     <input type="hidden" id="ZEROSENSE_hidden" value="5">
     <div id="keypad_panel" class="sbitx-panel" style="display: none;">
         <h2 class="sbitx-panel-title">
@@ -545,13 +544,6 @@
                             <option value="BUG">BUG</option>
                             <option value="ULTIMAT">ULTIMATIC</option>
                         </select>
-                    </div>
-                    <div class="linear" id="linear_ZEROFREQ">
-                        <label class="linear-label" for="ZEROFREQ">ZFREQ</label>
-                        <input type="number" id="ZEROFREQ" min="600" max="750" class="linear-value" value="700">
-                        <div class="linear-dropdown">
-                            <input type="range" class="linear-slider" id="slider_ZEROFREQ" max="750" min="600" step="1" value="700">
-                        </div>
                     </div>
                     <div class="linear" id="linear_ZEROSENSE">
                         <label class="linear-label" for="ZEROSENS">ZSENS</label>
@@ -3985,9 +3977,6 @@
                 if (parts.length === 2) {
                     updateSMeter(parseInt(parts[0]), parseInt(parts[1]));
                 }
-                break;
-            case 'ZEROFREQ':
-                updateLinearControl('ZEROFREQ', parseInt(args));
                 break;
             case 'ZEROSENSE':
                 updateLinearControl('ZEROSENSE', parseInt(args));

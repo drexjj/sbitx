@@ -116,7 +116,6 @@ char pins[15] = {0, 2, 3, 6, 7,
 static long time_delta = 0;
 
 // Zero beat detection
-int zero_beat_target_frequency = 700;
 int zero_beat_min_magnitude = 0;
 
 // INA260 I2C Address and Register Definitions
@@ -544,7 +543,6 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_zero_beat_freq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -887,8 +885,6 @@ struct field main_controls[] = {
 	 "", 500000, 30000000, 1, 0},
 	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
-	{"#zero_freq", do_zero_beat_freq_edit, 1000, -1000, 50, 50, "ZEROFREQ", 40, "700", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 600, 750, 1, CW_CONTROL},
 	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, CW_CONTROL},
 
@@ -5151,14 +5147,6 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	const char *txmon_control_field = field_str("TXMON");
 	int txmon_control_level_value = atoi(txmon_control_field);
 	txmon_control_level = txmon_control_level_value;
-	return 0;
-}
-
-int do_zero_beat_freq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
-	const char *zero_beat_freq_field = field_str("ZEROFREQ");
-	int zero_beat_freq_value = atoi(zero_beat_freq_field);
-	zero_beat_target_frequency = zero_beat_freq_value;
 	return 0;
 }
 

@@ -996,8 +996,8 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 // Global variables for zero beat detection (sbitx.c)
 #define ZEROBEAT_TOLERANCE 50    // ±50 Hz from target
 #define ZEROBEAT_HYST 0.05       // Not currently used — replaced with scaled hysteresis
-#define ZEROBEAT_AVG_LEN 8       // Moving average length
-#define ZEROBEAT_UPDATE_MS 50    // Update interval (20 Hz)
+#define ZEROBEAT_AVG_LEN 4       // Moving average length (higher values = more stable but slower response to changes)
+#define ZEROBEAT_UPDATE_MS 30    // Update interval (20 Hz)
 #define SIGNAL_TIMEOUT_MS 250    // Time to clear cache if no signal
 #define MIN_SIGNAL_HOLD_MS 80    // Hold signal for at least 80ms
 #define ZEROBEAT_DEBUG 0         // Set to 1 to enable debug output
@@ -1041,8 +1041,8 @@ int calculate_zero_beat(struct rx *r, double sampling_rate) {
 
     double bin_width = sampling_rate / MAX_BINS;
 
-    int start_bin = (int)((zero_beat_target_frequency - ZEROBEAT_TOLERANCE) / bin_width);
-    int end_bin = (int)((zero_beat_target_frequency + ZEROBEAT_TOLERANCE) / bin_width);
+    int start_bin = (int)((rx_pitch - ZEROBEAT_TOLERANCE) / bin_width);
+    int end_bin = (int)((rx_pitch + ZEROBEAT_TOLERANCE) / bin_width);
     start_bin = start_bin < 0 ? 0 : (start_bin >= MAX_BINS ? MAX_BINS - 1 : start_bin);
     end_bin = end_bin < 0 ? 0 : (end_bin >= MAX_BINS ? MAX_BINS - 1 : end_bin);
 
@@ -1101,7 +1101,7 @@ int calculate_zero_beat(struct rx *r, double sampling_rate) {
 
     // Update history
     mag_history[history_index] = max_magnitude;
-    freq_history[history_index] = peak_freq - zero_beat_target_frequency;
+    freq_history[history_index] = peak_freq - rx_pitch;
 
     double avg_magnitude = 0.0, avg_freq_diff = 0.0;
     for (int i = 0; i < ZEROBEAT_AVG_LEN; i++) {
