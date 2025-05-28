@@ -503,6 +503,12 @@ static void web_despatcher(struct mg_connection *c, struct mg_ws_message *wm){
 		get_macros_list(c);
 	else if (!strcmp(field, "refresh"))
 		get_updates(c, 1);
+	else if (!strcmp(field, "BFO")) {
+		char buff[1200];
+		sprintf(buff, "bfo %s", value);
+		remote_execute(buff);
+		get_updates(c, 0);
+	}
 	else{
 		char buff[1200];
 		if (value)

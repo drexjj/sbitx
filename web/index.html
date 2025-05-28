@@ -295,6 +295,13 @@
             <button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button>
             <button class="sbitxv3-btn" id="tune_button" type="button">Tune</button>
             
+            <div class="linear" id="linear_BFO">
+                <label class="linear-label" for="BFO">BFO</label>
+                <input type="number" id="BFO" min="-3000" max="3000" class="linear-value" value="0">
+                <div class="linear-dropdown">
+                    <input type="range" class="linear-slider" id="slider_BFO" max="3000" min="-3000" step="50" value="0">
+                </div>
+            </div>
 
             <div class="linear" id="linear_DRIVE">
                 <label class="linear-label" for="DRIVE">DRIVE</label>
@@ -2818,11 +2825,19 @@
     function sbitx_text_changed(event) {
         var e = event.currentTarget;
 
+        if (e.id === "BFO") {
+            var slider = el("slider_BFO");
+            slider.value = e.value;
+            websocket_send("BFO " + e.value);
+            return;
+        }
+
         websocket_send(e.id + " " + e.value);
     }
 
     function sbitx_slider_changed(event) {
         var e = event.currentTarget;
+
         if (e.id == "HIGH") {
             var low = el("LOW");
             if (parseInt(low.value) > parseInt(e.value) + 200) {
