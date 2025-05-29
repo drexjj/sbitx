@@ -42,6 +42,7 @@
     <link rel="stylesheet" href="style.css">
     <style>
         #spectrum_header {
+            position: relative;
             color: #fff;
             font-family: monospace;
             font-size: 12px;
@@ -70,7 +71,7 @@
             box-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
             border-color: #00ff00;
         }
-        .smeter-box[data-level="20+"].active {
+        .smeter-box[data-level="20"].active {
             background-color: #ff0000;
             box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
             border-color: #ff0000;
@@ -111,6 +112,69 @@
         .tune-disabled::after {
             transform: rotate(-45deg);
         }
+        
+        /* Zerobeat indicator styles */
+        #zerobeat-container {
+            display: none;
+            margin: 4px 10px 0;
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .zerobeat-label {
+            color: #fff;
+            font-size: 12px;
+            margin-bottom: 3px;
+            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+            font-weight: bold;
+            letter-spacing: -0.5px;
+        }
+        
+        .zerobeat-boxes {
+            display: flex;
+            gap: 2px;
+            justify-content: center;
+        }
+        
+        .zerobeat-box {
+            width: 15px;
+            height: 6px;
+            background-color: #222;
+            border: 1px solid #333;
+            transition: background-color 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .zerobeat-box.active[data-level="1"] {
+            background-color: #ff0000;
+            box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
+            border-color: #ff0000;
+        }
+        
+        .zerobeat-box.active[data-level="2"] {
+            background-color: #ffff00;
+            box-shadow: 0 0 3px rgba(255, 255, 0, 0.5);
+            border-color: #ffff00;
+        }
+        
+        .zerobeat-box.active[data-level="3"] {
+            background-color: #00ff00;
+            box-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+            border-color: #00ff00;
+        }
+        
+        .zerobeat-box.active[data-level="4"] {
+            background-color: #ffff00;
+            box-shadow: 0 0 3px rgba(255, 255, 0, 0.5);
+            border-color: #ffff00;
+        }
+        
+        .zerobeat-box.active[data-level="5"] {
+            background-color: #ff0000;
+            box-shadow: 0 0 3px rgba(255, 0, 0, 0.5);
+            border-color: #ff0000;
+        }
     </style>
 </head>
 
@@ -129,6 +193,8 @@
     <input type="hidden" id="VFO" value="A"> <!-- Fixed id from VFOx to VFO -->
     <input type="hidden" id="VOLTAGE" value="0">
     <input type="hidden" id="CURRENT" value="0">
+    <input type="hidden" id="ZEROBEAT" value="0">
+    <input type="hidden" id="ZEROSENSE_hidden" value="5">
     <div id="keypad_panel" class="sbitx-panel" style="display: none;">
         <h2 class="sbitx-panel-title">
             Enter Frequency
@@ -194,6 +260,7 @@
                     <option value="60M">60M</option>
                     <option value="80M">80M</option>
                 </select>
+                <span id="SELBAND" style="display: none;"></span>
             </div>
             <div class="sbitxv3-control rx-control">
                 <label class="sbitxv3-label" for="AGC">AGC</label>
@@ -227,6 +294,15 @@
             </div>
             <button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button>
             <button class="sbitxv3-btn" id="tune_button" type="button">Tune</button>
+            
+            <div class="linear" id="linear_BFO">
+                <label class="linear-label" for="BFO">BFO</label>
+                <input type="number" id="BFO" min="-3000" max="3000" class="linear-value" value="0">
+                <div class="linear-dropdown">
+                    <input type="range" class="linear-slider" id="slider_BFO" max="3000" min="-3000" step="50" value="0">
+                </div>
+            </div>
+
             <div class="linear" id="linear_DRIVE">
                 <label class="linear-label" for="DRIVE">DRIVE</label>
                 <input type="number" id="DRIVE" min="1" max="100" class="linear-value">
@@ -234,6 +310,7 @@
                     <input type="range" class="linear-slider" id="slider_DRIVE" max="100" min="1" step="1" value="13">
                 </div>
             </div>
+
             <div class="sbitxv3-control">
                 <label class="sbitxv3-label" for="STEP">STEP</label>
                 <select id="STEP" class="sbitx-selection sbitxv3-selection">
@@ -328,16 +405,16 @@
             <section id="pan_adapter">
                 <div id="spectrum_header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; min-height: 24px;">
                     <!-- S-meter display -->
-                    <div id="smeter_display" style="width: 120px; margin-top: 4px; margin-left: 4px;">
+                    <div id="smeter_display" style="width: 120px; margin-top: 4px;">
                         <div class="smeter-boxes" style="display: flex; gap: 2px; height: 8px; margin-bottom: 2px;">
                             <div class="smeter-box" data-level="1"></div>
                             <div class="smeter-box" data-level="3"></div>
                             <div class="smeter-box" data-level="5"></div>
                             <div class="smeter-box" data-level="7"></div>
                             <div class="smeter-box" data-level="9"></div>
-                            <div class="smeter-box" data-level="20+"></div>
+                            <div class="smeter-box" data-level="20"></div>
                         </div>
-                        <div class="smeter-labels" style="display: flex; gap: 2px; font-size: 10px; color: #fff;">
+                        <div class="smeter-labels" style="display: flex; font-size: 10px;">
                             <div style="flex: 1; text-align: center;">1</div>
                             <div style="flex: 1; text-align: center;">3</div>
                             <div style="flex: 1; text-align: center;">5</div>
@@ -346,7 +423,18 @@
                             <div style="flex: 1; text-align: center;">+20</div>
                         </div>
                     </div>
-                    <div id="console" style="text-align: right; margin-right: 4px; margin-top: 4px;">Hello</div>
+                    <!-- Zerobeat indicator -->
+                    <div id="zerobeat-container" style="position: absolute; left: 50%; transform: translateX(-50%);">
+                        <div class="zerobeat-boxes" style="margin-bottom: 2px;">
+                            <div class="zerobeat-box" data-level="1"></div>
+                            <div class="zerobeat-box" data-level="2"></div>
+                            <div class="zerobeat-box" data-level="3"></div>
+                            <div class="zerobeat-box" data-level="4"></div>
+                            <div class="zerobeat-box" data-level="5"></div>
+                        </div>
+                        <div class="zerobeat-label smeter-labels" style="text-align: center;">Zero Beat</div>
+                    </div>
+                    <div id="console" style="width: 120px; text-align: right; margin-top: 4px;">Hello</div>
                 </div>
                 <div id="tx_meters">
                     <div class="menu-item">
@@ -361,7 +449,7 @@
                     </div>
                 </div>
 
-                <div id="spectrum-wrap" style="position: relative; border: 2px solid #333; border-radius: 4px; padding: 8px; background: #1a1a1a; box-shadow: inset 0 0 2px rgba(0,0,0,0.5);">
+                <div id="spectrum-wrap" style="position: relative; border: 2px solid #333; border-radius: 4px; padding: 0px; background: #1a1a1a; box-shadow: inset 0 0 2px rgba(0,0,0,0.5);">
                     <canvas id="spectrum" width="600" height="80"></canvas>
                 </div>
                 <canvas id="waterfall" width="600" height="80"></canvas>
@@ -464,6 +552,7 @@
                             <option value="ULTIMAT">ULTIMATIC</option>
                         </select>
                     </div>
+
                     <div class="bottom-bar">
                         <button class="sbitxv3-btn" id="xpra_launch_cw" type="button">Apps</button>
                         <button class="sbitxv3-btn" id="menu-open2">Menu</button>
@@ -2282,16 +2371,8 @@
             if (key == '\u21E4')
                 websocket_send("key " + String.fromCharCode(8));
             else if (key == '\u23D8')
-                websocket_send("key  ");
-            else if (key == '\u2716')
                 $("#keybd").hide();
-            else if (key == "AR")
-                websocket_send("key [");
-            else if (key == "AS")
-                websocket_send("key ]");
-            else if (key == "BT")
-                websocket_send("key &");
-            else
+            else if (key == '\u2716')
                 websocket_send("key " + key);
             return;
         }
@@ -2744,11 +2825,19 @@
     function sbitx_text_changed(event) {
         var e = event.currentTarget;
 
+        if (e.id === "BFO") {
+            var slider = el("slider_BFO");
+            slider.value = e.value;
+            websocket_send("BFO " + e.value);
+            return;
+        }
+
         websocket_send(e.id + " " + e.value);
     }
 
     function sbitx_slider_changed(event) {
         var e = event.currentTarget;
+
         if (e.id == "HIGH") {
             var low = el("LOW");
             if (parseInt(low.value) > parseInt(e.value) + 200) {
@@ -3638,8 +3727,14 @@
             '7': '12M',
             '8': '10M'
         };
-        el("BAND").value = band_map[args];
-        el("SELBAND").innerHTML = band_stack_indicators[args] || " ";
+        const bandEl = el("BAND");
+        if (bandEl && band_map[args]) {
+            bandEl.value = band_map[args];
+        }
+        const selbandEl = el("SELBAND");
+        if (selbandEl) {
+            selbandEl.innerHTML = band_stack_indicators[args] || " ";
+        }
     }
     function mode_set(new_mode) {
 
@@ -3716,6 +3811,25 @@
     function response_handler(response) {
         var cmd = "";
         var args = "";
+
+        // Function to update linear control values
+        function updateLinearControl(id, value) {
+            // Update hidden input
+            const hiddenInput = document.getElementById(id + '_hidden');
+            if (hiddenInput) {
+                hiddenInput.value = value;
+            }
+
+            // Update visible control and slider
+            const control = document.getElementById(id);
+            if (control) {
+                control.value = value;
+                const slider = document.getElementById('slider_' + id);
+                if (slider) {
+                    slider.value = value;
+                }
+            }
+        }
 
         // Function to update S-meter display
         function updateSMeter(s_units, additional_db) {
@@ -3833,6 +3947,10 @@
                     log("session_id set to " + session_id);
                     show_main();
                     resize_ui();
+                    // Initialize mode state after successful login
+                    setTimeout(() => {
+                        checkTuneState();
+                    }, 500);
                 }
                 else {
                     alert("Incorrect passkey.\r\nIf you have forgotten your pass key\r\n" +
@@ -3868,8 +3986,13 @@
                 logger_list_macros(args);
                 break;
             case 'SMETER':
-                const [s_units, additional_db] = args.split(' ').map(Number);
-                updateSMeter(s_units, additional_db);
+                var parts = args.split(' ');
+                if (parts.length === 2) {
+                    updateSMeter(parseInt(parts[0]), parseInt(parts[1]));
+                }
+                break;
+            case 'ZEROSENSE':
+                updateLinearControl('ZEROSENSE', parseInt(args));
                 break;
             case 'VOLTAGE':
                 el("VOLTAGE").value = args;
@@ -3926,15 +4049,16 @@
                 if (e) {
                     if (e.value != args) {
                         e.value = args;
-                        //					log("changing from " + e.value + " to [" + args + "]");
                         if (e.classList.contains('knob-value'))
                             knob_update(e);
-                        else if (e.classList.contains("linear-value"))
+                        else if (e.classList.contains('linear-value'))
                             update_linear(e);
                         else if (e.classList.contains('sbitx-update-toggle'))
                             sbitx_toggle_update(e);
                         else if (cmd == "MYCALLSIGN" && args == "NOBODY")
                             open_settings("settings_panel");
+                        else if (cmd == "ZEROBEAT")
+                            updateZerobeatDisplay(parseInt(args));
                         else if (cmd == 'SPLIT')
                             draw_dial();
                         if (cmd == "REC") {
@@ -4196,27 +4320,62 @@
         ws.send("DEBUG:" + on);
     }
 
-    // Function to handle tune button click
-    document.addEventListener('DOMContentLoaded', function() {
+    // Function to update zerobeat display
+    function updateZerobeatDisplay(value) {
+        // Update the hidden input
+        const hiddenInput = document.getElementById('ZEROBEAT');
+        if (hiddenInput) {
+            hiddenInput.value = value;
+        }
+
+        // Update the indicator boxes
+        const boxes = document.querySelectorAll('.zerobeat-box');
+        boxes.forEach(box => {
+            const level = parseInt(box.getAttribute('data-level'));
+            if (level === value) {
+                box.classList.add('active');
+            } else {
+                box.classList.remove('active');
+            }
+        });
+    }
+
+    // Function to check if tune should be disabled
+    function checkTuneState() {
         const tuneButton = document.getElementById('tune_button');
         const modeSelect = document.getElementById('MODE');
+        const zerobeatContainer = document.getElementById('zerobeat-container');
         
-        // Function to check if tune should be disabled
-        function checkTuneState() {
-            const disabledModes = ['CW', 'CWR', 'FT8'];
-            const currentMode = modeSelect.value;
-            
-            if (disabledModes.includes(currentMode)) {
-                tuneButton.classList.add('tune-disabled');
-                tuneButton.disabled = true;
-            } else {
-                tuneButton.classList.remove('tune-disabled');
-                tuneButton.disabled = false;
-            }
+        if (!tuneButton || !modeSelect || !zerobeatContainer) {
+            console.log('Required elements not found for checkTuneState');
+            return;
         }
         
-        // Initial check
-        checkTuneState();
+        const disabledModes = ['CW', 'CWR', 'FT8'];
+        const currentMode = modeSelect.value;
+        
+        if (disabledModes.includes(currentMode)) {
+            tuneButton.classList.add('tune-disabled');
+            tuneButton.disabled = true;
+            
+            // Show zerobeat indicator only in CW/CWR modes
+            if (currentMode === 'CW' || currentMode === 'CWR') {
+                zerobeatContainer.style.display = 'block';
+                document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'block');
+            } else {
+                zerobeatContainer.style.display = 'none';
+                document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'none');
+            }
+        } else {
+            tuneButton.classList.remove('tune-disabled');
+            tuneButton.disabled = false;
+            zerobeatContainer.style.display = 'none';
+        }
+    }
+
+    // Function to handle tune button click
+    document.addEventListener('DOMContentLoaded', function() {
+        const modeSelect = document.getElementById('MODE');
         
         // Listen for mode changes
         modeSelect.addEventListener('change', checkTuneState);

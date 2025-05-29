@@ -269,3 +269,7 @@ int get_rx_gain(void);
 
 //Loopback play reset
 void sound_reset(int force);
+
+// Zero beat detection 
+extern int calculate_zero_beat(struct rx *r, double sampling_rate);
+extern int zero_beat_min_magnitude;
