@@ -4381,10 +4381,9 @@
         modeSelect.addEventListener('change', checkTuneState);
         
         // Tune button click handler
+        const tuneButton = document.getElementById('tune_button');
         tuneButton.addEventListener('click', function() {
-            if (!this.disabled) {
-                websocket_send('tune on');
-            }
+            websocket_send('tune on');
         });
 
         // ePTT button handler
