@@ -57,4 +57,4 @@ void update_log_ed();
 void write_call_log();
 time_t time_sbitx();
 
-#define VER_STR "sbitx v4.4" // Thanks to W9JES, W2JON, N1QM, OZ7BX, W4WHL, KB2ML, F4VUK, and KF7YDU
+#define VER_STR "sbitx v5.0" // Thanks to W9JES, W2JON, N1QM, OZ7BX, W4WHL, KB2ML, F4VUK, and KF7YDU
