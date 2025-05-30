@@ -108,6 +108,17 @@ input {
     padding-top: 30px;
 }
 
+.cw-ft8-control {
+    display: inline-block;
+    width: auto;
+    height: 45px;
+    min-width: 50px;
+    border: 1px solid #888;
+    background-color: var(--primary-bg);
+    color: var(--primary-text);
+    line-height: 15px;
+}
+
 #restore-btn {
     float: right;
     display: inline-block;

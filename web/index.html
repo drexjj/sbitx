@@ -113,11 +113,6 @@
             transform: rotate(-45deg);
         }
         
-        /* Hide sidetone control by default */
-        .cw-ft8-control {
-            display: none;
-        }
-        
         /* Zerobeat indicator styles */
         #zerobeat-container {
             display: none;
@@ -626,14 +621,6 @@
 
 
     <div id="more_keys">
-        <div class="linear cw-ft8-control" id="linear_SIDETONE">
-            <label class="linear-label" for="SIDETONE">SIDETN</label>
-            <input type="number" id="SIDETONE" min="0" max="10" class="linear-value">
-            <div class="linear-dropdown">
-                <input type="range" class="linear-slider" id="slider_SIDETONE" max="50" min="0" step="5"
-                    value="0">
-            </div>
-        </div>
         <div class="sbitxv3-MACRO">
             <label class="sbitxv3-label" for="MACRO">MACRO</label>
             <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
@@ -649,7 +636,16 @@
         <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
         <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
         <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
+        <div class="linear .cw-ft8-control" id="linear_SIDETONE">
+            <label class="linear-label" for="SIDETONE">SIDETN</label>
+            <input type="number" id="SIDETONE" min="0" max="50" class="linear-value">
+            <div class="linear-dropdown">
+                <input type="range" class="linear-slider" id="slider_SIDETONE" max="50" min="0" step="5"
+                    value="0">
+            </div>
+         </div>
     </div>
+
     <!-- menu panel -->
     <section id="menu_panel" class="sbitx-panel">
         <h2 class="sbitx-panel-title">
