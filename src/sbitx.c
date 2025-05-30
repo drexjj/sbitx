@@ -1739,14 +1739,7 @@ void tx_process(
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
 	for (i = 0; i < MAX_BINS / 2; i += 6) {
-		// For non-voice modes (CW, CWR, FT8), let's add the sidetone to the remote audio
-		if (r->mode == MODE_CW || r->mode == MODE_CWR || r->mode == MODE_FT8) {
-			// we need to boost the sidetone volume for remote audio by 5x to ensure it's audible.
-			int32_t remote_sample = output_speaker[i] * 5;
-			q_write(&qremote, remote_sample);
-		} else {
-			q_write(&qremote, output_speaker[i]);
-		}
+		q_write(&qremote, output_speaker[i]);
 	}
 
 	// convert to frequency
