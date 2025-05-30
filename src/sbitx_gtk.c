@@ -3594,9 +3594,13 @@ static void layout_ui()
       
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
-			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
+			// shorten waterfall space to make room for small console
+      field_move("CONSOLE", 5, y1 + default_spectrum_height + waterfall_height -37, x2 - 7, 40);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height - 40);
+      //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+			//field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+			//field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
 		}
 		else
 		{
