@@ -168,6 +168,13 @@ static void get_updates(struct mg_connection *c, int all){
 		sprintf(buff, "ZEROBEAT %d", zerobeat_value);
 		mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
 	}
+	
+	// Send sidetone value for CW, CWR, and FT8 modes
+	const char* current_mode = field_str("MODE");
+	if (!strcmp(current_mode, "CW") || !strcmp(current_mode, "CWR") || !strcmp(current_mode, "FT8")) {
+		// We don't need to send the sidetone value here as it will be included in the normal field updates
+		// The sidetone value is already being handled by the remote_update_field function
+	}
 
 
 	// Send voltage and current readings if INA260 is equipped

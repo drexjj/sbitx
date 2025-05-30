@@ -113,6 +113,11 @@
             transform: rotate(-45deg);
         }
         
+        /* Hide sidetone control by default */
+        .cw-ft8-control {
+            display: none;
+        }
+        
         /* Zerobeat indicator styles */
         #zerobeat-container {
             display: none;
@@ -534,14 +539,7 @@
                                 value="600">
                         </div>
                     </div>
-                    <div class="linear" id="linear_SIDETONE">
-                        <label class="linear-label" for="SIDETONE">TX VOL</label>
-                        <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
-                        <div class="linear-dropdown">
-                            <input type="range" class="linear-slider" id="slider_SIDETONE" max="100" min="0" step="5"
-                                value="600">
-                        </div>
-                    </div>
+
                     <div class="linear" id="linear_CW_INPUT">
                         <label class="linear-label" for="CW_INPUT">INPUT</label>
                         <select class="sbitxv3-selection sbitx-selection" id="CW_INPUT">
@@ -628,11 +626,18 @@
 
 
     <div id="more_keys">
+        <div class="linear cw-ft8-control" id="linear_SIDETONE">
+            <label class="linear-label" for="SIDETONE">SIDETN</label>
+            <input type="number" id="SIDETONE" min="0" max="10" class="linear-value">
+            <div class="linear-dropdown">
+                <input type="range" class="linear-slider" id="slider_SIDETONE" max="50" min="0" step="5"
+                    value="0">
+            </div>
+        </div>
         <div class="sbitxv3-MACRO">
             <label class="sbitxv3-label" for="MACRO">MACRO</label>
             <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
         </div>
-
         <button class="sbitxv3-btn" id="esc">ESC</button>
         <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
         <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
@@ -644,9 +649,6 @@
         <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
         <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
         <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
-
-
-
     </div>
     <!-- menu panel -->
     <section id="menu_panel" class="sbitx-panel">
@@ -4358,6 +4360,9 @@
             tuneButton.classList.add('tune-disabled');
             tuneButton.disabled = true;
             
+            // Show sidetone control for CW, CWR, and FT8 modes
+            document.querySelectorAll('.cw-ft8-control').forEach(control => control.style.display = 'block');
+            
             // Show zerobeat indicator only in CW/CWR modes
             if (currentMode === 'CW' || currentMode === 'CWR') {
                 zerobeatContainer.style.display = 'block';
@@ -4370,6 +4375,7 @@
             tuneButton.classList.remove('tune-disabled');
             tuneButton.disabled = false;
             zerobeatContainer.style.display = 'none';
+            document.querySelectorAll('.cw-ft8-control').forEach(control => control.style.display = 'none');
         }
     }
 
@@ -4390,6 +4396,14 @@
         document.getElementById('ePTT').addEventListener('change', function() {
             websocket_send('eptt ' + this.value.toLowerCase());
         });
+        
+        // Initialize sidetone slider
+        document.getElementById('slider_SIDETONE').addEventListener('input', function() {
+            websocket_send('sidetone ' + this.value);
+        });
+        
+        // Check initial state to show/hide controls based on current mode
+        checkTuneState();
     });
 
     // Hide Browser Mic button if not on HTTPS
