@@ -359,6 +359,14 @@
                     <option value="2.5K">2.5K</option>
                 </select>
             </div>
+            <div class="linear cw-ft8-only" id="linear_SIDETONE">
+                <label class="linear-label" for="SIDETONE">SIDETN</label>
+                <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
+                <div class="linear-dropdown">
+                    <input type="range" class="linear-slider" id="slider_SIDETONE" max="100" min="0" step="5"
+                        value="0">
+                </div>
+             </div>
         </section>
         <section id="logger-controls" class="sbitx-panel">
             <button class="sbitxv3-btn" id="qrz">?</button>
@@ -636,14 +644,6 @@
         <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
         <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
         <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
-        <div class="linear .cw-ft8-control" id="linear_SIDETONE">
-            <label class="linear-label" for="SIDETONE">SIDETN</label>
-            <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
-            <div class="linear-dropdown">
-                <input type="range" class="linear-slider" id="slider_SIDETONE" max="100" min="0" step="5"
-                    value="0">
-            </div>
-         </div>
     </div>
 
     <!-- menu panel -->
@@ -3743,6 +3743,7 @@
         cachedGradient = null;
 
         $(".mode-panel").hide();
+        $(".cw-ft8-only").hide();
         switch (new_mode) {
             case 'CW':
             case 'CWR':
@@ -3751,6 +3752,7 @@
                 cw_open(new_mode);
                 $("#CW_ui").show();
                 $("#more_keys").show();
+                $(".cw-ft8-only").show();
                 logger_set_macro("CW1");
                 break;
             case "AM":
@@ -3774,6 +3776,7 @@
                 FT8_open();
                 $(".FT8_ui").show();
                 $("#more_keys").show();
+                $(".cw-ft8-only").show();
                 logger_set_macro("FT8");
                 //sound_mute = false;
                 break;
