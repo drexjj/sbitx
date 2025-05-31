@@ -359,7 +359,7 @@
                     <option value="2.5K">2.5K</option>
                 </select>
             </div>
-            <div class="linear cw-ft8-only" id="linear_SIDETONE">
+            <div class="linear cw-ft8-control" id="linear_SIDETONE">
                 <label class="linear-label" for="SIDETONE">SIDETN</label>
                 <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
                 <div class="linear-dropdown">
@@ -3743,7 +3743,12 @@
         cachedGradient = null;
 
         $(".mode-panel").hide();
-        $(".cw-ft8-only").hide();
+
+        if (new_mode === 'CW' || new_mode === 'CWR' || new_mode === 'FT8') {
+            $(".cw-ft8-control").show();
+        } else {
+            $(".cw-ft8-control").hide();
+        }
         switch (new_mode) {
             case 'CW':
             case 'CWR':
@@ -3752,7 +3757,6 @@
                 cw_open(new_mode);
                 $("#CW_ui").show();
                 $("#more_keys").show();
-                $(".cw-ft8-only").show();
                 logger_set_macro("CW1");
                 break;
             case "AM":
@@ -3776,7 +3780,6 @@
                 FT8_open();
                 $(".FT8_ui").show();
                 $("#more_keys").show();
-                $(".cw-ft8-only").show();
                 logger_set_macro("FT8");
                 //sound_mute = false;
                 break;
@@ -4358,10 +4361,7 @@
         if (disabledModes.includes(currentMode)) {
             tuneButton.classList.add('tune-disabled');
             tuneButton.disabled = true;
-            
-            // Show sidetone control for CW, CWR, and FT8 modes
-            document.querySelectorAll('.cw-ft8-control').forEach(control => control.style.display = 'block');
-            
+   
             // Show zerobeat indicator only in CW/CWR modes
             if (currentMode === 'CW' || currentMode === 'CWR') {
                 zerobeatContainer.style.display = 'block';
@@ -4374,7 +4374,6 @@
             tuneButton.classList.remove('tune-disabled');
             tuneButton.disabled = false;
             zerobeatContainer.style.display = 'none';
-            document.querySelectorAll('.cw-ft8-control').forEach(control => control.style.display = 'none');
         }
     }
 
