@@ -941,6 +941,11 @@
                             // Sin wave oscillates between -1 and 1, so we adjust to 0 to maxOpacity
                             const opacity = (Math.sin(window.morseGhostState.fadePhase) + 1) / 2 * window.morseGhostState.maxOpacity;
                             
+                            // Calculate scale factor for zoom effect - scale increases as opacity decreases
+                            // When opacity is at max, scale is 1.0, when opacity approaches 0, scale approaches 1.5
+                            const scalePhase = (Math.sin(window.morseGhostState.fadePhase + Math.PI) + 1) / 2; // Offset by PI to invert
+                            const scale = 1.0 + (scalePhase * 0.5); // Scale from 1.0 to 1.5
+                            
                             // Check if we need to change the text (when opacity is near zero and time to change)
                             if (opacity < 0.01 && time > window.morseGhostState.nextChangeTime) {
                                 // Select a random text from the options
@@ -969,30 +974,40 @@
                                         const y = (helpTextRect.bottom - canvasRect.top) + 100; // 100px below the help_text
                                         
                                         ctx.save();
+                                        ctx.translate(x, y); // Move to the center point
+                                        ctx.scale(scale, scale); // Apply zoom effect
                                         ctx.font = '18px monospace'; // Monospace font works well for Morse code
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                        ctx.fillText(window.morseGhostState.currentText, x, y);
+                                        ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
                                         ctx.restore();
                                     } else {
                                         // Fallback if help_text not found
+                                        const centerX = plasmaCanvas.width / 2;
+                                        const centerY = plasmaCanvas.height - 50;
                                         ctx.save();
+                                        ctx.translate(centerX, centerY); // Move to the center point
+                                        ctx.scale(scale, scale); // Apply zoom effect
                                         ctx.font = '18px monospace';
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                        ctx.fillText(window.morseGhostState.currentText, plasmaCanvas.width / 2, plasmaCanvas.height - 50);
+                                        ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
                                         ctx.restore();
                                     }
                                 } else {
                                     // If login panel is not visible, position at bottom of screen
+                                    const centerX = plasmaCanvas.width / 2;
+                                    const centerY = plasmaCanvas.height - 50;
                                     ctx.save();
+                                    ctx.translate(centerX, centerY); // Move to the center point
+                                    ctx.scale(scale, scale); // Apply zoom effect
                                     ctx.font = '18px monospace';
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
                                     ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                    ctx.fillText(window.morseGhostState.currentText, plasmaCanvas.width / 2, plasmaCanvas.height - 50);
+                                    ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
                                     ctx.restore();
                                 }
                             }
