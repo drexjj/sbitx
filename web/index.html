@@ -812,7 +812,7 @@
                         
                         const fivesCtx = fivesCanvas.getContext('2d');
                         const particles = [];
-                        const particleCount = 30; // 50% fewer particles for better performance
+                        const particleCount = 20; // 50% fewer particles for better performance
                         
                         // Create particles distributed across the entire panel
                         for (let i = 0; i < particleCount; i++) {
@@ -828,7 +828,7 @@
                         }
                         
                         // Add some particles that start in the visible area for immediate effect
-                        for (let i = 0; i < 15; i++) {
+                        for (let i = 0; i < 10; i++) {
                             particles.push({
                                 x: Math.random() * fivesCanvas.width,
                                 y: Math.random() * fivesCanvas.height, // Start in visible area
@@ -861,19 +861,25 @@
                                     p.x = Math.random() * fivesCanvas.width;
                                 }
                                 
-                                // Draw number 5 as particle (exactly as in apps.html)
+                                // Draw text particles
                                 fivesCtx.save();
                                 fivesCtx.translate(p.x, p.y);
                                 fivesCtx.rotate(p.rotation);
-                                fivesCtx.font = `${p.size}px Arial`; // Remove bold to match apps.html
+                                fivesCtx.font = `${p.size}px Arial`;
                                 fivesCtx.textAlign = 'center';
                                 fivesCtx.textBaseline = 'middle';
                                 
-                                // No glow effect in apps.html
-                                
                                 fivesCtx.fillStyle = p.color;
                                 fivesCtx.globalAlpha = p.opacity;
-                                fivesCtx.fillText('5', 0, 0);
+                                
+                                // Alternate between Morse code and '64Bit' text
+                                if (i % 3 === 0) {
+                                    fivesCtx.fillText('... -... .. - -..-', 0, 0); // Morse code for 'sbitx'
+                                } else if (i % 3 === 1) {
+                                    fivesCtx.fillText('64Bit', 0, 0);
+                                } else {
+                                    fivesCtx.fillText('sBitx', 0, 0); 
+                                }
                                 fivesCtx.restore();
                             }
                             

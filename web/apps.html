@@ -526,7 +526,7 @@
                         p.x = Math.random() * canvas.width;
                     }
                     
-                    // Draw number 5 as particle
+                    // Draw particles with different text
                     ctx.save();
                     ctx.translate(p.x, p.y);
                     ctx.rotate(p.rotation);
@@ -535,7 +535,15 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = p.color;
                     ctx.globalAlpha = p.opacity;
-                    ctx.fillText('5', 0, 0);
+                    
+                    // Alternate between three different texts
+                    if (i % 3 === 0) {
+                        ctx.fillText('... -... .. - -..-', 0, 0);
+                    } else if (i % 3 === 1) {
+                        ctx.fillText('64Bit', 0, 0);
+                    } else {
+                        ctx.fillText('sBitx', 0, 0);
+                    }
                     ctx.restore();
                 }
                 
