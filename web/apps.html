@@ -246,7 +246,7 @@
     </style>
 </head>
 <body>
-    <canvas id="plasma-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
+    <canvas id="smoke-canvas"></canvas>
     <h1>X-launcher</h1>
     <div id="app-containers">
         <div class="loading-indicator">Loading applications...</div>
@@ -482,145 +482,73 @@
         setInterval(updateStatus, 6000);
         document.addEventListener('DOMContentLoaded', () => {
             loadAppList();
-            initBackgroundEffect();
+            initSmokeEffect();
         });
         
-        // Optimized background animation
-        function initBackgroundEffect() {
-            const plasmaCanvas = document.getElementById('plasma-canvas');
-            if (!plasmaCanvas) return;
+        // Smoke effect implementation
+        function initSmokeEffect() {
+            const canvas = document.getElementById('smoke-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
             
-            const ctx = plasmaCanvas.getContext('2d');
-            let time = 0;
+            const particles = [];
+            const particleCount = 50;
             
-            // Store random offsets for each plasma element
-            let circleOffsets = [];
-            
-            // Initialize random offsets for plasma elements
-            function initRandomOffsets() {
-                // Random offsets for circles
-                circleOffsets = [];
-                for (let i = 0; i < 8; i++) {
-                    circleOffsets.push({
-                        xOffset: Math.random() * 2 - 1, // -1 to 1
-                        yOffset: Math.random() * 2 - 1, // -1 to 1
-                        phaseOffset: Math.random() * Math.PI * 2, // 0 to 2π
-                        speedFactor: 0.1 + Math.random() * 0.2, // Random speed for each circle
-                        amplitudeFactor: 0.3 + Math.random() * 0.15, // Random movement amplitude
-                        directionChangeTime: Math.random() * 10, // When to change direction
-                        sizeVariation: 0.05 + Math.random() * 0.08, // Random size variation
-                        directionFactor: Math.random() < 0.5 ? 1 : -1 // Random direction (clockwise or counter-clockwise)
-                    });
-                }
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height + Math.random() * 100,
+                    size: Math.random() * 15 + 10,
+                    speed: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.4 + 0.1,
+                    color: Math.random() > 0.5 ? '#3366cc' : '#336699',
+                    rotation: Math.random() * Math.PI * 2
+                });
             }
             
-            // Initialize offsets on first run
-            initRandomOffsets();
-            
-            // Set canvas size to match the full window
-            const resizeCanvas = function() {
-                plasmaCanvas.width = window.innerWidth;
-                plasmaCanvas.height = window.innerHeight;
-            };
-            
-            // Initial resize and listen for window resize
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            
-            // Create a much more optimized background effect
-            function animateBackground() {
-                // Check if canvas is still in DOM and visible
-                if (!document.body.contains(plasmaCanvas) || plasmaCanvas.style.display === 'none') return;
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Clear the canvas
-                ctx.clearRect(0, 0, plasmaCanvas.width, plasmaCanvas.height);
-                
-                // Draw a simple gradient background
-                const gradient = ctx.createLinearGradient(0, 0, 0, plasmaCanvas.height);
-                gradient.addColorStop(0, '#001a33');
-                gradient.addColorStop(1, '#000111');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, plasmaCanvas.width, plasmaCanvas.height);
-                
-                // Increment time for animation - faster increment for more lively motion
-                time += 0.02;
-                
-                // Very gradual parameter changes for smooth transitions
-                for (let i = 0; i < circleOffsets.length; i++) {
-                    // Apply extremely small incremental changes to parameters
-                    // This creates a slowly evolving path without any jumps
-                    circleOffsets[i].phaseOffset += 0.0001 * Math.sin(time * 0.05 + i);
-                    circleOffsets[i].speedFactor += 0.0001 * Math.sin(time * 0.03 + i * 1.2) * 
-                                                  (circleOffsets[i].speedFactor < 0.05 ? 0.001 : 
-                                                   circleOffsets[i].speedFactor > 0.3 ? -0.001 : 0);
-                    circleOffsets[i].amplitudeFactor += 0.0001 * Math.sin(time * 0.02 + i * 0.7) * 
-                                                     (circleOffsets[i].amplitudeFactor < 0.25 ? 0.001 : 
-                                                      circleOffsets[i].amplitudeFactor > 0.45 ? -0.001 : 0);
-                }
-                
-                // Draw a few simple animated shapes instead of per-pixel calculations
-                const shapeCount = 8; // Increased to 8 particles
-                
-                // Draw a few simple animated circles
-                for (let i = 0; i < shapeCount; i++) {
-                    const offset = circleOffsets[i];
+                // Update and draw particles
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
                     
-                    // Smooth continuous direction changes using sine waves
-                    // This creates a flowing, organic movement without jumps
-                    const directionModulation = 0.001 * Math.sin(time * 0.04 + i * 2.1);
+                    // Move particles upward
+                    p.y -= p.speed;
+                    p.x += Math.sin(p.y * 0.01) * 0.5;
+                    p.rotation += 0.005;
                     
-                    // Large but not too large with faster size pulsing
-                    const size = Math.min(plasmaCanvas.width, plasmaCanvas.height) * 
-                                (0.2 + offset.sizeVariation * Math.sin(time * 0.25 + i));
-                    
-                    // More complex movement pattern with varying speeds and amplitudes
-                    // Apply the directionModulation to create smooth direction changes
-                    // Use directionFactor to properly determine clockwise or counter-clockwise movement
-                    const timeParam = time * offset.speedFactor + i * 1.5 + offset.phaseOffset + directionModulation;
-                    
-                    // For clockwise movement, we need to reverse the relationship between x and y
-                    // This is the key difference between clockwise and counter-clockwise circular motion
-                    let xWave, yWave;
-                    if (offset.directionFactor > 0) {
-                        // Counter-clockwise: standard sine/cosine relationship
-                        xWave = Math.sin(timeParam);
-                        yWave = Math.cos(timeParam);
-                    } else {
-                        // Clockwise: reversed sine/cosine relationship
-                        xWave = Math.sin(-timeParam);
-                        yWave = Math.cos(-timeParam);
+                    // Reset particles that go off screen
+                    if (p.y < -50) {
+                        p.y = canvas.height + Math.random() * 50;
+                        p.x = Math.random() * canvas.width;
                     }
                     
-                    // Add secondary wave for more complex motion
-                    const xWave2 = Math.sin(time * 0.07 + i * 0.8) * 0.2;
-                    const yWave2 = Math.cos(time * 0.09 + i * 0.7) * 0.2;
-                    
-                    // Combine waves for final position
-                    const x = plasmaCanvas.width * 0.5 + 
-                             (xWave + xWave2) * plasmaCanvas.width * offset.amplitudeFactor + 
-                             offset.xOffset * plasmaCanvas.width * 0.12;
-                    const y = plasmaCanvas.height * 0.5 + 
-                             (yWave + yWave2) * plasmaCanvas.height * offset.amplitudeFactor + 
-                             offset.yOffset * plasmaCanvas.height * 0.12;
-                    
-                    // Create a radial gradient for each circle with better visibility
-                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
-                    gradient.addColorStop(0, 'rgba(50, 100, 150, 0.04)');
-                    gradient.addColorStop(0.5, 'rgba(30, 70, 120, 0.025)');
-                    gradient.addColorStop(1, 'rgba(20, 40, 80, 0)');
-                    
-                    ctx.beginPath();
-                    ctx.fillStyle = gradient;
-                    ctx.arc(x, y, size, 0, Math.PI * 2);
-                    ctx.fill();
+                    // Draw number 5 as particle
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation);
+                    ctx.font = `${p.size}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillText('5', 0, 0);
+                    ctx.restore();
                 }
                 
-                // Use setTimeout with shorter delay for higher frame rate
-                setTimeout(animateBackground, 20); 
+                requestAnimationFrame(animate);
             }
             
-            // Start animation
-            animateBackground();
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+            
+            animate();
         }
     </script>
 </body>
