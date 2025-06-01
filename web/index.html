@@ -937,7 +937,8 @@
                                     fadePhase: 0,        // 0 to 2π for a complete fade cycle
                                     fadeSpeed: 0.01,     // Speed of fade cycle
                                     maxOpacity: 0.15,    // Maximum opacity (keep it ghost-like)
-                                    nextChangeTime: 0    // Time to change to next text
+                                    nextChangeTime: 0,   // Time to change to next text
+                                    recentCallsigns: []  // Array to track recently shown callsigns
                                 };
                             }
                             
@@ -972,15 +973,37 @@
                             
                             // Change text when opacity is near zero and we're starting to increase again
                             if (opacity < 0.01 && window.morseGhostState.fadeDirection === 'increasing') {
-                                // Select a random text directly from the global callsigns array
-                                // Ensure we don't select the same text twice in a row
+                                // Initialize recentCallsigns array if it doesn't exist
+                                if (!window.morseGhostState.recentCallsigns) {
+                                    window.morseGhostState.recentCallsigns = [];
+                                }
+                                
+                                // Select a random text that hasn't been shown in the previous 3 picks
                                 let randomIndex;
+                                let attempts = 0;
+                                const maxAttempts = 50; // Prevent infinite loop
+                                
                                 do {
                                     randomIndex = Math.floor(Math.random() * window.morseCodeCallsigns.length);
-                                } while (window.morseCodeCallsigns[randomIndex] === window.morseGhostState.currentText && window.morseCodeCallsigns.length > 1);
+                                    attempts++;
+                                    
+                                    // Break the loop if we've tried too many times or if we have fewer than 5 unique callsigns
+                                    if (attempts > maxAttempts || window.morseCodeCallsigns.length <= 5) {
+                                        break;
+                                    }
+                                } while (window.morseGhostState.recentCallsigns.includes(window.morseCodeCallsigns[randomIndex]));
                                 
+                                // Update the current text
                                 window.morseGhostState.currentText = window.morseCodeCallsigns[randomIndex];
+                                
+                                // Add to recent callsigns and maintain only the last 5
+                                window.morseGhostState.recentCallsigns.push(window.morseGhostState.currentText);
+                                if (window.morseGhostState.recentCallsigns.length > 5) {
+                                    window.morseGhostState.recentCallsigns.shift(); // Remove oldest entry
+                                }
+                                
                                 console.log('Changed morse code to:', window.morseGhostState.currentText);
+                                console.log('Recent callsigns:', window.morseGhostState.recentCallsigns);
                             }
                             
                             // Only draw if we have a current text and opacity is visible
@@ -1004,7 +1027,7 @@
                                         ctx.save();
                                         ctx.translate(x, y); // Move to the center point
                                         ctx.scale(scale, scale); // Apply zoom effect
-                                        ctx.font = '18px monospace'; // Monospace font works well for Morse code
+                                        ctx.font = '24px monospace'; // Monospace font works well for Morse code
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
@@ -1017,7 +1040,7 @@
                                         ctx.save();
                                         ctx.translate(centerX, centerY); // Move to the center point
                                         ctx.scale(scale, scale); // Apply zoom effect
-                                        ctx.font = '18px monospace';
+                                        ctx.font = '24px monospace';
                                         ctx.textAlign = 'center';
                                         ctx.textBaseline = 'middle';
                                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
@@ -1031,7 +1054,7 @@
                                     ctx.save();
                                     ctx.translate(centerX, centerY); // Move to the center point
                                     ctx.scale(scale, scale); // Apply zoom effect
-                                    ctx.font = '18px monospace';
+                                    ctx.font = '24px monospace';
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'middle';
                                     ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
