@@ -949,7 +949,8 @@
             return;
 
         var request = session_id + "\n" + str;
-        //	log("ws tx:[" + request + "]");
+        // Add debug logging for all websocket messages
+        //console.log("Websocket sending: [" + str + "]");
         socket.send(request);
 
         // Check if this is a mode change message
@@ -2826,7 +2827,26 @@
         if (e.id === "BFO") {
             var slider = el("slider_BFO");
             slider.value = e.value;
-            websocket_send("BFO " + e.value);
+            
+            var currentTime = Date.now();
+            var timeSinceLastAdjustment = currentTime - lastBFOAdjustmentTime;
+            
+            // Only send menu 1 if more than 5 seconds have passed since last adjustment
+            if (timeSinceLastAdjustment > 5000) {
+                //console.log("BFO text input: Sending menu 1 command (5+ seconds since last adjustment)");
+                websocket_send("menu 1");
+                // Add a slight pause between commands
+                setTimeout(function() {
+                //    console.log("BFO text input: Now sending BFO command");
+                    websocket_send("BFO " + e.value);
+                }, 200);
+            } else   {
+                //console.log("BFO text input: Skipping menu 1 command (last adjustment was " + Math.round(timeSinceLastAdjustment/1000) + " seconds ago)");
+                websocket_send("BFO " + e.value);
+            }
+            
+            // Update the last adjustment time
+            lastBFOAdjustmentTime = currentTime;
             return;
         }
 
@@ -4280,11 +4300,39 @@
 
 
     //when the user changes the value
+    // Variable to track the last time BFO was adjusted
+    var lastBFOAdjustmentTime = 0;
+    
     function on_linear_moved(event) {
         var control = event.currentTarget;
         var control_id = control.id.substring(7);
         el(control_id).value = control.value;
-        websocket_send(control_id + " " + control.value);
+        
+        // Special handling for BFO slider
+        if (control_id === "BFO") {
+            var currentTime = Date.now();
+            var timeSinceLastAdjustment = currentTime - lastBFOAdjustmentTime;
+            
+            // Only send menu 1 if more than 5 seconds have passed since last adjustment
+            if (timeSinceLastAdjustment > 5000) {
+                //console.log("BFO slider: Sending menu 1 command (5+ seconds since last adjustment)");
+                websocket_send("menu 1");
+                // Add a slight pause between commands
+                setTimeout(function() {
+                    //console.log("BFO slider: Now sending BFO command");
+                    websocket_send("BFO " + control.value);
+                }, 200);
+            } else {
+                  //console.log("BFO slider: Skipping menu 1 command (last adjustment was " + Math.round(timeSinceLastAdjustment/1000) + " seconds ago)");
+                websocket_send("BFO " + control.value);
+            }
+            
+            // Update the last adjustment time
+            lastBFOAdjustmentTime = currentTime;
+        } else {
+            // Normal handling for other sliders
+            websocket_send(control_id + " " + control.value);
+        }
     }
 
     //called in update from the server
