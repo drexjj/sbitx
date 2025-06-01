@@ -713,6 +713,9 @@
     <!-- Plasma background animation canvas for the entire page -->
     <canvas id="plasma-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
     
+    <!-- Dedicated container for callsign animation that will be positioned relative to the login panel -->
+    <div id="callsign-container" style="position: absolute; text-align: center; width: 100%; z-index: -1;"></div>
+    
     <!-- login panel -->
     <section id="login_panel">
         <div class="help_text">
@@ -802,13 +805,33 @@
                         
                         // Set canvas size to match the full window
                         const resizeCanvas = function() {
-                            plasmaCanvas.width = window.innerWidth;
-                            plasmaCanvas.height = window.innerHeight;
+                            // Get the actual dimensions of the viewport
+                            const width = window.innerWidth;
+                            const height = window.innerHeight;
+                            
+                            // Set both the CSS dimensions and the canvas dimensions
+                            plasmaCanvas.style.width = width + 'px';
+                            plasmaCanvas.style.height = height + 'px';
+                            
+                            // Set the actual drawing surface dimensions
+                            plasmaCanvas.width = width;
+                            plasmaCanvas.height = height;
                         };
                         
                         // Initial resize and listen for window resize
                         resizeCanvas();
                         window.addEventListener('resize', resizeCanvas);
+                        
+                        // Also use ResizeObserver for more reliable size tracking
+                        if (window.ResizeObserver) {
+                            const resizeObserver = new ResizeObserver(entries => {
+                                // Only resize if the body dimensions have changed significantly
+                                if (entries[0].contentRect.width > 0) {
+                                    resizeCanvas();
+                                }
+                            });
+                            resizeObserver.observe(document.body);
+                        }
                         
                         const ctx = plasmaCanvas.getContext('2d');
                         // Randomize the starting time for animation variation
@@ -890,6 +913,13 @@
                         function animateBackground() {
                             // Check if canvas is still in DOM and visible
                             if (!document.body.contains(plasmaCanvas) || plasmaCanvas.style.display === 'none') return;
+                            
+                            // Make sure canvas dimensions match the viewport
+                            // This ensures we always fill the entire screen even when scaling occurs
+                            if (plasmaCanvas.width !== window.innerWidth || plasmaCanvas.height !== window.innerHeight) {
+                                plasmaCanvas.width = window.innerWidth;
+                                plasmaCanvas.height = window.innerHeight;
+                            }
                             
                             // Clear the canvas
                             ctx.clearRect(0, 0, plasmaCanvas.width, plasmaCanvas.height);
@@ -1006,61 +1036,57 @@
                                 console.log('Recent callsigns:', window.morseGhostState.recentCallsigns);
                             }
                             
-                            // Only draw if we have a current text and opacity is visible
+                            // Only update if we have a current text and opacity is visible
                             if (window.morseGhostState.currentText && opacity > 0.005) {
-                                // Draw the callsign below the help_text card in the login panel
-                                // First check if the login panel is visible
+                                // Get the callsign container
+                                const callsignContainer = document.getElementById('callsign-container');
                                 const loginPanel = document.getElementById('login_panel');
                                 
+                                if (!callsignContainer) return; // Safety check
+                                
+                                // Update the callsign text
+                                if (!callsignContainer.querySelector('#callsign-text')) {
+                                    const callsignText = document.createElement('div');
+                                    callsignText.id = 'callsign-text';
+                                    callsignText.style.fontFamily = 'monospace';
+                                    callsignText.style.fontSize = '24px';
+                                    callsignText.style.color = 'white';
+                                    callsignText.style.textAlign = 'center';
+                                    callsignText.style.width = '100%';
+                                    callsignText.style.position = 'absolute';
+                                    callsignText.style.left = '0';
+                                    callsignContainer.appendChild(callsignText);
+                                }
+                                
+                                const callsignText = callsignContainer.querySelector('#callsign-text');
+                                callsignText.textContent = window.morseGhostState.currentText;
+                                callsignText.style.opacity = opacity;
+                                callsignText.style.transform = `scale(${scale})`;
+                                
+                                // Position the container relative to the login panel if it's visible
                                 if (loginPanel && window.getComputedStyle(loginPanel).display !== 'none') {
-                                    // Get the help_text element dimensions
                                     const helpText = loginPanel.querySelector('.help_text');
                                     
                                     if (helpText) {
                                         const helpTextRect = helpText.getBoundingClientRect();
-                                        const canvasRect = plasmaCanvas.getBoundingClientRect();
+                                        const loginPanelRect = loginPanel.getBoundingClientRect();
                                         
-                                        // Calculate position below the help_text
-                                        const x = plasmaCanvas.width / 2;
-                                        const y = (helpTextRect.bottom - canvasRect.top) + 100; // 100px below the help_text
-                                        
-                                        ctx.save();
-                                        ctx.translate(x, y); // Move to the center point
-                                        ctx.scale(scale, scale); // Apply zoom effect
-                                        ctx.font = '24px monospace'; // Monospace font works well for Morse code
-                                        ctx.textAlign = 'center';
-                                        ctx.textBaseline = 'middle';
-                                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                        ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
-                                        ctx.restore();
+                                        // Position the container below the help text
+                                        callsignContainer.style.top = (helpTextRect.bottom + 100) + 'px'; // 100px below help_text
+                                        callsignContainer.style.left = '0';
+                                        callsignContainer.style.display = 'block';
                                     } else {
                                         // Fallback if help_text not found
-                                        const centerX = plasmaCanvas.width / 2;
-                                        const centerY = plasmaCanvas.height - 50;
-                                        ctx.save();
-                                        ctx.translate(centerX, centerY); // Move to the center point
-                                        ctx.scale(scale, scale); // Apply zoom effect
-                                        ctx.font = '24px monospace';
-                                        ctx.textAlign = 'center';
-                                        ctx.textBaseline = 'middle';
-                                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                        ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
-                                        ctx.restore();
+                                        callsignContainer.style.top = (loginPanel.getBoundingClientRect().bottom + 50) + 'px';
+                                        callsignContainer.style.display = 'block';
                                     }
                                 } else {
-                                    // If login panel is not visible, position at bottom of screen
-                                    const centerX = plasmaCanvas.width / 2;
-                                    const centerY = plasmaCanvas.height - 50;
-                                    ctx.save();
-                                    ctx.translate(centerX, centerY); // Move to the center point
-                                    ctx.scale(scale, scale); // Apply zoom effect
-                                    ctx.font = '24px monospace';
-                                    ctx.textAlign = 'center';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                                    ctx.fillText(window.morseGhostState.currentText, 0, 0); // Draw at origin since we translated
-                                    ctx.restore();
+                                    // If login panel is not visible, hide the callsign
+                                    callsignContainer.style.display = 'none';
                                 }
+                            } else if (document.getElementById('callsign-container')) {
+                                // Hide the callsign when opacity is too low
+                                document.getElementById('callsign-container').style.display = 'none';
                             }
                             
                             // Use setTimeout with shorter delay for higher frame rate
