@@ -710,8 +710,8 @@
         </div>
 
     </section>
-    <!-- Background animation canvas for the entire page -->
-    <canvas id="fives-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
+    <!-- Plasma background animation canvas for the entire page -->
+    <canvas id="plasma-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
     
     <!-- login panel -->
     <section id="login_panel">
@@ -793,104 +793,151 @@
                 animate();
             </script>
             
-            <!-- Number 5 animation script for the background -->
+            <!-- Plasma animation script for the background -->
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     try {
-                        const fivesCanvas = document.getElementById('fives-canvas');
-                        if (!fivesCanvas) return;
+                        const plasmaCanvas = document.getElementById('plasma-canvas');
+                        if (!plasmaCanvas) return;
                         
                         // Set canvas size to match the full window
                         const resizeCanvas = function() {
-                            fivesCanvas.width = window.innerWidth;
-                            fivesCanvas.height = window.innerHeight;
+                            plasmaCanvas.width = window.innerWidth;
+                            plasmaCanvas.height = window.innerHeight;
                         };
                         
                         // Initial resize and listen for window resize
                         resizeCanvas();
                         window.addEventListener('resize', resizeCanvas);
                         
-                        const fivesCtx = fivesCanvas.getContext('2d');
-                        const particles = [];
-                        const particleCount = 20; // 50% fewer particles for better performance
+                        const ctx = plasmaCanvas.getContext('2d');
+                        // Randomize the starting time for animation variation
+                        let time = Math.random() * 100;
                         
-                        // Create particles distributed across the entire panel
-                        for (let i = 0; i < particleCount; i++) {
-                            particles.push({
-                                x: Math.random() * fivesCanvas.width,
-                                y: fivesCanvas.height + Math.random() * 50,
-                                size: Math.random() * 15 + 10, // Exact size from apps.html
-                                speed: Math.random() * 1.5 + 0.5, // Exact speed from apps.html
-                                opacity: Math.random() * 0.25 + 0.05, // Reduced opacity (0.05-0.3)
-                                color: Math.random() > 0.5 ? '#2a5599' : '#2a5580', // Darker blues
-                                rotation: Math.random() * Math.PI * 2
-                            });
-                        }
+                        // Create a palette of colors for the plasma effect
+                        // Using darker blue tones for sBitx theme
+                        const createPalette = () => {
+                            const palette = [];
+                            for (let i = 0; i < 256; i++) {
+                                // Create a blue-dominant color palette
+                                // Darker, more subtle colors for better readability
+                                const r = Math.floor(Math.sin(0.024 * i + 0) * 25 + 25);
+                                const g = Math.floor(Math.sin(0.024 * i + 2) * 35 + 35);
+                                const b = Math.floor(Math.sin(0.024 * i + 4) * 55 + 75);
+                                palette.push('rgb(' + r + ',' + g + ',' + b + ')');
+                            }
+                            return palette;
+                        };
                         
-                        // Add some particles that start in the visible area for immediate effect
-                        for (let i = 0; i < 10; i++) {
-                            particles.push({
-                                x: Math.random() * fivesCanvas.width,
-                                y: Math.random() * fivesCanvas.height, // Start in visible area
-                                size: Math.random() * 15 + 10, // Exact size from apps.html
-                                speed: Math.random() * 1.5 + 0.5, // Exact speed from apps.html
-                                opacity: Math.random() * 0.25 + 0.05, // Reduced opacity (0.05-0.3)
-                                color: Math.random() > 0.5 ? '#2a5599' : '#2a5580', // Darker blues
-                                rotation: Math.random() * Math.PI * 2
-                            });
-                        }
+                        const palette = createPalette();
                         
-                        function animateFives() {
-                            // Check if canvas is still in DOM and visible
-                            if (!document.body.contains(fivesCanvas) || fivesCanvas.style.display === 'none') return;
-                            
-                            fivesCtx.clearRect(0, 0, fivesCanvas.width, fivesCanvas.height);
-                            
-                            // Update and draw particles
-                            for (let i = 0; i < particles.length; i++) {
-                                const p = particles[i];
-                                
-                                // Move particles upward
-                                p.y -= p.speed;
-                                p.x += Math.sin(p.y * 0.01) * 0.5; // Good horizontal movement
-                                p.rotation += 0.005;
-                                
-                                // Reset particles that go off screen
-                                if (p.y < -30) {
-                                    p.y = fivesCanvas.height + Math.random() * 30;
-                                    p.x = Math.random() * fivesCanvas.width;
-                                }
-                                
-                                // Draw text particles
-                                fivesCtx.save();
-                                fivesCtx.translate(p.x, p.y);
-                                fivesCtx.rotate(p.rotation);
-                                fivesCtx.font = `${p.size}px Arial`;
-                                fivesCtx.textAlign = 'center';
-                                fivesCtx.textBaseline = 'middle';
-                                
-                                fivesCtx.fillStyle = p.color;
-                                fivesCtx.globalAlpha = p.opacity;
-                                
-                                // Alternate between Morse code and '64Bit' text
-                                if (i % 3 === 0) {
-                                    fivesCtx.fillText('... -... .. - -..-', 0, 0); // Morse code for 'sbitx'
-                                } else if (i % 3 === 1) {
-                                    fivesCtx.fillText('64Bit', 0, 0);
-                                } else {
-                                    fivesCtx.fillText('sBitx', 0, 0); 
-                                }
-                                fivesCtx.restore();
+                        // Store random offsets for each plasma element
+                        let circleOffsets = [];
+                        let textOffsets = [];
+                        
+                        // Initialize random offsets for plasma elements
+                        function initRandomOffsets() {
+                            // Random offsets for circles
+                            circleOffsets = [];
+                            for (let i = 0; i < 5; i++) {
+                                circleOffsets.push({
+                                    xOffset: Math.random() * 2 - 1, // -1 to 1
+                                    yOffset: Math.random() * 2 - 1, // -1 to 1
+                                    phaseOffset: Math.random() * Math.PI * 2 // 0 to 2π
+                                });
                             }
                             
-                            requestAnimationFrame(animateFives);
+                            // Random offsets for text elements
+                            textOffsets = [];
+                            for (let i = 0; i < 3; i++) {
+                                textOffsets.push({
+                                    xOffset: Math.random() * 2 - 1, // -1 to 1
+                                    yOffset: Math.random() * 2 - 1, // -1 to 1
+                                    phaseOffset: Math.random() * Math.PI * 2 // 0 to 2π
+                                });
+                            }
+                        }
+                        
+                        // Initialize offsets on first run
+                        initRandomOffsets();
+                        
+                        // Create a much more optimized background effect
+                        function animateBackground() {
+                            // Check if canvas is still in DOM and visible
+                            if (!document.body.contains(plasmaCanvas) || plasmaCanvas.style.display === 'none') return;
+                            
+                            // Clear the canvas
+                            ctx.clearRect(0, 0, plasmaCanvas.width, plasmaCanvas.height);
+                            
+                            // Draw a simple gradient background
+                            const gradient = ctx.createLinearGradient(0, 0, 0, plasmaCanvas.height);
+                            gradient.addColorStop(0, '#001a33');
+                            gradient.addColorStop(1, '#000111');
+                            ctx.fillStyle = gradient;
+                            ctx.fillRect(0, 0, plasmaCanvas.width, plasmaCanvas.height);
+                            
+                            // Increment time for animation - faster increment for more lively motion
+                            time += 0.02;
+                            
+                            // Draw a few simple animated shapes instead of per-pixel calculations
+                            const shapeCount = 4; // Balance between too many and too few
+                            
+                            // Draw a few simple animated circles
+                            for (let i = 0; i < shapeCount; i++) {
+                                const offset = circleOffsets[i];
+                                // Large but not too large with faster size pulsing
+                                const size = Math.min(plasmaCanvas.width, plasmaCanvas.height) * (0.2 + 0.08 * Math.sin(time * 0.25 + i));
+                                // Faster movement for more lively animation
+                                const x = plasmaCanvas.width * 0.5 + Math.sin(time * 0.15 + i * 1.5 + offset.phaseOffset) * plasmaCanvas.width * 0.35 + offset.xOffset * plasmaCanvas.width * 0.12;
+                                const y = plasmaCanvas.height * 0.5 + Math.cos(time * 0.15 + i * 1.5 + offset.phaseOffset) * plasmaCanvas.height * 0.35 + offset.yOffset * plasmaCanvas.height * 0.12;
+                                
+                                // Create a radial gradient for each circle with better visibility
+                                const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+                                gradient.addColorStop(0, 'rgba(50, 100, 150, 0.04)');
+                                gradient.addColorStop(0.5, 'rgba(30, 70, 120, 0.025)');
+                                gradient.addColorStop(1, 'rgba(20, 40, 80, 0)');
+                                
+                                ctx.beginPath();
+                                ctx.fillStyle = gradient;
+                                ctx.arc(x, y, size, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                            
+                            // Add just a few text elements
+                            const textCount = 3; // Reduced from 5
+                            for (let i = 0; i < textCount; i++) {
+                                const offset = textOffsets[i];
+                                const x = plasmaCanvas.width * 0.5 + Math.sin(time * 0.2 + i * Math.PI * 2 / textCount + offset.phaseOffset) * plasmaCanvas.width * 0.3 + offset.xOffset * plasmaCanvas.width * 0.1;
+                                const y = plasmaCanvas.height * 0.5 + Math.cos(time * 0.2 + i * Math.PI * 2 / textCount + offset.phaseOffset) * plasmaCanvas.height * 0.3 + offset.yOffset * plasmaCanvas.height * 0.1;
+                                
+                                ctx.save();
+                                ctx.translate(x, y);
+                                ctx.rotate(time * 0.1 + i);
+                                ctx.font = '20px Arial';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                                
+                                // Alternate between different text
+                              //  if (i % 3 === 0) {
+                              //      ctx.fillText('sBitx', 0, 0);
+                              //  } else if (i % 3 === 1) {
+                              //      ctx.fillText('64Bit', 0, 0);
+                              //  } else {
+                              //      ctx.fillText('... -... .. - -..-', 0, 0); // Morse code for 'sbitx'
+                              //  }
+                                ctx.restore();
+                            }
+                            
+                            // Use setTimeout with shorter delay for higher frame rate
+                            setTimeout(animateBackground, 50); // 20 fps instead of 10 fps
                         }
                         
                         // Start animation
-                        animateFives();
+                        animateBackground();
                         
                     } catch (e) {
-                        console.error('Error in number 5 animation:', e);
+                        console.error('Error in plasma animation:', e);
                         // Silently fail to not interfere with login
                     }
                 });
@@ -1174,7 +1221,7 @@
         $("#more_keys").show();
         $("#maincontrols").show();
         $("#logger-controls").show();
-        $("#fives-canvas").hide(); // Hide the number 5 animation after login
+        $("#plasma-canvas").hide(); // Hide the plasma animation after login
         websocket_send("logbook=-1");
         websocket_send("macros_list=macros_list");
     }
