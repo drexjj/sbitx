@@ -847,8 +847,8 @@
                                 });
                             }
                             
-                            // Define text array
-                            const textOptions = [
+                            // Define text array - make it globally accessible for the morse ghost effect
+                            window.morseCodeCallsigns = [
                                 '.-- ----. .--- . ...', //W9JES
                                 '.-- ..--- .--- --- -.', //W2JON
                                 '.-- ....- .-- .... .-..', //W4WHL
@@ -865,12 +865,12 @@
                             textOffsets = [];
                             for (let i = 0; i < 3; i++) {
                                 // Assign a random text option to each element
-                                const randomIndex = Math.floor(Math.random() * textOptions.length);
+                                const randomIndex = Math.floor(Math.random() * window.morseCodeCallsigns.length);
                                 textOffsets.push({
                                     xOffset: Math.random() * 2 - 1, // -1 to 1
                                     yOffset: Math.random() * 2 - 1, // -1 to 1
                                     phaseOffset: Math.random() * Math.PI * 2, // 0 to 2π
-                                    text: textOptions[randomIndex] // Store the text with the element
+                                    text: window.morseCodeCallsigns[randomIndex] // Store the text with the element
                                 });
                             }
                         }
@@ -929,7 +929,6 @@
                                     fadePhase: 0,        // 0 to 2π for a complete fade cycle
                                     fadeSpeed: 0.01,     // Speed of fade cycle
                                     maxOpacity: 0.15,    // Maximum opacity (keep it ghost-like)
-                                    textOptions: textOffsets.map(t => t.text), // Get text from the array
                                     nextChangeTime: 0    // Time to change to next text
                                 };
                             }
@@ -946,13 +945,34 @@
                             const scalePhase = (Math.sin(window.morseGhostState.fadePhase + Math.PI) + 1) / 2; // Offset by PI to invert
                             const scale = 1.0 + (scalePhase * 0.5); // Scale from 1.0 to 1.5
                             
-                            // Check if we need to change the text (when opacity is near zero and time to change)
-                            if (opacity < 0.01 && time > window.morseGhostState.nextChangeTime) {
-                                // Select a random text from the options
-                                const randomIndex = Math.floor(Math.random() * window.morseGhostState.textOptions.length);
-                                window.morseGhostState.currentText = window.morseGhostState.textOptions[randomIndex];
-                                // Set the next change time (after a complete fade cycle)
-                                window.morseGhostState.nextChangeTime = time + Math.PI / window.morseGhostState.fadeSpeed;
+                            // Track fade cycle to ensure we change the text
+                            if (typeof window.morseGhostState.fadeDirection === 'undefined') {
+                                window.morseGhostState.fadeDirection = 'decreasing';
+                                window.morseGhostState.lastOpacity = opacity;
+                            }
+                            
+                            // Detect when we've reached the bottom of the fade cycle
+                            // This is more reliable than using a fixed opacity threshold
+                            if (opacity < window.morseGhostState.lastOpacity) {
+                                window.morseGhostState.fadeDirection = 'decreasing';
+                            } else if (opacity > window.morseGhostState.lastOpacity) {
+                                window.morseGhostState.fadeDirection = 'increasing';
+                            }
+                            
+                            // Store current opacity for next comparison
+                            window.morseGhostState.lastOpacity = opacity;
+                            
+                            // Change text when opacity is near zero and we're starting to increase again
+                            if (opacity < 0.01 && window.morseGhostState.fadeDirection === 'increasing') {
+                                // Select a random text directly from the global callsigns array
+                                // Ensure we don't select the same text twice in a row
+                                let randomIndex;
+                                do {
+                                    randomIndex = Math.floor(Math.random() * window.morseCodeCallsigns.length);
+                                } while (window.morseCodeCallsigns[randomIndex] === window.morseGhostState.currentText && window.morseCodeCallsigns.length > 1);
+                                
+                                window.morseGhostState.currentText = window.morseCodeCallsigns[randomIndex];
+                                console.log('Changed morse code to:', window.morseGhostState.currentText);
                             }
                             
                             // Only draw if we have a current text and opacity is visible
