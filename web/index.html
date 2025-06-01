@@ -849,17 +849,16 @@
                             
                             // Define text array
                             const textOptions = [
-                                '.-- ..--- .--- --- -.',
-                                '-. .---- --.- --', 
-                                '.-- ....- .-- .... .-..',
-                                '--- --.. --... -... -..-',
-                                '-.- ..-. --... -.. -.-- ..-',
-                                '-.- -... ..--- -- .-..',
-                                '.... .- ...-- .... --..',
-                                '...- ..- ..--- . ... .',
-                                '.-- ----. .--- . ...',
-                                '... -... .. - -..-',
-                                '... -... .. - -..-' // Morse code for 'sbitx'
+                                '.-- ..--- .--- --- -.', //W2JON
+                                '-. .---- --.- --', //N1QM
+                                '.-- ....- .-- .... .-..', //W4WHL
+                                '--- --.. --... -... -..-', //OZ7BX
+                                '-.- ..-. --... -.. -.-- ..-', //KF7DYU
+                                '-.- -... ..--- -- .-..', //KB2ML
+                                '.... .- ...-- .... --..', //HA3HZ
+                                '...- ..- ..--- . ... .', //VU2ESE
+                                '.-- ----. .--- . ...', //W9JES
+                                '... -... .. - -..-' // sBitx
                             ];
                             
                             // Random offsets for text elements
@@ -921,24 +920,81 @@
                                 ctx.fill();
                             }
                             
-                            // Add just a few text elements
-                            const textCount = 0; // floating text disabled increment to enable text from array above
-                            for (let i = 0; i < textCount; i++) {
-                                const offset = textOffsets[i];
-                                const x = plasmaCanvas.width * 0.5 + Math.sin(time * 0.2 + i * Math.PI * 2 / textCount + offset.phaseOffset) * plasmaCanvas.width * 0.3 + offset.xOffset * plasmaCanvas.width * 0.1;
-                                const y = plasmaCanvas.height * 0.5 + Math.cos(time * 0.2 + i * Math.PI * 2 / textCount + offset.phaseOffset) * plasmaCanvas.height * 0.3 + offset.yOffset * plasmaCanvas.height * 0.1;
+                            // Ghost-like Morse code callsign that fades in and out
+                            // Use a persistent variable to track the current state
+                            if (typeof window.morseGhostState === 'undefined') {
+                                // Initialize the state if it doesn't exist
+                                window.morseGhostState = {
+                                    currentText: null,
+                                    fadePhase: 0,        // 0 to 2π for a complete fade cycle
+                                    fadeSpeed: 0.01,     // Speed of fade cycle
+                                    maxOpacity: 0.15,    // Maximum opacity (keep it ghost-like)
+                                    textOptions: textOffsets.map(t => t.text), // Get text from the array
+                                    nextChangeTime: 0    // Time to change to next text
+                                };
+                            }
+                            
+                            // Update the fade phase
+                            window.morseGhostState.fadePhase += window.morseGhostState.fadeSpeed;
+                            
+                            // Calculate current opacity using a sine wave for smooth fade in/out
+                            // Sin wave oscillates between -1 and 1, so we adjust to 0 to maxOpacity
+                            const opacity = (Math.sin(window.morseGhostState.fadePhase) + 1) / 2 * window.morseGhostState.maxOpacity;
+                            
+                            // Check if we need to change the text (when opacity is near zero and time to change)
+                            if (opacity < 0.01 && time > window.morseGhostState.nextChangeTime) {
+                                // Select a random text from the options
+                                const randomIndex = Math.floor(Math.random() * window.morseGhostState.textOptions.length);
+                                window.morseGhostState.currentText = window.morseGhostState.textOptions[randomIndex];
+                                // Set the next change time (after a complete fade cycle)
+                                window.morseGhostState.nextChangeTime = time + Math.PI / window.morseGhostState.fadeSpeed;
+                            }
+                            
+                            // Only draw if we have a current text and opacity is visible
+                            if (window.morseGhostState.currentText && opacity > 0.005) {
+                                // Draw the callsign below the help_text card in the login panel
+                                // First check if the login panel is visible
+                                const loginPanel = document.getElementById('login_panel');
                                 
-                                ctx.save();
-                                ctx.translate(x, y);
-                                ctx.rotate(time * 0.1 + i);
-                                ctx.font = '20px Arial';
-                                ctx.textAlign = 'center';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                                
-                                // Use the text assigned to this element
-                                ctx.fillText(offset.text, 0, 0);
-                                ctx.restore();
+                                if (loginPanel && window.getComputedStyle(loginPanel).display !== 'none') {
+                                    // Get the help_text element dimensions
+                                    const helpText = loginPanel.querySelector('.help_text');
+                                    
+                                    if (helpText) {
+                                        const helpTextRect = helpText.getBoundingClientRect();
+                                        const canvasRect = plasmaCanvas.getBoundingClientRect();
+                                        
+                                        // Calculate position below the help_text
+                                        const x = plasmaCanvas.width / 2;
+                                        const y = (helpTextRect.bottom - canvasRect.top) + 100; // 100px below the help_text
+                                        
+                                        ctx.save();
+                                        ctx.font = '18px monospace'; // Monospace font works well for Morse code
+                                        ctx.textAlign = 'center';
+                                        ctx.textBaseline = 'middle';
+                                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                                        ctx.fillText(window.morseGhostState.currentText, x, y);
+                                        ctx.restore();
+                                    } else {
+                                        // Fallback if help_text not found
+                                        ctx.save();
+                                        ctx.font = '18px monospace';
+                                        ctx.textAlign = 'center';
+                                        ctx.textBaseline = 'middle';
+                                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                                        ctx.fillText(window.morseGhostState.currentText, plasmaCanvas.width / 2, plasmaCanvas.height - 50);
+                                        ctx.restore();
+                                    }
+                                } else {
+                                    // If login panel is not visible, position at bottom of screen
+                                    ctx.save();
+                                    ctx.font = '18px monospace';
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                                    ctx.fillText(window.morseGhostState.currentText, plasmaCanvas.width / 2, plasmaCanvas.height - 50);
+                                    ctx.restore();
+                                }
                             }
                             
                             // Use setTimeout with shorter delay for higher frame rate
