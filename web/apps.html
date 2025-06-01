@@ -500,11 +500,16 @@
             function initRandomOffsets() {
                 // Random offsets for circles
                 circleOffsets = [];
-                for (let i = 0; i < 5; i++) {
+                for (let i = 0; i < 8; i++) {
                     circleOffsets.push({
                         xOffset: Math.random() * 2 - 1, // -1 to 1
                         yOffset: Math.random() * 2 - 1, // -1 to 1
-                        phaseOffset: Math.random() * Math.PI * 2 // 0 to 2π
+                        phaseOffset: Math.random() * Math.PI * 2, // 0 to 2π
+                        speedFactor: 0.1 + Math.random() * 0.2, // Random speed for each circle
+                        amplitudeFactor: 0.3 + Math.random() * 0.15, // Random movement amplitude
+                        directionChangeTime: Math.random() * 10, // When to change direction
+                        sizeVariation: 0.05 + Math.random() * 0.08, // Random size variation
+                        directionFactor: Math.random() < 0.5 ? 1 : -1 // Random direction (clockwise or counter-clockwise)
                     });
                 }
             }
@@ -540,17 +545,63 @@
                 // Increment time for animation - faster increment for more lively motion
                 time += 0.02;
                 
+                // Very gradual parameter changes for smooth transitions
+                for (let i = 0; i < circleOffsets.length; i++) {
+                    // Apply extremely small incremental changes to parameters
+                    // This creates a slowly evolving path without any jumps
+                    circleOffsets[i].phaseOffset += 0.0001 * Math.sin(time * 0.05 + i);
+                    circleOffsets[i].speedFactor += 0.0001 * Math.sin(time * 0.03 + i * 1.2) * 
+                                                  (circleOffsets[i].speedFactor < 0.05 ? 0.001 : 
+                                                   circleOffsets[i].speedFactor > 0.3 ? -0.001 : 0);
+                    circleOffsets[i].amplitudeFactor += 0.0001 * Math.sin(time * 0.02 + i * 0.7) * 
+                                                     (circleOffsets[i].amplitudeFactor < 0.25 ? 0.001 : 
+                                                      circleOffsets[i].amplitudeFactor > 0.45 ? -0.001 : 0);
+                }
+                
                 // Draw a few simple animated shapes instead of per-pixel calculations
-                const shapeCount = 4; // Balance between too many and too few
+                const shapeCount = 8; // Increased to 8 particles
                 
                 // Draw a few simple animated circles
                 for (let i = 0; i < shapeCount; i++) {
                     const offset = circleOffsets[i];
+                    
+                    // Smooth continuous direction changes using sine waves
+                    // This creates a flowing, organic movement without jumps
+                    const directionModulation = 0.001 * Math.sin(time * 0.04 + i * 2.1);
+                    
                     // Large but not too large with faster size pulsing
-                    const size = Math.min(plasmaCanvas.width, plasmaCanvas.height) * (0.2 + 0.08 * Math.sin(time * 0.25 + i));
-                    // Faster movement for more lively animation
-                    const x = plasmaCanvas.width * 0.5 + Math.sin(time * 0.15 + i * 1.5 + offset.phaseOffset) * plasmaCanvas.width * 0.35 + offset.xOffset * plasmaCanvas.width * 0.12;
-                    const y = plasmaCanvas.height * 0.5 + Math.cos(time * 0.15 + i * 1.5 + offset.phaseOffset) * plasmaCanvas.height * 0.35 + offset.yOffset * plasmaCanvas.height * 0.12;
+                    const size = Math.min(plasmaCanvas.width, plasmaCanvas.height) * 
+                                (0.2 + offset.sizeVariation * Math.sin(time * 0.25 + i));
+                    
+                    // More complex movement pattern with varying speeds and amplitudes
+                    // Apply the directionModulation to create smooth direction changes
+                    // Use directionFactor to properly determine clockwise or counter-clockwise movement
+                    const timeParam = time * offset.speedFactor + i * 1.5 + offset.phaseOffset + directionModulation;
+                    
+                    // For clockwise movement, we need to reverse the relationship between x and y
+                    // This is the key difference between clockwise and counter-clockwise circular motion
+                    let xWave, yWave;
+                    if (offset.directionFactor > 0) {
+                        // Counter-clockwise: standard sine/cosine relationship
+                        xWave = Math.sin(timeParam);
+                        yWave = Math.cos(timeParam);
+                    } else {
+                        // Clockwise: reversed sine/cosine relationship
+                        xWave = Math.sin(-timeParam);
+                        yWave = Math.cos(-timeParam);
+                    }
+                    
+                    // Add secondary wave for more complex motion
+                    const xWave2 = Math.sin(time * 0.07 + i * 0.8) * 0.2;
+                    const yWave2 = Math.cos(time * 0.09 + i * 0.7) * 0.2;
+                    
+                    // Combine waves for final position
+                    const x = plasmaCanvas.width * 0.5 + 
+                             (xWave + xWave2) * plasmaCanvas.width * offset.amplitudeFactor + 
+                             offset.xOffset * plasmaCanvas.width * 0.12;
+                    const y = plasmaCanvas.height * 0.5 + 
+                             (yWave + yWave2) * plasmaCanvas.height * offset.amplitudeFactor + 
+                             offset.yOffset * plasmaCanvas.height * 0.12;
                     
                     // Create a radial gradient for each circle with better visibility
                     const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
