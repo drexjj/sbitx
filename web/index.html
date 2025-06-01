@@ -710,6 +710,9 @@
         </div>
 
     </section>
+    <!-- Background animation canvas for the entire page -->
+    <canvas id="fives-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
+    
     <!-- login panel -->
     <section id="login_panel">
         <div class="help_text">
@@ -788,6 +791,103 @@
 
                 init();
                 animate();
+            </script>
+            
+            <!-- Number 5 animation script for the background -->
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    try {
+                        const fivesCanvas = document.getElementById('fives-canvas');
+                        if (!fivesCanvas) return;
+                        
+                        // Set canvas size to match the full window
+                        const resizeCanvas = function() {
+                            fivesCanvas.width = window.innerWidth;
+                            fivesCanvas.height = window.innerHeight;
+                        };
+                        
+                        // Initial resize and listen for window resize
+                        resizeCanvas();
+                        window.addEventListener('resize', resizeCanvas);
+                        
+                        const fivesCtx = fivesCanvas.getContext('2d');
+                        const particles = [];
+                        const particleCount = 30; // 50% fewer particles for better performance
+                        
+                        // Create particles distributed across the entire panel
+                        for (let i = 0; i < particleCount; i++) {
+                            particles.push({
+                                x: Math.random() * fivesCanvas.width,
+                                y: fivesCanvas.height + Math.random() * 50,
+                                size: Math.random() * 15 + 10, // Exact size from apps.html
+                                speed: Math.random() * 1.5 + 0.5, // Exact speed from apps.html
+                                opacity: Math.random() * 0.25 + 0.05, // Reduced opacity (0.05-0.3)
+                                color: Math.random() > 0.5 ? '#2a5599' : '#2a5580', // Darker blues
+                                rotation: Math.random() * Math.PI * 2
+                            });
+                        }
+                        
+                        // Add some particles that start in the visible area for immediate effect
+                        for (let i = 0; i < 15; i++) {
+                            particles.push({
+                                x: Math.random() * fivesCanvas.width,
+                                y: Math.random() * fivesCanvas.height, // Start in visible area
+                                size: Math.random() * 15 + 10, // Exact size from apps.html
+                                speed: Math.random() * 1.5 + 0.5, // Exact speed from apps.html
+                                opacity: Math.random() * 0.25 + 0.05, // Reduced opacity (0.05-0.3)
+                                color: Math.random() > 0.5 ? '#2a5599' : '#2a5580', // Darker blues
+                                rotation: Math.random() * Math.PI * 2
+                            });
+                        }
+                        
+                        function animateFives() {
+                            // Check if canvas is still in DOM and visible
+                            if (!document.body.contains(fivesCanvas) || fivesCanvas.style.display === 'none') return;
+                            
+                            fivesCtx.clearRect(0, 0, fivesCanvas.width, fivesCanvas.height);
+                            
+                            // Update and draw particles
+                            for (let i = 0; i < particles.length; i++) {
+                                const p = particles[i];
+                                
+                                // Move particles upward
+                                p.y -= p.speed;
+                                p.x += Math.sin(p.y * 0.01) * 0.5; // Good horizontal movement
+                                p.rotation += 0.005;
+                                
+                                // Reset particles that go off screen
+                                if (p.y < -30) {
+                                    p.y = fivesCanvas.height + Math.random() * 30;
+                                    p.x = Math.random() * fivesCanvas.width;
+                                }
+                                
+                                // Draw number 5 as particle (exactly as in apps.html)
+                                fivesCtx.save();
+                                fivesCtx.translate(p.x, p.y);
+                                fivesCtx.rotate(p.rotation);
+                                fivesCtx.font = `${p.size}px Arial`; // Remove bold to match apps.html
+                                fivesCtx.textAlign = 'center';
+                                fivesCtx.textBaseline = 'middle';
+                                
+                                // No glow effect in apps.html
+                                
+                                fivesCtx.fillStyle = p.color;
+                                fivesCtx.globalAlpha = p.opacity;
+                                fivesCtx.fillText('5', 0, 0);
+                                fivesCtx.restore();
+                            }
+                            
+                            requestAnimationFrame(animateFives);
+                        }
+                        
+                        // Start animation
+                        animateFives();
+                        
+                    } catch (e) {
+                        console.error('Error in number 5 animation:', e);
+                        // Silently fail to not interfere with login
+                    }
+                });
             </script>
             <p>
                 Join our Discord at <a href="https://discord.gg/tCCjw5g5Pf">https://discord.gg/tCCjw5g5Pf</a>
@@ -1068,6 +1168,7 @@
         $("#more_keys").show();
         $("#maincontrols").show();
         $("#logger-controls").show();
+        $("#fives-canvas").hide(); // Hide the number 5 animation after login
         websocket_send("logbook=-1");
         websocket_send("macros_list=macros_list");
     }
