@@ -881,14 +881,14 @@
                                // '...- ..- ..--- . ... .', //VU2ESE
                                // '--- --.. --... -... -..-', //OZ7BX
                                // '.... .- ...-- .... --..', //HA3HZ
-                                'W2JON',
-                                'W4WHL',
-                                'KF7DYU',
-                                'KB2ML',
-                                'N1QM',
-                                'VU2ESE',
-                                'OZ7BX',
-                                'HA3HZ',
+                               'W9JES', 
+                               'W2JON',
+                               'W4WHL',
+                               'KF7DYU',
+                               'KB2ML',
+                               'N1QM',
+                               'OZ7BX',
+                               'HA3HZ',
                                 
                             ];
                             
@@ -1008,17 +1008,18 @@
                                     window.morseGhostState.recentCallsigns = [];
                                 }
                                 
-                                // Select a random text that hasn't been shown in the previous 3 picks
+                                // Select a random text that hasn't been shown in the previous 7 picks
                                 let randomIndex;
                                 let attempts = 0;
-                                const maxAttempts = 50; // Prevent infinite loop
+                                const maxAttempts = 100; // Increased to allow for more attempts with larger history
+                                const historySize = 7; // Number of callsigns to remember and avoid repeating
                                 
                                 do {
                                     randomIndex = Math.floor(Math.random() * window.morseCodeCallsigns.length);
                                     attempts++;
                                     
-                                    // Break the loop if we've tried too many times or if we have fewer than 5 unique callsigns
-                                    if (attempts > maxAttempts || window.morseCodeCallsigns.length <= 5) {
+                                    // Break the loop if we've tried too many times or if we have fewer callsigns than our history size
+                                    if (attempts > maxAttempts || window.morseCodeCallsigns.length <= historySize) {
                                         break;
                                     }
                                 } while (window.morseGhostState.recentCallsigns.includes(window.morseCodeCallsigns[randomIndex]));
@@ -1026,14 +1027,14 @@
                                 // Update the current text
                                 window.morseGhostState.currentText = window.morseCodeCallsigns[randomIndex];
                                 
-                                // Add to recent callsigns and maintain only the last 5
+                                // Add to recent callsigns and maintain only the last 7
                                 window.morseGhostState.recentCallsigns.push(window.morseGhostState.currentText);
-                                if (window.morseGhostState.recentCallsigns.length > 5) {
+                                if (window.morseGhostState.recentCallsigns.length > historySize) {
                                     window.morseGhostState.recentCallsigns.shift(); // Remove oldest entry
                                 }
                                 
-                                console.log('Changed morse code to:', window.morseGhostState.currentText);
-                                console.log('Recent callsigns:', window.morseGhostState.recentCallsigns);
+                               // console.log('Changed morse code to:', window.morseGhostState.currentText);
+                               // console.log('Recent callsigns:', window.morseGhostState.recentCallsigns);
                             }
                             
                             // Only update if we have a current text and opacity is visible
