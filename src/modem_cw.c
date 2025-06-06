@@ -382,11 +382,11 @@ float cw_tx_get_sample() {
   
   // iambic modes require polling key during keydown/keyup
   // other modes only check when idle
-  if ((state_machine_mode == CW_STRAIGHT || 
+  if (((state_machine_mode == CW_STRAIGHT || 
         state_machine_mode == CW_BUG ||
         state_machine_mode == CW_ULTIMATIC || 
         state_machine_mode == CW_KBD) && 
-        (keydown_count == 0 && keyup_count == 0)
+        (keydown_count == 0 && keyup_count == 0))
         ||
         (state_machine_mode == CW_IAMBIC || 
         state_machine_mode == CW_IAMBICB)) {
@@ -406,17 +406,18 @@ float cw_tx_get_sample() {
     if (keyup_count > 0)
       keyup_count--;
   }
+  sample = (vfo_read(&cw_tone) / FLOAT_SCALE) * cw_envelope;
   
   // keep extending 'cw_tx_until' while we're sending
   if ((symbol_now == CW_DOWN) || (symbol_now == CW_DOT) ||
-      (symbol_now == CW_DASH) || (keydown_count > 0))
+      (symbol_now == CW_DASH) || (symbol_now == CW_SQUEEZE) ||
+      (keydown_count > 0))
     cw_tx_until = millis_now + get_cw_delay();
   // if macro or keyboard characters remain in the buffer
   // prevent switching from xmit to rcv and cutting off macro
   if (cw_bytes_available != 0)
     cw_tx_until = millis_now + 1000;
 
-  sample = (vfo_read(&cw_tone) / FLOAT_SCALE) * cw_envelope;
   return sample / 8;
 }
 
@@ -431,8 +432,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
   // printf("symbol_now %d\n", symbol_now);
   switch (state_machine_mode) {
   case CW_STRAIGHT:
-    switch (cw_current_symbol) {
-    case CW_IDLE:
       if (symbol_now == CW_IDLE)
         cw_current_symbol = CW_IDLE;
       if (symbol_now == CW_DOWN) {
@@ -440,20 +439,6 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
         keyup_count = 0;
         cw_current_symbol = CW_DOWN;
       }
-      break; // exit CW_IDLE case
-    case CW_DOWN:
-      if (symbol_now == CW_DOWN) {
-        keydown_count = 1;
-        keyup_count = 0;
-        cw_current_symbol = CW_DOWN;
-      }
-      if (symbol_now == CW_IDLE) {
-        keydown_count = 0;
-        keyup_count = 1;
-        cw_current_symbol = CW_IDLE;
-      }
-      break; // exit CW_DOWN case
-    }
     break; // done with CW_STRAIGHT mode
 
   case CW_BUG:

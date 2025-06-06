@@ -65,6 +65,7 @@ class FrequencyKeypad(Gtk.Window):
         self.is_dragging = False
         self.drag_start_x = 0
         self.drag_start_y = 0
+        self.set_keep_above(True)
 
     def on_button_press_event(self, widget, event):
         """Start dragging the window when the mouse button is pressed."""

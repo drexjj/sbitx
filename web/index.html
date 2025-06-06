@@ -190,7 +190,7 @@
     <input type="hidden" id="STATUS" value="---">
     <input type="hidden" id="REC" value="OFF">
     <input type="hidden" id="RIT_DELTA" name="RIT_DELTA" value="">
-    <input type="hidden" id="VFO" value="A"> <!-- Fixed id from VFOx to VFO -->
+
     <input type="hidden" id="VOLTAGE" value="0">
     <input type="hidden" id="CURRENT" value="0">
     <input type="hidden" id="ZEROBEAT" value="0">
@@ -992,6 +992,14 @@
         }
     }
 
+    function passkey_keydown(event) {
+        if (event.key === 'Enter') {
+            // Prevent the default action (e.g., form submission if the input is inside a form)
+            event.preventDefault();
+            do_login() 
+        }
+    }
+
     // Existing do_login (modified to call audio_start correctly)
     function do_login() {
         log("requesting full screen");
@@ -1058,6 +1066,7 @@
         text_focus = el("passkey");
         el("passkey").value = "";
         $("#passkey").focus();
+        el("passkey").addEventListener('keydown', passkey_keydown);
     }
 
     function show_main() {
@@ -4134,6 +4143,8 @@
 
     //specific control handler
     //$("#knob_on").on("click", toggle_dial);
+
+    spectrumEl.addEventListener("mouseup", (event) => { getMousePosition(canvas, event)});
 
     $("#sound_mute").on("click", () => { sound_mute = !sound_mute; });
     el("dial").addEventListener("wheel", change_freq, { passive: false });
