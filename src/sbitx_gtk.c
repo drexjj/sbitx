@@ -599,7 +599,7 @@ struct field main_controls[] = {
 	 "", 1, 100, 1, COMMON_CONTROL},
 	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
-	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 150, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
+	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 75, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
@@ -3540,6 +3540,7 @@ static void layout_ui()
 	{
 	case MODE_FT8:
 		// Place buttons and calculate highest Y position for FT8
+		
 		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
 		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
@@ -3586,6 +3587,7 @@ static void layout_ui()
 
 	case MODE_CW:
 	case MODE_CWR:
+		console_init();// clear the console buffer to help prevent artifacts
 		// Place buttons and calculate highest Y position for CW
 		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
 		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
@@ -3594,16 +3596,30 @@ static void layout_ui()
       
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
-			// shorten waterfall space to make room for small console
-      field_move("CONSOLE", 5, y1 + default_spectrum_height + waterfall_height -37, x2 - 7, 40);
+      // Ensure waterfall height is at least 40 pixels to prevent negative height and malloc error resulting in a segfault
+      int adjusted_waterfall_height = waterfall_height;
+      if (adjusted_waterfall_height < 80) // Need at least 80 pixels to accommodate both waterfall and console
+        adjusted_waterfall_height = 80;
+      
+      // Check if MENU is on MENU 1 or MENU 2 becasue we need to hide the console when menus are active
+      const char* menu_state = field_str("MENU");
+      if (!strcmp(menu_state, "1") || !strcmp(menu_state, "2")) {
+        // Move console off-screen when menus are active to prevent partial visibility behind buttons
+        field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+      } else {
+        // Resume the viewable console position when menus are not active
+        field_move("CONSOLE", 5, y1 + default_spectrum_height + adjusted_waterfall_height - 37, x2 - 7, 40);
+      }
+      
       field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height - 40);
-      //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			//field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-			//field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
+      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, adjusted_waterfall_height - 40);
+       //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+	   //field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+	   //field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
 		}
 		else
 		{
+			
 			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
 			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
 			waterfall_height = y2 - y1 - (default_spectrum_height + 105);
