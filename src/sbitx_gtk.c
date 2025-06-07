@@ -52,6 +52,9 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
+extern int check_freq_in_band(long freq);
+extern long get_band_start(int band);
+extern long get_band_stop(int band);
 extern struct rx *rx_list;
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -159,6 +162,7 @@ void tuning_isr(void);
 #define SELECTED_LINE 14
 #define COLOR_FIELD_SELECTED 15
 #define COLOR_TX_PITCH 16
+#define COLOR_ERROR_BACKGROUND 17
 
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
@@ -179,6 +183,7 @@ float palette[][3] = {
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
+	{0.3, 0, 0},	 // COLOR_ERROR_BACKGROUND
 };
 
 char *ui_font = "Sans";
@@ -2876,10 +2881,44 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	// draw the frequency readout at the bottom
-	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	long f_start = freq - (4 * freq_div);
+	// draw the frequency readout at the bottom with band limit indication
+	long f_start = freq - (5 * freq_div);
+	long f_end = f_start + freq_div * 10;
+	int bf1 = check_freq_in_band(f_start);
+	int bf2 = check_freq_in_band(f_end);
+	if (bf1 >= 0 && bf2 >= 0) { // All inside band
+		cairo_set_source_rgb(gfx, 0.0, 0.3, 0.1); // Dark green color
+		cairo_rectangle(gfx, f->x, f->y + grid_height, f->width, 15);
+		cairo_fill(gfx);
+	} else if (bf1 >= 0 && bf2 < 0) { // Start inside band
+		int f_band_stop = get_band_stop(bf1);
+		int width1 = f->width * (f_band_stop - f_start) / (f_end - f_start);
+		int width2 = f->width - width1;
+		cairo_set_source_rgb(gfx, 0.0, 0.3, 0.1); // Dark green color
+		cairo_rectangle(gfx, f->x, f->y + grid_height, width1, 15);
+		cairo_fill(gfx);
+		cairo_set_source_rgb(gfx, 0.3, 0.0, 0.0); // Dark red color
+		cairo_rectangle(gfx, f->x + width1, f->y + grid_height, width2, 15);
+		cairo_fill(gfx);
+	} else if (bf1 < 0 && bf2 >= 0) { // End inside band
+		int f_band_start = get_band_start(bf2);
+		int width1 = f->width * (f_band_start - f_start) / (f_end - f_start);
+		int width2 = f->width - width1;
+		cairo_set_source_rgb(gfx, 0.3, 0.0, 0.0); // Dark red color
+		cairo_rectangle(gfx, f->x, f->y + grid_height, width1, 15);
+		cairo_fill(gfx);
+		cairo_set_source_rgb(gfx, 0.0, 0.3, 0.1); // Dark green color
+		cairo_rectangle(gfx, f->x + width1, f->y + grid_height, width2, 15);
+		cairo_fill(gfx);
+	} else { // outside band
+		cairo_set_source_rgb(gfx, 0.3, 0.0, 0.0); // Dark red color
+		cairo_rectangle(gfx, f->x, f->y + grid_height, f->width, 15);
+		cairo_fill(gfx);
+	}
+
+	//cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
+	//					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+	//long f_start = freq - (4 * freq_div);
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3208,6 +3247,11 @@ void draw_dial(struct field *f, cairo_t *gfx)
 	char temp_str[20];
 
 	fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+
+	long freq = atol(get_field("r1:freq")->value);
+	if (check_freq_in_band(freq) < 0 ) {
+		fill_rect(gfx, f->x-2, f->y+17, f->width-2, f->height-15, COLOR_ERROR_BACKGROUND);
+	}
 
 	// update the vfos
 	if (vfo->value[0] == 'A')
@@ -4055,7 +4099,7 @@ void apply_band_settings(long frequency)
 	else
 	{
 		// Handle frequency outside all band ranges
-		printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
+		//printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
 	}
 }
 
