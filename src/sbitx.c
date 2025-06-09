@@ -1995,6 +1995,24 @@ long get_band_stop(int band) {
 	return (long) band_power[band].f_stop;
 }
 
+int get_band_limits_as_csv(char * buffer, int size) {
+	int count = sizeof(band_power) / sizeof(struct power_settings);
+	const char* bandNames[] = {"80M","60M","40M","30M","20M","17M","15M","12M","10M"};
+	char band_csv[40];
+	int lng = 0;
+	for (int i = 0; i < count; i++)
+	{
+		int n = sprintf(band_csv, "%s,%d,%d,", bandNames[i], band_power[i].f_start, band_power[i].f_stop);
+		if (lng + n < size) {
+			strcpy(buffer+lng, band_csv);
+			lng += n;
+		}
+	}
+	if (lng > 0) {
+		buffer[--lng] = 0; // cut the last comma
+	}
+	return lng;
+}
 
 /*
 	 the PA gain varies across the band from 3.5 MHz to 30 MHz

@@ -244,7 +244,7 @@
                 </select>
             </div>
             <div class="sbitxv3-VFO" id="dial">
-                <span id="current_freq">A:00.000.000</span>
+                <span id="current_freq" class="in-band">A:00.000.000</span>
                 <span id="other_freq">B: 00.000.000</span>
             </div>
             <div class="sbitxv3-control">
@@ -829,6 +829,21 @@
     var sound_mute = false;
     var curBand = "";
     var band_stack_indicators = ["", "", "", "", "", "", "", "", ""];
+    var bandLimits = [0];
+
+    function set_band_limits(args) {
+        const values = args.split(",");
+        let n = 0;
+        if (values.length == 3*9) {
+            for (let i = 0; i < 9; i++) {
+                let bandName = values[n++];
+                bandLimits[bandName] = {
+                    "start": parseInt(values[n++]),
+                    "stop": parseInt(values[n++])
+                };
+            }
+        }
+    }
 
     /* oz7bx gridmap */
     GRIDMAP.init(document.getElementById("gridmap"), 360, 360);
@@ -2266,8 +2281,19 @@
         ctx.moveTo(rx_x, 0);
         ctx.lineTo(rx_x, drawHeight);
         if (!rx_label_overlaps) {
-            ctx.fillText("RX", rx_label_x, drawHeight + 12);
-        }
+            let freq = parseInt(el('FREQ').value); //oz 7bx
+            let txfreq = parseInt(el('VFOB').value); 
+            let split = el("SPLIT").value;
+            let band = el('BAND').value;
+            let inBand = freq >= bandLimits[band].start && freq <= bandLimits[band].stop;
+            ctx.fillStyle = inBand ? "green" : "red";
+            el("current_freq").className = inBand ? "in-band" : "out-of-band";
+            if (split == "ON") {
+                ctx.fillText("RX: " + freq + " TX: " + txfreq, rx_label_x, drawHeight + 12);
+            } else {
+                ctx.fillText("RX: " + freq, rx_label_x, drawHeight + 12);
+            }
+        } 
         ctx.stroke();
 
         if (mode === "FT8") {
@@ -4079,6 +4105,9 @@
                 }
                 curBand = args;
                 show_selected_band_store(args);
+                break;
+            case "BAND_LIMITS":
+                set_band_limits(args);
                 break;
             case 'MODE':
                 mode_set(args);
