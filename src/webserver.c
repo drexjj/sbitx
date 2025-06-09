@@ -34,6 +34,9 @@ extern int has_ina260;
 extern int browser_mic_input(int16_t *samples, int count);
 extern int is_browser_mic_active();
 
+// Function supporting band limit indication
+extern int get_band_limits_as_csv(char * buffer, int size);
+
 // VNC proxy connection structure
 typedef struct {
     struct mg_connection *client;  // WebSocket client connection
@@ -146,6 +149,14 @@ static void get_console(struct mg_connection *c){
 	mg_ws_send(c, buff, strlen(buff), WEBSOCKET_OP_TEXT);
 }
 
+void send_band_limits(struct mg_connection *c){
+  const int bufsize = 14 + 9*25;
+	char buffer[bufsize]; // plenty of room for 9 band id, start, stop values
+	int lng = sprintf(buffer, "BAND_LIMITS ");
+	get_band_limits_as_csv(buffer+lng, bufsize-lng);
+	mg_ws_send(c, buffer, strlen(buffer), WEBSOCKET_OP_TEXT);
+}
+
 static void get_updates(struct mg_connection *c, int all){
 	//send the settings of all the fields to the client
 	char buff[2000];
@@ -211,6 +222,7 @@ static void do_login(struct mg_connection *c, char *key){
 	sprintf(response, "login %s", session_cookie);
 	web_respond(c, response);	
 	get_updates(c, 1);
+  send_band_limits(c);
 }
 
 static int16_t remote_samples[10000]; //the max samples are set by the queue lenght in modems.c
