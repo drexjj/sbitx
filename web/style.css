@@ -681,18 +681,24 @@ input {
     min-width: 97px;
     width: auto;
 }
-
+.btn-value {
+    background-color: black;
+}
+#SELBAND {
+    font-family:'Courier New', Courier, monospace;
+    font-size: 12px;
+}
 .sbitxv3-btn,
 .logger-button {
-    height: 45px;
+    height: 43px;
     background: linear-gradient(to bottom, #444, #222);
     border: none;
     border-radius: 8px;
     box-shadow: 0 4px #111;
     color: #eee;
-    padding: 7 0 7 0;
+    padding-bottom: 5px;
     text-align: center;
-    font-weight: bold;
+    /*font-weight: bold;*/
     font-size: 12px;
     cursor: pointer;
     transition: all 0.15s ease-in-out;

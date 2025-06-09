@@ -260,8 +260,12 @@
                     <option value="60M">60M</option>
                     <option value="80M">80M</option>
                 </select>
-                <span id="SELBAND" style="display: none;"></span>
+                <!-- <span id="SELBAND" style="display: block;"></span> -->
             </div>
+            <button class="sbitxv3-btn" id="STORE" type="button">
+                STORE<br/>
+                <span id="SELBAND" class="btn-value">=---</span>
+            </button>
             <div class="sbitxv3-control rx-control">
                 <label class="sbitxv3-label" for="AGC">AGC</label>
                 <select class="sbitxv3-selection sbitx-selection" id="AGC">
@@ -292,8 +296,10 @@
                     <input type="range" class="linear-slider" id="slider_AUDIO" max="100" min="0" step="1" value="13">
                 </div>
             </div>
-            <button class="sbitxv3-btn" id="sound_mute" type="button">Mute</button>
-            <button class="sbitxv3-btn" id="tune_button" type="button">Tune</button>
+            <button class="sbitxv3-btn" id="sound_mute" type="button">Mute<br/>
+                <span id="mute_state" class="btn-value">OFF</span></button>
+            <button class="sbitxv3-btn" id="tune_button" type="button">Tune<br/>
+                <span id="tune_state" class="btn-value">&nbsp;</span></button></button>
             
             <div class="linear" id="linear_BFO">
                 <label class="linear-label" for="BFO">BFO</label>
@@ -3760,7 +3766,7 @@
         }
         const selbandEl = el("SELBAND");
         if (selbandEl) {
-            selbandEl.innerHTML = band_stack_indicators[args] || " ";
+		    selbandEl.innerText = band_stack_indicators[args] || " ";
         }
     }
     function mode_set(new_mode) {
@@ -4145,8 +4151,11 @@
     //$("#knob_on").on("click", toggle_dial);
 
     spectrumEl.addEventListener("mouseup", (event) => { getMousePosition(canvas, event)});
-
-    $("#sound_mute").on("click", () => { sound_mute = !sound_mute; });
+    $("#STORE").on("click", () => { websocket_send(el("BAND").value); });
+    $("#sound_mute").on("click", () => { 
+        sound_mute = !sound_mute; 
+        el("mute_state").innerHTML = sound_mute ? "ON" : "OFF";
+    });
     el("dial").addEventListener("wheel", change_freq, { passive: false });
     $("#REF").on("change", draw_meters);
     $("#MODE").on("change", mode_changed);
