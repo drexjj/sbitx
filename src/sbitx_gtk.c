@@ -2297,7 +2297,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Normalize data to the range [0, 100] based on adjusted min/max
 		float normalized = 0;
 
-		if (!strcmp(field_str("AUTOSCOPE"), "ON")) {
+		if (!strcmp(field_str("AUTOSCOPE"), "ON")&& !in_tx) {
 			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
 		} else {
 			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
@@ -3088,7 +3088,7 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 		int enhanced_y = y;												// Start with the original y
 		float averaged_value = averaged_spectrum[i]; // Use averaged data
 
-                if (!strcmp(field_str("AUTOSCOPE"), "ON"))
+                if (!strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx)
 			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
 		else
 			averaged_value += waterfall_offset;
