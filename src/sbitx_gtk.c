@@ -2225,9 +2225,9 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 		vswr = 10;
 
 	sprintf(meter_str, "Power: %d Watts", field_int("POWER") / 10);
-	draw_text(gfx, f->x + 20, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 5, f->y + 5, meter_str, FONT_FIELD_LABEL);
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
-	draw_text(gfx, f->x + 200, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 135, f->y + 5, meter_str, FONT_FIELD_LABEL);
 }
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
@@ -2275,8 +2275,12 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	if (in_tx)
 	{
-		draw_tx_meters(f, gfx);
-		return;
+		struct field *mode_f = get_field("r1:mode");
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		{
+			draw_tx_meters(f, gfx);
+			return;
+		}
 	}
 
 	// Scroll the existing waterfall data down
@@ -2466,8 +2470,13 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	if (in_tx)
 	{
-		draw_modulation(f_spectrum, gfx);
-		return;
+		struct field *mode_f = get_field("r1:mode");
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		{
+			draw_modulation(f_spectrum, gfx);
+			return;
+		}
+		// For USB/LSB in TX, continue with normal spectrum display
 	}
 
 	pitch = field_int("PITCH");
@@ -2542,6 +2551,24 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	draw_spectrum_grid(f_spectrum, gfx);
 	f = f_spectrum;
 
+	// Display TX meters in the top left corner of the spectrum grid during transmission
+	if (in_tx) {
+		struct field *mode_f = get_field("r1:mode");
+		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
+		{
+		// Create a semi-transparent black background for the TX meters
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.1);
+		cairo_rectangle(gfx, f->x + 1, f->y + 1, 210, 30);
+		cairo_fill(gfx);
+		
+		// Draw the TX meters in the top left corner of the spectrum
+		struct field meter_field = *f;
+		meter_field.x = f->x + 1;
+		meter_field.y = f->y + 1;
+		meter_field.height = 20;
+		draw_tx_meters(&meter_field, gfx);
+	}
+	}
 	// Cast notch filter display
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
 	int yellow_bar_height = scope_size - 13;
@@ -2897,7 +2924,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	//--- S-Meter test W2JON
-	if (!strcmp(field_str("SMETEROPT"), "ON"))
+	// Only show S-meter if we're not transmitting in LSB, USB, or AM modes
+if (!strcmp(field_str("SMETEROPT"), "ON") && 
+    !(in_tx && (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))))
 	{
 		int s_meter_value = 0;
 		struct rx *current_rx = rx_list;
