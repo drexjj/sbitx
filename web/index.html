@@ -2285,13 +2285,15 @@
             let txfreq = parseInt(el('VFOB').value); 
             let split = el("SPLIT").value;
             let band = el('BAND').value;
-            let inBand = freq >= bandLimits[band].start && freq <= bandLimits[band].stop;
-            ctx.fillStyle = inBand ? "green" : "red";
-            el("current_freq").className = inBand ? "in-band" : "out-of-band";
-            if (split == "ON") {
-                ctx.fillText("RX: " + freq + " TX: " + txfreq, rx_label_x, drawHeight + 12);
-            } else {
-                ctx.fillText("RX: " + freq, rx_label_x, drawHeight + 12);
+            if (bandLimits[band]) { // bandLinmit might not be set yet
+                let inBand = freq >= bandLimits[band].start && freq <= bandLimits[band].stop;
+                ctx.fillStyle = inBand ? "green" : "red";
+                el("current_freq").className = inBand ? "in-band" : "out-of-band";
+                if (split == "ON") {
+                    ctx.fillText("RX: " + freq + " TX: " + txfreq, rx_label_x, drawHeight + 12);
+                } else {
+                    ctx.fillText("RX: " + freq, rx_label_x, drawHeight + 12);
+                }
             }
         } 
         ctx.stroke();
@@ -4108,6 +4110,11 @@
                 break;
             case "BAND_LIMITS":
                 set_band_limits(args);
+                break;
+            case "BSTACKPOSOPT":
+                if (args == "OFF") {
+                    el("STORE").style.display = "none";
+                }
                 break;
             case 'MODE':
                 mode_set(args);
