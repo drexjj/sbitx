@@ -69,6 +69,7 @@ int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
+int tx_panafall_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -793,6 +794,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
+	
+	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0, 0, 0, 0},	 
 
 	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -2275,6 +2279,14 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	if (in_tx)
 	{
+		// If TX panafall is disabled, always draw TX meters regardless of mode
+		if (tx_panafall_enabled == 0)
+		{
+			draw_tx_meters(f, gfx);
+			return;
+		}
+		
+		// Otherwise, only draw TX meters in waterfall area for modes other than USB/LSB/AM
 		struct field *mode_f = get_field("r1:mode");
 		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
 		{
@@ -2470,13 +2482,21 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	if (in_tx)
 	{
+		// If TX panafall is disabled, always draw modulation regardless of mode
+		if (tx_panafall_enabled == 0)
+		{
+			draw_modulation(f_spectrum, gfx);
+			return;
+		}
+		
+		// Otherwise, only draw modulation for modes other than USB/LSB/AM
 		struct field *mode_f = get_field("r1:mode");
 		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
 		{
 			draw_modulation(f_spectrum, gfx);
 			return;
 		}
-		// For USB/LSB in TX, continue with normal spectrum display
+		// For USB/LSB/AM in TX with tx_panafall_enabled, continue with normal spectrum display
 	}
 
 	pitch = field_int("PITCH");
@@ -3464,6 +3484,7 @@ void menu2_display(int show)
 		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
+		field_move("TXPANAFAL", 320, screen_height - 100, 70, 45); // Add TXPANAFAL field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
@@ -5393,6 +5414,20 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *comp_stat = get_field("#comp_plugin");
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
+	struct field *tx_panafall_stat = get_field("#tx_panafall");
+	
+	if (tx_panafall_stat)
+	{
+		if (!strcmp(tx_panafall_stat->value, "ON"))
+		{
+			tx_panafall_enabled = 1;
+		}
+		else if (!strcmp(tx_panafall_stat->value, "OFF"))
+		{
+			tx_panafall_enabled = 0;
+		}
+	}
+
 	if (zero_beat_stat)
 	{
 		if (!strcmp(zero_beat_stat->value, "ON"))
