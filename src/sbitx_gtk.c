@@ -5421,6 +5421,7 @@ gboolean check_plugin_controls(gpointer data)
 		if (!strcmp(tx_panafall_stat->value, "ON"))
 		{
 			tx_panafall_enabled = 1;
+			set_field("#scope_autoadj", "OFF");
 		}
 		else if (!strcmp(tx_panafall_stat->value, "OFF"))
 		{
