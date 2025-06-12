@@ -2053,7 +2053,7 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
         strncpy(original_wf_spd, f_spd->value, sizeof(original_wf_spd));
         
         // Set new values for waterfall display
-        set_field("#wf_min", "90");
+        set_field("#wf_min", "145");
         set_field("#wf_max", "180");
         set_field("#wf_spd", "80");
     }
