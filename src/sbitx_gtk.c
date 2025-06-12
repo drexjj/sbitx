@@ -1937,7 +1937,11 @@ extern struct field *get_field(const char *name);
 // Struct to pass data to the thread
 typedef struct {
     GtkWidget *dialog;
-    char text[128];  // Just store the callsign text
+    char text[32];
+    char wf_min[32];
+    char wf_max[32];
+    char wf_spd[32];
+    gboolean restore_settings;
 } TransmitData;
 
 // Thread function to run the command and close the dialog
@@ -1947,14 +1951,34 @@ typedef struct {
 static gboolean destroy_dialog_idle(gpointer user_data)
 {
     GtkWidget *dialog = GTK_WIDGET(user_data);
-
-    if (GTK_IS_WIDGET(dialog)) {
-        gtk_widget_destroy(dialog);
-    }
-
-    // Unref the dialog since we ref'd it before the thread
+    
+    // Unref and destroy the dialog
+    gtk_widget_destroy(dialog);
     g_object_unref(dialog);
-    return FALSE;  // Remove the idle callback
+    
+    // Return FALSE to remove this callback from the idle queue
+    return FALSE;
+}
+
+// Function to restore waterfall settings and destroy dialog
+gboolean restore_waterfall_settings(gpointer user_data)
+{
+    TransmitData *tdata = (TransmitData *)user_data;
+    
+    // Restore original waterfall settings
+    set_field("#wf_min", tdata->wf_min);
+    set_field("#wf_max", tdata->wf_max);
+    set_field("#wf_spd", tdata->wf_spd);
+    
+    // Destroy the dialog
+    gtk_widget_destroy(tdata->dialog);
+    g_object_unref(tdata->dialog);
+    
+    // Free the data structure
+    g_free(tdata);
+    
+    // Return FALSE to remove this callback from the idle queue
+    return FALSE;
 }
 
 static gpointer transmit_callsign_thread(gpointer user_data)
@@ -1994,19 +2018,45 @@ static gpointer transmit_callsign_thread(gpointer user_data)
     }
 
     g_free(argv[3]);
-
-    // Safely destroy the dialog from the main thread
-    g_idle_add(destroy_dialog_idle, tdata->dialog);
-
-    g_free(tdata);
+    
+    // Restore original waterfall settings if needed
+    if (tdata->restore_settings) {
+        // We need to use g_idle_add to ensure UI updates happen on the main thread
+        g_idle_add_full(G_PRIORITY_HIGH_IDLE, (GSourceFunc)restore_waterfall_settings, tdata, NULL);
+    } else {
+        // Safely destroy the dialog from the main thread
+        g_idle_add(destroy_dialog_idle, tdata->dialog);
+        g_free(tdata);
+    }
+    
     return NULL;
 }
 
 static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 {
+    // Get the callsign
     const char *callsign = get_field("#mycallsign")->value;
     if (!callsign || strlen(callsign) == 0)
         callsign = "N0CALL";
+
+    // Save original waterfall settings
+    struct field *f_min = get_field("#wf_min");
+    struct field *f_max = get_field("#wf_max");
+    struct field *f_spd = get_field("#wf_spd");
+    
+    char original_wf_min[32], original_wf_max[32], original_wf_spd[32];
+    
+    // Store original values
+    if (f_min && f_max && f_spd) {
+        strncpy(original_wf_min, f_min->value, sizeof(original_wf_min));
+        strncpy(original_wf_max, f_max->value, sizeof(original_wf_max));
+        strncpy(original_wf_spd, f_spd->value, sizeof(original_wf_spd));
+        
+        // Set new values for waterfall display
+        set_field("#wf_min", "90");
+        set_field("#wf_max", "180");
+        set_field("#wf_spd", "80");
+    }
 
     // Create a top-level, undecorated window
     GtkWidget *dialog = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -2030,6 +2080,16 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
     TransmitData *tdata = g_malloc(sizeof(TransmitData));
     tdata->dialog = dialog;
     snprintf(tdata->text, sizeof(tdata->text), "%s", callsign);
+    
+    // Store original waterfall settings in the transmit data
+    if (f_min && f_max && f_spd) {
+        strncpy(tdata->wf_min, original_wf_min, sizeof(tdata->wf_min));
+        strncpy(tdata->wf_max, original_wf_max, sizeof(tdata->wf_max));
+        strncpy(tdata->wf_spd, original_wf_spd, sizeof(tdata->wf_spd));
+        tdata->restore_settings = TRUE;
+    } else {
+        tdata->restore_settings = FALSE;
+    }
 
     // Run the command in a separate thread
     g_thread_new("transmit_thread", transmit_callsign_thread, tdata);
