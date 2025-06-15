@@ -2878,9 +2878,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);Add commentMore actions
+						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
 	long f_start = freq - (4 * freq_div);
-
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
