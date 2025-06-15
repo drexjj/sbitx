@@ -129,6 +129,9 @@ class FrequencyKeypad(Gtk.Window):
         self.frequency_input = ""
         self.update_display()
 
+        # Automatically close the window
+        self.on_close_button_clicked(None)
+
     def apply_css(self):
         css = b"""
         window {
