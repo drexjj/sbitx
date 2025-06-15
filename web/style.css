@@ -206,18 +206,11 @@ input {
     color: var(--primary-bg);
 }
 
-.in-band {
-    color: var(--accent-yellow);
-}
-.out-of-band {
-    color: var(--accent-red);
-}
-
 #current_freq {
     font-size: 18pt;
     line-height: 23px;
     font-weight: bold;
-    
+    color: var(--accent-yellow);   
 }
 
 #other_freq {
