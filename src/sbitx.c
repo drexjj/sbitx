@@ -1816,6 +1816,102 @@ void tx_process(
 	//	printf("min %d, max %d\n", min, max);
 
 	read_power();
+
+	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
+	// This allows the TX audio to be displayed in the spectrum and waterfall
+	
+	// Create input buffer for FFT
+	complex float *tx_fft_in = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+	
+	// Calculate DC offset (average) to remove it
+	float dc_offset = 0;
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		dc_offset += output_tx[i];
+	}
+	dc_offset /= (MAX_BINS / 2);
+	
+	// Copy the output_tx samples to the FFT input buffer with a window function
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		// Apply Hann window for better spectral resolution
+		float window = 0.5 * (1 - cos(2 * M_PI * i / (MAX_BINS / 2 - 1)));
+		// Remove DC offset and scale down
+		tx_fft_in[i] = (output_tx[i] - dc_offset) * window / (tx_amp * 150000000.0); // Significantly reduced scaling
+	}
+	
+	// Zero-pad the second half
+	for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
+		tx_fft_in[i] = 0;
+	}
+	
+	// Use the existing FFT infrastructure
+	for (i = 0; i < MAX_BINS; i++) {
+		__real__ fft_in[i] = crealf(tx_fft_in[i]);
+		__imag__ fft_in[i] = 0;
+	}
+	
+	// Perform FFT using the existing plan
+	fftw_execute(plan_fwd);
+	
+	// Update the fft_spectrum array with the FFT results
+	// This is important because the spectrum_update function uses this array
+	
+	// First pass - enhanced detail with frequency-dependent scaling
+	for (i = 0; i < MAX_BINS; i++) {
+		// Calculate bin frequency relative to center (for frequency-dependent scaling)
+		int bin_from_center = i - MAX_BINS / 2;
+		if (bin_from_center < 0) bin_from_center = -bin_from_center;
+		
+		// Apply slightly higher gain to mid-range frequencies where voice details matter most
+		float freq_scale = 1.0;
+		if (bin_from_center > 10 && bin_from_center < 100) {
+			freq_scale = 1.3; // Boost mid-range frequencies
+		}
+		
+		// Store the FFT results with enhanced detail
+		fft_spectrum[i] = fft_out[i] * 0.025 * freq_scale; // Slightly increased from 0.02 for more detail
+	}
+	
+	// Apply a more refined smoothing that preserves detail while reducing noise
+	complex float *smoothed = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+	
+	// Copy first and last points as-is
+	smoothed[0] = fft_spectrum[0];
+	smoothed[MAX_BINS-1] = fft_spectrum[MAX_BINS-1];
+	
+	// Apply minimal smoothing to preserve maximum detail
+	for (i = 1; i < MAX_BINS-1; i++) {
+		// Use weighted average with heavy weight on current bin: 80% current bin, 10% each adjacent bin
+		smoothed[i] = fft_spectrum[i-1] * 0.1 + fft_spectrum[i] * 0.8 + fft_spectrum[i+1] * 0.1;
+		
+		// Apply stronger contrast enhancement to make fine details more visible
+		float mag = cabsf(smoothed[i]);
+		if (mag > 0) {
+			// Use stronger non-linear enhancement to reveal subtle details
+			smoothed[i] *= (1.0 + 0.5 * log10f(mag + 1.0));
+			
+			// Add slight sharpening effect to enhance edges between frequency components
+			if (i > 1 && i < MAX_BINS-2) {
+				complex float edge_detect = smoothed[i] * 2.0 - smoothed[i-1] * 0.5 - smoothed[i+1] * 0.5;
+				smoothed[i] = smoothed[i] * 0.7 + edge_detect * 0.3;
+			}
+		}
+	}
+	
+	// Copy smoothed spectrum back to fft_spectrum
+	for (i = 0; i < MAX_BINS; i++) {
+		fft_spectrum[i] = smoothed[i];
+	}
+	
+	// Free the temporary buffer
+	free(smoothed);
+	
+	// Call the standard spectrum update function to ensure consistent processing
+	spectrum_update();
+	
+	// Clean up
+	free(tx_fft_in);
+
+	// The old sdr_modulation_update function is still called for API compatibility
 	sdr_modulation_update(output_tx, MAX_BINS / 2, tx_amp);
 }
 
@@ -2118,8 +2214,9 @@ void tr_switch(int tx_on) {
 		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
 		delay(20);
 	}
-    mute_count = 20;             // number of audio samples to zero out
-    fft_reset_m_bins();          // fixes burst at start of transmission
+    //mute_count = 20;             // number of audio samples to zero out
+    mute_count = 1;             // number of audio samples to zero out
+	fft_reset_m_bins();          // fixes burst at start of transmission
     set_tx_power_levels();       // use values for tx_power_watts, tx_gain
     //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
 			if (ext_ptt_enable == 1) {

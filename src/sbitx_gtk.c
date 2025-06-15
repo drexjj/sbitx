@@ -69,6 +69,7 @@ int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
+int tx_panafall_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -793,6 +794,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
+	
+	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0, 0, 0, 0},	 
 
 	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -1933,7 +1937,11 @@ extern struct field *get_field(const char *name);
 // Struct to pass data to the thread
 typedef struct {
     GtkWidget *dialog;
-    char text[128];  // Just store the callsign text
+    char text[32];
+    char wf_min[32];
+    char wf_max[32];
+    char wf_spd[32];
+    gboolean restore_settings;
 } TransmitData;
 
 // Thread function to run the command and close the dialog
@@ -1943,14 +1951,34 @@ typedef struct {
 static gboolean destroy_dialog_idle(gpointer user_data)
 {
     GtkWidget *dialog = GTK_WIDGET(user_data);
-
-    if (GTK_IS_WIDGET(dialog)) {
-        gtk_widget_destroy(dialog);
-    }
-
-    // Unref the dialog since we ref'd it before the thread
+    
+    // Unref and destroy the dialog
+    gtk_widget_destroy(dialog);
     g_object_unref(dialog);
-    return FALSE;  // Remove the idle callback
+    
+    // Return FALSE to remove this callback from the idle queue
+    return FALSE;
+}
+
+// Function to restore waterfall settings and destroy dialog
+gboolean restore_waterfall_settings(gpointer user_data)
+{
+    TransmitData *tdata = (TransmitData *)user_data;
+    
+    // Restore original waterfall settings
+    set_field("#wf_min", tdata->wf_min);
+    set_field("#wf_max", tdata->wf_max);
+    set_field("#wf_spd", tdata->wf_spd);
+    
+    // Destroy the dialog
+    gtk_widget_destroy(tdata->dialog);
+    g_object_unref(tdata->dialog);
+    
+    // Free the data structure
+    g_free(tdata);
+    
+    // Return FALSE to remove this callback from the idle queue
+    return FALSE;
 }
 
 static gpointer transmit_callsign_thread(gpointer user_data)
@@ -1990,19 +2018,45 @@ static gpointer transmit_callsign_thread(gpointer user_data)
     }
 
     g_free(argv[3]);
-
-    // Safely destroy the dialog from the main thread
-    g_idle_add(destroy_dialog_idle, tdata->dialog);
-
-    g_free(tdata);
+    
+    // Restore original waterfall settings if needed
+    if (tdata->restore_settings) {
+        // We need to use g_idle_add to ensure UI updates happen on the main thread
+        g_idle_add_full(G_PRIORITY_HIGH_IDLE, (GSourceFunc)restore_waterfall_settings, tdata, NULL);
+    } else {
+        // Safely destroy the dialog from the main thread
+        g_idle_add(destroy_dialog_idle, tdata->dialog);
+        g_free(tdata);
+    }
+    
     return NULL;
 }
 
 static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 {
+    // Get the callsign
     const char *callsign = get_field("#mycallsign")->value;
     if (!callsign || strlen(callsign) == 0)
         callsign = "N0CALL";
+
+    // Save original waterfall settings
+    struct field *f_min = get_field("#wf_min");
+    struct field *f_max = get_field("#wf_max");
+    struct field *f_spd = get_field("#wf_spd");
+    
+    char original_wf_min[32], original_wf_max[32], original_wf_spd[32];
+    
+    // Store original values
+    if (f_min && f_max && f_spd) {
+        strncpy(original_wf_min, f_min->value, sizeof(original_wf_min));
+        strncpy(original_wf_max, f_max->value, sizeof(original_wf_max));
+        strncpy(original_wf_spd, f_spd->value, sizeof(original_wf_spd));
+        
+        // Set new values for waterfall display
+        set_field("#wf_min", "145");
+        set_field("#wf_max", "180");
+        set_field("#wf_spd", "80");
+    }
 
     // Create a top-level, undecorated window
     GtkWidget *dialog = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -2026,6 +2080,16 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
     TransmitData *tdata = g_malloc(sizeof(TransmitData));
     tdata->dialog = dialog;
     snprintf(tdata->text, sizeof(tdata->text), "%s", callsign);
+    
+    // Store original waterfall settings in the transmit data
+    if (f_min && f_max && f_spd) {
+        strncpy(tdata->wf_min, original_wf_min, sizeof(tdata->wf_min));
+        strncpy(tdata->wf_max, original_wf_max, sizeof(tdata->wf_max));
+        strncpy(tdata->wf_spd, original_wf_spd, sizeof(tdata->wf_spd));
+        tdata->restore_settings = TRUE;
+    } else {
+        tdata->restore_settings = FALSE;
+    }
 
     // Run the command in a separate thread
     g_thread_new("transmit_thread", transmit_callsign_thread, tdata);
@@ -2225,9 +2289,9 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 		vswr = 10;
 
 	sprintf(meter_str, "Power: %d Watts", field_int("POWER") / 10);
-	draw_text(gfx, f->x + 20, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 5, f->y + 5, meter_str, FONT_FIELD_LABEL);
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
-	draw_text(gfx, f->x + 200, f->y + 5, meter_str, FONT_FIELD_LABEL);
+	draw_text(gfx, f->x + 135, f->y + 5, meter_str, FONT_FIELD_LABEL);
 }
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
@@ -2275,8 +2339,20 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	if (in_tx)
 	{
-		draw_tx_meters(f, gfx);
-		return;
+		// If TX panafall is disabled, always draw TX meters regardless of mode
+		if (tx_panafall_enabled == 0)
+		{
+			draw_tx_meters(f, gfx);
+			return;
+		}
+		
+		// Otherwise, only draw TX meters in waterfall area for modes other than USB/LSB/AM
+		struct field *mode_f = get_field("r1:mode");
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		{
+			draw_tx_meters(f, gfx);
+			return;
+		}
 	}
 
 	// Scroll the existing waterfall data down
@@ -2293,7 +2369,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Normalize data to the range [0, 100] based on adjusted min/max
 		float normalized = 0;
 
-		if (!strcmp(field_str("AUTOSCOPE"), "ON")) {
+		if (!strcmp(field_str("AUTOSCOPE"), "ON")&& !in_tx) {
 			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
 		} else {
 			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
@@ -2466,8 +2542,21 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	if (in_tx)
 	{
-		draw_modulation(f_spectrum, gfx);
-		return;
+		// If TX panafall is disabled, always draw modulation regardless of mode
+		if (tx_panafall_enabled == 0)
+		{
+			draw_modulation(f_spectrum, gfx);
+			return;
+		}
+		
+		// Otherwise, only draw modulation for modes other than USB/LSB/AM
+		struct field *mode_f = get_field("r1:mode");
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		{
+			draw_modulation(f_spectrum, gfx);
+			return;
+		}
+		// For USB/LSB/AM in TX with tx_panafall_enabled, continue with normal spectrum display
 	}
 
 	pitch = field_int("PITCH");
@@ -2542,6 +2631,24 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	draw_spectrum_grid(f_spectrum, gfx);
 	f = f_spectrum;
 
+	// Display TX meters in the top left corner of the spectrum grid during transmission
+	if (in_tx) {
+		struct field *mode_f = get_field("r1:mode");
+		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
+		{
+		// Create a semi-transparent black background for the TX meters
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.1);
+		cairo_rectangle(gfx, f->x + 1, f->y + 1, 210, 30);
+		cairo_fill(gfx);
+		
+		// Draw the TX meters in the top left corner of the spectrum
+		struct field meter_field = *f;
+		meter_field.x = f->x + 1;
+		meter_field.y = f->y + 1;
+		meter_field.height = 20;
+		draw_tx_meters(&meter_field, gfx);
+	}
+	}
 	// Cast notch filter display
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
 	int yellow_bar_height = scope_size - 13;
@@ -2897,7 +3004,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	//--- S-Meter test W2JON
-	if (!strcmp(field_str("SMETEROPT"), "ON"))
+	// Only show S-meter if we're not transmitting in LSB, USB, or AM modes
+if (!strcmp(field_str("SMETEROPT"), "ON") && 
+    !(in_tx && (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))))
 	{
 		int s_meter_value = 0;
 		struct rx *current_rx = rx_list;
@@ -3059,7 +3168,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		int enhanced_y = y;												// Start with the original y
 		float averaged_value = averaged_spectrum[i]; // Use averaged data
 
-                if (!strcmp(field_str("AUTOSCOPE"), "ON"))
+                if (!strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx)
 			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
 		else
 			averaged_value += waterfall_offset;
@@ -3435,6 +3544,7 @@ void menu2_display(int show)
 		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
+		field_move("TXPANAFAL", 320, screen_height - 100, 70, 45); // Add TXPANAFAL field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
@@ -5364,6 +5474,21 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *comp_stat = get_field("#comp_plugin");
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
+	struct field *tx_panafall_stat = get_field("#tx_panafall");
+	
+	if (tx_panafall_stat)
+	{
+		if (!strcmp(tx_panafall_stat->value, "ON"))
+		{
+			tx_panafall_enabled = 1;
+			set_field("#scope_autoadj", "OFF");
+		}
+		else if (!strcmp(tx_panafall_stat->value, "OFF"))
+		{
+			tx_panafall_enabled = 0;
+		}
+	}
+
 	if (zero_beat_stat)
 	{
 		if (!strcmp(zero_beat_stat->value, "ON"))
