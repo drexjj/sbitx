@@ -1817,7 +1817,7 @@ void tx_process(
 
 	read_power();
 
-	// Instead of using sdr_modulation_update, we'll update the spectrum data directlyAdd commentMore actions
+	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
 	// This allows the TX audio to be displayed in the spectrum and waterfall
 	
 	// Create input buffer for FFT
