@@ -1967,34 +1967,6 @@ static void read_hw_ini()
 	}
 }
 
-int check_freq_in_band(long freq)
-{
-	for (int i = 0; i < sizeof(band_power) / sizeof(struct power_settings); i++)
-	{
-		if (band_power[i].f_start <= freq && freq <= band_power[i].f_stop)
-		{
-			return i;
-		}
-	}	
-	return -1;
-}
-
-long get_band_start(int band) {
-	if (band < 0 || band >= sizeof(band_power) / sizeof(struct power_settings))
-	{
-		return -1;
-	}
-	return (long) band_power[band].f_start;
-}
-
-long get_band_stop(int band) {
-	if (band < 0 || band >= sizeof(band_power) / sizeof(struct power_settings))
-	{
-		return -1;
-	}
-	return (long) band_power[band].f_stop;
-}
-
 /*
 	 the PA gain varies across the band from 3.5 MHz to 30 MHz
 	here we adjust the drive levels to keep it up, almost level
