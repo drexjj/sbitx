@@ -46,7 +46,7 @@ cd $HOME && mv sbitx sbitx_orig
 To restore your backup after installation:
 
 ```console
-cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
+cd $HOME && cp -r sbitx_orig/web/*.mc sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
 ```
 
 ## 🔧 Installation & Upgrades
