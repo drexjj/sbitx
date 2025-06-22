@@ -16,12 +16,16 @@
 #include "sdr_ui.h"
 #include "modem_ft8.h"
 
+// override ft8_lib's log level by defining this before the includes
+#define LOG_LEVEL LOG_INFO
+
 #include "ft8_lib/common/common.h"
 #include "ft8_lib/common/wave.h"
 #include "ft8_lib/ft8/debug.h"
 #include "ft8_lib/ft8/decode.h"
 #include "ft8_lib/ft8/encode.h"
 #include "ft8_lib/ft8/constants.h"
+#include "ft8_lib/ft8/text.h"
 #include "ft8_lib/fft/kiss_fftr.h"
 
 static int32_t ft8_rx_buff[FT8_MAX_BUFF];
@@ -64,8 +68,6 @@ static const int kFieldType_style_map[] = {
 	STYLE_GRID,		// FTX_FIELD_GRID
 	STYLE_RST		// FTX_FIELD_RST (from the message text, not observed SNR)
 };
-
-#define LOG_LEVEL LOG_INFO
 
 #define FT8_SYMBOL_BT 2.0f ///< symbol smoothing filter bandwidth factor (BT)
 #define FT4_SYMBOL_BT 1.0f ///< symbol smoothing filter bandwidth factor (BT)
@@ -252,7 +254,7 @@ int sbitx_ft8_encode(char *message, int32_t freq,  float *signal, bool is_ft4)
 
     // First, pack the text data into binary message
     ftx_message_t msg;
-    ftx_message_rc_t rc = ftx_message_encode(&msg, NULL, message);
+    ftx_message_rc_t rc = ftx_message_encode(&msg, &hash_if, message);
     if (rc != FTX_MESSAGE_RC_OK)
     {
         printf("Cannot parse message!\n");
@@ -604,7 +606,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
 			char buf[64];
 			int prefix_len = snprintf(buf, sizeof(buf), "%s %3d %+03d %4d ~ ", time_str, cand->score, cand->snr, freq_hz);
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s\n", text);
-			LOG(LOG_DEBUG, "-> %s\n", buff);
+			LOG(LOG_DEBUG, "-> %s\n", buf);
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
 			//  cand->snr, freq_hz, message.payload);
@@ -644,7 +646,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
 					if (!call_end)
 						call_end = call + strlen(call);
 					assert(call_end);
-					//~ printf("considering call %d of %d: first part of %s\n", calls_found, total_calls, call);
+					if (*call == '<')
+						++call;
+					if (*(call_end - 1) == '>')
+						--call_end;
+					//~ printf("considering call %d of %d: first %d chars of %s\n", calls_found, total_calls, call_end - call, call);
 					if (!strncmp(call, mycallsign_upper, call_end - call)) {
 						sem[sem_i].semantic = STYLE_MYCALL;
 						my_call_found = true;
@@ -860,6 +866,31 @@ float ft8_next_sample(){
 		return sample;
 }
 
+bool is_token_char(char ch) {
+	switch(ch) {
+		case 0: // quick check for terminator: faster than isalnum(), perhaps
+			return false;
+		case '+':
+		case '-':
+		case '/':
+			return true;
+		default:
+			return isalnum(ch);
+	}
+}
+
+// like strncpy, but skips <> brackets (as found in hashed callsigns),
+// stops at the end of alphanumeric characters plus -+/, and returns count copied
+int tokncpy(char *dst, const char *src, size_t dsize){
+	if (*src == '<')
+		++src;
+	int c = 0;
+	for (; c < dsize && is_token_char(*src); ++c)
+		*dst++ = *src++;
+	*dst = 0;
+	return c;
+}
+
 /* these are used to process the current message */
 static char m1[32], m2[32], m3[32], m4[32], signal_strength[10], mygrid[10],
 	reply_message[100];
@@ -895,20 +926,19 @@ int ft8_message_tokenize(char *message){
 
 	p = strtok(NULL, " \r\n");
 	if (!p) return -1;
-	strcpy(m1, p);
+	tokncpy(m1, p, sizeof(m1));
 
 	p = strtok(NULL, " \r\n");
 	if (!p) return -1;
-	strcpy(m2, p);
+	tokncpy(m2, p, sizeof(m2));
 
 	p = strtok(NULL, " \r\n");
 	if (p){
-		strcpy(m3, p);
+		tokncpy(m3, p, sizeof(m3));
 
 		p = strtok(NULL, " \r\n");
-		if (p){
-			strcpy(m4, p);
-		}
+		if (p)
+			tokncpy(m4, p, sizeof(m4));
 		else
 			m4[0] = 0;
 	}
@@ -916,6 +946,14 @@ int ft8_message_tokenize(char *message){
 		m3[0] = 0;
 
 	return 0;
+}
+
+void set_call_field(const char *s) {
+	if (strcmp(s, "<...>") == 0)
+		return;
+	char call[16];
+	strncpy(call, s, sizeof(call));
+	field_set("CALL", trim_brackets(call));
 }
 
 // this kicks stars a new qso either as a CQ message or
@@ -936,12 +974,12 @@ void ft8_on_start_qso(char *message){
 
 	if (!strcmp(m1, "CQ")){
 		if (m4[0]){
-			field_set("CALL", m3);
+			set_call_field(m3);
 			field_set("EXCH", m4);
 			field_set("SENT", signal_strength);
 		}
 		else {
-			field_set("CALL", m2);
+			set_call_field(m2);
 			field_set("EXCH", m3);
 			field_set("SENT", signal_strength);
 		}
@@ -949,7 +987,9 @@ void ft8_on_start_qso(char *message){
 	}
 	//whoa, someone cold called us
 	else if (!strcmp(m1, mycall)){
-		field_set("CALL", m2);
+		if (!m2[0])
+			return;
+		set_call_field(m2);
 		field_set("SENT", signal_strength);
 		//they might have directly sent us a signal report
 		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
@@ -962,7 +1002,7 @@ void ft8_on_start_qso(char *message){
 		}
 	}
 	else { //we are breaking into someone else's qso
-		field_set("CALL", m2);
+		set_call_field(m2);
 		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
 			field_set("EXCH", m3); // the gridId is valid - use it
 		} else {
@@ -976,7 +1016,7 @@ void ft8_on_start_qso(char *message){
 }
 
 void ft8_on_signal_report(){
-	field_set("CALL", m2);
+	set_call_field(m2);
 	if (m3[0] == 'R'){
 		//skip the 'R'
 		field_set("RECV", m3+1);
