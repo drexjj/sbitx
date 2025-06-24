@@ -999,7 +999,8 @@ int tokncpy(char *dst, const char *src, size_t dsize){
 static char m1[32], m2[32], m3[32], m4[32], signal_strength[10], mygrid[10],
 	reply_message[100];
 static int rx_pitch, tx_pitch, confidence_score, msg_time;
-static const char *call, *exchange, *report_send, *report_received, *mycall;
+static const char *call = NULL, *exchange = NULL,
+	*report_send = NULL, *report_received = NULL, *mycall = NULL;
 
 int ft8_message_tokenize(char *message){
 	char *p;
@@ -1079,12 +1080,14 @@ void ft8_on_start_qso(char *message){
 			field_set("EXCH", m3);
 			field_set("SENT", signal_strength);
 		}
+		LOG(LOG_DEBUG, "ft8_on_start_qso CQ: rst s %s\n", signal_strength);
 		sprintf(reply_message, "%s %s %s", call, mycall, mygrid);
 	}
 	//whoa, someone cold called us
 	else if (!strcmp(m1, mycall)){
 		field_set("CALL", m2);
 		field_set("SENT", signal_strength);
+		LOG(LOG_DEBUG, "ft8_on_start_qso cold call: rst s %s\n", signal_strength);
 		//they might have directly sent us a signal report
 		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
 			field_set("EXCH", m3);
@@ -1103,6 +1106,7 @@ void ft8_on_start_qso(char *message){
 			field_set("EXCH", "");
 		}
 		field_set("SENT", signal_strength);
+		LOG(LOG_DEBUG, "ft8_on_start_qso break-in: rst s %s\n", signal_strength);
 		sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 	}
 	field_set("NR", mygrid);
@@ -1119,6 +1123,11 @@ void ft8_on_signal_report(){
 	}
 	else{
 		field_set("RECV", m3);
+		// in case ft8_on_start_qso() was not called: ensure that we send some numeric signal report
+		if (!field_str("SENT")[0]) {
+			field_set("SENT", signal_strength);
+			report_send = field_str("SENT");
+		}
 		sprintf(reply_message, "%s %s R%s", call, mycall, report_send);
 		ft8_tx(reply_message, tx_pitch);
 	}
