@@ -506,7 +506,7 @@ float cw_tx_get_sample() {
     keydown_count--;
   } 
   else if (keyup_count > 0) {
-    if (RC_envelope_len > RC_envelope_pos > 0)
+    if (RC_envelope_len > RC_envelope_pos)
       cw_envelope = raised_cosine[RC_envelope_pos--];
     else
       cw_envelope = 0.0f;
