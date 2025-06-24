@@ -160,6 +160,7 @@ void tuning_isr(void);
 #define SELECTED_LINE 14
 #define COLOR_FIELD_SELECTED 15
 #define COLOR_TX_PITCH 16
+#define COLOR_TOGGLE_ACTIVE 17
 
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
@@ -180,6 +181,7 @@ float palette[][3] = {
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
+	{0, 0.5, 0},	 // COLOR_TOGGLE_ACTIVE
 };
 
 char *ui_font = "Sans";
@@ -608,11 +610,11 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
-	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#split", do_toggle_option, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
@@ -1544,6 +1546,8 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 
 	if (f_focus == f)
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
+	else if (f->value_type == FIELD_TOGGLE && strcmp(f->value, "ON") == 0)
+		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_TOGGLE_ACTIVE);
 	else
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 	if (f_focus == f)
