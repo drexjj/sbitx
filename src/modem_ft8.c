@@ -258,7 +258,7 @@ int sbitx_ft8_encode(char *message, int32_t freq,  float *signal, bool is_ft4)
 
     // First, pack the text data into binary message
     ftx_message_t msg;
-    ftx_message_rc_t rc = ftx_message_encode(&msg, NULL, message);
+    ftx_message_rc_t rc = ftx_message_encode(&msg, &hash_if, message);
     if (rc != FTX_MESSAGE_RC_OK)
     {
         printf("Cannot parse message!\n");
@@ -970,6 +970,31 @@ float ft8_next_sample(){
 		return sample;
 }
 
+bool is_token_char(char ch) {
+	switch(ch) {
+		case 0: // quick check for terminator: faster than isalnum(), perhaps
+			return false;
+		case '+':
+		case '-':
+		case '/':
+			return true;
+		default:
+			return isalnum(ch);
+	}
+}
+
+// like strncpy, but skips <> brackets (as found in hashed callsigns),
+// stops at the end of alphanumeric characters plus -+/, and returns count copied
+int tokncpy(char *dst, const char *src, size_t dsize){
+	if (*src == '<')
+		++src;
+	int c = 0;
+	for (; c < dsize && is_token_char(*src); ++c)
+		*dst++ = *src++;
+	*dst = 0;
+	return c;
+}
+
 /* these are used to process the current message */
 static char m1[32], m2[32], m3[32], m4[32], signal_strength[10], mygrid[10],
 	reply_message[100];
@@ -1005,20 +1030,19 @@ int ft8_message_tokenize(char *message){
 
 	p = strtok(NULL, " \r\n");
 	if (!p) return -1;
-	strcpy(m1, p);
+	tokncpy(m1, p, sizeof(m1));
 
 	p = strtok(NULL, " \r\n");
 	if (!p) return -1;
-	strcpy(m2, p);
+	tokncpy(m2, p, sizeof(m2));
 
 	p = strtok(NULL, " \r\n");
 	if (p){
-		strcpy(m3, p);
+		tokncpy(m3, p, sizeof(m3));
 
 		p = strtok(NULL, " \r\n");
-		if (p){
-			strcpy(m4, p);
-		}
+		if (p)
+			tokncpy(m4, p, sizeof(m4));
 		else
 			m4[0] = 0;
 	}
