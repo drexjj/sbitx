@@ -537,8 +537,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
   // printf("symbol_now %d\n", symbol_now);
   switch (state_machine_mode) {
   case CW_STRAIGHT:
-      if (symbol_now == CW_IDLE)
+      if (symbol_now == CW_IDLE) {
+        keydown_count = 0;
+        keyup_count = 1;
         cw_current_symbol = CW_IDLE;
+      }
       if (symbol_now == CW_DOWN) {
         keydown_count = 1; // this is very short, much less than a dit
         keyup_count = 0;
@@ -552,8 +555,11 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
     // completely manual and usually used just for dashes
     switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now == CW_IDLE)
+     if (symbol_now == CW_IDLE) {
+        keydown_count = 0;
+        keyup_count = 1;
         cw_current_symbol = CW_IDLE;
+      }
       if (symbol_now == CW_DOT) {
         keydown_count = cw_period;
         keyup_count = cw_period;
