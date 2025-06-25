@@ -3307,10 +3307,19 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 			tx_needle_x = (f->width / 2) + offset_pixels;
 			
 			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
-			if (tx_needle_x < 0)
+			int is_at_edge = 0;
+			int arrow_direction = 0; // -1 for left, 1 for right
+			
+			if (tx_needle_x < 0) {
 				tx_needle_x = 0;
-			if (tx_needle_x >= f->width)
+				is_at_edge = 1;
+				arrow_direction = -1; // Point left
+			}
+			if (tx_needle_x >= f->width) {
 				tx_needle_x = f->width - 1;
+				is_at_edge = 1;
+				arrow_direction = 1; // Point right
+			}
 			
 			// Draw red TX frequency indicator
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
@@ -3318,6 +3327,29 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
 			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
 			cairo_stroke(gfx);
+			
+			// This part is will draw a small red triangle arrow at the center of the line if at edge of the scope
+			if (is_at_edge) {
+				int center_y = f->y + (grid_height / 2);
+				int arrow_size = 10; // Size of the triangle
+				
+				// Fill a triangle pointing in the direction of the TX frequency
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+				cairo_move_to(gfx, f->x + tx_needle_x, center_y);
+				
+				if (arrow_direction < 0) { // Point left
+					// Triangle pointing left
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y + arrow_size/2);
+				} else { // Point right
+					// Triangle pointing right
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y + arrow_size/2);
+				}
+				
+				cairo_close_path(gfx);
+				cairo_fill(gfx);
+			}
 		}
 	}
 }
