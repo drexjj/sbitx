@@ -547,6 +547,7 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -610,7 +611,7 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
@@ -4897,6 +4898,34 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		if (!strcmp(field_str("RIT"), "OFF"))
+		{ 
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			int current_freq = atoi(freq->value);
+			char response[128];
+			
+			// Adjust VFO up by 10Hz
+			set_operating_freq(current_freq + 10, response);
+			
+			// Small 5ms delay 
+			usleep(5000); 
+			
+			// Adjust VFO back down by 10Hz to original frequency
+			set_operating_freq(current_freq, response);
+		}
+		set_field("#rit_delta", "000000"); // zero the RIT delta
+		focus_field(f_last_text);
+		return 1;
+	}
+	return 0;
+}
 int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (event == GDK_BUTTON_PRESS)
@@ -8389,6 +8418,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
+	field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
