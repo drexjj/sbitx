@@ -2989,8 +2989,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	long f_start = freq - (4 * freq_div);
+					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+	
+	// Get RIT status and delta to adjust frequency display when RIT is enabled
+	struct field *rit = get_field("#rit");
+	struct field *rit_delta = get_field("#rit_delta");
+	long display_freq = freq;
+	
+	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
+	if (!strcmp(rit->value, "ON") && !in_tx) {
+		// Adjust the display frequency to show RX frequency (freq + rit_delta)
+		display_freq = freq + atoi(rit_delta->value);
+	}
+	
+	long f_start = display_freq - (4 * freq_div);
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3254,6 +3266,59 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 	{
 		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
+		
+		// Draw TX frequency indicator when RIT is enabled
+		struct field *rit = get_field("#rit");
+		struct field *rit_delta = get_field("#rit_delta");
+		struct field *freq_field = get_field("r1:freq");
+		struct field *mode_f = get_field("r1:mode");
+		
+		if (!strcmp(rit->value, "ON") && !in_tx)
+		{
+			// Get the RIT delta value and current frequency
+			int rit_delta_value = atoi(rit_delta->value);
+			long rx_freq = atol(freq_field->value);
+			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
+			
+			// Calculate the TX bin position directly
+			// We need to calculate where the TX frequency would be in the spectrum
+			// First, determine the frequency span visible in the spectrum
+			float span_khz = atof(get_field("#span")->value);
+			float span_hz = span_khz * 1000;
+			
+			// Now we calculate the frequency difference between RX and TX in Hz
+			long freq_diff = rx_freq - tx_freq;
+			
+			// Let's calculate the pixel offset based on the frequency difference and span
+			// The center of the spectrum is at f->width/2
+			// The full width represents span_hz
+			float pixels_per_hz = (float)f->width / span_hz;
+			// Invert the offset to match the spectrum panning direction
+			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
+			
+			// Calculate the TX needle position
+			// WE can use the same calculation method as the RX needle (tuned_bin)
+			// but with an offset based on the RIT delta
+			int tx_needle_x;
+			
+			// Calculate the TX needle position directly from the RX needle position
+			// The RX needle is always at the center (f->width/2)
+			// We just need to offset it based on the RIT delta
+			tx_needle_x = (f->width / 2) + offset_pixels;
+			
+			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
+			if (tx_needle_x < 0)
+				tx_needle_x = 0;
+			if (tx_needle_x >= f->width)
+				tx_needle_x = f->width - 1;
+			
+			// Draw red TX frequency indicator
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			cairo_set_line_width(gfx, 1.0);
+			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
+			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
+			cairo_stroke(gfx);
+		}
 	}
 }
 
