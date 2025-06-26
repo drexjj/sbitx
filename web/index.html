@@ -2821,6 +2821,10 @@
         if (e.id === "BAND") {
             log("Sending band command: " + e.value); // Debug log
             websocket_send(e.value); // Send just the band value, e.g., "20M"
+        } else if (e.id === "RIT" && e.value == "ON") {
+            websocket_send("rit" + " " + "on"); // Original behavior for other selects
+        } else if (e.id === "RIT" && e.value == "OFF") {
+            websocket_send("rit" + " " + "off"); // Original behavior for other selects    
         } else {
             log("Sending command: " + e.id + " " + e.value); // Debug log
             websocket_send(e.id + " " + e.value); // Original behavior for other selects
