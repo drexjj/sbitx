@@ -4456,12 +4456,18 @@
         
         // Listen for mode changes
         modeSelect.addEventListener('change', checkTuneState);
-        
-        // Tune button click handler
-        const tuneButton = document.getElementById('tune_button');
-        tuneButton.addEventListener('click', function() {
-            websocket_send('tune on');
-        });
+
+        // Tune button click handler   Fixed W9JES
+	    const tuneButton = document.getElementById('tune_button');
+	    tuneButton.addEventListener('click', function() {
+		    if (isTuneOn) {
+			    websocket_send('tune off');
+			    isTuneOn = false;
+		    } else {
+			    websocket_send('tune on');
+			    isTuneOn = true;
+		    }
+	    });
 
         // ePTT button handler
         document.getElementById('ePTT').addEventListener('change', function() {
