@@ -8086,6 +8086,44 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
+	else if (!strcmp(exec, "rit"))
+	{
+		struct field *rit_field = get_field("#rit");
+		if (!rit_field) {
+			write_console(FONT_LOG, "Error: RIT field not found\n");
+			return;
+		}
+		
+		if (!strcasecmp(args, "on"))
+		{
+			// Turn RIT on
+			set_field("#rit", "ON");
+			set_field("#rit_delta", "000000"); // zero the RIT delta
+		}
+		else if (!strcasecmp(args, "off"))
+		{
+			// Turn RIT off
+			set_field("#rit", "OFF");
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				int current_freq = atoi(freq->value);
+				char response[128];
+				
+				// Adjust VFO up by 10Hz
+				set_operating_freq(current_freq + 10, response);
+				
+				// Small 5ms delay 
+				usleep(5000); 
+				
+				// Adjust VFO back down by 10Hz to original frequency
+				set_operating_freq(current_freq, response);
+			}
+		}
+		focus_field(f_last_text);
+	}
 	else if (!strcmp(exec, "exit"))
 	{
 		tx_off();
