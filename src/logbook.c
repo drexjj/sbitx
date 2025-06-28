@@ -325,6 +325,7 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 	get_field_value("#mycallsign", mycallsign);
 
 	sprintf(log_freq, "%d", atoi(freq)/1000);
+	//~ printf("log_freq '%s' -> %d %lf -> '%s'", freq, atoi(freq)/1000, atof(freq) / 1000.0, log_freq);
 
 	sprintf(date_str, "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	sprintf(time_str, "%02d%02d", tmp->tm_hour, tmp->tm_min);
