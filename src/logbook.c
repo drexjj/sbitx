@@ -346,7 +346,6 @@ void logbook_add(char* contact_callsign, char* rst_sent, char* exchange_sent,
 	get_field_value("#mycallsign", mycallsign);
 
 	snprintf(log_freq, sizeof(log_freq), "%d", atoi(freq) / 1000);
-
 	snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	snprintf(time_str, sizeof(time_str), "%02d%02d", tmp->tm_hour, tmp->tm_min);
 

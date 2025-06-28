@@ -1939,9 +1939,9 @@ void enter_qso()
 				get_field("#text_in")->value);
 
 	char buff[100];
-	snprintf(buff, sizeof(buff), "Logged: %s %s-%s %s-%s pwr %d.%d swr %d.%d\n",
-			field_str("CALL"), field_str("SENT"), field_str("NR"),
-			field_str("RECV"), field_str("EXCH"), power / 10, power % 10, swr / 10, swr % 10);
+	snprintf(buff, sizeof(buff), "Logged: %s %s s %s r %s pwr %d.%d swr %d.%d\n",
+			field_str("CALL"), field_str("EXCH"), field_str("SENT"), field_str("RECV"),
+			power / 10, power % 10, swr / 10, swr % 10);
 	write_console(STYLE_LOG, buff);
 	printf(buff);
 }
