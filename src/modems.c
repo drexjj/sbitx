@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 #include <math.h>
 #include <complex.h>
 #include <fftw3.h>
@@ -34,7 +34,7 @@ typedef float float32_t;
 #define QSO_STATE_ZOMBIE 0
 
 #define QSO_STATE_CQ_CALLING 6
-#define QSO_STATE_CQ_REPORT 2 
+#define QSO_STATE_CQ_REPORT 2
 #define QSO_STATE_CQ_RRR 4
 
 //when search & pounding
@@ -56,8 +56,8 @@ int qso_state = QSO_STATE_ZOMBIE;
 	1. There is the modem_init() that is used to initialize all the different modems.
 	2. The modem_poll() is called about 10 times a second to check if any transmit/receiver
 		 changeover is needed, etc.
-	3. On receive, each time a block of samples is received, modem_rx() is called and 
-		 it despatches the block of samples to the currently selected modem. 
+	3. On receive, each time a block of samples is received, modem_rx() is called and
+		 it despatches the block of samples to the currently selected modem.
 		 The demodulators call write_console() to call the routines to display the decoded text.
 	4. During transmit, modem_next_sample() is repeatedly called by the sdr to accumulate
 		 samples. In turn the sample generation routines call get_tx_data_byte() to read the next
@@ -67,7 +67,6 @@ int qso_state = QSO_STATE_ZOMBIE;
 
 
 static int current_mode = -1;
-static unsigned long millis_now = 0;
 
 /* ---- Base64 Encoding/Decoding Table --- */
 char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -92,7 +91,7 @@ void b64_decode(char *b64src, char *clrdst) {
   while(b64src[i]) {
     c = (int) b64src[i];
     if(c == '=') {
-      decodeblock(in, clrdst); 
+      decodeblock(in, clrdst);
       break;
     }
     p = strchr(b64, c);
@@ -165,8 +164,8 @@ int fldigi_call_i(char *action, int param, char *result){
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(7362);
   serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
-	
+  memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
+
 	int fldigi_socket = socket(AF_INET, SOCK_STREAM, 0);
 /*	timeout.tv_sec = 0;
 	timeout.tv_usec = 1000;
@@ -176,32 +175,32 @@ int fldigi_call_i(char *action, int param, char *result){
 	*result = 0; //start with a null string so it is returned if nothing is read
 
   if (connect(fldigi_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-		//puts("unable to connect to the flidigi\n");        
+		//puts("unable to connect to the flidigi\n");
 		close(fldigi_socket);
 		return -1;
    }
 
-	sprintf(xml, 
+	sprintf(xml,
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 "<methodCall><methodName>%s</methodName>\n"
 "<params>\n<param><value><i4>%d</i4></value></param> </params></methodCall>\n",
 		action, param);
 
-	sprintf(q, 
+	sprintf(q,
 		"POST / HTTP/1.1\n"
 		"Host: 127.0.0.1:7362\n"
-		"User-Agent: sbitx/v0.01\n" 
-		"Accept:\n" 
+		"User-Agent: sbitx/v0.01\n"
+		"Accept:\n"
 		"Content-Length: %d\n"
 		"Content-Type: application/x-www-form-urlencoded\n\n"
 		"%s\n",
 		(int)strlen(xml), xml);
- 
+
   if (send(fldigi_socket, q, strlen(q), 0) < 0) {
 		puts("Unable to request fldigi");
 		close(fldigi_socket);
 		return -1;
-  } 
+  }
 	char buff[10000]; //large, large
 	int e = recv(fldigi_socket, buff, sizeof(buff), 0);
 	if(e < 0) {
@@ -241,9 +240,9 @@ int fldigi_call(char *action, char *param, char *result){
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(7362);
   serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
+  memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
 	*result = 0;
-	
+
 	int fldigi_socket = socket(AF_INET, SOCK_STREAM, 0);
 /*	timeout.tv_sec = 0;
 	timeout.tv_usec = 500;
@@ -251,32 +250,32 @@ int fldigi_call(char *action, char *param, char *result){
 	setsockopt(fldigi_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
 */
   if (connect(fldigi_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-		//puts("unable to connect to the flidigi\n");        
+		//puts("unable to connect to the flidigi\n");
 		close(fldigi_socket);
 		return -1;
    }
 
-	sprintf(xml, 
+	sprintf(xml,
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 "<methodCall><methodName>%s</methodName>\n"
 "<params>\n<param><value><string>%s</string></value></param> </params></methodCall>\n",
 		action, param);
 
-	sprintf(q, 
+	sprintf(q,
 		"POST / HTTP/1.1\n"
 		"Host: 127.0.0.1:7362\n"
-		"User-Agent: sbitx/v0.01\n" 
-		"Accept:\n" 
+		"User-Agent: sbitx/v0.01\n"
+		"Accept:\n"
 		"Content-Length: %d\n"
 		"Content-Type: application/x-www-form-urlencoded\n\n"
 		"%s\n",
 		(int)strlen(xml), xml);
- 
+
   if (send(fldigi_socket, q, strlen(q), 0) < 0) {
 		puts("Unable to request fldigi");
 		close(fldigi_socket);
 		return -1;
-  } 
+  }
 	char buff[10000]; //large, large
 	int e = recv(fldigi_socket, buff, sizeof(buff), 0);
 	if(e < 0) {
@@ -306,7 +305,7 @@ int fldigi_call(char *action, char *param, char *result){
 		if (r){
 			*r = 0;
 			strcpy(result, p);
-		} 
+		}
 	}
 	else
 		strcpy(result, buff);
@@ -331,7 +330,7 @@ void fldigi_read(){
 	if (fldigi_retry_at > millis())
 		return;
 
-	if(!fldigi_call("rx.get_data", "", buffer)){		
+	if(!fldigi_call("rx.get_data", "", buffer)){
 		if (strlen(buffer)){
 				if (buffer[0] != '<' )
 					buffer[1] = 0;
@@ -363,7 +362,7 @@ void fldigi_tx_more_data(){
 	}
 }
 
-static int fldigi_tx_stop(){	
+static int fldigi_tx_stop(){
 	char buffer[10000];
 
 	if (!fldigi_call("main.rx", "", buffer)){
@@ -376,11 +375,12 @@ static int fldigi_tx_stop(){
 }
 
 void modem_set_pitch(int pitch, int mode){
-	
+
 	//Sends an xmlrpc command to fldigi, so be selective of which modes we actually use it on - n1qm
 	switch (mode) {
 		case MODE_CW:
 		case MODE_CWR:
+		case MODE_FT4:
 		case MODE_FT8:
 		case MODE_PSK31:
 		case MODE_RTTY: {
@@ -400,12 +400,13 @@ void modem_rx(int mode, int32_t *samples, int count){
 	FILE *pf;
 	char buff[10000];
 
-	if (get_pitch() != last_pitch  
+	if (get_pitch() != last_pitch
 		&& (mode == MODE_CW || mode == MODE_CWR || mode == MODE_RTTY || mode == MODE_PSK31))
 		modem_set_pitch(get_pitch(),mode);
 
 	s = samples;
 	switch(mode){
+	case MODE_FT4:
 	case MODE_FT8:
 		ft8_rx(samples, count);
 		break;
@@ -448,7 +449,6 @@ void modem_poll(int mode){
 	time_t t;
 	char buffer[10000];
 
-	millis_now = millis();
 	int bytes_available = get_tx_data_length();
 
 	if (current_mode != mode){
@@ -456,18 +456,18 @@ void modem_poll(int mode){
 		current_mode = mode;
 		int l;
 		do{
-			int e = fldigi_call("rx.get_data", "", buffer);	
+			int e = fldigi_call("rx.get_data", "", buffer);
 			l = strlen(buffer);
 		}while(l > 0);
 
-		//clear the text buffer	
+		//clear the text buffer
 		abort_tx();
 
-		if (current_mode == MODE_FT8)
+		if (current_mode == MODE_FT8 || current_mode == MODE_FT4)
 			macro_load("FT8", NULL);
 		else if (current_mode == MODE_RTTY || current_mode == MODE_PSK31 || current_mode == MODE_CWR || current_mode == MODE_CW)
 		{
-			macro_load("CW1", NULL);	
+			macro_load("CW1", NULL);
 			modem_set_pitch(get_pitch(),current_mode);
 		}
 
@@ -476,12 +476,12 @@ void modem_poll(int mode){
 	}
 
 	switch(mode){
+	case MODE_FT4:
 	case MODE_FT8:
-		t = time_sbitx();
-		ft8_poll(t % 60, tx_is_on);
+		ft8_poll(tx_is_on);
 	break;
 	case MODE_CW:
-	case MODE_CWR:	
+	case MODE_CWR:
 		cw_poll(bytes_available, tx_is_on);
 	break;
 
@@ -491,23 +491,23 @@ void modem_poll(int mode){
 		//we will let the keyboard decide this
 		if (tx_is_on && !fldigi_in_tx){
 			if (!fldigi_call("main.tx", "", buffer)){
-				fldigi_in_tx = 1;	
+				fldigi_in_tx = 1;
 				sound_input(1);
 			}
 			else
 				puts("*fldigi tx failed");
-		}	
-		//switch to rx if the sbitx is set to manual or the fldigi has gone back to rx 
+		}
+		//switch to rx if the sbitx is set to manual or the fldigi has gone back to rx
 		else if ((tx_is_on && !strcmp(buffer, "RX")) || (!tx_is_on && fldigi_in_tx)){
 			if (fldigi_tx_stop() == -1)
 				puts("*fldigi rx failed");
 		}
 		if (tx_is_on && bytes_available > 0)
-			fldigi_tx_more_data();	
-		else 
-			fldigi_read();		
+			fldigi_tx_more_data();
+		else
+			fldigi_read();
 
-	break; 
+	break;
 	}
 }
 
@@ -515,10 +515,11 @@ float modem_next_sample(int mode){
 	float sample=0;
 
 	switch(mode){
-		// the ft8 samples are generated at 12ksps, we need to feed the 
+		// the ft8 samples are generated at 12ksps, we need to feed the
 		// sdr with 96 ksps (eight times as much)
-	case MODE_FT8: 
-			sample = ft8_next_sample();
+	case MODE_FT4:
+	case MODE_FT8:
+		sample = ft8_next_sample();
 		break;
 	case MODE_CW:
 	case MODE_CWR:
@@ -530,13 +531,14 @@ float modem_next_sample(int mode){
 
 
 void modem_abort(){
-	char c;	
+	char c;
 
 	//flush the buffer
 	while(get_tx_data_byte(&c))
-		NULL;	
+		NULL;
 
 	switch(current_mode){
+	case MODE_FT4:
 	case MODE_FT8:
 		ft8_abort();
 		break;
