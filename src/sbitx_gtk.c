@@ -284,6 +284,8 @@ int bfo_offset = 0;
 #define MIN_KEY_F12 0xFFC9
 #define COMMAND_ESCAPE '\\'
 
+int text_ready = 0; // send TEXT buffer when ENTER key pressed
+
 void set_ui(int id);
 void set_bandwidth(int hz);
 
@@ -4492,6 +4494,12 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			ft8_tx(f->value, field_int("TX_PITCH"));
 			f->value[0] = 0;
 		}
+    // in CW mode we want to wait for ENTER key before sending buffer contents
+    else if ((a == '\n' || a == MIN_KEY_ENTER) &&
+            (mode_id(get_field("r1:mode")->value) == MODE_CW) ||
+            (mode_id(get_field("r1:mode")->value) == MODE_CWR)) {
+      text_ready = 1;  // ok to send buffer text contents
+    }
 		else if (a >= ' ' && a <= 127 && strlen(f->value) < f->max - 1)
 		{
 			int l = strlen(f->value);
@@ -4876,78 +4884,66 @@ void qrz(const char *callsign)
 	open_url(url);
 }
 
-int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
-	char buff[256], *mode;
-	char contact_callsign[100];
+int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+  char buff[256], *mode;
+  char contact_callsign[100];
+  struct field *f_text = get_field("#text_in");
 
-	strcpy(contact_callsign, get_field("#contact_callsign")->value);
+  strcpy(contact_callsign, get_field("#contact_callsign")->value);
 
-	if (event == GDK_BUTTON_PRESS)
-	{
-		int fn_key = atoi(f->cmd + 3); // skip past the '#mf' and read the function key number
+  if (event == GDK_BUTTON_PRESS) {
+    // skip past the '#mf' and read the function key number
+    int fn_key = atoi(f->cmd + 3);
+    macro_exec(fn_key, buff);
+    mode = get_field("r1:mode")->value;
 
-		/*		if (!strcmp(f->cmd, "#mfkbd")){
-					set_ui(LAYOUT_KBD);
-					return 1;
-				}
-				else if (!strcmp(f->cmd, "#mfqrz") && strlen(contact_callsign) > 0){
-					qrz(contact_callsign);
-					return 1;
-				}
-				else
-		*/
-		macro_exec(fn_key, buff);
+    // add the end of transmission to the expanded buffer for the fldigi modes
+    if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31")) {
+      strcat(buff, "^r");
+      tx_on(TX_SOFT);
+    }
 
-		mode = get_field("r1:mode")->value;
+    if (!strcmp(mode, "FT8") && strlen(buff)) {
+      ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
+      set_field("#text_in", "");
+    } else if (strlen(buff)) {
+      if ((mode_id(mode) == MODE_CW) || (mode_id(mode) == MODE_CWR)) {
+        // Append macro text in CW/CWR modes only
+        size_t space = MAX_FIELD_LENGTH - strlen(f_text->value) - 1;
+        if (space > 0) {
+          strncat(f_text->value, buff, space);
+          update_field(f_text);
+        }
+        text_ready = 1;  // send macros immediately in CW
+      } else {
+        // For all other modes, replace
+        set_field("#text_in", buff);
+      }
+    }
+    return 1;
+    
+  } else if (event == FIELD_DRAW) {
+    int width, offset, text_length, line_start, y;
+    char this_line[MAX_FIELD_LENGTH];
+    int text_line_width = 0;
 
-		// add the end of transmission to the expanded buffer for the fldigi modes
-		if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31"))
-		{
-			strcat(buff, "^r");
-			tx_on(TX_SOFT);
-		}
-
-		if (!strcmp(mode, "FT8") && strlen(buff))
-		{
-			ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
-			set_field("#text_in", "");
-			// write_console(FONT_LOG_TX, buff);
-		}
-		else if (strlen(buff))
-		{
-			set_field("#text_in", buff);
-			// put it in the text buffer and hope it gets transmitted!
-		}
-		return 1;
-	}
-	else if (event == FIELD_DRAW)
-	{
-		int width, offset, text_length, line_start, y;
-		char this_line[MAX_FIELD_LENGTH];
-		int text_line_width = 0;
-
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
-
-		width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
-		offset = f->width / 2 - width / 2;
-		if (strlen(f->value) == 0)
-			draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
-		else
-		{
-			if (strlen(f->label))
-			{
-				draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
-				draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
-			}
-			else
-				draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
-		}
-		return 1;
-	}
-
-	return 0;
+    fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+    rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+    
+    width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+    offset = f->width / 2 - width / 2;
+    if (strlen(f->value) == 0)
+      draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
+    else {
+      if (strlen(f->label)) {
+        draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
+        draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
+      } else
+        draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
+    }
+    return 1;
+  }
+  return 0;
 }
 
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -7101,6 +7097,9 @@ void ui_init(int argc, char *argv[])
 
 int get_tx_data_byte(char *c)
 {
+  if ((tx_mode == MODE_CW || tx_mode == MODE_CWR) && text_ready == 0)
+    return 0;
+        
 	// If we are in a voice mode, don't clear the text textbox
 	switch (tx_mode)
 	{
@@ -7127,6 +7126,10 @@ int get_tx_data_byte(char *c)
 	}
 	f->is_dirty = 1;
 	f->update_remote = 1;
+  // reset flag after text buffer emptied
+  if (strlen(f->value) == 0) {
+    text_ready = 0; 
+  }
 	// update_field(f);
 	return length;
 }

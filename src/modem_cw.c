@@ -289,6 +289,8 @@ static int cw_bytes_available = 0; //chars available in the tx queue
 #define CW_MAX_SYMBOLS 12
 char cw_key_letter[CW_MAX_SYMBOLS];
 
+extern int text_ready;  // flag that TEXT buffer in gui is ready to send
+
 static uint8_t cw_get_next_symbol(){  //symbol to translate into CW_DOT, CW_DASH, etc
 
 	if (!symbol_next)
@@ -1284,7 +1286,7 @@ void cw_poll(int bytes_available, int tx_is_on){
 	// TX ON if bytes are avaiable (from macro/keyboard) or key is pressed
 	// of we are in the middle of symbol (dah/dit) transmission 
 	
-	if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next)) > 0){
+	if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) || cw_key_state || (symbol_next && *symbol_next)) > 0) {
 		tx_on(TX_SOFT);
 		millis_now = millis();
 		cw_tx_until = get_cw_delay() + millis_now;
