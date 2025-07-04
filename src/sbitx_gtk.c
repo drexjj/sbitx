@@ -60,6 +60,8 @@ void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
+struct Queue q_zbitx_console;  //zbitx
+
 struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int rx_eq_is_enabled = 0;
@@ -253,6 +255,17 @@ static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
 struct Queue q_web;
+
+//zbitx 
+static uint8_t zbitx_available = 0;
+int update_logs = 0;
+#define ZBITX_I2C_ADDRESS 0xa
+void zbitx_init();
+void zbitx_poll(int all);
+void zbitx_pipe(int style, char *text);
+void zbitx_get_spectrum(char *buff);
+void zbitx_write(int style, char *text);
+
 int noise_threshold = 0;		// DSP
 int noise_update_interval = 50; // DSP
 int bfo_offset = 0;
@@ -419,6 +432,7 @@ struct field
 	int section;
 	char is_dirty;
 	char update_remote;
+	unsigned int updated_at;
 	void *data;
 };
 
@@ -1049,6 +1063,11 @@ struct field *get_field(const char *cmd)
 	return NULL;
 }
 
+void field_init(){
+	for (int i = 0; active_layout[i].cmd[i] > 0; i++)
+		active_layout[i].updated_at= 0;
+}
+
 // set the field directly to a particuarl value, programmatically
 int set_field(const char *id, const char *value)
 {
@@ -1362,12 +1381,15 @@ void write_console(int style, char *raw_text)
 
 	char *text;
 	char decorated[1000];
+
 	if (strlen(raw_text) == 0)
 		return;
 
 	hd_decorate(style, raw_text, decorated);
 	text = decorated;
 	web_write(style, text);
+	zbitx_write(style, text);
+
 	// move to a new line if the style has changed
 	if (style != console_style)
 	{
@@ -3913,6 +3935,7 @@ void update_field(struct field *f)
 	if (f->y >= 0)
 		f->is_dirty = 1;
 	f->update_remote = 1;
+	f->updated_at = millis();
 }
 
 static void hover_field(struct field *f)
@@ -4031,6 +4054,7 @@ static void edit_field(struct field *f, int action)
 	do_control_action(buff);
 	f->is_dirty = 1;
 	f->update_remote = 1;
+	f->updated_at = millis();
 	//	update_field(f);
 	settings_updated++;
 }
@@ -4449,6 +4473,7 @@ int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		strcpy(f->value, buff);
 		f->is_dirty = 1;
 		f->update_remote = 1;
+		f->updated_at = millis();
 		sprintf(buff, "sBitx %s %s %04d/%02d/%02d %02d:%02d:%02dZ",
 				get_field("#mycallsign")->value, get_field("#mygrid")->value,
 				tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
@@ -4506,6 +4531,7 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		f->is_dirty = 1;
 		f->update_remote = 1;
+		f->updated_at = millis();
 		f_last_text = f;
 		return 1;
 	}
@@ -6694,6 +6720,225 @@ void set_radio_mode(char *mode)
 		field_set("MODE", umode);
 }
 
+//zbitx
+
+void zbitx_write(int style, char *text){
+	char buffer[256];
+
+	if (!zbitx_available){
+		return;
+	}
+
+	if (strlen(text) > sizeof(buffer) - 10){
+		printf("*zbitx_write update is oversized\n");
+		return;
+	}
+	sprintf(buffer, "%d %s", style, text);
+	char *p = buffer;		
+	if (q_zbitx_console.overflow)
+		q_empty(&q_zbitx_console);
+	while (*p)
+		q_write(&q_zbitx_console, *p++);
+	q_write(&q_zbitx_console, 0);
+}
+
+//cramp all the spectrum into 250 points
+void zbitx_get_spectrum(char *buff){
+
+  int n_bins = (int)((1.0 * spectrum_span) / 46.875);
+  //the center frequency is at the center of the lower sideband,
+  //i.e, three-fourth way up the bins.
+  int starting_bin = (3 *MAX_BINS)/4 - n_bins/2;
+  int ending_bin = starting_bin + n_bins;
+
+  int j;
+  if (in_tx){
+    strcpy(buff, "WF ");
+		j = strlen(buff);
+		float step = MOD_MAX/250.0;
+		//printf("wf on tx %d / %d", step, MOD_MAX);
+		for (float i = 0; i < MOD_MAX; i+= step){
+      int y = (2 * mod_display[(int)i]) + 32;
+      if (y > 127)
+        buff[j] = 127;
+			else if (y < 32)
+				buff[j] = ' ';
+      else
+        buff[j] = y;
+			j++;
+    }
+  }
+  else{
+    strcpy(buff, "WF ");
+		j = strlen(buff);
+		float step = (1.0  * (ending_bin - starting_bin))/250.0;
+		float i = 1.0 * starting_bin;
+    while(i <= (int) ending_bin){
+      int y = spectrum_plot[(int)i] + waterfall_offset;
+      if (y > 95)
+        buff[j++] = 127;
+      else if(y >= 0 )
+        buff[j++] = y + 32;
+      else
+        buff[j++] = ' ';
+			i += step;
+    }
+  }
+
+  buff[j++] = 0;
+//	if (in_tx)
+//		printf("%s : %d\n", buff, strlen(buff)); 
+  return;
+}
+
+static void zbitx_logs(){
+	char logbook_path[200];
+	char row_response[1000], row[1000];
+	char query[100];
+	char args[100];
+	int	row_id;
+
+	printf("Sending the last 50 log entries to zbitx\n");	
+	query[0] = 0;
+	row_id = -1;
+	logbook_query(NULL, row_id, logbook_path);
+	FILE *pf = fopen(logbook_path, "r");
+	if (!pf)
+		return;
+	while(fgets(row, sizeof(row), pf)){
+		sprintf(row_response, "QSO %s}", row);
+		//printf(row_response);
+		i2cbb_write_i2c_block_data(ZBITX_I2C_ADDRESS, '{', strlen(row_response), row_response);
+	}
+	fclose(pf);
+}
+
+void zbitx_poll(int all){
+	char buff[3000];
+	static unsigned int last_update = 0;
+
+	int count = 0;
+	int e = 0;
+	int retry;
+	unsigned int this_time = millis();
+
+	for (int i = 0; active_layout[i].cmd[0] > 0; i++){
+		struct field *f = active_layout+i;
+		if (!strcmp(f->label, "WATERFALL") || !strcmp(f->label, "SPECTRUM"))
+			continue;
+		if (all || f->updated_at >  last_update){
+			sprintf(buff, "%s %s}", f->label, f->value);
+			retry = 3;
+			do {
+				e = i2cbb_write_i2c_block_data(ZBITX_I2C_ADDRESS, '{', strlen(buff), buff);
+				if (!e){
+					if (retry < 3)
+						printf("Sucess on %d\n", retry);
+					break;
+				}
+				delay(3);
+				printf("Retrying I2C %d\n", retry);
+			}while(retry--);
+			f->update_remote = 0;
+			count++;
+			delay(10);
+		}
+	}
+	last_update = this_time;
+	
+	//check if the console q has any new updates
+	while (q_length(&q_zbitx_console) > 0){
+		char remote_cmd[1000];
+		int c, i;
+
+		i = 0;
+		while(i < sizeof(remote_cmd)-3 && (c = q_read(&q_zbitx_console)) >= ' ')
+			remote_cmd[i++] = c;
+		remote_cmd[i++] = '}';
+		remote_cmd[i++] = 0;
+ 	
+		e = i2cbb_write_i2c_block_data(ZBITX_I2C_ADDRESS, '{', 
+			strlen(remote_cmd), remote_cmd);
+	}
+
+
+	zbitx_get_spectrum(buff);
+	strcat(buff, "}"); //terminate the block
+	//spectrum can be lost mometarily, it is alright	
+	delay(1);
+	i2cbb_write_i2c_block_data(0x0a, '{', strlen(buff), buff);
+
+	//transmit in_tx
+	sprintf(buff, "IN_TX %d}", in_tx);
+	delay(1);
+	i2cbb_write_i2c_block_data(0x0a, '{', strlen(buff), buff);
+
+
+	if(update_logs){
+		zbitx_logs();
+		update_logs = 0;
+	}
+
+	int  reply_length;
+
+	if ((reply_length = i2cbb_read_rll(0xa, buff)) != -1){
+	//zero terminate the reply
+		buff[reply_length] = 0;
+
+		if(!strncmp(buff, "FT8 ", 4)){
+			char ft8_message[100];
+			hd_strip_decoration(ft8_message, buff);
+			//ft8_process(ft8_message, FT8_START_QSO);
+			remote_execute(ft8_message);
+			printf("FT8 processing from zbitx\n");
+		}
+		else{
+			if (!strncmp(buff, "OPEN", 4)){
+				update_logs = 1;
+				printf("<<<< refresh the log >>>>>\n");
+			}
+			remote_execute(buff);
+		}
+	}
+	last_update = this_time;
+}
+
+void zbitx_init(){
+	char buff[100];
+	sprintf(buff, "9 %s}", VER_STR);
+ 	int e = i2cbb_write_i2c_block_data (ZBITX_I2C_ADDRESS, '{', 
+		strlen(buff), buff);
+
+
+	if (!e){
+		printf("zBitx front panel detected\n");
+		zbitx_available = 1;
+
+
+ 		e = i2cbb_write_i2c_block_data (ZBITX_I2C_ADDRESS, '{', 
+		strlen(VER_STR), VER_STR);
+
+		FILE *pf = popen("hostname -I", "r");
+		if (pf){
+			char ip_str[100], buff[100];
+			fgets(ip_str, 100, pf);
+			pclose(pf);
+			//terminate the string at the first space
+			char *p = strchr(ip_str, ' ');
+			if (p){
+				*p = 0;
+				sprintf(buff, "9 \nzBitx on http://%s\n}", ip_str);
+ 				i2cbb_write_i2c_block_data (ZBITX_I2C_ADDRESS, '{', 
+					strlen(buff), buff);
+			}
+		}
+	}
+}
+
+
+
+
+
 // Long press Volume control to reveal the EQ settings -W2JON
 extern void focus_field(struct field *f);
 extern struct field *get_field(const char *label);
@@ -6932,6 +7177,10 @@ gboolean ui_tick(gpointer gook)
 
 		char response[6], cmd[10];
 		cmd[0] = 1;
+		
+		// zbitx
+		if (zbitx_available)
+			zbitx_poll(0);
 
 		if (in_tx)
 		{
@@ -7061,6 +7310,7 @@ void ui_init(int argc, char *argv[])
 	#pragma pop
 	*/
 	q_init(&q_web, 5000);
+	q_init(&q_zbitx_console, 1000);
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
@@ -7127,6 +7377,7 @@ int get_tx_data_byte(char *c)
 	}
 	f->is_dirty = 1;
 	f->update_remote = 1;
+	f->updated_at = millis();
 	// update_field(f);
 	return length;
 }
@@ -8305,6 +8556,17 @@ int main(int argc, char *argv[])
 	initialize_hamlib();
 	remote_start();
 	rtc_read();
+
+	// zbitx
+	zbitx_init();
+
+	if (zbitx_available)
+		zbitx_poll(1); // send all the field values
+
+	//switch to maximum priority
+	struct sched_param sch;
+	sch.sched_priority = sched_get_priority_max(SCHED_FIFO);
+	pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch);
 
 	// Configure the INA260
 	configure_ina260();
