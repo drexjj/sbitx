@@ -1525,14 +1525,10 @@ void read_power()
 	memcpy(&vref, response + 2, 2);
 	//	printf("%d:%d\n", vfwd, vref);
 
-	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
-	// Better not to calculate the swr at all if the measured power is under a very minimal level
-	if (vfwd > 3) {
-		if (vref >= vfwd)
-			vswr = 100;
-		else
-			vswr = (10 * (vfwd + vref)) / (vfwd - vref);
-	}
+        if (vref >= vfwd)
+		vswr = 100;
+	else
+		vswr = (10 * (vfwd + vref)) / (vfwd - vref);
 
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
