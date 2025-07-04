@@ -1,3 +1,5 @@
+
+
 /*
  * i2cBitBangingBus.h
  *
@@ -21,3 +23,6 @@ int32_t i2cbb_write_i2c_block_data (uint8_t i2c_address, uint8_t command, uint8_
 // of data bytes in the slave's response.
 int32_t i2cbb_read_i2c_block_data (uint8_t i2c_address, uint8_t command, uint8_t length, uint8_t* values);
 
+
+// reads a variable length block, the first byte gives the number of bytes to follow
+int32_t i2cbb_read_rll(uint8_t i2c_address, uint8_t* values); 
