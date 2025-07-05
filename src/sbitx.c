@@ -903,96 +903,6 @@ void my_fftw_execute(fftw_plan f)
 	fftw_execute(f);
 }
 
-static int32_t rx_am_avg = 0;
-
-void rx_am(int32_t *input_rx, int32_t *input_mic,
-		   int32_t *output_speaker, int32_t *output_tx, int n_samples)
-{
-	int i, j = 0;
-	double i_sample, q_sample;
-	// STEP 1: first add the previous M samples to
-	for (i = 0; i < MAX_BINS / 2; i++)
-		fft_in[i] = fft_m[i];
-
-	// STEP 2: then add the new set of samples
-	//  m is the index into incoming samples, starting at zero
-	//  i is the index into the time samples, picking from
-	//  the samples added in the previous step
-	int m = 0;
-	// gather the samples into a time domain array
-	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-	{
-		i_sample = (1.0 * input_rx[j]) / 200000000.0;
-		q_sample = 0;
-
-		j++;
-
-		__real__ fft_m[m] = i_sample;
-		__imag__ fft_m[m] = q_sample;
-
-		__real__ fft_in[i] = i_sample;
-		__imag__ fft_in[i] = q_sample;
-		m++;
-	}
-
-	// STEP 3: convert the time domain samples to  frequency domain
-	my_fftw_execute(plan_fwd);
-
-	// STEP 3B: this is a side line, we use these frequency domain
-	//  values to paint the spectrum in the user interface
-	//  I discovered that the raw time samples give horrible spectrum
-	//  and they need to be multiplied wiht a window function
-	//  they use a separate fft plan
-	//  NOTE: the spectrum update has nothing to do with the actual
-	//  signal processing. If you are not showing the spectrum or the
-	//  waterfall, you can skip these steps
-	for (i = 0; i < MAX_BINS; i++)
-		__real__ fft_in[i] *= spectrum_window[i];
-	my_fftw_execute(plan_spectrum);
-
-	// the spectrum display is updated
-	spectrum_update();
-
-	struct rx *r = rx_list;
-
-	// STEP 4: we rotate the bins around by r-tuned_bin
-	for (i = 0; i < MAX_BINS; i++)
-	{
-		int b = i + r->tuned_bin;
-		if (b >= MAX_BINS)
-			b = b - MAX_BINS;
-		if (b < 0)
-			b = b + MAX_BINS;
-		r->fft_freq[i] = fft_out[b];
-		//		r->fft_freq[i] = fft_out[i];
-	}
-
-	// STEP 6: apply the filter to the signal,
-	// in frequency domain we just multiply the filter
-	// coefficients with the frequency domain samples
-	for (i = 0; i < MAX_BINS; i++)
-		r->fft_freq[i] *= r->filter->fir_coeff[i];
-
-	// STEP 7: convert back to time domain
-	my_fftw_execute(r->plan_rev);
-	// STEP 8 : AGC
-	agc2(r);
-
-	// do an independent am detection (this takes 12 khz of b/w)
-	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-	{
-		int32_t sample;
-		sample = abs(r->fft_time[i]) * 1000000;
-		rx_am_avg = (rx_am_avg * 5 + sample) / 6;
-		// keep transmit buffer empty
-		output_speaker[i] = sample;
-		//		output_speaker[i] = abs(input_rx[i]);
-		output_tx[i] = 0;
-	}
-	//	for (i = 0; i < n_samples; i++)
-	//		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
-}
-
 // Global variables for zero beat detection (sbitx.c)
 #define ZEROBEAT_TOLERANCE 50    // ±50 Hz from target
 #define ZEROBEAT_HYST 0.05       // Not currently used — replaced with scaled hysteresis
@@ -1595,9 +1505,6 @@ void tx_process(
 		if (compression_control_level >= 1 && compression_control_level <= 10)
 		{
 			float temp_input_mic[n_samples];
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Convert input_mic (int32_t) to float for compression
 			for (int i = 0; i < n_samples; i++)
 			{
@@ -1608,15 +1515,9 @@ void tx_process(
 				}
 			}
 
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Now we can call the apply_fixed_compression function with the parameters
 			apply_fixed_compression(temp_input_mic, n_samples, compression_control_level);
 
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Convert back the processed data to int32_t after compression
 			for (int i = 0; i < n_samples; i++)
 			{
@@ -1625,9 +1526,6 @@ void tx_process(
 				} else {
 					input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
 				}
-			}
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
 			}
 		}
 

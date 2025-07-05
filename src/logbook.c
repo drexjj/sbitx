@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE
+#include <time.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,12 +15,10 @@
 #include <linux/types.h>
 #include <stdint.h>
 #include <pthread.h>
-#include <time.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <errno.h>
-#include <time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
