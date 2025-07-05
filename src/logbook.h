@@ -1,3 +1,6 @@
+#define _XOPEN_SOURCE
+#include <time.h>
+
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 	char *rst_recv, char *exchange_recv, int tx_power, int tx_vswr, char *comments);
 int logbook_query(char *query, int from_id, char *result_file);
