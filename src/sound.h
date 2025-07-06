@@ -43,15 +43,22 @@ extern double notch_bandwidth;
 //ANR (automatic noise reduction)
 extern int anr_enabled;
 
-//rx DSP tool
+//rx DSP plugin
 extern int dsp_enabled;
 extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
 
-// Aduio Compression tool
+// Audio Compression plugin
 extern int compression_control_level;
 void apply_fixed_compression(float *input, int num_samples, int compression_control_value);
 
-// TX Monitor tool
+// TX Monitor plugin
 extern int txmon_control_level;
+
+// CESSB plugin
+extern int cessb_enabled;
+extern double cessb_clip_level;
+extern int cessb_lookahead_enabled; // (this has not been exposed to sbitx_gtk.c yet)	
+extern int cessb_multiband_enabled; // (this has not been exposed to sbitx_gtk.c yet)
+extern int cessb_preemphasis_enabled; // (this has not been exposed to sbitx_gtk.c yet)

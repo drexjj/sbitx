@@ -49,6 +49,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include "cessb.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -546,6 +547,7 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -775,8 +777,16 @@ struct field main_controls[] = {
 	// TX Audio Monitor
 	{"#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 10, 1, 0},
+	 
+	 // CESSB
+	{"#cessb", do_toggle_option, 1000, -1000, 40, 40, "CESSB", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	 
+	// CESSB G-CLIP Level
+	{"#cessb_clip_level", do_cessb_edit, 1000, -1000, 40, 40, "GCLIP", 40, "8", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, 0},
 
-	// WF Gain
+	 // WF Gain
 	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 200, 1, 0},
 	// WF Gain
@@ -3480,6 +3490,7 @@ void menu_display(int show)
 				field_move("ANR", 285, screen_height - 100, 45, 45);
 				field_move("COMP", 350, screen_height - 100, 45, 45);
 				field_move("TXMON", 400, screen_height - 100, 45, 45);
+				field_move("CESSB", 450, screen_height - 100, 45, 45);
 				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
@@ -3494,6 +3505,7 @@ void menu_display(int show)
 				field_move("DSP", 285, screen_height - 50, 45, 45);
 				field_move("BFO", 350, screen_height - 50, 45, 45);
 				field_move("VFOLK", 400, screen_height - 50, 45, 45);
+				field_move("GCLIP", 450, screen_height - 50, 45, 45);
 				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
 
@@ -5253,6 +5265,20 @@ double scaleNoiseThreshold(int control)
 	return scaled_noise_threshold;
 }
 
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *cessb_control_field = field_str("GCLIP");
+	int cessb_control_level_value = atoi(cessb_control_field);
+	
+	// Scale from 1-10 to 0.1-1.0
+	cessb_clip_level = (double)cessb_control_level_value / 10.0;
+	
+	// Apply the new clip level to the CESSB processor
+	cessb_set_clip_level((float)cessb_clip_level);
+	
+	return 0;
+}	
+
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (!strcmp(field_str("NOTCH"), "ON"))
@@ -5475,6 +5501,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
+	struct field *cessb_stat = get_field("#cessb");
 	
 	if (tx_panafall_stat)
 	{
@@ -5486,6 +5513,18 @@ gboolean check_plugin_controls(gpointer data)
 		else if (!strcmp(tx_panafall_stat->value, "OFF"))
 		{
 			tx_panafall_enabled = 0;
+		}
+	}
+
+	if (cessb_stat)
+	{
+		if (!strcmp(cessb_stat->value, "ON"))
+		{
+			cessb_enabled = 1;
+		}
+		else if (!strcmp(cessb_stat->value, "OFF"))
+		{
+			cessb_enabled = 0;
 		}
 	}
 
