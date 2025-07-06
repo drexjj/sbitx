@@ -145,20 +145,21 @@ static void process_multiband(float *buffer, int buffer_size) {
     }
     
     // Process each band with different compression settings
+    // Reduced boost values to decrease distortion while maintaining effect
     for (int i = 0; i < buffer_size; i++) {
-        // Low band: gentle compression
-        low_band[i] *= 1.2f; // Slight boost
-        if (fabsf(low_band[i]) > 0.7f * (float)cessb_clip_level) {
-            low_band[i] = soft_clip(low_band[i] * 0.9f);
+        // Low band: moderate compression
+        low_band[i] *= 1.4f; // Moderate boost (reduced from 1.8f)
+        if (fabsf(low_band[i]) > 0.65f * (float)cessb_clip_level) { // Slightly higher threshold
+            low_band[i] = soft_clip(low_band[i] * 0.95f); // Less aggressive
         }
         
-        // Mid band: moderate compression (voice frequencies)
-        mid_band[i] *= 2.0f; // More boost for mid frequencies
+        // Mid band: balanced compression (voice frequencies)
+        mid_band[i] *= 2.2f; // Moderate boost for mid frequencies (reduced from 3.0f)
         mid_band[i] = soft_clip(mid_band[i]);
         
-        // High band: aggressive compression
-        high_band[i] *= 1.5f; // Moderate boost
-        high_band[i] = soft_clip(high_band[i] * 1.1f);
+        // High band: moderate compression
+        high_band[i] *= 1.7f; // Moderate boost (reduced from 2.2f)
+        high_band[i] = soft_clip(high_band[i] * 1.1f); // Less aggressive
     }
     
     // Recombine the bands
@@ -206,8 +207,9 @@ static void process_with_lookahead(float *buffer, int buffer_size) {
             if (max_peak > clip_level) {
                 // Calculate a gain reduction that would bring the peak to the clip level
                 gain = clip_level / max_peak;
-                // Apply a smoother gain reduction curve
-                gain = 0.7f + 0.3f * gain;
+                // Apply a more balanced gain reduction curve to reduce distortion
+                // Previously was: gain = 0.5f + 0.5f * gain; (too aggressive)
+                gain = 0.65f + 0.35f * gain; // More balanced compression
             }
         }
         
@@ -238,12 +240,11 @@ void cessb_process(float *buffer, int buffer_size) {
     
     // Boost the signal before processing to make the effect more noticeable
     // This intentionally drives the signal harder into the soft clipper
-    // The 80% boost (1.8x) is a good balance between making the CESSB effect audible
-    // and not causing excessive distortion. This value can be adjusted:
-    // - Higher values (e.g., 2.0): More aggressive CESSB effect, potentially more distortion
-    // - Lower values (e.g., 1.5): More subtle effect, less compression
+    // Reduced from 2.5x to 2.0x to decrease distortion while still showing effect
+    // - Higher values create a more aggressive CESSB effect with more visible clipping
+    // - Lower values create a more subtle effect with less compression
     for (int i = 0; i < buffer_size; i++) {
-        buffer[i] *= 1.8f; // Boost by 80%
+        buffer[i] *= 2.0f; // Boost by 100% (balanced setting)
     }
     
     // Process with multiband, look-ahead limiting, or standard soft clipping
