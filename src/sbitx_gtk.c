@@ -5501,13 +5501,10 @@ int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 int do_cfc_enable(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (event == GDK_BUTTON_PRESS)
-	{
 		// Set compression to 0 to override standard compression in the audio chain
 		set_field("#comp_plugin", "0");
 		focus_field(f_last_text); // this will prevent the controls from bouncing
-		return 1;
-	}
+
 	return 0;
 }
 
@@ -5521,9 +5518,6 @@ int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	
 	// Apply the new ratio to the CFC processor
 	cfc_set_ratio(cfc_ratio);
-
-	// Set compression to 0 to override standard compression in the audio chain
-	set_field("#comp_plugin", "0");
 	
 	return 0;
 }	
