@@ -49,6 +49,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include "cessb.h"
+#include "cfc.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -70,6 +72,11 @@ int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
+
+/* External variables for CFC (Continuous Frequency Compression) */
+extern int cfc_enabled;
+extern float cfc_ratio;
+
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -549,6 +556,9 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -778,8 +788,24 @@ struct field main_controls[] = {
 	// TX Audio Monitor
 	{"#tx_monitor", do_txmon_edit, 1000, -1000, 40, 40, "TXMON", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 10, 1, 0},
+	 
+	 // CESSB
+	{"#cessb", do_toggle_option, 1000, -1000, 40, 40, "CESSB", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	 
+	// CESSB G-CLIP Level
+	{"#cessb_clip_level", do_cessb_edit, 1000, -1000, 40, 40, "GCLIP", 40, "8", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, 0},
 
-	// WF Gain
+	// CFC (Continuous Frequency Compression)
+	{"#cfc", do_toggle_option, 1000, -1000, 40, 40, "CFC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	 
+	// CFC Compression Ratio
+	{"#cfc_ratio", do_cfc_edit, 1000, -1000, 40, 40, "CFCR", 40, "15", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 10, 40, 5, 0},
+
+	 // WF Gain
 	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 200, 1, 0},
 	// WF Gain
@@ -2309,6 +2335,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
 	// Also check if the override flag is set
 	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
+
 	{
 		// Display message instead of rendering waterfall
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2322,7 +2349,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Get the IP address of the connected client
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
-		
+
 		// Now we set the tap instructions to be drawn with a larger font and yellow color
 		cairo_save(gfx);
 		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
@@ -2359,6 +2386,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Draw the remote session info message
 		cairo_move_to(gfx, x2, y2);
 		cairo_show_text(gfx, second_part);
+
 		return;
 	}
 
@@ -2535,8 +2563,10 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
+
 	// Also check if the override flag is set
 	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
+
 	{
 		// Display message instead of rendering spectrum
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2554,6 +2584,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// Create the message with IP address
 		char message[512];
 		snprintf(message, sizeof(message), "Spectrum/Waterfall visualizations disabled");
+
 		
 		// Calculate text position
 		cairo_text_extents_t extents;
@@ -3611,6 +3642,7 @@ void menu_display(int show)
 				field_move("ANR", 285, screen_height - 100, 45, 45);
 				field_move("COMP", 350, screen_height - 100, 45, 45);
 				field_move("TXMON", 400, screen_height - 100, 45, 45);
+				field_move("CESSB", 450, screen_height - 100, 45, 45);
 				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
@@ -3625,6 +3657,8 @@ void menu_display(int show)
 				field_move("DSP", 285, screen_height - 50, 45, 45);
 				field_move("BFO", 350, screen_height - 50, 45, 45);
 				field_move("VFOLK", 400, screen_height - 50, 45, 45);
+				field_move("CFC", 450, screen_height - 50, 45, 45);
+				//field_move("GCLIP", 450, screen_height - 50, 45, 45);
 				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
 
@@ -5450,6 +5484,39 @@ double scaleNoiseThreshold(int control)
 	return scaled_noise_threshold;
 }
 
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *cessb_control_field = field_str("GCLIP");
+	int cessb_control_level_value = atoi(cessb_control_field);
+	
+	// Scale from 1-10 to 0.1-1.0
+	cessb_clip_level = (double)cessb_control_level_value / 10.0;
+	
+	// Apply the new clip level to the CESSB processor
+	cessb_set_clip_level((float)cessb_clip_level);
+	
+	return 0;
+}
+
+/*
+ * Function to handle CFC ratio control
+ * The UI control ranges from 10-40 (representing 1.0 to 4.0)
+ * The actual CFC ratio is scaled by dividing by 10
+ */
+int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *cfc_ratio_field = field_str("CFCR");
+	int cfc_ratio_value = atoi(cfc_ratio_field);
+	
+	// Scale from 10-40 to 1.0-4.0
+	cfc_ratio = (float)cfc_ratio_value / 10.0f;
+	
+	// Apply the new ratio to the CFC processor
+	cfc_set_ratio(cfc_ratio);
+	
+	return 0;
+}	
+
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (!strcmp(field_str("NOTCH"), "ON"))
@@ -5672,6 +5739,9 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
+
+	struct field *cessb_stat = get_field("#cessb");
+	struct field *cfc_stat = get_field("#cfc");
 	
 	if (tx_panafall_stat)
 	{
@@ -5683,6 +5753,31 @@ gboolean check_plugin_controls(gpointer data)
 		else if (!strcmp(tx_panafall_stat->value, "OFF"))
 		{
 			tx_panafall_enabled = 0;
+		}
+	}
+
+
+	if (cessb_stat)
+	{
+		if (!strcmp(cessb_stat->value, "ON"))
+		{
+			cessb_enabled = 1;
+		}
+		else if (!strcmp(cessb_stat->value, "OFF"))
+		{
+			cessb_enabled = 0;
+		}
+	}
+
+	if (cfc_stat)
+	{
+		if (!strcmp(cfc_stat->value, "ON"))
+		{
+			cfc_enabled = 1;
+		}
+		else if (!strcmp(cfc_stat->value, "OFF"))
+		{
+			cfc_enabled = 0;
 		}
 	}
 

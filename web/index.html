@@ -2233,8 +2233,10 @@
         // Draw RX/TX lines
         const rx_pitch = parseFloat(pitchEl.value);
         const tx_pitch = mode === "AM" ? 0 : parseFloat(txPitchEl.value);
+
         const rit = el("RIT").value;
         const rit_delta = parseInt(el("RIT_DELTA").value) || 0;
+
 
         ctx.beginPath();
         ctx.strokeStyle = "cyan";
@@ -2365,6 +2367,7 @@
                 ctx.fillText("TX", tx_label_x, drawHeight + 12);
             }
         }
+
     }
     // Cache DOM elements (assumed to be stable) outside the function
     const waterfallEl = el("waterfall");
@@ -2906,10 +2909,12 @@
         if (e.id === "BAND") {
             log("Sending band command: " + e.value); // Debug log
             websocket_send(e.value); // Send just the band value, e.g., "20M"
+
         } else if (e.id === "RIT" && e.value == "ON") {
             websocket_send("rit" + " " + "on"); // Original behavior for other selects
         } else if (e.id === "RIT" && e.value == "OFF") {
             websocket_send("rit" + " " + "off"); // Original behavior for other selects    
+
         } else {
             log("Sending command: " + e.id + " " + e.value); // Debug log
             websocket_send(e.id + " " + e.value); // Original behavior for other selects
@@ -4557,6 +4562,7 @@
 			    isTuneOn = true;
 		    }
 	    });
+
 
         // ePTT button handler
         document.getElementById('ePTT').addEventListener('change', function() {
