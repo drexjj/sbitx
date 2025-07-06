@@ -257,11 +257,11 @@ void cessb_process(float *buffer, int buffer_size) {
     
     // Boost the signal before processing to make the effect more noticeable
     // This intentionally drives the signal harder into the soft clipper
-    // Reduced from 2.5x to 2.0x to decrease distortion while still showing effect
+    // Reduced from 2.5x to 1.8x to decrease distortion while still showing effect
     // - Higher values create a more aggressive CESSB effect with more visible clipping
     // - Lower values create a more subtle effect with less compression
     for (int i = 0; i < buffer_size; i++) {
-        buffer[i] *= 2.0f; // Boost by 100% (balanced setting)
+        buffer[i] *= 1.8f; // Boost by 80% (balanced setting)
     }
     
     // Process with multiband, look-ahead limiting, or standard soft clipping
