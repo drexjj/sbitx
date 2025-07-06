@@ -5505,7 +5505,6 @@ int do_cfc_enable(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	{
 		// Set compression to 0 to override standard compression in the audio chain
 		set_field("#comp_plugin", "0");
-		set_field("#toggle_kbd", "OFF");
 		focus_field(f_last_text); // this will prevent the controls from bouncing
 		return 1;
 	}
