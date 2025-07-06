@@ -3505,7 +3505,7 @@ void menu_display(int show)
 				field_move("DSP", 285, screen_height - 50, 45, 45);
 				field_move("BFO", 350, screen_height - 50, 45, 45);
 				field_move("VFOLK", 400, screen_height - 50, 45, 45);
-				field_move("GCLIP", 450, screen_height - 50, 45, 45);
+				//field_move("GCLIP", 450, screen_height - 50, 45, 45);
 				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
 
