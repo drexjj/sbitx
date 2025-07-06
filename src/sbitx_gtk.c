@@ -558,6 +558,7 @@ int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cfc_enable(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 void cleanup_on_exit(void);
 
@@ -798,7 +799,7 @@ struct field main_controls[] = {
 	 "", 1, 10, 1, 0},
 
 	// CFC (Continuous Frequency Compression)
-	{"#cfc", do_toggle_option, 1000, -1000, 40, 40, "CFC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#cfc", do_cfc_enable, 1000, -1000, 40, 40, "CFC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	 
 	// CFC Compression Ratio
@@ -5498,11 +5499,19 @@ int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
-/*
- * Function to handle CFC ratio control
- * The UI control ranges from 10-40 (representing 1.0 to 4.0)
- * The actual CFC ratio is scaled by dividing by 10
- */
+int do_cfc_enable(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		// Set compression to 0 to override standard compression in the audio chain
+		set_field("#comp_plugin", "0");
+		set_field("#toggle_kbd", "OFF");
+		focus_field(f_last_text); // this will prevent the controls from bouncing
+		return 1;
+	}
+	return 0;
+}
+
 int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *cfc_ratio_field = field_str("CFCR");
@@ -5513,6 +5522,9 @@ int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	
 	// Apply the new ratio to the CFC processor
 	cfc_set_ratio(cfc_ratio);
+
+	// Set compression to 0 to override standard compression in the audio chain
+	set_field("#comp_plugin", "0");
 	
 	return 0;
 }	
