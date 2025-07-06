@@ -24,6 +24,7 @@
 #include "ini.h"
 #include "para_eq.h"
 #include "cessb.h"
+#include "cfc.h"
 
 #define DEBUG 0
 
@@ -109,6 +110,8 @@ static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;   // W9JES
 int cessb_enabled = 0;		   // cessb W2JON 
 double cessb_clip_level = 0.8; // cessb W2JON gclip	level
+int cfc_enabled = 0;		   // CFC (Continuous Frequency Compression) W2JON
+double cfc_ratio = 1.5;		   // CFC compression ratio W2JON
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -1660,33 +1663,46 @@ void tx_process(
 		mute_count--;
 	}
 	
-	// CESSB processing - Apply before the FFT loop to process the entire buffer at once
-	if (cessb_enabled && (r->mode == MODE_USB || r->mode == MODE_LSB)) {
-		// Create a buffer for CESSB processing
-		static int cessb_initialized = 0;
-		float cessb_buf[n_samples];
+	// Audio processing - Apply before the FFT loop to process the entire buffer at once
+	if ((cessb_enabled || cfc_enabled) && (r->mode == MODE_USB || r->mode == MODE_LSB)) {
+		// Create a buffer for audio processing
+		static int audio_proc_initialized = 0;
+		float audio_buf[n_samples];
 		
-		// Initialize CESSB with the correct sample rate 
-		if (!cessb_initialized) {
-			cessb_init(96000); // Initialize with 96kHz sample rate
-			cessb_initialized = 1;
+		// Initialize audio processing modules with the correct sample rate 
+		if (!audio_proc_initialized) {
+			cessb_init(96000); // Initialize CESSB with 96kHz sample rate
+			cfc_init(96000);  // Initialize CFC with 96kHz sample rate
+			audio_proc_initialized = 1;
 		}
 		
-		// Convert int32_t samples to float for CESSB processing
+		// Convert int32_t samples to float for audio processing
 		for (int k = 0; k < n_samples; k++) {
 			if (use_browser_mic) {
-				cessb_buf[k] = (float)browser_mic_samples[k] / 2000000000.0f;
+				audio_buf[k] = (float)browser_mic_samples[k] / 2000000000.0f;
 			} else {
-				cessb_buf[k] = (float)input_mic[k] / 2000000000.0f;
+				audio_buf[k] = (float)input_mic[k] / 2000000000.0f;
 			}
 		}
 
-		// Process the audio through CESSB
-		cessb_process(cessb_buf, n_samples);
+		// Apply audio processing in the correct order
+		// CFC is applied first if enabled (frequency domain processing)
+		if (cfc_enabled) {
+			// Update CFC parameters
+			cfc_set_compression_ratio((float)cfc_ratio);
+			// Process the audio through CFC
+			cfc_process(audio_buf, n_samples);
+		}
+		
+		// CESSB is applied second if enabled (time domain processing)
+		if (cessb_enabled) {
+			// Process the audio through CESSB
+			cessb_process(audio_buf, n_samples);
+		}
 
 		// Convert back to int32_t after processing
 		for (int k = 0; k < n_samples; k++) {
-			int32_t val = (int32_t)(cessb_buf[k] * 2000000000.0f);
+			int32_t val = (int32_t)(audio_buf[k] * 2000000000.0f);
 			if (use_browser_mic) {
 				browser_mic_samples[k] = val;
 			} else {
@@ -2256,9 +2272,12 @@ void tr_switch(int tx_on) {
     mute_count = 1;             // number of audio samples to zero out
 	fft_reset_m_bins();          // fixes burst at start of transmission
     
-    // Reset CESSB processing state when switching to TX
+    // Reset audio processing state when switching to TX
     if (cessb_enabled) {
         cessb_reset();
+    }
+    if (cfc_enabled) {
+        cfc_reset();
     }
     
     set_tx_power_levels();       // use values for tx_power_watts, tx_gain
@@ -2281,9 +2300,12 @@ void tr_switch(int tx_on) {
     sound_mixer(audio_card, "Capture", 0);
     fft_reset_m_bins();
     
-    // Reset CESSB processing state when switching to RX
+    // Reset audio processing state when switching to RX
     if (cessb_enabled) {
         cessb_reset();
+    }
+    if (cfc_enabled) {
+        cfc_reset();
     }
     
     mute_count = MUTE_MAX;

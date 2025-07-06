@@ -50,6 +50,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 #include "cessb.h"
+#include "cfc.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -71,6 +72,10 @@ int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
+
+/* External variables for CFC (Continuous Frequency Compression) */
+extern int cfc_enabled;
+extern float cfc_ratio;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -548,6 +553,7 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -785,6 +791,14 @@ struct field main_controls[] = {
 	// CESSB G-CLIP Level
 	{"#cessb_clip_level", do_cessb_edit, 1000, -1000, 40, 40, "GCLIP", 40, "8", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
+
+	// CFC (Continuous Frequency Compression)
+	{"#cfc", do_toggle_option, 1000, -1000, 40, 40, "CFC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	 
+	// CFC Compression Ratio
+	{"#cfc_ratio", do_cfc_edit, 1000, -1000, 40, 40, "CFCR", 40, "15", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 10, 40, 5, 0},
 
 	 // WF Gain
 	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -3505,6 +3519,7 @@ void menu_display(int show)
 				field_move("DSP", 285, screen_height - 50, 45, 45);
 				field_move("BFO", 350, screen_height - 50, 45, 45);
 				field_move("VFOLK", 400, screen_height - 50, 45, 45);
+				field_move("CFC", 450, screen_height - 50, 45, 45);
 				//field_move("GCLIP", 450, screen_height - 50, 45, 45);
 				field_move("TNPWR", 500, screen_height - 50, 45, 45);
 			}
@@ -5277,6 +5292,25 @@ int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	cessb_set_clip_level((float)cessb_clip_level);
 	
 	return 0;
+}
+
+/*
+ * Function to handle CFC ratio control
+ * The UI control ranges from 10-40 (representing 1.0 to 4.0)
+ * The actual CFC ratio is scaled by dividing by 10
+ */
+int do_cfc_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *cfc_ratio_field = field_str("CFCR");
+	int cfc_ratio_value = atoi(cfc_ratio_field);
+	
+	// Scale from 10-40 to 1.0-4.0
+	cfc_ratio = (float)cfc_ratio_value / 10.0f;
+	
+	// Apply the new ratio to the CFC processor
+	cfc_set_ratio(cfc_ratio);
+	
+	return 0;
 }	
 
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -5502,6 +5536,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
 	struct field *cessb_stat = get_field("#cessb");
+	struct field *cfc_stat = get_field("#cfc");
 	
 	if (tx_panafall_stat)
 	{
@@ -5525,6 +5560,18 @@ gboolean check_plugin_controls(gpointer data)
 		else if (!strcmp(cessb_stat->value, "OFF"))
 		{
 			cessb_enabled = 0;
+		}
+	}
+
+	if (cfc_stat)
+	{
+		if (!strcmp(cfc_stat->value, "ON"))
+		{
+			cfc_enabled = 1;
+		}
+		else if (!strcmp(cfc_stat->value, "OFF"))
+		{
+			cfc_enabled = 0;
 		}
 	}
 
