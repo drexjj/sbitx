@@ -86,8 +86,10 @@ static inline float high_pass_filter(float sample) {
 
 // Pre-emphasis filter to boost high frequencies before processing
 static inline float apply_preemphasis(float sample) {
-    // Pre-emphasis coefficient (0.9-0.95 is typical for speech)
-    const float alpha = 0.94f;
+    // Pre-emphasis coefficient - adjusted for cleaner spectral characteristics
+    // Reduced from 0.94f to 0.92f for gentler high-frequency boost
+    // This helps prevent excessive high-frequency content that could cause splatter
+    const float alpha = 0.92f;
     float output = sample - alpha * g_preemphasis_state;
     g_preemphasis_state = sample;
     return output;
@@ -96,9 +98,16 @@ static inline float apply_preemphasis(float sample) {
 // De-emphasis filter to restore frequency balance after processing
 static inline float apply_deemphasis(float sample) {
     // De-emphasis coefficient (must match pre-emphasis)
-    const float alpha = 0.94f;
+    const float alpha = 0.92f;
     float output = sample + alpha * g_deemphasis_state;
     g_deemphasis_state = output;
+    
+    // Apply a very gentle low-pass filter to ensure smooth high-frequency rolloff
+    // This helps prevent any residual high-frequency artifacts
+    static float prev_output = 0.0f;
+    output = output * 0.95f + prev_output * 0.05f;
+    prev_output = output;
+    
     return output;
 }
 
@@ -164,12 +173,20 @@ static void process_multiband(float *buffer, int buffer_size) {
     
     // Recombine the bands
     for (int i = 0; i < buffer_size; i++) {
-        // Mix with different weights
-        buffer[i] = low_band[i] * 0.7f + mid_band[i] * 1.0f + high_band[i] * 0.8f;
+        // Mix with different weights - adjusted for cleaner spectral characteristics
+        // Reduced high band weight slightly to minimize potential splatter
+        buffer[i] = low_band[i] * 0.65f + mid_band[i] * 1.0f + high_band[i] * 0.7f;
         
         // Apply de-emphasis if pre-emphasis was used
         if (g_preemphasis_enabled) {
             buffer[i] = apply_deemphasis(buffer[i]);
+        }
+        
+        // Final limiter to catch any intersample peaks
+        // This ensures no samples exceed the clip level, preventing splatter
+        float clip_level = (float)cessb_clip_level;
+        if (fabsf(buffer[i]) > clip_level) {
+            buffer[i] = (buffer[i] > 0) ? clip_level : -clip_level;
         }
     }
 }
