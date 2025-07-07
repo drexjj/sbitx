@@ -1042,6 +1042,43 @@ void ft8_on_signal_report(){
 	//enter_qso();
 }
 
+/*!
+	start a QSO: call the callsign specified by the "CALL" field,
+	based on a previous selected message that occurred at time \a sel_time.
+	The "SENT" field may hold previously-observed RST,
+	and "EXCH" may hold the recipient's grid.
+*/
+void ft8_call(int sel_time) {
+
+	call = field_str("CALL");
+	if (!call[0]) {
+		printf("CALL field empty: nobody to call\n");
+		return;
+	}
+
+	modem_abort();
+	tx_off();
+
+	exchange = field_str("EXCH");
+	report_send = field_str("SENT");
+	mycall = field_str("MYCALLSIGN");
+	// initial pitch; but it can also be adjusted between timeslots
+	// (audio is re-generated in ft8_start_tx())
+	ft8_pitch = field_int("TX_PITCH");
+	//use only the first 4 letters of the grid
+	strcpy(mygrid, field_str("MYGRID"));
+	mygrid[4] = 0;
+	field_set("NR", mygrid);
+
+	// for CQ (or other) message that started in the 0 or 30-second timeslot,
+	// send reply in the 15 or 45 second; and vice-versa
+	// i.e. tx on 2nd and 4th slots for msgs on 1st and 3rd
+	const int msg_second = sel_time % 100;
+	ft8_tx1st = !(msg_second < 15 || (msg_second >= 30 && msg_second < 45));
+
+	ft8_tx_3f(call, mycall, mygrid);
+}
+
 void ft8_process(char *message, int operation){
 	char buff[100], reply_message[100], *p;
 	int auto_respond = 0;
