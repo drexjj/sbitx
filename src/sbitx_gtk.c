@@ -2309,6 +2309,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
 	// Also check if the override flag is set
 	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
+
 	{
 		// Display message instead of rendering waterfall
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2323,6 +2324,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
 		
+
 		// Now we set the tap instructions to be drawn with a larger font and yellow color
 		cairo_save(gfx);
 		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
@@ -2359,6 +2361,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		// Draw the remote session info message
 		cairo_move_to(gfx, x2, y2);
 		cairo_show_text(gfx, second_part);
+
 		return;
 	}
 
@@ -2537,6 +2540,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
 	// Also check if the override flag is set
 	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
+
 	{
 		// Display message instead of rendering spectrum
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2554,6 +2558,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// Create the message with IP address
 		char message[512];
 		snprintf(message, sizeof(message), "Spectrum/Waterfall visualizations disabled");
+
 		
 		// Calculate text position
 		cairo_text_extents_t extents;

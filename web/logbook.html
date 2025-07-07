@@ -723,12 +723,14 @@
 			show_keyboard();
 		}
 		session_id = document.cookie.substring(10);
+
 		socket = new WebSocket("wss://" + location.host + "/websocket");
+
 		socket.onmessage = on_message;
 		socket.onclose = on_close;
 		socket.onerror = on_error;
 		logbook_reset();
 	}
 </script>
-
 </html>
+
