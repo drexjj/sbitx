@@ -274,6 +274,9 @@ struct console_line
 static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
+char console_selected_callsign[12];
+int console_selected_time = -1;
+time_t console_current_time = 0;
 
 struct Queue q_web;
 int noise_threshold = 0;		// DSP
@@ -1661,17 +1664,49 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		f->is_dirty = 1;
 		return 1;
 		break;
-	case GDK_BUTTON_RELEASE:
-		if (!strcmp(get_field("r1:mode")->value, "FT8"))
-		{
-			char ft8_message[300];
-			// strcpy(ft8_message, console_stream[console_selected_line].text);
-			hd_strip_decoration(ft8_message, console_stream[console_selected_line].text);
-			ft8_process(ft8_message, FT8_START_QSO);
+	case GDK_BUTTON_RELEASE: {
+		char console_line[64];
+		hd_strip_decoration(console_line, console_stream[console_selected_line].text);
+		// copy console line to X11 selection
+		GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
+		gtk_clipboard_set_text(clipboard, console_line, -1);
+
+		// FT8-specific functionality
+		if (!strcmp(get_field("r1:mode")->value, "FT8")) {
+			struct field *console = get_field("#console");
+			const int line_height = font_table[console->font_index].height;
+			int call_start = console_extract_semantic(console_selected_callsign,
+				sizeof(console_selected_callsign), console_selected_line, STYLE_CALLER);
+			if (call_start >= 0 && !strstr(console_selected_callsign, get_field("#mycallsign")->value)) {
+				field_set("CALL", console_selected_callsign);
+				int call_len = strlen(console_selected_callsign);
+
+				char grid[7];
+				if (console_extract_semantic(grid, sizeof(grid), console_selected_line, STYLE_GRID) >= 0)
+					field_set("EXCH", grid);
+
+				char rst[7];
+				if (console_extract_semantic(rst, sizeof(rst), console_selected_line, STYLE_SNR) >= 0)
+					field_set("SENT", rst);
+
+				char time[10];
+				if (console_extract_semantic(time, sizeof(time), console_selected_line, STYLE_TIME) >= 0)
+					console_selected_time = atoi(time);
+
+				char pitch[7];
+				if (console_extract_semantic(pitch, sizeof(pitch), console_selected_line, STYLE_FREQ) >= 0)
+					field_set("PITCH", pitch);
+
+				printf("console press: sel %d cur %d %d '%s' from '%s'\n",
+					console_selected_line, console_current_line, console_selected_time, console_selected_callsign, console_line);
+
+				ft8_call(console_selected_time);
+			}
 		}
 		f->is_dirty = 1;
 		return 1;
 		break;
+	}
 	case FIELD_EDIT:
 		if (a == MIN_KEY_UP && console_selected_line > start_line)
 			console_selected_line--;
