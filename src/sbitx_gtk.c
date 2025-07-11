@@ -160,7 +160,6 @@ void tuning_isr(void);
 #define SELECTED_LINE 14
 #define COLOR_FIELD_SELECTED 15
 #define COLOR_TX_PITCH 16
-#define COLOR_TOGGLE_ACTIVE 17
 
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
@@ -181,7 +180,6 @@ float palette[][3] = {
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
-	{0, 0.2, 0},	 // COLOR_TOGGLE_ACTIVE
 };
 
 char *ui_font = "Sans";
@@ -547,7 +545,6 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -611,11 +608,11 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
-	{"#split", do_toggle_option, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
@@ -1547,8 +1544,6 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 
 	if (f_focus == f)
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
-	else if (f->value_type == FIELD_TOGGLE && strcmp(f->value, "ON") == 0)
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_TOGGLE_ACTIVE);
 	else
 		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 	if (f_focus == f)
@@ -2188,11 +2183,6 @@ static int *wf = NULL;
 GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 
-// Flag to override remote display disabling
-static int override_remote_display = 0;
-static int override_remote_display_timeout = 300; // 5 minutes
-static time_t last_override_time = 0;
-
 void init_waterfall()
 {
 	struct field *f = get_field("waterfall");
@@ -2307,9 +2297,7 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
-	// Also check if the override flag is set
-	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
-
+	if (is_remote_browser_active() && !is_localhost_connection_only())
 	{
 		// Display message instead of rendering waterfall
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2324,44 +2312,20 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
 		
+		// Create the message with IP address
+		char message[512];
+		snprintf(message, sizeof(message), "Waterfall display disabled - Remote session from %s", ip_list);
+		
+		// Calculate text position
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, message, &extents);
 
-		// Now we set the tap instructions to be drawn with a larger font and yellow color
-		cairo_save(gfx);
-		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-		cairo_set_font_size(gfx, 20); 
-		cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); 
-				
-		const char *first_part = "TAP HERE TO TOGGLE PANAFALL";
-		cairo_text_extents_t extents1;
-		cairo_text_extents(gfx, first_part, &extents1);
-		float x1 = f->x + (f->width - extents1.width) / 2;
-		float y1 = f->y + (f->height / 2) - 40;
-		
-		// Draw a semi-transparent background behind the text (can't really see it on the DSI screen but it looked sharp on my monitor)
-		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.7); // Black with 70% opacity
-		cairo_rectangle(gfx, x1 - 10, y1 - extents1.height - 5, extents1.width + 20, extents1.height + 10);
-		cairo_fill(gfx);
-		
-		// Draw the tap instructions
-		cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); 
-		cairo_move_to(gfx, x1, y1);
-		cairo_show_text(gfx, first_part);
-		cairo_restore(gfx);
-		
-		// Now set up the remote session info message
-		char second_part[256];
-		snprintf(second_part, sizeof(second_part), "Remote session from %s", ip_list);
-		
-		// Calculate position for remote session info message
-		cairo_text_extents_t extents2;
-		cairo_text_extents(gfx, second_part, &extents2);
-		float x2 = f->x + (f->width - extents2.width) / 2;
-		float y2 = y1 + 80; 
-		
-		// Draw the remote session info message
-		cairo_move_to(gfx, x2, y2);
-		cairo_show_text(gfx, second_part);
+		// Center the text
+		float x = f->x + (f->width - extents.width) / 2;
+		float y = f->y + (f->height + extents.height) / 2;
 
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, message);
 		return;
 	}
 
@@ -2538,9 +2502,7 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
-	// Also check if the override flag is set
-	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
-
+	if (is_remote_browser_active() && !is_localhost_connection_only())
 	{
 		// Display message instead of rendering spectrum
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2557,8 +2519,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		
 		// Create the message with IP address
 		char message[512];
-		snprintf(message, sizeof(message), "Spectrum/Waterfall visualizations disabled");
-
+		snprintf(message, sizeof(message), "Spectrum display disabled - Remote session from %s", ip_list);
 		
 		// Calculate text position
 		cairo_text_extents_t extents;
@@ -3024,20 +2985,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	
-	// Get RIT status and delta to adjust frequency display when RIT is enabled
-	struct field *rit = get_field("#rit");
-	struct field *rit_delta = get_field("#rit_delta");
-	long display_freq = freq;
-	
-	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
-	if (!strcmp(rit->value, "ON") && !in_tx) {
-		// Adjust the display frequency to show RX frequency (freq + rit_delta)
-		display_freq = freq + atoi(rit_delta->value);
-	}
-	
-	long f_start = display_freq - (4 * freq_div);
+						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+	long f_start = freq - (4 * freq_div);
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3301,91 +3250,6 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 	{
 		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
-		
-		// Draw TX frequency indicator when RIT is enabled
-		struct field *rit = get_field("#rit");
-		struct field *rit_delta = get_field("#rit_delta");
-		struct field *freq_field = get_field("r1:freq");
-		struct field *mode_f = get_field("r1:mode");
-		
-		if (!strcmp(rit->value, "ON") && !in_tx)
-		{
-			// Get the RIT delta value and current frequency
-			int rit_delta_value = atoi(rit_delta->value);
-			long rx_freq = atol(freq_field->value);
-			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
-			
-			// Calculate the TX bin position directly
-			// We need to calculate where the TX frequency would be in the spectrum
-			// First, determine the frequency span visible in the spectrum
-			float span_khz = atof(get_field("#span")->value);
-			float span_hz = span_khz * 1000;
-			
-			// Now we calculate the frequency difference between RX and TX in Hz
-			long freq_diff = rx_freq - tx_freq;
-			
-			// Let's calculate the pixel offset based on the frequency difference and span
-			// The center of the spectrum is at f->width/2
-			// The full width represents span_hz
-			float pixels_per_hz = (float)f->width / span_hz;
-			// Invert the offset to match the spectrum panning direction
-			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
-			
-			// Calculate the TX needle position
-			// WE can use the same calculation method as the RX needle (tuned_bin)
-			// but with an offset based on the RIT delta
-			int tx_needle_x;
-			
-			// Calculate the TX needle position directly from the RX needle position
-			// The RX needle is always at the center (f->width/2)
-			// We just need to offset it based on the RIT delta
-			tx_needle_x = (f->width / 2) + offset_pixels;
-			
-			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
-			int is_at_edge = 0;
-			int arrow_direction = 0; // -1 for left, 1 for right
-			
-			if (tx_needle_x < 0) {
-				tx_needle_x = 0;
-				is_at_edge = 1;
-				arrow_direction = -1; // Point left
-			}
-			if (tx_needle_x >= f->width) {
-				tx_needle_x = f->width - 1;
-				is_at_edge = 1;
-				arrow_direction = 1; // Point right
-			}
-			
-			// Draw red TX frequency indicator
-			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
-			cairo_set_line_width(gfx, 1.0);
-			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
-			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
-			cairo_stroke(gfx);
-			
-			// This part is will draw a small red triangle arrow at the center of the line if at edge of the scope
-			if (is_at_edge) {
-				int center_y = f->y + (grid_height / 2);
-				int arrow_size = 10; // Size of the triangle
-				
-				// Fill a triangle pointing in the direction of the TX frequency
-				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
-				cairo_move_to(gfx, f->x + tx_needle_x, center_y);
-				
-				if (arrow_direction < 0) { // Point left
-					// Triangle pointing left
-					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y - arrow_size/2);
-					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y + arrow_size/2);
-				} else { // Point right
-					// Triangle pointing right
-					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y - arrow_size/2);
-					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y + arrow_size/2);
-				}
-				
-				cairo_close_path(gfx);
-				cairo_fill(gfx);
-			}
-		}
 	}
 }
 
@@ -4022,6 +3886,8 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 		cy2 = cy1 + f->height;
 		if (cairo_in_clip(gfx, cx1, cy1) || cairo_in_clip(gfx, cx2, cy2))
 			draw_field(widget, gfx, active_layout + i);
+		// else if (f->label[0] == 'F')
+		//	printf("skipping %s\n", active_layout[i].label);
 	}
 }
 
@@ -4373,26 +4239,6 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	char buff[100];
 	int mode = mode_id(get_field("r1:mode")->value);
 
-	// Check if we need to handle tap to reveal display during remote session
-	if (event == GDK_BUTTON_PRESS && is_remote_browser_active() && !is_localhost_connection_only()) {
-		// Toggle the override flag
-		override_remote_display = !override_remote_display;
-		// If enabled, set the last override time
-		if (override_remote_display) {
-			last_override_time = time(NULL);
-		}
-		// Force redraw of spectrum and waterfall
-		invalidate_rect(0, 0, 800, 480);
-		return 1;
-	}
-
-	// Check if we need to reset the override due to timeout
-	if (override_remote_display && (time(NULL) - last_override_time > override_remote_display_timeout)) {
-		override_remote_display = 0;
-		// Force redraw
-		invalidate_rect(0, 0, 800, 480);
-	}
-
 	switch (event)
 	{
 	case FIELD_DRAW:
@@ -4442,26 +4288,6 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 int do_waterfall(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	// Check if we need to handle tap to reveal display during remote session
-	if (event == GDK_BUTTON_PRESS && is_remote_browser_active() && !is_localhost_connection_only()) {
-		// Toggle the override flag
-		override_remote_display = !override_remote_display;
-		// If enabled, set the last override time
-		if (override_remote_display) {
-			last_override_time = time(NULL);
-		}
-		// Force redraw of spectrum and waterfall
-		invalidate_rect(0, 0, 800, 480);
-		return 1;
-	}
-
-	// Check if we need to reset the override due to timeout
-	if (override_remote_display && (time(NULL) - last_override_time > override_remote_display_timeout)) {
-		override_remote_display = 0;
-		// Force redraw
-		invalidate_rect(0, 0, 800, 480);
-	}
-
 	switch (event)
 	{
 	case FIELD_DRAW:
@@ -4965,34 +4791,6 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	if (event == GDK_BUTTON_PRESS)
 	{
 		set_field("#menu", "OFF");
-		focus_field(f_last_text);
-		return 1;
-	}
-	return 0;
-}
-int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
-	if (event == GDK_BUTTON_PRESS)
-	{
-		if (!strcmp(field_str("RIT"), "OFF"))
-		{ 
-			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
-			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
-			// Get the current VFO frequency
-			struct field *freq = get_field("r1:freq");
-			int current_freq = atoi(freq->value);
-			char response[128];
-			
-			// Adjust VFO up by 10Hz
-			set_operating_freq(current_freq + 10, response);
-			
-			// Small 5ms delay 
-			usleep(5000); 
-			
-			// Adjust VFO back down by 10Hz to original frequency
-			set_operating_freq(current_freq, response);
-		}
-		set_field("#rit_delta", "000000"); // zero the RIT delta
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -8158,44 +7956,6 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
-	else if (!strcmp(exec, "rit"))
-	{
-		struct field *rit_field = get_field("#rit");
-		if (!rit_field) {
-			write_console(FONT_LOG, "Error: RIT field not found\n");
-			return;
-		}
-		
-		if (!strcasecmp(args, "on"))
-		{
-			// Turn RIT on
-			set_field("#rit", "ON");
-			set_field("#rit_delta", "000000"); // zero the RIT delta
-		}
-		else if (!strcasecmp(args, "off"))
-		{
-			// Turn RIT off
-			set_field("#rit", "OFF");
-			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
-			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
-			// Get the current VFO frequency
-			struct field *freq = get_field("r1:freq");
-			if (freq && freq->value) {
-				int current_freq = atoi(freq->value);
-				char response[128];
-				
-				// Adjust VFO up by 10Hz
-				set_operating_freq(current_freq + 10, response);
-				
-				// Small 5ms delay 
-				usleep(5000); 
-				
-				// Adjust VFO back down by 10Hz to original frequency
-				set_operating_freq(current_freq, response);
-			}
-		}
-		focus_field(f_last_text);
-	}
 	else if (!strcmp(exec, "exit"))
 	{
 		tx_off();
@@ -8528,7 +8288,6 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
-	field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
