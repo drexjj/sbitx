@@ -228,7 +228,7 @@ struct bin {
 	int n;
 };
 
-static int cw_envelope_pos = 0; // position within the raised cosine envelope
+static int cw_envelope_pos = 0; // position within the envelope
 static int cw_envelope_len = 480; // length of the envelope
 
 // Blackman-Harris cw envelope
