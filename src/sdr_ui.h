@@ -57,4 +57,4 @@ void update_log_ed();
 void write_call_log();
 time_t time_sbitx();
 
-#define VER_STR "sbitx v5.01" // Brought to you by the sBitx 64 Bit Development Team
+#define VER_STR "sbitx v5.02" // Brought to you by the sBitx 64 Bit Development Team
