@@ -1,3 +1,8 @@
+v5.02 - 
+- Fixed the RIT frequency adjustment when enabled/disabled
+- Added RIT TX indicator to spectrum scope in local and web interface
+- Added on/off visualization to softkeys
+
 v5.01 - 
 - Fixed logbook open command for web interface
 - Fixed the tune toggle function in the web interface
