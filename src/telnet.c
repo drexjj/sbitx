@@ -90,7 +90,7 @@ void init_ntp_client(char *server){
 
 
 	sprintf(buff, "Finding NTP server %s\n", server);
-	write_console(FONT_LOG, buff);
+	write_console(STYLE_LOG, buff);
 
   memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
   serverAddr.sin_family = AF_INET;
@@ -141,11 +141,11 @@ void *telnet_thread_function(void *server){
 	*q = 0;
 
 	if(!strlen(host)){
-		write_console(FONT_TELNET, "Telnet : specify host and port\nex:'\topen dxc.g3lrs.org.uk:7300\n'");
+		write_console(STYLE_TELNET, "Telnet : specify host and port\nex:'\topen dxc.g3lrs.org.uk:7300\n'");
 		return NULL;
 	}
 	if(!strlen(port)){
-		write_console(FONT_TELNET, "Telnet port is missing\n");
+		write_console(STYLE_TELNET, "Telnet port is missing\n");
 		return NULL;	
 	}	
 
@@ -154,7 +154,7 @@ void *telnet_thread_function(void *server){
 
 
 	sprintf(buff, "Finding %s:%s\n", host, port);
-	write_console(FONT_TELNET, buff);
+	write_console(STYLE_TELNET, buff);
 
   memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
   serverAddr.sin_family = AF_INET;
@@ -162,13 +162,13 @@ void *telnet_thread_function(void *server){
   serverAddr.sin_addr.s_addr = get_address(host); 
 
 	sprintf(buff, "Opening %s:%s\n", host, port);
-	write_console(FONT_TELNET, buff);
+	write_console(STYLE_TELNET, buff);
 
 	telnet_sock = socket(AF_INET, SOCK_STREAM, 0);
   if (connect(telnet_sock, 
 			(struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
 		printf("Telnet: failed to connect to %s\n", server);
-		write_console(FONT_TELNET, "Failed to open telnet, check hostname and port?\n");
+		write_console(STYLE_TELNET, "Failed to open telnet, check hostname and port?\n");
 		close(telnet_sock);
 		telnet_sock = -1;
 		return NULL;
@@ -216,7 +216,7 @@ void *telnet_thread_function(void *server){
 			*q = 0;	
 
 //			printf("compressed [%s] to [%s]\n", buff, buff2);
-			write_console(FONT_TELNET, buff2);
+			write_console(STYLE_TELNET, buff2);
 		}
 	}
 	close(telnet_sock);

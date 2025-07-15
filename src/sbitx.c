@@ -133,7 +133,7 @@ int get_input_volume()
 {
 	return input_volume;
 }
- 
+
 static int multicast_socket = -1;
 
 #define MUTE_MAX 6
@@ -143,7 +143,7 @@ static int mute_count = 50;
 struct Queue qbrowser_mic;
 static int browser_mic_active = 0;
 static int browser_mic_last_activity = 0;
-#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback 
+#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback
 
 // Audio buffer for smoothing browser mic audio
 #define BROWSER_MIC_BUFFER_SIZE 48000 // 500ms at 96kHz
@@ -465,13 +465,13 @@ int q_available_space(struct Queue *q)
 static void jitter_buffer_add(int16_t *samples, int count)
 {
 	pthread_mutex_lock(&jitter_buffer_mutex);
-	
+
 	// Simple buffer management - if we have too many samples, drop the oldest ones
 	if (jitter_buffer_samples + count > JITTER_BUFFER_MAX_SAMPLES) {
 		// Keep only the most recent samples
 		int to_keep = JITTER_BUFFER_MAX_SAMPLES - count;
 		if (to_keep < 0) to_keep = 0;
-		
+
 		// Calculate how many to drop
 		int to_drop = jitter_buffer_samples - to_keep;
 		if (to_drop > 0) {
@@ -479,14 +479,14 @@ static void jitter_buffer_add(int16_t *samples, int count)
 			jitter_buffer_samples -= to_drop;
 		}
 	}
-	
+
 	// Add new samples
 	for (int i = 0; i < count; i++) {
 		jitter_buffer[jitter_buffer_write] = samples[i];
 		jitter_buffer_write = (jitter_buffer_write + 1) % JITTER_BUFFER_SIZE;
 		jitter_buffer_samples++;
 	}
-	
+
 	pthread_mutex_unlock(&jitter_buffer_mutex);
 }
 
@@ -494,23 +494,23 @@ static void jitter_buffer_add(int16_t *samples, int count)
 static int jitter_buffer_get(int16_t *samples, int count)
 {
 	pthread_mutex_lock(&jitter_buffer_mutex);
-	
+
 	// Simple read - just get what we have
 	int available = jitter_buffer_samples;
 	if (count > available) count = available;
-	
+
 	// Read available samples
 	for (int i = 0; i < count; i++) {
 		samples[i] = jitter_buffer[jitter_buffer_read];
 		jitter_buffer_read = (jitter_buffer_read + 1) % JITTER_BUFFER_SIZE;
 		jitter_buffer_samples--;
 	}
-	
+
 	// If we didn't have enough samples, fill the rest with zeros
 	for (int i = count; i < count; i++) { // This loop never runs due to the condition
 		samples[i] = 0;
 	}
-	
+
 	pthread_mutex_unlock(&jitter_buffer_mutex);
 	return count;
 }
@@ -520,14 +520,14 @@ int browser_mic_input(int16_t *samples, int count)
 {
 	if (count <= 0)
 		return 0;
-	
+
 	// Mark browser mic as active and update last activity timestamp
 	browser_mic_active = 1;
 	browser_mic_last_activity = millis();
-	
+
 	// Add samples to jitter buffer for smoother playback
 	jitter_buffer_add(samples, count);
-	
+
 	return count;
 }
 
@@ -539,7 +539,7 @@ int is_browser_mic_active()
 	{
 		browser_mic_active = 0;
 	}
-	
+
 	return browser_mic_active;
 }
 
@@ -547,12 +547,12 @@ int is_browser_mic_active()
 void upsample_browser_mic(int32_t *output, int n_samples)
 {
 	int i = 0;
-	
+
 	// Get samples from jitter buffer - 8kHz input
 	// For 96kHz output, we need a 12x ratio (8kHz → 96kHz)
 	int16_t input_samples[n_samples / 12 + 1]; // Extra space for safety
 	int samples_read = jitter_buffer_get(input_samples, n_samples / 12);
-	
+
 	if (samples_read == 0)
 	{
 		// No browser mic data, fill with zeros
@@ -561,35 +561,35 @@ void upsample_browser_mic(int32_t *output, int n_samples)
 		}
 		return;
 	}
-	
+
 	// Apply gain reduction to prevent clipping
 	for (int j = 0; j < samples_read; j++) {
 		// Reduce gain to 25% to prevent clipping
 		input_samples[j] = (int16_t)(input_samples[j] * 0.25);
 	}
-	
+
 	// Apply strong high-frequency enhancement for better clarity
 	int16_t prev_sample = 0;
 	for (int j = 0; j < samples_read; j++) {
 		// Simple high-pass filter (current - previous)
 		int16_t high_freq = input_samples[j] - prev_sample;
 		prev_sample = input_samples[j];
-		
+
 		// Add high frequencies back to enhance clarity (strong boost)
 		input_samples[j] = input_samples[j] + (high_freq * 0.7);
 	}
-	
+
 	// Simple upsampling from 8kHz to 96kHz (12x)
 	for (int j = 0; j < samples_read && i < n_samples; j++) {
 		// Get current sample
 		int16_t current = input_samples[j];
-		
+
 		// Generate 12 identical output samples for 96kHz
 		for (int k = 0; k < 12 && i < n_samples; k++) {
 			output[i++] = current * 65536;
 		}
 	}
-	
+
 	// If we still need more samples, fill with zeros
 	while (i < n_samples) {
 		output[i++] = 0;
@@ -901,96 +901,6 @@ double agc2(struct rx *r)
 void my_fftw_execute(fftw_plan f)
 {
 	fftw_execute(f);
-}
-
-static int32_t rx_am_avg = 0;
-
-void rx_am(int32_t *input_rx, int32_t *input_mic,
-		   int32_t *output_speaker, int32_t *output_tx, int n_samples)
-{
-	int i, j = 0;
-	double i_sample, q_sample;
-	// STEP 1: first add the previous M samples to
-	for (i = 0; i < MAX_BINS / 2; i++)
-		fft_in[i] = fft_m[i];
-
-	// STEP 2: then add the new set of samples
-	//  m is the index into incoming samples, starting at zero
-	//  i is the index into the time samples, picking from
-	//  the samples added in the previous step
-	int m = 0;
-	// gather the samples into a time domain array
-	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-	{
-		i_sample = (1.0 * input_rx[j]) / 200000000.0;
-		q_sample = 0;
-
-		j++;
-
-		__real__ fft_m[m] = i_sample;
-		__imag__ fft_m[m] = q_sample;
-
-		__real__ fft_in[i] = i_sample;
-		__imag__ fft_in[i] = q_sample;
-		m++;
-	}
-
-	// STEP 3: convert the time domain samples to  frequency domain
-	my_fftw_execute(plan_fwd);
-
-	// STEP 3B: this is a side line, we use these frequency domain
-	//  values to paint the spectrum in the user interface
-	//  I discovered that the raw time samples give horrible spectrum
-	//  and they need to be multiplied wiht a window function
-	//  they use a separate fft plan
-	//  NOTE: the spectrum update has nothing to do with the actual
-	//  signal processing. If you are not showing the spectrum or the
-	//  waterfall, you can skip these steps
-	for (i = 0; i < MAX_BINS; i++)
-		__real__ fft_in[i] *= spectrum_window[i];
-	my_fftw_execute(plan_spectrum);
-
-	// the spectrum display is updated
-	spectrum_update();
-
-	struct rx *r = rx_list;
-
-	// STEP 4: we rotate the bins around by r-tuned_bin
-	for (i = 0; i < MAX_BINS; i++)
-	{
-		int b = i + r->tuned_bin;
-		if (b >= MAX_BINS)
-			b = b - MAX_BINS;
-		if (b < 0)
-			b = b + MAX_BINS;
-		r->fft_freq[i] = fft_out[b];
-		//		r->fft_freq[i] = fft_out[i];
-	}
-
-	// STEP 6: apply the filter to the signal,
-	// in frequency domain we just multiply the filter
-	// coefficients with the frequency domain samples
-	for (i = 0; i < MAX_BINS; i++)
-		r->fft_freq[i] *= r->filter->fir_coeff[i];
-
-	// STEP 7: convert back to time domain
-	my_fftw_execute(r->plan_rev);
-	// STEP 8 : AGC
-	agc2(r);
-
-	// do an independent am detection (this takes 12 khz of b/w)
-	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-	{
-		int32_t sample;
-		sample = abs(r->fft_time[i]) * 1000000;
-		rx_am_avg = (rx_am_avg * 5 + sample) / 6;
-		// keep transmit buffer empty
-		output_speaker[i] = sample;
-		//		output_speaker[i] = abs(input_rx[i]);
-		output_tx[i] = 0;
-	}
-	//	for (i = 0; i < n_samples; i++)
-	//		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
 }
 
 // Global variables for zero beat detection (sbitx.c)
@@ -1467,38 +1377,31 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 
 	// Apply RXEQ after Modem only on non-digital modes
 	if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE)
-{
-    if (rx_eq_is_enabled == 1)
-    {
-        // Step 1: Apply EQ with built-in normalization and clamping
-        apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
-
-        // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
-        const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom 
-
-        for (int i = 0; i < n_samples; i++)
-        {
-            double sample = output_speaker[i];
-
-            // Apply smooth limiting if sample exceeds threshold
-            if (fabs(sample) > limiter_threshold)
-            {
-                sample = limiter_threshold * tanh(sample / limiter_threshold);
-            }
-
-            output_speaker[i] = (int32_t)sample;
-        }
-    }
-}
-// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-// Moved after EQ processing so qremote gets the equalized audio when applicable
-	if (rx_list->output == 0) {
-		for (i = 0; i < MAX_BINS / 2; i += 6)
+	{
+		if (rx_eq_is_enabled == 1)
 		{
-			q_write(&qremote, output_speaker[i]);
+			// Step 1: Apply EQ with built-in normalization and clamping
+			apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
+
+			// Step 2: Optionally apply soft limiting (only if additional smoothing is required)
+			const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom
+
+			for (int i = 0; i < n_samples; i++)
+			{
+				double sample = output_speaker[i];
+
+				// Apply smooth limiting if sample exceeds threshold
+				if (fabs(sample) > limiter_threshold)
+				{
+					sample = limiter_threshold * tanh(sample / limiter_threshold);
+				}
+
+				output_speaker[i] = (int32_t)sample;
+			}
 		}
 	}
 }
+
 void read_power()
 {
 	uint8_t response[4];
@@ -1569,11 +1472,11 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
-	
+
 	// Check if browser microphone is active and use it instead of physical mic
 	int32_t browser_mic_samples[n_samples];
 	int use_browser_mic = is_browser_mic_active();
-	
+
 	if (use_browser_mic) {
 		// Get upsampled browser mic audio
 		upsample_browser_mic(browser_mic_samples, n_samples);
@@ -1602,9 +1505,6 @@ void tx_process(
 		if (compression_control_level >= 1 && compression_control_level <= 10)
 		{
 			float temp_input_mic[n_samples];
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Convert input_mic (int32_t) to float for compression
 			for (int i = 0; i < n_samples; i++)
 			{
@@ -1615,15 +1515,9 @@ void tx_process(
 				}
 			}
 
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Now we can call the apply_fixed_compression function with the parameters
 			apply_fixed_compression(temp_input_mic, n_samples, compression_control_level);
 
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
-			}
 			// Convert back the processed data to int32_t after compression
 			for (int i = 0; i < n_samples; i++)
 			{
@@ -1632,9 +1526,6 @@ void tx_process(
 				} else {
 					input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
 				}
-			}
-			for (int i = 0; i < 5 && i < n_samples; i++)
-			{
 			}
 		}
 
@@ -1819,17 +1710,17 @@ void tx_process(
 
 	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
 	// This allows the TX audio to be displayed in the spectrum and waterfall
-	
+
 	// Create input buffer for FFT
 	complex float *tx_fft_in = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
-	
+
 	// Calculate DC offset (average) to remove it
 	float dc_offset = 0;
 	for (i = 0; i < MAX_BINS / 2; i++) {
 		dc_offset += output_tx[i];
 	}
 	dc_offset /= (MAX_BINS / 2);
-	
+
 	// Copy the output_tx samples to the FFT input buffer with a window function
 	for (i = 0; i < MAX_BINS / 2; i++) {
 		// Apply Hann window for better spectral resolution
@@ -1837,58 +1728,58 @@ void tx_process(
 		// Remove DC offset and scale down
 		tx_fft_in[i] = (output_tx[i] - dc_offset) * window / (tx_amp * 150000000.0); // Significantly reduced scaling
 	}
-	
+
 	// Zero-pad the second half
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
 		tx_fft_in[i] = 0;
 	}
-	
+
 	// Use the existing FFT infrastructure
 	for (i = 0; i < MAX_BINS; i++) {
 		__real__ fft_in[i] = crealf(tx_fft_in[i]);
 		__imag__ fft_in[i] = 0;
 	}
-	
+
 	// Perform FFT using the existing plan
 	fftw_execute(plan_fwd);
-	
+
 	// Update the fft_spectrum array with the FFT results
 	// This is important because the spectrum_update function uses this array
-	
+
 	// First pass - enhanced detail with frequency-dependent scaling
 	for (i = 0; i < MAX_BINS; i++) {
 		// Calculate bin frequency relative to center (for frequency-dependent scaling)
 		int bin_from_center = i - MAX_BINS / 2;
 		if (bin_from_center < 0) bin_from_center = -bin_from_center;
-		
+
 		// Apply slightly higher gain to mid-range frequencies where voice details matter most
 		float freq_scale = 1.0;
 		if (bin_from_center > 10 && bin_from_center < 100) {
 			freq_scale = 1.3; // Boost mid-range frequencies
 		}
-		
+
 		// Store the FFT results with enhanced detail
 		fft_spectrum[i] = fft_out[i] * 0.025 * freq_scale; // Slightly increased from 0.02 for more detail
 	}
-	
+
 	// Apply a more refined smoothing that preserves detail while reducing noise
 	complex float *smoothed = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
-	
+
 	// Copy first and last points as-is
 	smoothed[0] = fft_spectrum[0];
 	smoothed[MAX_BINS-1] = fft_spectrum[MAX_BINS-1];
-	
+
 	// Apply minimal smoothing to preserve maximum detail
 	for (i = 1; i < MAX_BINS-1; i++) {
 		// Use weighted average with heavy weight on current bin: 80% current bin, 10% each adjacent bin
 		smoothed[i] = fft_spectrum[i-1] * 0.1 + fft_spectrum[i] * 0.8 + fft_spectrum[i+1] * 0.1;
-		
+
 		// Apply stronger contrast enhancement to make fine details more visible
 		float mag = cabsf(smoothed[i]);
 		if (mag > 0) {
 			// Use stronger non-linear enhancement to reveal subtle details
 			smoothed[i] *= (1.0 + 0.5 * log10f(mag + 1.0));
-			
+
 			// Add slight sharpening effect to enhance edges between frequency components
 			if (i > 1 && i < MAX_BINS-2) {
 				complex float edge_detect = smoothed[i] * 2.0 - smoothed[i-1] * 0.5 - smoothed[i+1] * 0.5;
@@ -1896,18 +1787,18 @@ void tx_process(
 			}
 		}
 	}
-	
+
 	// Copy smoothed spectrum back to fft_spectrum
 	for (i = 0; i < MAX_BINS; i++) {
 		fft_spectrum[i] = smoothed[i];
 	}
-	
+
 	// Free the temporary buffer
 	free(smoothed);
-	
+
 	// Call the standard spectrum update function to ensure consistent processing
 	spectrum_update();
-	
+
 	// Clean up
 	free(tx_fft_in);
 
@@ -2138,7 +2029,7 @@ void calibrate_band_power(struct power_settings *b)
 static void save_hw_settings()
 {
 	static int last_save_at = 0;
-	char file_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char file_path[PATH_MAX];
 
 	char *path = getenv("HOME");
 	strcpy(file_path, path);
@@ -2196,61 +2087,50 @@ void tx_cal()
 // added and edited comments
 // removed several delay() calls
 // eliminated LPF switching during tr_switch
-
-void tr_switch_de(int tx_on) {
-  // function replaced by tr_switch, should never be called
-}
-
-void tr_switch_v2(int tx_on) {
-  // function replaced by tr_switch, should never be called
-}
-
 // transmit-receive switch for both sbitx DE and V2 and newer
 void tr_switch(int tx_on) {
-  if (tx_on) {                   // switch to transmit
-    in_tx = 1;                   // raise a flag so functions see we are in transmit mode
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
-    sound_mixer(audio_card, "Capture", 0);
-		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
-		delay(20);
+	if (tx_on) {                   // switch to transmit
+		in_tx = 1;                   // raise a flag so functions see we are in transmit mode
+		sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
+		sound_mixer(audio_card, "Capture", 0);
+		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR)
+			delay(20);
+		//mute_count = 20;             // number of audio samples to zero out
+		mute_count = 1;             // number of audio samples to zero out
+		fft_reset_m_bins();          // fixes burst at start of transmission
+		set_tx_power_levels();       // use values for tx_power_watts, tx_gain
+		//ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
+		if (ext_ptt_enable == 1) {
+			digitalWrite(EXT_PTT, HIGH);
+			delay(20); //this delay gives time for ext device to settle before tx
+		}
+		digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
+		spectrum_reset();
+
+		// Also reset the hold counter for showing the output power
+		fwdpower_cnt = 0;
+		fwdpower_calc = 0;
+		fwdpower = 0;
+	} else {                       // switch to receive
+		in_tx = 0;                   // lower the transmit flag
+		sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
+		sound_mixer(audio_card, "Capture", 0);
+		fft_reset_m_bins();
+		mute_count = MUTE_MAX;
+		digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
+		delay(5);
+		digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
+		check_r1_volume();           // audio codec is back on
+		initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
+		sound_mixer(audio_card, "Master", rx_vol);
+		sound_mixer(audio_card, "Capture", rx_gain);
+		spectrum_reset();
+
+		// Also reset the hold counter for showing the output power
+		fwdpower_cnt = 0;
+		fwdpower_calc = 0;
+		fwdpower = 0;
 	}
-    //mute_count = 20;             // number of audio samples to zero out
-    mute_count = 1;             // number of audio samples to zero out
-	fft_reset_m_bins();          // fixes burst at start of transmission
-    set_tx_power_levels();       // use values for tx_power_watts, tx_gain
-    //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
-			if (ext_ptt_enable == 1) {
-				digitalWrite(EXT_PTT, HIGH);
-				delay(20); //this delay gives time for ext device to settle before tx
-			}
-    digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
-    spectrum_reset();
-
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
-    fwdpower = 0;
-
-  } else {                       // switch to receive
-    in_tx = 0;                   // lower the transmit flag
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
-    sound_mixer(audio_card, "Capture", 0);
-    fft_reset_m_bins();
-    mute_count = MUTE_MAX;
-    digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
-    delay(5);
-    digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
-    check_r1_volume();           // audio codec is back on
-    initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
-    sound_mixer(audio_card, "Master", rx_vol);
-    sound_mixer(audio_card, "Capture", rx_gain);
-    spectrum_reset();
-
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
-    fwdpower = 0;
-  }
 }
 
 /*
@@ -2288,14 +2168,14 @@ void setup()
 	//initialize the queues
 	q_init(&qremote, 8000);
 	q_init(&qbrowser_mic, 32000); // Initialize browser microphone queue with much larger buffer
-	
+
 	// Initialize jitter buffer
 	jitter_buffer_write = 0;
 	jitter_buffer_read = 0;
 	jitter_buffer_samples = 0;
 
 	modem_init();
-	
+
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;

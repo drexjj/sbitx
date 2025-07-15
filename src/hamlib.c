@@ -230,15 +230,15 @@ void get_vfo(int client_socket) {
         send_response(client_socket, "VFOB\n");
     }
 }
+
 void set_vfo(int client_socket, char* f) {
     field_set("VFO", f);
-    char response[5];
-    sprintf(response, "VFO%s\n", f);
-    //printf("[VFO%s\n]", f);
+    //~ printf("[VFO%s\n]", f);
+    char response[6];
+    snprintf(response, sizeof(response), "VFO%s\n", f);
     send_response(client_socket, "RPRT 0\n");
-
-
 }
+
 void get_split(int client_socket) {
     char curr_split[4];
     get_field_value_by_label("SPLIT", curr_split);

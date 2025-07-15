@@ -36,7 +36,7 @@ void macro_get_keys(char *output){
 }
 
 void macro_list(char *output){
-	char full_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+	char full_path[PATH_MAX];
 
 	char *home_path = getenv("HOME");
 	strcpy(full_path, home_path);
@@ -45,7 +45,7 @@ void macro_list(char *output){
   struct dirent *dir;
 
 	if (!d){
-		write_console(FONT_LOG, "\Error:web subdirectory is missing\n");
+		write_console(STYLE_LOG, "\Error:web subdirectory is missing\n");
 		return;
 	}
 
@@ -78,9 +78,9 @@ void macro_label(int fn_key, char *label){
 	}
 }
 
-int  macro_load(char *filename, char *output){
+int  macro_load(const char *filename, char *output){
 	char macro_line[255];
-	char full_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+	char full_path[PATH_MAX];
 
 	char *home_path = getenv("HOME");
 	strcpy(full_path, home_path);
