@@ -3282,7 +3282,7 @@ function FT8_stylize_message_item(item, text, style) {
 function FT8_list_append(list_id, text, style){
         var item = document.createElement("li");
         FT8_stylize_message_item(item, text, style);
-        item.id = deco_strip(text).replace(/[^\w\-\~]+/g, "_");
+        item.id = deco_strip(text).replace(/[^\w\-\/\~]+/g, "_");
         item.addEventListener("click", FT8_message_chosen);
         el(list_id).children[0].appendChild(item);
         item.scrollIntoView({ behaviour: 'smooth', block: 'nearest' });
