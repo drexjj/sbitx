@@ -80,9 +80,11 @@ int hd_message_parse(struct hd_message_struct* p_message, const char* raw_messag
 	r = hd_next_token(raw_message, r, p_message->m1, 32, " ");
 	if (r < 0) return r;
 	r = hd_next_token(raw_message, r, p_message->m2, 32, " ");
-	if (r < 0) return r;
+	if (r < -1) return r;
+	if (r < 0) return 0;
 	r = hd_next_token(raw_message, r, p_message->m3, 32, " ");
-	if (r < 0) return r;
+	if (r < -1) return r;
+	if (r < 0) return 0;
 	r = hd_next_token(raw_message, r, p_message->m4, 32, " ");
 	if (r < -1) return r;
 	return 0;
