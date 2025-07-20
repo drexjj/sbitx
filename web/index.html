@@ -475,7 +475,7 @@
                     <ol class="sbitx-list-box"></ol>
                 </div>
                 <div id="wsjtx-rx" class="sbitx-list-container">
-                    RX Frequency
+                    QSOs
                     <ol class="sbitx-list-box"></ol>
                 </div>
                 <div id="gridmap"></div>
@@ -2235,7 +2235,7 @@
         const tx_pitch = mode === "AM" ? 0 : parseFloat(txPitchEl.value);
         const rit = el("RIT").value;
         const rit_delta = parseInt(el("RIT_DELTA").value) || 0;
-      
+
         ctx.beginPath();
         ctx.strokeStyle = "cyan";
         ctx.fillStyle = "white";
@@ -2283,25 +2283,25 @@
             ctx.fillText("TX", tx_x - 10, drawHeight + 12);
             ctx.stroke();
         }
-           
+
         // Draw TX frequency indicator when RIT is enabled.
         // Similar to the implementation we have in sbitx_gtk.c for the local visualizations
         if (rit === "ON" && !in_tx) {
             ctx.beginPath();
             ctx.strokeStyle = "red";
             ctx.fillStyle = "red";
-            
+
             // Calculate TX frequency position
             // TX freq = RX freq - RIT delta (same calculation as in GTK)
             const freq_diff = -rit_delta; // Negative because we subtract RIT delta from RX freq
             const offset_pixels = freq_diff * hz_per_pixel;
             const tx_needle_x = half_width + offset_pixels;
-            
+
             // Check if TX indicator is within visible range
             let is_at_edge = false;
             let arrow_direction = 0;
             let display_x = tx_needle_x;
-            
+
             if (tx_needle_x < 0) {
                 display_x = 0;
                 is_at_edge = true;
@@ -2312,20 +2312,20 @@
                 is_at_edge = true;
                 arrow_direction = 1;
             }
-            
+
             // Draw the vertical line
             ctx.moveTo(display_x, 0);
             ctx.lineTo(display_x, drawHeight);
             ctx.stroke();
-            
+
             // Draw arrow if TX frequency is outside visible range
             if (is_at_edge) {
                 const center_y = drawHeight / 2;
                 const arrow_size = 10;
-                
+
                 ctx.beginPath();
                 ctx.moveTo(display_x, center_y);
-                
+
                 if (arrow_direction < 0) {
                     // Arrow pointing right (TX is to the left of visible area)
                     ctx.lineTo(display_x + arrow_size, center_y - arrow_size/2);
@@ -2335,16 +2335,16 @@
                     ctx.lineTo(display_x - arrow_size, center_y - arrow_size/2);
                     ctx.lineTo(display_x - arrow_size, center_y + arrow_size/2);
                 }
-                
+
                 ctx.closePath();
                 ctx.fill();
             }
-            
+
             // Add TX label if there's room
             const tx_label_x = display_x - 10;
             let tx_label_overlaps = false;
             const tx_label_width = ctx.measureText("TX").width + 5;
-            
+
             // Check for overlap with spot labels and RX label
             for (const spot of spots_with_x) {
                 const spot_label_x = spot.x - 10;
@@ -2355,12 +2355,12 @@
                     break;
                 }
             }
-            
+
             // Also check overlap with RX label
             if (Math.abs(tx_label_x - rx_x + 10) < tx_label_width) {
                 tx_label_overlaps = true;
             }
-            
+
             if (!tx_label_overlaps) {
                 ctx.fillText("TX", tx_label_x, drawHeight + 12);
             }
@@ -2909,7 +2909,7 @@
         } else if (e.id === "RIT" && e.value == "ON") {
             websocket_send("rit" + " " + "on"); // Original behavior for other selects
         } else if (e.id === "RIT" && e.value == "OFF") {
-            websocket_send("rit" + " " + "off"); // Original behavior for other selects    
+            websocket_send("rit" + " " + "off"); // Original behavior for other selects
         } else {
             log("Sending command: " + e.id + " " + e.value); // Debug log
             websocket_send(e.id + " " + e.value); // Original behavior for other selects
@@ -3148,55 +3148,6 @@
         }
         return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
     }
-    function FT8_stylize_message_item(item, text, style) {
-        //tokenize the message
-        var normalized_text = text.replace(/_/g, ' ');
-        var token_list = normalized_text.match(/\S+/g)
-        if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9) {
-            log("FT8_process_message: error parsing [" + text + "]");
-            return;
-        }
-        var label_position = normalized_text.search("~");
-        var label = normalized_text.substring(0, label_position);
-
-        var confidence_score = token_list[1];
-        var signal_strength = token_list[2];
-        var rx_frequency = token_list[3];
-        var m1 = token_list[5];
-        var m2 = token_list[6];
-        var m3 = token_list[7];
-        var m4 = token_list[8];
-        var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-        var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
-        if (style == 'Q') {
-            item.className = "sbitx-list-item wsjtx-message-queued";
-        }
-        else if (deco_strip(m1) == mycallsign) {
-            item.className = "sbitx-list-item wsjtx-message-for-me";
-        }
-        else if (deco_strip(m2) == mycallsign) {
-            item.className = "sbitx-list-item wsjtx-mycallsign";
-        }
-        else {
-            item.className = "sbitx-list-item";
-        }
-        var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";
-        // detailed markup
-        var htmMessage = "";
-        if (deco_strip(m1) == "CQ") {
-            item.className = "sbitx-list-item wsjtx-cq-in-message";
-            if (token_list.length == 8) { // CQ sender grid
-                htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
-            } else { // CQ DX sender grid
-                htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
-            }
-        }
-        else {
-            // contact sender grid|R
-            htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
-        }
-        item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
-    }
 
 // Style codes of interest - if present the caller / grid is not found in the log
 const STYLE_MYCALL = 16;
@@ -3234,22 +3185,37 @@ function deco_to_span(text) {
 function FT8_stylize_message_item(item, text, style) {
 	//tokenize the message
 	var token_list = text.match(/\S+/g);
-	if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9){
-		log("FT8_process_message: error parsing [" + text + "]");
+	if (token_list.length < 6 || token_list.length > 9){
+		log("FT8_stylize_message_item: not enough tokens in [" + text + "]" + JSON.stringify(token_list));
 		return;
 	}
-        var label_position = text.search("~");
-        var label = text.substring(0, label_position);
+	var tilde_pos = -1;
+	for (var i = 3; i < token_list.length; ++i)
+		if (token_list[i] == '~') {
+			tilde_pos = i;
+			break;
+		}
+	if (tilde_pos < 0) {
+		log("FT8_stylize_message_item: tilde not found in [" + text + "]" + JSON.stringify(token_list));
+		return;
+	}
 
+	var label_position = text.search("~");
+	var label = text.substring(0, label_position);
+
+	// fields from RX messages
 	var confidence_score = token_list[1];
 	var signal_strength = token_list[2];
 	var rx_frequency = token_list[3];
-	var m1 = token_list[5];
-	var m2 = token_list[6];
-	var m3 = token_list[7];
-	var m4 = token_list[8];
+
+	// stuff past the tilde, in either RX or TX case
+	var m1 = token_list[tilde_pos + 1];
+	var m2 = token_list[tilde_pos + 2];
+	var m3 = token_list.length > tilde_pos + 3 ? token_list[tilde_pos + 3] : "";
+	var m4 = token_list.length > tilde_pos + 4 ? token_list[tilde_pos + 4] : "";
 	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
 	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
+	// console.log("FT8_stylize_message_item: vars", tilde_pos, m1, m2, m3, m4, mycallsign, mygrid);
 	if(style == 'Q') {
 		item.className = "sbitx-list-item wsjtx-message-queued";
 	}
@@ -3291,7 +3257,7 @@ function FT8_list_append(list_id, text, style){
     function FT8_transmit(message) {
         websocket_send("key " + message + "\n");
         log("FT8 tx: " + message);
-        //	FT8_list_append("wsjtx-rx", message);
+        // FT8_list_append("wsjtx-rx", message);
     }
 
     function FT8_cq(event) {
@@ -3317,7 +3283,7 @@ function FT8_list_append(list_id, text, style){
         var normalized_text = message_text.replace(/_/g, ' ');
         var token_list = normalized_text.match(/\S+/g);
         if (token_list.length < 7 || token_list[4] != '~' || token_list.length > 9) {
-            log("FT8_process_message: error parsing [" + message_text + "]");
+            log("FT8_message_chosen: error parsing [" + message_text + "]" + JSON.stringify(token_list));
             return;
         }
 
