@@ -1070,8 +1070,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   int min_valid_symbol_duration = (decoder->dash_len / 6);
   // iterate through all received symbols (marks and spaces)
   for (int i = 0; i < decoder->next_symbol; i++) {
-    struct symbol_info current_symbol = decoder->symbol_str[i];
-    if (current_symbol.is_mark) {  // if the current symbol is a 'mark' (signal present)
+    if (decoder->symbol_str[i].is_mark) {  // if the current symbol is a 'mark' (signal present)
       if (!is_currently_in_mark && current_symbol.ticks > min_valid_symbol_duration) {
         is_currently_in_mark = 1;
         current_segment_ticks = 0;  // reset tick counter for the new mark segment
@@ -1108,7 +1107,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
       }
     }
     current_segment_ticks +=
-        current_symbol.ticks;  // Accumulate ticks for the current segment (mark or space)
+        decoder->symbol_str[i].ticks;  // Accumulate ticks for the current segment (mark or space)
   }
 
   // reset the symbol buffer for the next letter/sequence
