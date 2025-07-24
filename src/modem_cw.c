@@ -1109,9 +1109,9 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
     current_segment_ticks +=
         decoder->symbol_str[i].ticks;  // Accumulate ticks for the current segment (mark or space)
   }
-
   // reset the symbol buffer for the next letter/sequence
   decoder->next_symbol = 0;
+	
   // attempt to match the generated Morse code string to a character in the lookup table
   for (int i = 0; i < sizeof(morse_rx_table) / sizeof(struct morse_rx); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
