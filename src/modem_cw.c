@@ -1071,12 +1071,12 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   // iterate through all received symbols (marks and spaces)
   for (int i = 0; i < decoder->next_symbol; i++) {
     if (decoder->symbol_str[i].is_mark) {  // if the current symbol is a 'mark' (signal present)
-      if (!is_currently_in_mark && current_symbol.ticks > min_valid_symbol_duration) {
+      if (!is_currently_in_mark && decoder->symbol_str[i].ticks > min_valid_symbol_duration) {
         is_currently_in_mark = 1;
         current_segment_ticks = 0;  // reset tick counter for the new mark segment
       }
     } else {  // If the current symbol is a 'space' (silence)
-      if (is_currently_in_mark && current_symbol.ticks > min_valid_symbol_duration) {
+      if (is_currently_in_mark && decoder->symbol_str[i].ticks > min_valid_symbol_duration) {
         is_currently_in_mark = 0;  // We are now in a space
 
         // classify the preceding mark based on its duration
