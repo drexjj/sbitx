@@ -1033,57 +1033,6 @@ void cw_rx_process_symbol(struct cw_decoder *p) {
   }
 }
 
-static void cw_rx_match_letter(struct cw_decoder *p){
-	char code[MAX_SYMBOLS];
-
-	if (p->next_symbol == 0){
-		return;
-	}
-
-	int len = p->next_symbol;
-	int in_mark = 0;
-	int total_ticks = 0;
-	int min_dot = (p->dash_len / 6); 
-	code[0] = 0;
-	int i = 0;
-
-	while(i < p->next_symbol){
-		if (p->symbol_str[i].is_mark){
-			if(!in_mark && p->symbol_str[i].ticks > min_dot){
-				in_mark = 1;
-				total_ticks = 0;
-			}
-		}
-		else {
-			if(in_mark && p->symbol_str[i].ticks > min_dot){
-				in_mark = 0;
-				if (total_ticks > p->dash_len / 2){
-					strcat(code, "-");
-					//track the dashes
-					int new_dash = ((p->dash_len * 3) + total_ticks)/4;
-					int init_dash_len = (18 * SAMPLING_FREQ) / (5 * N_BINS* p->wpm); 
-					if (init_dash_len/2 <  new_dash && new_dash < init_dash_len * 2)
-						p->dash_len = new_dash;
-					//printf("%d\n", p->dash_len);
-				}
-				else if (min_dot <= total_ticks && total_ticks <= p->dash_len/2)
-					strcat(code, ".");
-			}
-		}
-		total_ticks += p->symbol_str[i].ticks;
-		i++;
-	}	
-
-	p->next_symbol = 0;
-	for (int i = 0; i < sizeof(morse_rx_table)/sizeof(struct morse_rx); i++)
-		if (!strcmp(code, morse_rx_table[i].code)){
-			write_console(FONT_CW_RX, morse_rx_table[i].c);
-			return;
-		}
-	//un-decoded phrases
-	write_console(FONT_CW_RX, code);
-}
-
 // add a mark or space to the symbol buffer, store its duration (ticks),
 // and update the symbol's average magnitude
 static void cw_rx_add_symbol(struct cw_decoder *p, char symbol) {
@@ -1103,6 +1052,77 @@ static void cw_rx_add_symbol(struct cw_decoder *p, char symbol) {
         ((p->symbol_str[p->next_symbol].magnitude * 10) + p->magnitude) / 11;
     // Move to the next position in the symbol buffer.
     p->next_symbol++;
+}
+
+// take string of marks and spaces with their durations in "ticks" and
+// translate them into a Morse code character
+static void cw_rx_match_letter(struct cw_decoder *decoder) {
+  char morse_code_string[MAX_SYMBOLS];
+  // if no symbols have been received, there's nothing to decode.
+  if (decoder->next_symbol == 0) {
+    return;
+  }
+  // initialize state variables for processing symbols
+  int is_currently_in_mark = 0;
+  int current_segment_ticks = 0;  
+  morse_code_string[0] = '\0';  // Ensure the string starts empty
+  // calculate the minimum duration for a valid dot
+  int min_valid_symbol_duration = (decoder->dash_len / 6);
+  // iterate through all received symbols (marks and spaces)
+  for (int i = 0; i < decoder->next_symbol; i++) {
+    struct symbol_info current_symbol = decoder->symbol_str[i];
+    if (current_symbol.is_mark) {  // if the current symbol is a 'mark' (signal present)
+      if (!is_currently_in_mark && current_symbol.ticks > min_valid_symbol_duration) {
+        is_currently_in_mark = 1;
+        current_segment_ticks = 0;  // reset tick counter for the new mark segment
+      }
+    } else {  // If the current symbol is a 'space' (silence)
+      if (is_currently_in_mark && current_symbol.ticks > min_valid_symbol_duration) {
+        is_currently_in_mark = 0;  // We are now in a space
+
+        // classify the preceding mark based on its duration
+        if (current_segment_ticks > decoder->dash_len / 2) {
+          // this was a dash
+          strcat(morse_code_string, "-");
+          // now make adaptive adjustment of dash_len
+          // refine the expected dash length based on observed dashes
+          // new dash length is an average, weighted towards the observed length
+          int observed_dash_length =
+              ((decoder->dash_len * 3) + current_segment_ticks) / 4;
+          // validate the new dash length before updating to prevent extreme swings
+          // It must be within a reasonable range (half to double the initial
+          // expected length)
+          int initial_theoretical_dash_len =
+              (18 * SAMPLING_FREQ) / (5 * N_BINS * decoder->wpm);
+          if (initial_theoretical_dash_len / 2 < observed_dash_length &&
+              observed_dash_length < initial_theoretical_dash_len * 2) {
+            decoder->dash_len = observed_dash_length;
+          }
+          // debugging the dash_len adaptation.
+          // printf("Updated dash_len: %d\n", decoder->dash_len);
+        } else if (current_segment_ticks >= min_valid_symbol_duration &&
+                   current_segment_ticks <= decoder->dash_len / 2) {
+          // this was a dot
+          strcat(morse_code_string, ".");
+        }
+      }
+    }
+    current_segment_ticks +=
+        current_symbol.ticks;  // Accumulate ticks for the current segment (mark or space)
+  }
+
+  // reset the symbol buffer for the next letter/sequence
+  decoder->next_symbol = 0;
+  // attempt to match the generated Morse code string to a character in the lookup table
+  for (int i = 0; i < sizeof(morse_rx_table) / sizeof(struct morse_rx); i++) {
+    if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
+      // Match found, write the decoded character to the console
+      write_console(FONT_CW_RX, morse_rx_table[i].c);
+      return;  // successfully decoded a character
+    }
+  }
+  // if no match was found in the table, output the raw dot/dash sequence.
+  write_console(FONT_CW_RX, morse_code_string);
 }
 
 void cw_init(){	
