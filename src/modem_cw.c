@@ -1008,16 +1008,15 @@ static void cw_rx_denoise(struct cw_decoder *p) {
   // old code used majority voting to decide
   // if (count >= 3 ) p->mark = 30000;
   // else p->mark = 0;
-  // new hysteresis logic
+  // hysteresis logic to replace majority voting
   if (p->prev_mark == 0) {
-    // we are in a space, require a majority to transition to a mark
+    // we are in a space, set count required to transition to mark
     if (count >= 3) p->mark = 30000;
     else p->mark = 0;
   }
   else {
-    // we are in a mark, be tolerant of brief drops
-    // needs only 2 of 5 bits to stay '1'
-    if (count >= 2) p->mark = 30000;
+    // we are in a mark, set count required to stay as mark
+    if (count >= 3) p->mark = 30000;
     else p->mark = 0; 
   }
 }
