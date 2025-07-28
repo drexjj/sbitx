@@ -27,6 +27,7 @@
 #define FLOAT_SCALE (1073741824.0)
 #define HIGH_DECAY 100  // used in updating noise floor
 #define NOISE_DECAY 100 
+#define SNR_THRESHOLD 3.0f  // signal detection in cw_rx_bin()
 
 // structs and typedefs
 struct morse_tx {
@@ -904,44 +905,40 @@ void cw_rx(int32_t *samples, int count) {
   cw_rx_detect_symbol(&decoder);    // detect Morse symbols
 }
 
-// look for presence of signal in this block of samples
-static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
-  // check all three frequency bins and pick the largest
+// finds the signal magnitude in three different frequency bins and
+// selects the strongest to tolerate mistuning
+static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   int mag_center = cw_rx_bin_detect(&p->signal_center, samples);
-  int mag_plus   = cw_rx_bin_detect(&p->signal_plus, samples);
-  int mag_minus  = cw_rx_bin_detect(&p->signal_minus, samples);
-  int sig_now = mag_center;
-  if (mag_plus > sig_now)  sig_now = mag_plus;
-  if (mag_minus > sig_now) sig_now = mag_minus;
-	
-	// compare to recent magnitude levels to see if signal present
-  p->magnitude = sig_now;
-	if (p->magnitude > (p->high_level * 6)/10){
-			p->sig_state = 30000;
-	}
-	else if (p->magnitude <  (p->high_level * 4)/10 ){ 
-		p->sig_state = 0;
-	}
-	p->ticker++;
+  int mag_plus = cw_rx_bin_detect(&p->signal_plus, samples);
+  int mag_minus = cw_rx_bin_detect(&p->signal_minus, samples);
 
-	// PROVIDE DEBUGGING SUPPORT
-	if (pfout){
-		int sym_mag = p->symbol_str[p->next_symbol].magnitude;
-		int mag = p->magnitude;
-		int snr1 = 1;
-		if (p->noise_floor > 100)
-			snr1 = (p->magnitude * 10)/p->noise_floor;
-		int snr = 0;
-		if (snr1 > 20)
-			snr = 10000;
-		for (int i = 0; i < p->n_bins; i++){
-			fwrite(&mag,2,1,pfout);	
-		//fwrite(&mark,2,1,pfout);	
-			fwrite(&p->mark, 2, 1, pfout);
-			fwrite(&sym_mag, 2, 1, pfout);
-			fwrite(&snr, 2, 1, pfout);
-		}
-	} // END DEBUGGING SUPPORT
+  // Find which bin is the strongest
+  int sig_mag;    // strongest signal bin
+  int noise_mag;  // average of the other two bins (used as noise estimate)
+  if (mag_center >= mag_plus && mag_center >= mag_minus) {
+    // mag_center is the strongest
+    sig_mag = mag_center;
+    noise_mag = (mag_plus + mag_minus) / 2;
+  } else if (mag_plus >= mag_center && mag_plus >= mag_minus) {
+    // mag_plus is the strongest
+    sig_mag = mag_plus;
+    noise_mag = (mag_center + mag_minus) / 2;
+  } else {
+    // mag_minus is the strongest
+    sig_mag = mag_minus;
+    noise_mag = (mag_center + mag_plus) / 2;
+  }
+
+  // compute SNR and compare to threshold
+  float snr = (float)sig_mag / (noise_mag + 1.0f);  // avoid div by zero
+  p->magnitude = sig_mag;
+  // if SNR exceeds threshold then signal present
+  if (snr > SNR_THRESHOLD) {
+    p->sig_state = 30000;
+  } else {
+    p->sig_state = 0;
+  }
+  p->ticker++;
 }
 
 // use Goertzel algorithm to detect the magnitude of a specific frequency bin
