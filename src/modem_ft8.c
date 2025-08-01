@@ -302,10 +302,7 @@ int sbitx_ft8_encode(char *message, bool is_ft4)
 {
     ftx_message_rc_t rc = ftx_message_encode(&ftx_tx_msg, &hash_if, message);
     if (rc != FTX_MESSAGE_RC_OK)
-    {
         printf("Cannot encode FTx message! RC = %d\n", (int)rc);
-        return -1;
-    }
 
 	return rc;
 }
@@ -888,14 +885,19 @@ void ft8_tx(char *message, int freq){
 	time_t	rawtime = time_sbitx();
 	struct tm *t = gmtime(&rawtime);
 
+	ft8_tx_text[0] = 0;
 	for (int i = 0; i < strlen(message); i++)
 		message[i] = toupper(message[i]);
-	strcpy(ft8_tx_text, message);
+	if (sbitx_ft8_encode(message, false) != FTX_MESSAGE_RC_OK) {
+		LOG(LOG_INFO, "failed to encode: nothing to transmit\n");
+		return;
+	}
+
+	strncpy(ft8_tx_text, message, sizeof(ft8_tx_text));
 	if (!freq) {
 		freq = field_int("TX_PITCH");
 		ft8_pitch = freq;
 	}
-	sbitx_ft8_encode(ft8_tx_text, false);
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
 
 	snprintf(buf, sizeof(buf), "%02d%02d%02d  TX     %4d ~ %s\n", t->tm_hour, t->tm_min, t->tm_sec, freq, ft8_tx_text);
