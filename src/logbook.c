@@ -59,14 +59,14 @@ int logbook_has_power_and_swr() {
 	return ret;
 }
 
-/* writes the output to data/result_rows.txt
+/* writes the output to /tmp/sbitx_result_rows.txt
 	if the from_id is negative, it returns the later 50 records (higher id)
 	if the from_id is positive, it returns the prior 50 records (lower id) */
 
 int logbook_query(char* query, int from_id, char* result_file)
 {
 	sqlite3_stmt* stmt;
-	char statement[200], json[10000], param[2000];
+	char statement[200], param[2000];
 
 	if (db == NULL)
 		logbook_open();
@@ -103,8 +103,7 @@ int logbook_query(char* query, int from_id, char* result_file)
 	// printf("[%s]\n", statement);
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
-	char output_path[PATH_MAX];
-	sprintf(output_path, "%s/sbitx/data/result_rows.txt", getenv("HOME"));
+ 	const char *output_path = "/tmp/sbitx_result_rows.txt";
 	strncpy(result_file, output_path, sizeof(result_file));
 
 	FILE* pf = fopen(output_path, "w");
@@ -951,8 +950,8 @@ void add_to_list(GtkListStore* list_store, const gchar* id, const gchar* qso_dat
 
 int logbook_fill(int from_id, int count, const char* query)
 {
-	sqlite3_stmt* stmt;
-	char statement[200], json[10000], param[2000];
+	sqlite3_stmt *stmt;
+	char statement[200], param[2000];
 
 	if (db == NULL)
 		logbook_open();
