@@ -899,7 +899,7 @@ void cw_rx(int32_t *samples, int count) {
   int32_t s[128];
   int32_t filtered_samples[count];
   // apply anti-aliasing low pass filter
-  apply_fir_filter(samples, filtered_samples, fir_coeffs, count, FILTER_ORDER);
+  apply_fir_filter(samples, filtered_samples, fir_coeffs, count, 64);
   // use decimation_factor to downsample
   // and eliminate eight LSB
   for (int i = 0; i < decoder.n_bins; i++){	
