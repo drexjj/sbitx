@@ -25,8 +25,8 @@
 #define MAX_SYMBOLS 100
 #define CW_MAX_SYMBOLS 12
 #define FLOAT_SCALE (1073741824.0)
-#define HIGH_DECAY 50  // 1/HIGH_DECAY controls max high_level adjustment
-#define NOISE_DECAY 100  // 1/NOISE_DECAY controls max noise_level adjustment
+#define HIGH_DECAY 50    // controls max high_level adjustment
+#define NOISE_DECAY 100  // controls max noise_level adjustment
 
 // structs and typedefs
 struct morse_tx {
@@ -860,6 +860,8 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 // processing flow
 // cw_rx(int32_t *samples, int count)  // called from modem_rx()
 // │                                      in modems.c
+// ├── apply_fir_filter(...) 
+// │
 // ├── cw_rx_bin(&decoder, s)
 // │   ├── cw_rx_bin_detect(&p->signal_center, samples)
 // │   ├── cw_rx_bin_detect(&p->signal_plus, samples)
@@ -875,6 +877,8 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 
 // CW decoder function prototypes
 void cw_rx(int32_t *samples, int count);
+static const float fir_coeffs[64];
+void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order);
 static void cw_rx_bin(struct cw_decoder *p, int32_t *samples);
 static int  cw_rx_bin_detect(struct bin *p, int32_t *data);
 static void cw_rx_update_levels(struct cw_decoder *p);
@@ -893,16 +897,45 @@ static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq
 void cw_rx(int32_t *samples, int count) {
   int decimation_factor = 8;  // 96 kHz to 12 kHz
   int32_t s[128];
-  
+  int32_t filtered_samples[count];
+  // apply anti-aliasing low pass filter
+  apply_fir_filter(samples, filtered_samples, fir_coeffs, count, FILTER_ORDER);
   // use decimation_factor to downsample
   // and eliminate eight LSB
-  for (int i = 0; i < decoder.n_bins; i++) {	
-	  s[i] = samples[i * decimation_factor] >> 8;			
+  for (int i = 0; i < decoder.n_bins; i++){	
+    s[i] = filtered_samples[i * 8] >> 8;			
   }
   cw_rx_bin(&decoder, s);         // look for signal in this block
   cw_rx_update_levels(&decoder);  // update high and low noise levels
   cw_rx_denoise(&decoder);        // denoise the signal state
   cw_rx_detect_symbol(&decoder);  // detect Morse symbols
+}
+
+// static constant array of low-pass FIR filter coefficients
+// generated for a 5000 Hz cutoff at a 96000 Hz sample rate using a Blackman window
+static const float fir_coeffs[64] = {
+    -0.00000000, -0.00000030, -0.00000109, -0.00000303, -0.00000632, -0.00001140, -0.00001878, -0.00002875,
+    -0.00004126, -0.00005572, -0.00007119, -0.00008620, -0.00009893, -0.00010721, -0.00010892, -0.00010260,
+    -0.00008639, -0.00005886, -0.00001928,  0.00003460,  0.00010214,  0.00018260,  0.00027546,  0.00037989,
+     0.00049448,  0.00061730,  0.00074609,  0.00087819,  0.00101062,  0.00114022,  0.00126359,  0.00137703,
+     0.00147746,  0.00156226,  0.00162925,  0.00167664,  0.00170295,  0.00170725,  0.00168925,  0.00164923,
+     0.00158788,  0.00150616,  0.00140518,  0.00128604,  0.00115000,  0.00099863,  0.00083362,  0.00065675,
+     0.00047000,  0.00027552,  0.00007559, -0.00012891, -0.00033486, -0.00053896, -0.00073801, -0.00092928,
+    -0.00111003, -0.00127735, -0.00142838, -0.00156037, -0.00167069, -0.00175685, -0.00181665, -0.00184837
+};
+
+// apply the FIR filter using convolution
+void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order) {
+    for (int i = 0; i < input_count; i++) {
+        float sum = 0.0f;
+        for (int j = 0; j < order; j++) {
+            int k = i - j;
+            if (k >= 0) {
+                sum += (float)input[k] * coeffs[j];
+            }
+        }
+        output[i] = (int32_t)sum;
+    }
 }
 
 // detect signal in this block of samples
