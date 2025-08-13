@@ -1060,7 +1060,7 @@ static void cw_rx_denoise(struct cw_decoder *p) {
   }
   else {
     // we are in a mark, set count required to stay as mark
-    if (count >= 2) p->mark = 30000;
+    if (count >= 3) p->mark = 30000;
     else p->mark = 0; 
   }
 }
