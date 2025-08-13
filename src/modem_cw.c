@@ -79,6 +79,7 @@ struct cw_decoder {
 	int32_t history_sig;
 	struct symbol symbol_str[MAX_SYMBOLS];
 	int next_symbol;
+  int last_char_was_space; 
 };
 
 struct cw_decoder decoder;
@@ -1084,19 +1085,25 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
     if (p->next_symbol == 0) {
       // No symbol being built, check for word gap (long space)
       if (p->ticker > (p->dash_len * 3) / 2) { // if space is longer than 1.5 times a dash length
-        write_console(FONT_CW_RX, " ");      // output a space to the console (word separator)
+        if (!p->last_char_was_space) {
+          write_console(FONT_CW_RX, " ");      // output a space to the console (word separator)
+          p->last_char_was_space = 1;
+        }
         p->ticker = 0;                       // reset ticker after outputting space
       }
     } else {
       // There is an ongoing symbol, check for end of a symbol (dot/dash)
-	    if (p->ticker > p->dash_len / 2) { // if space is longer than half a dash length (approx 1.5 dot units)
-    		cw_rx_add_symbol(p, ' ');      // add a 'space' symbol to terminate the current dot/dash
-    		cw_rx_match_letter(p);
+      if (p->ticker > p->dash_len / 2) { // if space is longer than half a dash length (approx 1.5 dot units)
+        cw_rx_add_symbol(p, ' ');      // add a 'space' symbol to terminate the current dot/dash
+        cw_rx_match_letter(p);
         if (p->ticker > (p->dash_len * 3) / 2) {
-          write_console(FONT_CW_RX, " ");
+          if (!p->last_char_was_space) {
+            write_console(FONT_CW_RX, " ");
+            p->last_char_was_space = 1;
+          }
         }
         p->ticker = 0; // reset ticker after processing the symbol and potential word gap
-	    }
+      }
     }
   }
   // case where we are still in a mark (both current and previous are mark)
@@ -1190,11 +1197,13 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
       // match found, write the decoded character to the console
       write_console(FONT_CW_RX, morse_rx_table[i].c);
+      decoder->last_char_was_space = 0;
       return;  // successfully decoded a character
     }
   }
   // if no match was found in the table, output the raw dot/dash sequence.
   write_console(FONT_CW_RX, morse_code_string);
+  decoder->last_char_was_space = 0;
 }
 
 void cw_init(){	
@@ -1208,6 +1217,7 @@ void cw_init(){
 	decoder.history_sig = 0;
 	decoder.symbol_magnitude = 0;
 	decoder.wpm = 20;
+  decoder.last_char_was_space = 0;
 
 	// dot len (in msec)) = 1200/wpm; dash len = 3600/wpm
 	// each block of nbins = n_bins/sampling seconds; 
