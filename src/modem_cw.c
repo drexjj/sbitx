@@ -76,7 +76,7 @@ struct cw_decoder {
 	struct bin signal_plus2;
   int max_bin_idx;     // index of bin with max magnitude
   int max_bin_streak;  // how many consecutive blocks max_bin_idx hasn't changed
-	int32_t history_sig;
+	uint32_t history_sig;
 	struct symbol symbol_str[MAX_SYMBOLS];
 	int next_symbol;
   int last_char_was_space; 
@@ -1060,7 +1060,7 @@ static void cw_rx_denoise(struct cw_decoder *p) {
   }
   else {
     // we are in a mark, set count required to stay as mark
-    if (count >= 3) p->mark = 30000;
+    if (count >= 2) p->mark = 30000;
     else p->mark = 0; 
   }
 }
