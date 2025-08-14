@@ -1075,7 +1075,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
     p->ticker = 0;            // reset the ticker as a new space period begins
   }
   // case where we are at start of a mark (transition from space to mark)
-  else if (p->mark > 1 && p->prev_mark == 0) {
+  else if (p->mark != 0 && p->prev_mark == 0) {
     cw_rx_add_symbol(p, ' '); // add a 'space' symbol (representing the gap before the mark)
     p->ticker = 0;            // reset the ticker to start timing the new mark
   }
@@ -1084,7 +1084,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
     // check if there's an ongoing symbol being built (p->next_symbol != 0)
     if (p->next_symbol == 0) {
       // No symbol being built, check for word gap (long space)
-      if (p->ticker > (p->dash_len * 3) / 2) { // if space is longer than 1.5 times a dash length
+      if (p->ticker >= (p->dash_len * 3) / 2) { // if space is longer than 1.5 times a dash length
         if (!p->last_char_was_space) {
           write_console(FONT_CW_RX, " ");      // output a space to the console (word separator)
           p->last_char_was_space = 1;
@@ -1093,10 +1093,10 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
       }
     } else {
       // There is an ongoing symbol, check for end of a symbol (dot/dash)
-      if (p->ticker > p->dash_len / 2) { // if space is longer than half a dash length (approx 1.5 dot units)
+      if (p->ticker >= p->dash_len / 2) { // if space is longer than half a dash length (approx 1.5 dot units)
         cw_rx_add_symbol(p, ' ');      // add a 'space' symbol to terminate the current dot/dash
         cw_rx_match_letter(p);
-        if (p->ticker > (p->dash_len * 3) / 2) {
+        if (p->ticker >= (p->dash_len * 3) / 2) {
           if (!p->last_char_was_space) {
             write_console(FONT_CW_RX, " ");
             p->last_char_was_space = 1;
@@ -1109,7 +1109,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
   // case where we are still in a mark (both current and previous are mark)
   else if (p->mark > 0 && p->prev_mark > 0) {
     // clamp overly long dashes to prevent ticker overflow or misinterpretation.
-    if (p->ticker > p->dash_len * 3) {
+    if (p->ticker >= p->dash_len * 3) {
       p->ticker = p->dash_len; // cap the ticker at a reasonable dash length multiple
     }
   }
@@ -1153,16 +1153,16 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   // iterate through all received symbols (marks and spaces)
   for (int i = 0; i < decoder->next_symbol; i++) {
     if (decoder->symbol_str[i].is_mark) {  // if the current symbol is a 'mark' (signal present)
-      if (!is_currently_in_mark && decoder->symbol_str[i].ticks > min_valid_symbol_duration) {
+      if (!is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
         is_currently_in_mark = 1;
         current_segment_ticks = 0;  // reset tick counter for the new mark segment
       }
     } else {  // If the current symbol is a 'space' (silence)
-      if (is_currently_in_mark && decoder->symbol_str[i].ticks > min_valid_symbol_duration) {
+      if (is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
         is_currently_in_mark = 0;  // We are now in a space
 
         // classify the preceding mark based on its duration
-        if (current_segment_ticks > decoder->dash_len / 2) {
+        if (current_segment_ticks >= decoder->dash_len / 2) {
           // this was a dash
           strcat(morse_code_string, "-");
           // now make adaptive adjustment of dash_len
@@ -1180,7 +1180,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
             decoder->dash_len = observed_dash_length;
           }
         } else if (current_segment_ticks >= min_valid_symbol_duration &&
-                   current_segment_ticks <= decoder->dash_len / 2) {
+                   current_segment_ticks < decoder->dash_len / 2) {
           // this was a dot
           strcat(morse_code_string, ".");
         }
