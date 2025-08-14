@@ -1,7 +1,19 @@
+// standard library includes
+#include <assert.h>
+#include <complex.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
+
+// third-party library includes
+#include <fftw3.h>
+#include <wiringPi.h>
 
 // project-specific includes
 #include "sdr.h"
