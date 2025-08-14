@@ -1,19 +1,7 @@
-// standard library includes
-#include <assert.h>
-#include <complex.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <time.h>
-
-// third-party library includes
-#include <fftw3.h>
-#include <wiringPi.h>
 
 // project-specific includes
 #include "sdr.h"
@@ -57,7 +45,6 @@ struct symbol {
 };
 
 struct cw_decoder {
-	int n_samples_per_block;
 	int dash_len;
 	int mark;
 	int prev_mark;
@@ -67,7 +54,7 @@ struct cw_decoder {
 	int noise_floor;
 	int sig_state;
 	int magnitude;
-	int symbol_magnitude;
+	int symbol_magnitude;  // accumulated but not used ...
 	int wpm;
 	struct bin signal_minus2;
 	struct bin signal_minus1;
@@ -82,10 +69,10 @@ struct cw_decoder {
   int last_char_was_space; 
 };
 
-struct cw_decoder decoder;
+static struct cw_decoder decoder;
 
 // Morse code tables
-struct morse_tx morse_tx_table[] = {
+static const struct morse_tx morse_tx_table[] = {
 	{'~', " "}, //dummy, a null character
 	{' ', " "}, {'a', ".-"}, {'b', "-..."},	{'c', "-.-."}, {'d', "-.."},
 	{'e', "."}, {'f', "..-."}, {'g', "--."}, {'h', "...."}, {'i', ".."},
@@ -104,7 +91,7 @@ struct morse_tx morse_tx_table[] = {
 	{':', ".-..."}    // AS
 };
 
-struct morse_rx morse_rx_table[] = {
+static const struct morse_rx morse_rx_table[] = {
 	{"~", " "}, //dummy, a null character
 	{" ", " "}, {"A", ".-"}, {"B", "-..."}, {"C", "-.-."}, {"D", "-.."},
 	{"E", "."}, {"F", "..-."}, {"G", "--."}, {"H", "...."}, {"I", ".."},
@@ -141,17 +128,12 @@ static int cw_tx_until = 0;
 static int data_tx_until = 0;
 
 static char *symbol_next = NULL;
-char iambic_symbol[4];
-char cw_symbol_prev = ' ';
 
 static uint8_t cw_current_symbol = CW_IDLE;
 static uint8_t cw_next_symbol = CW_IDLE;
 static uint8_t cw_last_symbol = CW_IDLE;
 static uint8_t cw_mode = CW_STRAIGHT;
 static int cw_bytes_available = 0;
-char cw_key_letter[CW_MAX_SYMBOLS];
-
-static FILE *pfout = NULL; //this is debugging out, not used normally
 
 //////////////////////////////////////////
 // CW transmit and keyer functions
@@ -1218,10 +1200,8 @@ void cw_init(){
 	decoder.symbol_magnitude = 0;
 	decoder.wpm = 20;
   decoder.last_char_was_space = 0;
-
-	// dot len (in msec)) = 1200/wpm; dash len = 3600/wpm
-	// each block of nbins = n_bins/sampling seconds; 
-	// dash len is (3600 / wpm)/ ((nbins * 1000)/samping_freq) 
+  decoder.max_bin_idx = -1;      // no previous winning bin
+  decoder.max_bin_streak = 0;    // no streak yet
 	decoder.dash_len = (18 * SAMPLING_FREQ) / (5 * N_BINS* INIT_WPM); 
 
 	// initialize five signal bins
@@ -1230,7 +1210,9 @@ void cw_init(){
   cw_rx_bin_init(&decoder.signal_center, INIT_TONE, N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus1,  INIT_TONE + 50, N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus2,  INIT_TONE + 100, N_BINS, SAMPLING_FREQ);
-	
+
+  max_bin_idx = 0;
+  
 	//init cw tx with some reasonable values
   //cw_env shapes the envelope of the cw waveform
   //frequency was at 50 (20 ms rise time), changed it to 200 (4 ms rise time)
@@ -1239,7 +1221,6 @@ void cw_init(){
 	vfo_start(&cw_env, 200, 49044); //start in the third quardrant, 270 degree
 	vfo_start(&cw_tone, 700, 0);
 	cw_period = 9600; 		// At 96ksps, 0.1sec = 1 dot at 12wpm
-	cw_key_letter[0] = 0;
 	keydown_count = 0;
 	keyup_count = 0;
 	cw_envelope = 0;
