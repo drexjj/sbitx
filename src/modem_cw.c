@@ -1222,8 +1222,6 @@ void cw_init(){
   cw_rx_bin_init(&decoder.signal_center, INIT_TONE, N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus1,  INIT_TONE + 50, N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus2,  INIT_TONE + 100, N_BINS, SAMPLING_FREQ);
-
-  max_bin_idx = 0;
   
 	//init cw tx with some reasonable values
   //cw_env shapes the envelope of the cw waveform
