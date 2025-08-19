@@ -7975,6 +7975,26 @@ void cmd_exec(char *cmd)
 		set_radio_mode(args);
 		update_field(get_field("r1:mode"));
 	}
+  else if (!strcasecmp(exec, "cwreverse"))
+  {
+    extern bool cw_reverse;  // declared in modem_cw.c
+    if (args[0] == '\0') {
+      if (cw_reverse) {
+        write_console(FONT_LOG, "cwreverse: on\n");
+      } else {
+        write_console(FONT_LOG, "cwreverse: off\n");
+      }
+    } else if (!strcasecmp(args, "on")) {
+      cw_reverse = true;
+      write_console(FONT_LOG, "cwreverse: on\n");
+    } else if (!strcasecmp(args, "off")) {
+      cw_reverse = false;
+      write_console(FONT_LOG, "cwreverse: off\n");
+    } else {
+      write_console(FONT_LOG, "Invalid value for cwreverse. Use on or off.\n");
+    }
+  // should we store the setting in user_settings.ini? 
+  }
 	else if (!strcmp(exec, "t"))
 		tx_on(TX_SOFT);
 	else if (!strcmp(exec, "r"))
