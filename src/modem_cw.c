@@ -872,9 +872,8 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
             write_console(FONT_CW_RX, " ");
             p->last_char_was_space = 1;
           }
+          p->ticker = 0;
         }
-        // done processing this gap
-        p->ticker = 0;
       }
     }
   }
