@@ -740,11 +740,10 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
   // max_bin_streak length to determine if signal present
   // I set SNR threshold higher when there is no streak going, 
   // and lower when we have a streak
-  // when just starting streak we need strong signal in the center bin
-  if ((p->max_bin_streak == 1) && (max_idx == 2) &&
-        (p->magnitude >= p->noise_floor + 0.6f * (p->high_level - p->noise_floor)))
+  if ((p->max_bin_streak == 1) &&
+        (p->magnitude >= p->noise_floor + 0.4f * (p->high_level - p->noise_floor)))
     p->sig_state = true;
-  // with a streak of 2 or more we accept much lower SNR
+  // with a streak of 2 or more we accept lower SNR
   else if ((p->max_bin_streak >= 2) &&
         (p->magnitude >= p->noise_floor + 0.15f * (p->high_level - p->noise_floor)))
     p->sig_state = true;
@@ -806,7 +805,7 @@ static void cw_rx_denoise(struct cw_decoder *p) {
   if (p->sig_state) {     // If current input is a 'mark'
     p->history_sig |= 1;  // Set least significant bit
   }
-  uint16_t sig = p->history_sig & 0b11111;
+  uint16_t sig = p->history_sig & 0b1111;
   // use Kernighan's algorithm to count number of set bits (1s)
   int count = 0;
   while (sig > 0) {
