@@ -347,7 +347,7 @@ void logbook_add(char* contact_callsign, char* rst_sent, char* exchange_sent,
 	snprintf(time_str, sizeof(time_str), "%02d%02d", tmp->tm_hour, tmp->tm_min);
 
 	if (logbook_has_power_and_swr()) {
-		sprintf(statement,
+		snprintf(statement, sizeof(statement),
 			"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
 			"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, tx_power, vswr, comments) "
 			"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%d.%d','%d.%d','%s');",
@@ -355,7 +355,7 @@ void logbook_add(char* contact_callsign, char* rst_sent, char* exchange_sent,
 				rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv,
 				tx_power / 10, tx_power % 10, tx_vswr / 10, tx_vswr % 10, comments);
 	} else {
-		sprintf(statement,
+		snprintf(statement, sizeof(statement),
 			"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
 			"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
 			"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
@@ -454,17 +454,21 @@ static void strip_chr(char* str, const char to_remove)
 	}
 }
 
-int export_adif(char* path, char* start_date, char* end_date)
+void *prepare_query_by_date(const char *start_date, const char *end_date)
 {
-	sqlite3_stmt *stmt;
-	char statement[250], param[2000], qso_band[20];
-
-	// add to the bottom of the logbook
+	char statement[250];
+	sqlite3_stmt *ret = NULL;
 	if (logbook_has_power_and_swr()) {
-		snprintf(statement, sizeof(statement),
-				"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments,tx_power "
-				" from logbook where (qso_date >= '%s' AND qso_date <= '%s') ORDER BY id DESC;",
-				start_date, end_date);
+		if (start_date && start_date[0]) {
+			snprintf(statement, sizeof(statement),
+					"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments,tx_power "
+					" from logbook where (qso_date >= '%s' AND qso_date <= '%s') ORDER BY id DESC;",
+					start_date, end_date);
+		} else {
+			strncpy(statement,
+					"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments,tx_power "
+					" from logbook ORDER BY id DESC;", sizeof(statement));
+		}
 	} else {
 		snprintf(statement, sizeof(statement),
 				"select id,mode,freq,qso_date,qso_time,callsign_sent,rst_sent,exch_sent,callsign_recv,rst_recv,exch_recv,tx_id,comments "
@@ -472,79 +476,122 @@ int export_adif(char* path, char* start_date, char* end_date)
 				start_date, end_date);
 	}
 
-	FILE *pf = fopen(path, "w");
-	int ret = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
+	int r = sqlite3_prepare_v2(db, statement, -1, &ret, NULL);
+	if (r != SQLITE_OK) {
 		printf("problem with query: %s\n", statement);
-		return -1;
+		ret = NULL;
 	}
+	return ret;
+}
 
-	fprintf(pf, "/ADIF file\n");
-	fprintf(pf, "generated from sBITX log db by Log2ADIF program\n");
-	fprintf(pf, "<adif version:5>3.1.4\n");
-	fprintf(pf, "<EOH>\n");
+int write_adif_header(char *buf, int len, const char *source) {
+	return snprintf(buf,  len, "/ADIF file\n"
+		"generated from sBITX log db by %s\n"
+		"<adif version:5>3.1.4\n"
+		"<EOH>\n", source);
+}
 
+int write_adif_record(void *stmt, char *buf, int len) {
+	char field_value[2000]; // big enough for a comment, hopefully; the rest are much smaller
+	int num_cols = sqlite3_column_count(stmt);
 	int rec = 0;
 
-	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		int i;
-		int num_cols = sqlite3_column_count(stmt);
-		for (i = 0; i < num_cols; i++) {
-			switch (sqlite3_column_type(stmt, i)) {
-			case (SQLITE3_TEXT):
-				strncpy(param, sqlite3_column_text(stmt, i), sizeof(param));
-				break;
-			case (SQLITE_INTEGER):
-				snprintf(param, sizeof(param), "%d", sqlite3_column_int(stmt, i));
-				break;
-			case (SQLITE_FLOAT):
-				snprintf(param, sizeof(param), "%g", sqlite3_column_double(stmt, i));
-				break;
-			case (SQLITE_NULL):
-				break;
-			default:
-				snprintf(param, sizeof(param), "%d", sqlite3_column_type(stmt, i));
-				break;
-			}
-			// If mode is FT8; set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
-			if (i == 1)
-				if (!strcmp("FT8", param))
-					rec = 1;
-				else
-					rec = 0;
-
-			if (i == 2) {
-				long f = atoi(param);
-				float ffreq = atof(param) / 1000.0; // convert kHz to MHz
-				snprintf(param, sizeof(param), "%.3f", ffreq);	  // write out with 3 decimal digits
-				for (int j = 0; j < sizeof(bands) / sizeof(struct band_name); j++) {
-					if (bands[j].from <= f && f <= bands[j].to)
-						fprintf(pf, "<BAND:%d>%s ", strlen(bands[j].name), bands[j].name);
-				}
-			} else if (i == 3) // it is the date
-				strip_chr(param, '-');
-			switch (i) {
-			case 7:
-				if (rec == 1)
-					fprintf(pf, "<%s:%d>%s ", "MY_GRIDSQUARE", strlen(param), param);
-				else
-					fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
-				break;
-			case 10:
-				if (rec == 1)
-					fprintf(pf, "<%s:%d>%s ", "GRIDSQUARE", strlen(param), param);
-				else
-					fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
-				break;
-			default:
-				fprintf(pf, "<%s:%d>%s ", adif_names[i], strlen(param), param);
-				break;
-			}
+	int buf_offset = 0;
+	for (int i = 0; i < num_cols; i++) {
+		switch (sqlite3_column_type(stmt, i))
+		{
+		case (SQLITE3_TEXT):
+			strncpy(field_value, sqlite3_column_text(stmt, i), sizeof(field_value));
+			break;
+		case (SQLITE_INTEGER):
+			snprintf(field_value, sizeof(field_value), "%d", sqlite3_column_int(stmt, i));
+			break;
+		case (SQLITE_FLOAT):
+			snprintf(field_value, sizeof(field_value), "%g", sqlite3_column_double(stmt, i));
+			break;
+		case (SQLITE_NULL):
+			break;
+		default:
+			snprintf(field_value, sizeof(field_value), "%d", sqlite3_column_type(stmt, i));
+			break;
 		}
-		fprintf(pf, "<EOR>\n");
-		// printf("\n");
+		//~ printf("col %d of %d type %d: ADIF %s value '%s'\n",
+			//~ i, num_cols, sqlite3_column_type(stmt, i), adif_names[i], field_value);
+
+		bool output_done = false;
+		switch (i) { // columns are in the order requested in prepare_query_by_date()
+		case 1: // mode
+			// If mode is FT8, set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
+			if (!strcmp("FT8", field_value))
+				rec = 1;
+			else
+				rec = 0;
+			break;
+		case 2: { // freq
+			long f = atoi(field_value);
+			float ffreq=atof(field_value)/1000.0;  // convert kHz to MHz
+			snprintf(field_value, sizeof(field_value), "%.3f",ffreq); // write out with 3 decimal digits
+			for (int j = 0 ; j < sizeof(bands)/sizeof(struct band_name); j++)
+				if (bands[j].from <= f && f <= bands[j].to)
+					buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+						"<BAND:%d>%s ", strlen(bands[j].name), bands[j].name);
+		} break;
+		case 3: // qso_date
+			strip_chr(field_value, '-');
+			break;
+		case 7: // exch_sent
+			if (rec == 1)
+				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+					"<MY_GRIDSQUARE:%d>%s ", strlen(field_value), field_value);
+			else
+				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+					"<%s:%d>%s ", adif_names[i], strlen(field_value), field_value);
+			output_done = true;
+			break;
+		case 10: // exch_recv
+			if (rec == 1)
+				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+					"<GRIDSQUARE:%d>%s ", strlen(field_value), field_value);
+			else
+				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+					"<%s:%d>%s ", adif_names[i], strlen(field_value), field_value);
+			output_done = true;
+			break;
+		default:
+			break;
+		}
+		if (!output_done) {
+			//~ printf("    default output @%d\n", buf_offset);
+			buf_offset += snprintf(buf + buf_offset, len - buf_offset,
+				"<%s:%d>%s ", adif_names[i], strlen(field_value), field_value);
+		}
 	}
+	buf_offset += snprintf(buf + buf_offset, len - buf_offset, "<EOR>\n");
+	return buf_offset;
+}
+
+bool logbook_next(void *stmt) {
+	return sqlite3_step(stmt) == SQLITE_ROW;
+}
+
+void logbook_end_query(void *stmt) {
 	sqlite3_finalize(stmt);
+}
+
+int export_adif(const char *path, const char *start_date, const char *end_date, const char *source) {
+	char buf[4096];
+	sqlite3_stmt *stmt = prepare_query_by_date(start_date, end_date);
+	if (!stmt)
+		return -1;
+
+	//add to the bottom of the logbook
+	FILE *pf = fopen(path, "w");
+	fwrite(buf, 1, write_adif_header(buf, sizeof(buf), source), pf);
+
+	while (logbook_next(stmt)) {
+		fwrite(buf, 1, write_adif_record(stmt, buf, sizeof(buf)), pf);
+	}
+	logbook_end_query(stmt);
 	fclose(pf);
 }
 
@@ -768,7 +815,7 @@ void export_button_clicked(GtkWidget* window)
 				&start_year, &start_month, &start_day);
 			snprintf(start_str, sizeof(start_str), "%04d-%02d-%02d", start_year, start_month + 1, start_day);
 			snprintf(end_str, sizeof(end_str), "%04d-%02d-%02d", end_year, end_month + 1, end_day);
-			export_adif(path, start_str, end_str);
+			export_adif(path, start_str, end_str, "sbitx GUI");
 			printf("saved logs from %s to %s to file %s\n", start_str, end_str, path);
 		}
 	}
@@ -910,14 +957,14 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 
 	if (response == GTK_RESPONSE_ACCEPT) {
 		const gchar* callsign_response = gtk_entry_get_text(GTK_ENTRY(entry_callsign));
-		strcpy(freq, gtk_entry_get_text(GTK_ENTRY(entry_freq)));
-		strcpy(mode, gtk_entry_get_text(GTK_ENTRY(entry_mode)));
-		strcpy(callsign, gtk_entry_get_text(GTK_ENTRY(entry_callsign)));
-		strcpy(rst_sent, gtk_entry_get_text(GTK_ENTRY(entry_rst_sent)));
-		strcpy(rst_recv, gtk_entry_get_text(GTK_ENTRY(entry_rst_recv)));
-		strcpy(exchange_sent, gtk_entry_get_text(GTK_ENTRY(entry_exchange_sent)));
-		strcpy(exchange_recv, gtk_entry_get_text(GTK_ENTRY(entry_exchange_recv)));
-		strcpy(comment, gtk_entry_get_text(GTK_ENTRY(entry_comment)));
+		strncpy(freq, gtk_entry_get_text(GTK_ENTRY(entry_freq)), sizeof(freq));
+		strncpy(mode, gtk_entry_get_text(GTK_ENTRY(entry_mode)), sizeof(mode));
+		strncpy(callsign, gtk_entry_get_text(GTK_ENTRY(entry_callsign)), sizeof(callsign));
+		strncpy(rst_sent, gtk_entry_get_text(GTK_ENTRY(entry_rst_sent)), sizeof(rst_sent));
+		strncpy(rst_recv, gtk_entry_get_text(GTK_ENTRY(entry_rst_recv)), sizeof(rst_recv));
+		strncpy(exchange_sent, gtk_entry_get_text(GTK_ENTRY(entry_exchange_sent)), sizeof(exchange_sent));
+		strncpy(exchange_recv, gtk_entry_get_text(GTK_ENTRY(entry_exchange_recv)), sizeof(exchange_recv));
+		strncpy(comment, gtk_entry_get_text(GTK_ENTRY(entry_comment)), sizeof(comment));
 		gtk_widget_destroy(dialog);
 		return GTK_RESPONSE_OK;
 	} else {
@@ -972,7 +1019,7 @@ int logbook_fill(int from_id, int count, const char* query)
 							   "where callsign_recv LIKE '%s%%' ",
 				query);
 		else
-			strcpy(statement, "select * from logbook ");
+			strncpy(statement, "select * from logbook ", sizeof(statement));
 	}
 	// latest QSOs after from_id (top of the log)
 	else {
@@ -1008,8 +1055,6 @@ int logbook_fill(int from_id, int count, const char* query)
 				strcpy(id, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "qso_date"))
 				strcpy(qso_date, sqlite3_column_text(stmt, i));
-			else if (!strcmp(col_name, "qso_time"))
-				strcpy(qso_time, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "qso_time"))
 				strcpy(qso_time, sqlite3_column_text(stmt, i));
 			else if (!strcmp(col_name, "freq"))
