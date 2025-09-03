@@ -4631,11 +4631,13 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
+/*					RLB  fixed do_bandwidth changing rx+pitch
 		int mode = mode_id(get_field("r1:mode")->value);
 		modem_set_pitch(v, mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
+*/
 		set_filter_high_low(v);
 		save_bandwidth(v);
 		return 1;
