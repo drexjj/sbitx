@@ -98,13 +98,13 @@ static const struct morse_tx morse_tx_table[] = {
 	{'y', "-.--"}, {'z', "--.."}, 
   {'1', ".----"}, {'2', "..---"}, {'3', "...--"}, {'4', "....-"}, {'5', "....."},
   {'6', "-...."}, {'7', "--..."}, {'8', "---.."}, {'9', "----."}, {'0', "-----"},
-  {'.', ".-.-.-"}, {',', "--..--"}, {'?', "..--.."},
-  {'/', "-..-."}, {'"', ".-..-."}, {'&', "-...-"},
+  {'.', ".-.-.-"}, {',', "--..--"}, {'?', "..--.."}, {'@', ".--.-."}, {'/', "-..-."}, 
+  {'"', ".-..-."}, {':', "---..."}, { "'", ".----."}, {"!", "-.-.--"},
 	{'=', "-...-"},   // BT
 	{'<', ".-.-."},   // AR
 	{'>', "...-.-"},  // SK
 	{'(', "-.--."},   // KN
-	{':', ".-..."}    // AS
+	{'&', ".-..."}    // AS
 };
 
 // 256-entry look-up table gets filled from morse tx table above
@@ -132,7 +132,8 @@ static const struct morse_rx morse_rx_table[] = {
 	{"<AS>", ".-..."},
   // frequently run-together characters that we want to decode right
 	{"FB", "..-.-..."}, {"UR", "..-.-."}, {"RST", "._...._"}, {"5NN", ".....-.-."},	
-  {"CQ", "-.-.--.-"},	{"73", "--......--"}, {"TNX", "--.-..-"}, {"HW", ".....--"}
+  {"CQ", "-.-.--.-"},	{"73", "--......--"}, {"TNX", "--.-..-"}, {"HW", ".....--"}.
+  {"QRZ", "--.-.-.--.."}
 };
 
 // global variables
@@ -439,7 +440,7 @@ static inline void schedule_opposite_of_last(void) {
 // straight key
 static void handle_mode_straight(uint8_t symbol_now) {
   if (symbol_now == CW_IDLE) { key_off_short(); cw_current_symbol = CW_IDLE; }
-  if (symbol_now == CW_DOWN) { key_on_short();  cw_current_symbol = CW_DOWN; }
+  else if (symbol_now == CW_DOWN) { key_on_short();  cw_current_symbol = CW_DOWN; }
 }
 
 // Vibroplex 'bug' emulation mode.  The 'dit' contact produces
