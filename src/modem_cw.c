@@ -347,7 +347,7 @@ void handle_cw_state_machine(uint8_t, uint8_t);
 float cw_tx_get_sample() {
   float sample = 0;
   uint8_t state_machine_mode;
-  uint8_t symbol_now;
+  static uint8_t symbol_now = CW_IDLE;
   
   if ((keydown_count == 0) && (keyup_count == 0)) {
     // note current time to use with UI value of CW_DELAY to control break-in
