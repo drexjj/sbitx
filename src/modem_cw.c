@@ -646,12 +646,11 @@ void cw_init(void);
 void cw_poll(int bytes_available, int tx_is_on);
 static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq);
 
-
 // take block of audio samples and call cw decoding functions
 void cw_rx(int32_t *samples, int count) {
-  int decimation_factor = 8;  // 96 kHz to 12 kHz
+  int decimation_factor = 8;  // 96 kHz -> 12 kHz
   int32_t filtered_samples[count];
-  int32_t s[128]; 
+  int32_t s[128];
   // apply anti-aliasing low pass filter
   apply_fir_filter(samples, filtered_samples, fir_coeffs, count, 64);
   // use decimation_factor to downsample
@@ -685,22 +684,22 @@ static const float fir_coeffs[64] = {
 
 // apply the FIR filter using convolution
 void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order) {
-    for (int i = 0; i < input_count; i++) {
-        float sum = 0.0f;
-        for (int j = 0; j < order; j++) {
-            int k = i - j;
-            if (k >= 0) {
-                sum += (float)input[k] * coeffs[j];
-            }
-        }
-        output[i] = (int32_t)sum;
+  for (int i = 0; i < input_count; i++) {
+    float sum = 0.0f;
+    for (int j = 0; j < order; j++) {
+      int k = i - j;
+      if (k >= 0) {
+        sum += (float)input[k] * coeffs[j];
+      }
     }
+    output[i] = (int32_t)sum;
+  }
 }
 
 // detect signal in this block of samples
-static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
+static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   // get magnitude in each of five frequency bins
-  // bins are each 93.75 Hz wide
+  // Bins are at -80, -35, 0, +35, +80 Hz relative to center pitch
   int mag_minus2 = cw_rx_bin_detect(&p->signal_minus2, samples);
   int mag_minus1 = cw_rx_bin_detect(&p->signal_minus1, samples);
   int mag_center = cw_rx_bin_detect(&p->signal_center, samples);
@@ -708,26 +707,14 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
   int mag_plus2  = cw_rx_bin_detect(&p->signal_plus2,  samples);
 
   // find the bin with largest magnitude and its index
-  int sig_now = mag_center;  // I think of center bin as bin number 2
-  int max_idx = 2;  // bin index with the largest magnitude so far
-  if (mag_minus2 > sig_now) {
-    sig_now = mag_minus2;
-    max_idx = 0;
-  }
-  if (mag_minus1 > sig_now) {
-    sig_now = mag_minus1;
-    max_idx = 1;
-  }
-  if (mag_plus1  > sig_now) {
-    sig_now = mag_plus1;
-    max_idx = 3;
-  }
-  if (mag_plus2  > sig_now) {
-    sig_now = mag_plus2;
-    max_idx = 4;
-  }
+  int sig_now = mag_center;
+  int max_idx = 2;
+  if (mag_minus2 > sig_now) { sig_now = mag_minus2; max_idx = 0; }
+  if (mag_minus1 > sig_now) { sig_now = mag_minus1; max_idx = 1; }
+  if (mag_plus1  > sig_now) { sig_now = mag_plus1;  max_idx = 3; }
+  if (mag_plus2  > sig_now) { sig_now = mag_plus2;  max_idx = 4; }
   p->magnitude = sig_now;
-  
+
   // track winning streak count for max_bin_idx
   if (p->max_bin_idx == max_idx) {
       p->max_bin_streak++;
@@ -742,7 +729,7 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
   // and lower when we have a streak
   if ((p->max_bin_streak == 1) &&
         (p->magnitude >= p->noise_floor + 0.4f * (p->high_level - p->noise_floor)))
-    p->sig_state = true;
+    p->sig_state = true; 
   // with a streak of 2 or more we accept lower SNR
   else if ((p->max_bin_streak >= 2) &&
         (p->magnitude >= p->noise_floor + 0.15f * (p->high_level - p->noise_floor)))
@@ -750,33 +737,27 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples){
   else
     p->sig_state = false;
   p->ticker++;
-//printf("CW bins mag: -2=%d -1=%d 0=%d +1=%d +2=%d (max=%d streak=%d)\n", 
-//         mag_minus2, mag_minus1, mag_center, mag_plus1, mag_plus2, p->max_bin_idx, p->max_bin_streak); 
 }
 
-// use Goertzel algorithm to detect the magnitude of a specific frequency bin
-static int cw_rx_bin_detect(struct bin *p, int32_t *data){
-    // Q1 and Q2 are the previous two states in the Goertzel recurrence
-    float Q2 = 0;
-    float Q1 = 0;
-    // iterate over each sample in the block
-    for (int index = 0; index < p->n; index++){
-        float Q0;
-        // Goertzel recurrence relation:
-        Q0 = p->coeff * Q1 - Q2 + (float) (*data);
-        // shift variables for next iteration
-        Q2 = Q1;
-        Q1 = Q0;	
-        data++;
-    }
-    // compute in-phase (cosine) and quadrature (sine) components at the target frequency
-    double real = (Q1 * p->cosine - Q2) / p->scalingFactor;
-    double imag = (Q1 * p->sine) / p->scalingFactor;
-    int magnitude = sqrt(real*real + imag*imag); 
-    return magnitude;
+// use fractional Goertzel algorithm to detect the magnitude of a specific frequency bin
+static int cw_rx_bin_detect(struct bin *p, int32_t *data) {
+  // Q1 and Q2 are the previous two states in the Goertzel recurrence
+  float Q2 = 0;
+  float Q1 = 0;
+  for (int index = 0; index < p->n; index++) {
+    float Q0 = p->coeff * Q1 - Q2 + (float)(*data);
+    Q2 = Q1;
+    Q1 = Q0;	
+    data++;
+  }
+  // compute in-phase (cosine) and quadrature (sine) components at the target frequency
+  double real = (Q1 * p->cosine - Q2) / p->scalingFactor;
+  double imag = (Q1 * p->sine) / p->scalingFactor;
+  int magnitude = (int)(sqrt(real*real + imag*imag));
+  return magnitude;
 }
 
-// update signal level tracking for recent high_level and noise_floor
+// update signal level tracking
 static void cw_rx_update_levels(struct cw_decoder *p) {
   // treat current magnitude as a candidate for the new high level
   int new_high = p->magnitude;
@@ -791,7 +772,7 @@ static void cw_rx_update_levels(struct cw_decoder *p) {
   if (p->magnitude < (p->noise_floor + 0.5f * (p->high_level - p->noise_floor))) {
     // limit the minimum magnitude to 100
     if (p->magnitude < 100) p->magnitude = 100;
-    // update the noise floor with a similar decay mechanism.
+    // update the noise floor with a similar decay mechanism
     p->noise_floor = (p->magnitude + ((NOISE_DECAY - 1) * p->noise_floor)) / NOISE_DECAY;
   }
 }
@@ -799,12 +780,11 @@ static void cw_rx_update_levels(struct cw_decoder *p) {
 // updates the 'mark' state (p->mark) based on a smoothed version of 
 // the raw input signal (p->sig_state)
 static void cw_rx_denoise(struct cw_decoder *p) {
-  p->prev_mark = p->mark; // Store mark as prev_mark BEFORE updating
+  p->prev_mark = p->mark;
   // use sliding window to smooth sig_state over time
-  p->history_sig <<= 1;   // Shift register: oldest bit out, make room for new sample
-  if (p->sig_state) {     // If current input is a 'mark'
-    p->history_sig |= 1;  // Set least significant bit
-  }
+  p->history_sig <<= 1;    // Shift register: oldest bit out, make room for new sample
+  if (p->sig_state)        // If current input is a 'mark'
+    p->history_sig |= 1;   // then set least significant bit
   uint16_t sig = p->history_sig & 0b1111;
   // use Kernighan's algorithm to count number of set bits (1s)
   int count = 0;
@@ -813,13 +793,12 @@ static void cw_rx_denoise(struct cw_decoder *p) {
     count++;
   }
   // hysteresis enabled to replace majority voting
-  if (!p->prev_mark) {
+  if (!p->prev_mark)
     // we are in a space, set count required to transition to mark
     p->mark = (count >= 3);
-  } else {
+  else
     // we are in a mark, set count required to stay as mark
     p->mark = (count >= 3);
-  }
 }
 
 // detect transitions between mark and space and if a dot, dash, character space
@@ -828,38 +807,38 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
   // detect mark/space transitions and symbol boundaries based on current and previous 'mark' states
   // case where we are at end of a mark (transition from mark to space)
   if (!p->mark && p->prev_mark) {
-    cw_rx_add_symbol(p, 'm'); // add a 'mark' (or 'm' for measurement) symbol to the buffer
-    p->ticker = 0;            // reset the ticker as a new space period begins
+    cw_rx_add_symbol(p, 'm');  // add a 'mark' (or 'm' for measurement) symbol to the buffer
+    p->ticker = 0;             // reset the ticker as a new space period begins
   }
   // case where we are at start of a mark (transition from space to mark)
   else if (p->mark && !p->prev_mark) {
-    cw_rx_add_symbol(p, ' '); // add a 'space' symbol (representing the gap before the mark)
-    p->ticker = 0;            // reset the ticker to start timing the new mark
+    cw_rx_add_symbol(p, ' ');   // add a 'space' symbol (representing the gap before the mark
+    p->ticker = 0;              // reset the ticker to start timing the new mark
   }
   // case where we are continuing space (both current and previous are space)
   else if (!p->mark && !p->prev_mark) {
     // gaps set in relation to dot length
-    const int element_gap = p->dot_len;       // 1 dot
-    const int char_gap    = 3 * p->dot_len;   // 3 dots
-    const int word_gap    = 7 * p->dot_len;   // 7 dots
+    const int element_gap = p->dot_len;      // 1 dot
+    const int char_gap    = 3 * p->dot_len;  // 3 dots
+    const int word_gap    = 7 * p->dot_len;  // 7 dots
 
     if (p->next_symbol == 0) {
       // no symbol being built, check for word gap (long space)
       if (p->ticker >= word_gap) {
         if (!p->last_char_was_space) {
-          write_console(FONT_CW_RX, " ");      // output a space to the console (word separator)
+          write_console(FONT_CW_RX, " ");  // output a space to the console (word separator)
           p->last_char_was_space = 1;
         }
-        p->ticker = 0;                       // reset ticker after outputting space
+        p->ticker = 0;   // reset ticker after outputting space
       }
     } else {
       // there is an ongoing symbol sequence being built (marks and possibly a trailing space)
       // close the current element when we have at least an element gap (~1 dot) and the last added entry was a mark.
       if (p->ticker >= element_gap) {
         if (p->symbol_str[p->next_symbol - 1].is_mark) {
-          // Add a single element-terminating space only once per gap
+          // add a single element-terminating space only once per gap
           cw_rx_add_symbol(p, ' ');
-          // do NOT reset ticker here; we want to keep measuring the space to detect char/word gap
+          // we do NOT reset ticker here; we want to keep measuring the space to detect char/word gap
         }
       }
       // finalize the character only when we reach a character gap (~3 dots)
@@ -877,101 +856,98 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
     }
   }
   // case where we are still in a mark (both current and previous are mark)
-  else if (p->mark > 0 && p->prev_mark > 0) {
-    // clamp overly long dashes to prevent ticker overflow or misinterpretation.
-    if (p->ticker >= p->dot_len * 9) {
-    p->ticker = p->dot_len * 3;  // cap the ticker at dash length
-    }
+  else if (p->mark && p->prev_mark) {
+    if (p->ticker >= p->dot_len * 9)
+      p->ticker = p->dot_len * 3;
   }
 }
 
 // add a mark or space to the symbol buffer, store its duration (ticks),
 // and update the symbol's average magnitude
 static void cw_rx_add_symbol(struct cw_decoder *p, char symbol) {
-    // if it's full clear it
-    if (p->next_symbol == MAX_SYMBOLS)
-        p->next_symbol = 0;
-    // Only ' ' (space) is treated as a space; all other symbols are marks.
-    if (symbol == ' ') {
-        p->symbol_str[p->next_symbol].is_mark = 0;
-    } else {
-        p->symbol_str[p->next_symbol].is_mark = 1;
-    }
-    // Store the duration of the symbol (number of ticks since last transition).
-    p->symbol_str[p->next_symbol].ticks = p->ticker;
-    // update the average magnitude for this symbol using a weighted average
-    p->symbol_str[p->next_symbol].magnitude =
-        ((p->symbol_str[p->next_symbol].magnitude * 10) + p->magnitude) / 11;
-    // Move to the next position in the symbol buffer.
-    p->next_symbol++;
+  // if it's full clear it
+  if (p->next_symbol == MAX_SYMBOLS)
+      p->next_symbol = 0;
+  // only ' ' (space) is treated as a space; all other symbols are marks
+  p->symbol_str[p->next_symbol].is_mark = (symbol != ' ');  // 0 for space, 1 for  mark
+  // store the duration of the symbol (number of ticks since last transition)
+  p->symbol_str[p->next_symbol].ticks = p->ticker;
+  // update the average magnitude for this symbol using a weighted average
+  p->symbol_str[p->next_symbol].magnitude =
+      ((p->symbol_str[p->next_symbol].magnitude * 10) + p->magnitude) / 11;
+  // move to the next position in the symbol buffer
+  p->next_symbol++;
 }
 
 // take string of marks and spaces with their durations in "ticks" and
 // translate them into a Morse code character
 static void cw_rx_match_letter(struct cw_decoder *decoder) {
   char morse_code_string[MAX_SYMBOLS];
-  // if no symbols have been received, there's nothing to decode.
-  if (decoder->next_symbol == 0) {
+  // if no symbols have been received, there's nothing to decode
+  if (decoder->next_symbol == 0)
     return;
-  }
+
   // initialize state variables for processing symbols
   int is_currently_in_mark = 0;
   int current_segment_ticks = 0;  
-  morse_code_string[0] = '\0';  // Ensure the string starts empty
-  // calculate the minimum duration for a valid dot
-  int min_valid_symbol_duration = (decoder->dot_len * 3) / 5;  // 0.6 dot
-  // iterate through all received symbols (marks and spaces)
+  morse_code_string[0] = '\0';   // ensure the string starts empty
+  // calculate the minimum acceptable duration for a dot
+  int min_valid_symbol_duration = (decoder->dot_len * 3) / 5;  // 0.6 of a dot
+
   for (int i = 0; i < decoder->next_symbol; i++) {
-    if (decoder->symbol_str[i].is_mark) {  // if the current symbol is a 'mark' (signal present)
+    if (decoder->symbol_str[i].is_mark) {   // if the current symbol is a 'mark' (signal present)
       if (!is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
         is_currently_in_mark = 1;
         current_segment_ticks = 0;  // reset tick counter for the new mark segment
       }
-    } else {  // If the current symbol is a 'space' (silence)
+    } else {    // if the current symbol is a 'space' (silence)
       if (is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
-        is_currently_in_mark = 0;  // We are now in a space
-
+        is_currently_in_mark = 0;  // we are now in a space
         // classify the preceding mark based on its duration
         // dash if > 2.5 dots
         if (current_segment_ticks >= (decoder->dot_len * 7) / 3) {  // 2.5 dots
-          // this was a dash
           strcat(morse_code_string, "-");
-          // now make adaptive adjustment using observed dash length
+          // now make adaptive adjustment using just observed dash length
           int dash_prev = decoder->dot_len * 3;
-          int new_dash  = (dash_prev * 3 + current_segment_ticks) / 4; // 75/25 weighted avg
+          int new_dash  = (dash_prev * 3 + current_segment_ticks) / 4;
           int theoretical_dash = (18 * SAMPLING_FREQ) / (5 * N_BINS * decoder->wpm);
           // new_dash should be between half and double expected length
-          if (theoretical_dash / 2 < new_dash && new_dash < theoretical_dash * 2) {
+          if (theoretical_dash / 2 < new_dash && new_dash < theoretical_dash * 2)
             decoder->dot_len = new_dash / 3;
-          }
         } else if (current_segment_ticks >= min_valid_symbol_duration) {
           // this was a dot
           strcat(morse_code_string, ".");
         }
       }
     }
-    current_segment_ticks +=
-        decoder->symbol_str[i].ticks;  // Accumulate ticks for the current segment (mark or space)
+    // accumulate ticks for the current segment (mark or space)
+    current_segment_ticks += decoder->symbol_str[i].ticks;
   }
-  // reset the symbol buffer for the next letter/sequence
-  decoder->next_symbol = 0;
-	
-  // attempt to match the generated Morse code string to a character in the lookup table
-  for (int i = 0; i < sizeof(morse_rx_table) / sizeof(struct morse_rx); i++) {
+
+  decoder->next_symbol = 0;  // reset the symbol buffer for the next letter/sequence
+  for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      // match found, write the decoded character to the console
       write_console(FONT_CW_RX, morse_rx_table[i].c);
       decoder->last_char_was_space = 0;
-      return;  // successfully decoded a character
+      return;
     }
   }
-  // if no match was found in the table, output the raw dot/dash sequence.
   write_console(FONT_CW_RX, morse_code_string);
   decoder->last_char_was_space = 0;
 }
 
-void cw_init(){	
-	//cw rx initialization
+// initialize a struct bin for use with Goertzel algorithm
+static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq) {
+  p->omega = (2.0f * (float)M_PI * freq) / sampling_freq;   // exact fractional
+  p->sine = sinf(p->omega);
+  p->cosine = cosf(p->omega);
+  p->coeff = 2.0f * p->cosine;
+  p->n = n;
+  p->freq = (int)freq;
+  p->scalingFactor = n / 2.0;
+}
+
+void cw_init() {	
 	decoder.ticker = 0;
 	decoder.n_bins = N_BINS;
 	decoder.next_symbol = 0;
@@ -981,41 +957,26 @@ void cw_init(){
 	decoder.history_sig = 0;
 	decoder.wpm = 20;
   decoder.last_char_was_space = 0;
-  decoder.max_bin_idx = -1;      // no previous winning bin
-  decoder.max_bin_streak = 0;    // no streak yet
+  decoder.max_bin_idx = -1;    // no previous winning bin
+  decoder.max_bin_streak = 0;  // no streak yet
 	decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM); 
 
-	// initialize five signal bins
+  // initialize five signal bins
   int cw_rx_pitch = field_int("PITCH");
-  cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 187.5, N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 93.75, N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch, N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 93.75, N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 187.5, N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
   
-	//cw tx initialization
-  cw_init_morse_lut();    // build TX Morse code look-up table
+  // cw tx initialization
+  cw_init_morse_lut();    // build TX Morse code look-up table 
   vfo_start(&cw_tone, 700, 0);
-  //NOTE: cw_env is not used to shape envelope with "data driven waveform"
-	vfo_start(&cw_env, 200, 49044);
-	cw_period = 9600; 		// At 96ksps, 0.1sec = 1 dot at 12wpm
+	vfo_start(&cw_env, 200, 49044);  // not used with data driven waveform
+	cw_period = 9600;    // at 96ksps, 0.1sec = 1 dot at 12wpm
 	keydown_count = 0;
 	keyup_count = 0;
 	cw_envelope = 0;
-}
-
-// initialize a struct bin for use with Goertzel algorithm
-static void cw_rx_bin_init(struct bin *p, float freq, int n, 
-	float sampling_freq){
-
-  p->k = (int) (0.5 + ((n * freq) / sampling_freq));
-  p->omega = (2.0 * M_PI * p->k) / n;
-  p->sine = sin(p->omega);
-  p->cosine = cos(p->omega);
-  p->coeff = 2.0 * p->cosine;
-	p->n = n;
-	p->freq = freq;
-	p->scalingFactor = n / 2.0;
 }
 
 void cw_poll(int bytes_available, int tx_is_on){
@@ -1025,35 +986,33 @@ void cw_poll(int bytes_available, int tx_is_on){
 	cw_period = (12 * 9600)/wpm;
 
 	//retune the rx pitch if needed
-	int cw_rx_pitch = field_int("PITCH");
+  int cw_rx_pitch = field_int("PITCH");
 	if (cw_rx_pitch != decoder.signal_center.freq) {
-    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 187.5, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 93.75, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus1,   cw_rx_pitch + 93.75, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus2,   cw_rx_pitch + 187.5, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
   }
 	// check if the wpm has changed
-	if (wpm != decoder.wpm){
+  if (wpm != decoder.wpm){
 		decoder.wpm = wpm;
 		decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm); 
 	}	
 
 	// TX ON if bytes are avaiable (from macro/keyboard) or key is pressed
 	// of we are in the middle of symbol (dah/dit) transmission 
-	
-	if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next))) {
+  if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next))) {
 		tx_on(TX_SOFT);
 		millis_now = millis();
 		cw_tx_until = get_cw_delay() + millis_now;
 		cw_mode = get_cw_input_method();
 	}
 	else if (tx_is_on && cw_tx_until < millis_now){
-			tx_off();
+		tx_off();
 	}
 }
 
 void cw_abort(){
-	//flush all the tx text buffer
-  //actually does nothing
+	// currently does nothing
 }
