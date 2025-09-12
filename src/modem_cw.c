@@ -431,7 +431,8 @@ static inline void send_symbol_now(uint8_t sym) {
 }
 
 static inline void schedule_opposite_of_last(void) {
-  schedule(cw_last_symbol == CW_DOT ? CW_DASH : CW_DOT);
+  if (cw_last_symbol == CW_DOT) { schedule(CW_DASH); }
+  else                          { schedule(CW_DOT); }
 }
 
 // functions for each cw mode start here
