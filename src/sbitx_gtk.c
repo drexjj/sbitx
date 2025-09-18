@@ -133,6 +133,12 @@ static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
 
+// MFK timeout state
+static int mfk_locked_to_volume = 0;
+static unsigned long mfk_last_ms = 0;
+static const unsigned long MFK_TIMEOUT_MS = 15000UL;
+static int enc1_sw_prev = 1; // active-low; idle high due to pull-up
+
 // encoder state
 struct encoder
 {
@@ -5629,6 +5635,30 @@ void check_r1_volume()
 	}
 }
 
+// Helper function to adjust MFK volume in locked mode
+static void mfk_adjust_volume(int steps)
+{
+	struct field *vol_field = get_field("r1:volume");
+	if (!vol_field) return;
+	
+	int current_vol = atoi(vol_field->value);
+	int new_vol = current_vol + steps;
+	
+	// Clamp to range [0, 100]
+	if (new_vol < 0) new_vol = 0;
+	if (new_vol > 100) new_vol = 100;
+	
+	char buff[20];
+	sprintf(buff, "%d", new_vol);
+	set_field("r1:volume", buff);
+	update_field(vol_field);
+	
+	// Send to SDR backend
+	char request[50], response[50];
+	sprintf(request, "r1:volume=%d", new_vol);
+	sdr_request(request, response);
+}
+
 void tx_off()
 {
 	char response[100];
@@ -5752,6 +5782,9 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer u
 
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
+	// Unlock MFK on keyboard activity
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
 
 	// Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
 	if (f_focus)
@@ -6081,6 +6114,10 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 		last_mouse_x = (int)event->x;
 		last_mouse_y = (int)event->y;
 		mouse_down = 1;
+		
+		// Unlock MFK on mouse activity
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
 	}
 	/* We've handled the event, stop processing */
 	return FALSE;
@@ -6463,6 +6500,11 @@ void hw_init()
 
 	enc_init(&enc_a, ENC_FAST, ENC1_B, ENC1_A);
 	enc_init(&enc_b, ENC_FAST, ENC2_A, ENC2_B);
+	
+	// Initialize MFK state
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
+	enc1_sw_prev = 1; // ENC1_SW is active-low, starts high
 
 	int e = g_timeout_add(1, ui_tick, NULL);
 
@@ -7035,13 +7077,43 @@ gboolean ui_tick(gpointer gook)
 	}
 
 	int scroll = enc_read(&enc_a);
-	if (scroll && f_focus)
+	if (scroll)
 	{
-		if (scroll < 0)
-			edit_field(f_focus, MIN_KEY_DOWN);
-		else
-			edit_field(f_focus, MIN_KEY_UP);
+		// Update the last activity timestamp
+		mfk_last_ms = sbitx_millis();
+		
+		if (mfk_locked_to_volume)
+		{
+			// MFK is locked to volume control
+			mfk_adjust_volume(scroll);
+		}
+		else if (f_focus)
+		{
+			// Normal MFK behavior - control focused field
+			if (scroll < 0)
+				edit_field(f_focus, MIN_KEY_DOWN);
+			else
+				edit_field(f_focus, MIN_KEY_UP);
+		}
 	}
+	else
+	{
+		// Check if we should lock to volume due to timeout
+		if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS)
+		{
+			mfk_locked_to_volume = 1;
+		}
+	}
+	
+	// Check ENC1_SW for unlock (edge detection)
+	int enc1_sw_now = digitalRead(ENC1_SW);
+	if (enc1_sw_now == 0 && enc1_sw_prev != 0)
+	{
+		// Falling edge detected - unlock MFK
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
+	}
+	enc1_sw_prev = enc1_sw_now;
 	
 	return TRUE;
 }
