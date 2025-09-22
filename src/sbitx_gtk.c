@@ -8093,25 +8093,27 @@ else if (!strcmp(exec, "apf"))  // read command, load params in struct
 	{
 			char output[50];
 			char *token;
-			token = strtok(args," ,");
-			if (token != NULL) {
-				 apf1.gain = atof(token);			 
-				if (apf1.gain > 0.0) {
+		float temp;
+		token = strtok(args," ,");
+		if (token == NULL) {   // apf alone turns off
+			apf1.ison=0;
+			sprintf(output,"apf off\n");				
+		} else {              // token != NULL
+			 if ( (temp = atof(token)) > 0.0) {
+				 apf1.gain = temp;
+				 token = strtok(NULL," ,");
+				 if ((token != NULL) && ((temp = atof(token)) > 0.0)) {
+					apf1.width = temp;
 					apf1.ison=1;
-					token = strtok(NULL," ,");
-					if (token != NULL) {				
-					apf1.width = atof(token);	
 					sprintf(output,"apf gain %.2f width %.2f\n", apf1.gain, apf1.width);
-					init_apf();	
-					}					
-				} 
-			} else {
-				apf1.ison=0;
-				sprintf(output,"apf off\n");
-			}			
-			write_console(FONT_LOG, output);						
+					init_apf();
+					} else 
+						sprintf(output,"usage: apf (gain dB) (width parameter)\n");								
+				} else  
+					sprintf(output,"usage: apf (gain dB) (width parameter)\n");			
+		}			
+		write_console(FONT_LOG, output);						
 	}
-				
 	/*	else if (!strcmp(exec, "PITCH")){
 			struct field *f = get_field_by_label(exec);
 			field_set("PITCH", args);
