@@ -1500,7 +1500,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     if (rx_eq_is_enabled == 1)
     {
         // Step 1: Apply EQ with built-in normalization and clamping
-        apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
+        apply_eq(&rx_eq, output_speaker, n_samples, 96000.0);
 
         // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
         const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom 
@@ -1670,9 +1670,9 @@ void tx_process(
 		if (eq_is_enabled == 1)
 		{
 			if (use_browser_mic) {
-				apply_eq(&tx_eq, browser_mic_samples, n_samples, 48000.0);
+				apply_eq(&tx_eq, browser_mic_samples, n_samples, 96000.0);
 			} else {
-				apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+				apply_eq(&tx_eq, input_mic, n_samples, 96000.0);
 			}
 		}
 	}

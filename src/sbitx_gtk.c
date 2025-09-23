@@ -133,6 +133,12 @@ static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
 
+// MFK timeout state
+static int mfk_locked_to_volume = 0;
+static unsigned long mfk_last_ms = 0;
+static const unsigned long MFK_TIMEOUT_MS = 15000UL;
+static int enc1_sw_prev = 1; // active-low; idle high due to pull-up
+
 // encoder state
 struct encoder
 {
@@ -278,11 +284,12 @@ int bfo_offset = 0;
 #define MIN_KEY_F7 0xFFC4
 #define MIN_KEY_F8 0xFFC5
 #define MIN_KEY_F9 0xFFC6
-#define MIN_KEY_F9 0xFFC6
 #define MIN_KEY_F10 0xFFC7
 #define MIN_KEY_F11 0xFFC8
 #define MIN_KEY_F12 0xFFC9
 #define COMMAND_ESCAPE '\\'
+
+int text_ready = 0; // send TEXT buffer when ENTER key pressed
 
 void set_ui(int id);
 void set_bandwidth(int hz);
@@ -4525,6 +4532,12 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			f->value[l++] = a;
 			f->value[l] = 0;
 		}
+    // in CW mode we want to wait for ENTER key before sending buffer contents
+    else if ((a == '\n' || a == MIN_KEY_ENTER) &&
+            (mode_id(get_field("r1:mode")->value) == MODE_CW) ||
+            (mode_id(get_field("r1:mode")->value) == MODE_CWR)) {
+      text_ready = 1;  // ok to send buffer text contents
+    }
 		// handle ascii delete 8 or gtk
 		else if ((a == MIN_KEY_BACKSPACE || a == 8) && strlen(f->value) > 0)
 		{
@@ -4905,78 +4918,64 @@ void qrz(const char *callsign)
 	open_url(url);
 }
 
-int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
-	char buff[256], *mode;
-	char contact_callsign[100];
+int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+  char buff[256], *mode;
+  char contact_callsign[100];
+  struct field *f_text = get_field("#text_in");
 
-	strcpy(contact_callsign, get_field("#contact_callsign")->value);
+  strcpy(contact_callsign, get_field("#contact_callsign")->value);
 
-	if (event == GDK_BUTTON_PRESS)
-	{
-		int fn_key = atoi(f->cmd + 3); // skip past the '#mf' and read the function key number
+  if (event == GDK_BUTTON_PRESS) {
+    // skip past the '#mf' and read the function key number
+    int fn_key = atoi(f->cmd + 3);
+    macro_exec(fn_key, buff);
+    mode = get_field("r1:mode")->value;
 
-		/*		if (!strcmp(f->cmd, "#mfkbd")){
-					set_ui(LAYOUT_KBD);
-					return 1;
-				}
-				else if (!strcmp(f->cmd, "#mfqrz") && strlen(contact_callsign) > 0){
-					qrz(contact_callsign);
-					return 1;
-				}
-				else
-		*/
-		macro_exec(fn_key, buff);
+    // add the end of transmission to the expanded buffer for the fldigi modes
+    if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31")) {
+      strcat(buff, "^r");
+      tx_on(TX_SOFT);
+    }
+    if (!strcmp(mode, "FT8") && strlen(buff)) {
+      ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
+      set_field("#text_in", "");
+    } else if (strlen(buff)) {
+      if ((mode_id(mode) == MODE_CW) || (mode_id(mode) == MODE_CWR)) {
+        // Append macro text in CW/CWR modes only
+        size_t space = MAX_FIELD_LENGTH - strlen(f_text->value) - 1;
+        if (space > 0) {
+          strncat(f_text->value, buff, space);
+          update_field(f_text);
+        }
+        text_ready = 1;  // send macros immediately in CW
+      } else {
+        // For all other modes, replace
+        set_field("#text_in", buff);
+      }
+    }
+    return 1;
 
-		mode = get_field("r1:mode")->value;
+  } else if (event == FIELD_DRAW) {
+    int width, offset, text_length, line_start, y;
+    char this_line[MAX_FIELD_LENGTH];
+    int text_line_width = 0;
+    fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+    rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
-		// add the end of transmission to the expanded buffer for the fldigi modes
-		if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31"))
-		{
-			strcat(buff, "^r");
-			tx_on(TX_SOFT);
-		}
-
-		if (!strcmp(mode, "FT8") && strlen(buff))
-		{
-			ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
-			set_field("#text_in", "");
-			// write_console(FONT_LOG_TX, buff);
-		}
-		else if (strlen(buff))
-		{
-			set_field("#text_in", buff);
-			// put it in the text buffer and hope it gets transmitted!
-		}
-		return 1;
-	}
-	else if (event == FIELD_DRAW)
-	{
-		int width, offset, text_length, line_start, y;
-		char this_line[MAX_FIELD_LENGTH];
-		int text_line_width = 0;
-
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
-
-		width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
-		offset = f->width / 2 - width / 2;
-		if (strlen(f->value) == 0)
-			draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
-		else
-		{
-			if (strlen(f->label))
-			{
-				draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
-				draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
-			}
-			else
-				draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
-		}
-		return 1;
-	}
-
-	return 0;
+    width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+    offset = f->width / 2 - width / 2;
+    if (strlen(f->value) == 0)
+      draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
+    else {
+      if (strlen(f->label)) {
+        draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
+        draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
+      } else
+        draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
+    }
+    return 1;
+  }
+  return 0;
 }
 
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -5658,6 +5657,30 @@ void check_r1_volume()
 	}
 }
 
+// Helper function to adjust MFK volume in locked mode
+static void mfk_adjust_volume(int steps)
+{
+	struct field *vol_field = get_field("r1:volume");
+	if (!vol_field) return;
+	
+	int current_vol = atoi(vol_field->value);
+	int new_vol = current_vol + steps;
+	
+	// Clamp to range [0, 100]
+	if (new_vol < 0) new_vol = 0;
+	if (new_vol > 100) new_vol = 100;
+	
+	char buff[20];
+	sprintf(buff, "%d", new_vol);
+	set_field("r1:volume", buff);
+	update_field(vol_field);
+	
+	// Send to SDR backend
+	char request[50], response[50];
+	sprintf(request, "r1:volume=%d", new_vol);
+	sdr_request(request, response);
+}
+
 void tx_off()
 {
 	char response[100];
@@ -5781,6 +5804,9 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer u
 
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
+	// Unlock MFK on keyboard activity
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
 
 	// Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
 	if (f_focus)
@@ -5928,7 +5954,17 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		}
 		return FALSE;
 	}
-
+ 
+  // F1–F12 before text-field early return so macros work in any field
+  if (event->keyval >= MIN_KEY_F1 && event->keyval <= MIN_KEY_F12)
+  {
+    int fn_key = event->keyval - MIN_KEY_F1 + 1;
+    char fname[10];
+    sprintf(fname, "#mf%d", fn_key);
+    do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
+    return FALSE;
+  }
+  
 	if (f_focus && f_focus->value_type == FIELD_TEXT)
 	{
 		edit_field(f_focus, event->keyval);
@@ -5979,15 +6015,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		}
 		else if (event->keyval == MIN_KEY_ENTER)
 			// Otherwise by default, all text goes to the text_input control
-
 			edit_field(get_field("#text_in"), '\n');
-		else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12)
-		{
-			int fn_key = event->keyval - MIN_KEY_F1 + 1;
-			char fname[10];
-			sprintf(fname, "#mf%d", fn_key);
-			do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
-		}
 		else
 			edit_field(get_field("#text_in"), event->keyval);
 		// if (f_focus)
@@ -6110,6 +6138,10 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 		last_mouse_x = (int)event->x;
 		last_mouse_y = (int)event->y;
 		mouse_down = 1;
+		
+		// Unlock MFK on mouse activity
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
 	}
 	/* We've handled the event, stop processing */
 	return FALSE;
@@ -6492,6 +6524,11 @@ void hw_init()
 
 	enc_init(&enc_a, ENC_FAST, ENC1_B, ENC1_A);
 	enc_init(&enc_b, ENC_FAST, ENC2_A, ENC2_B);
+	
+	// Initialize MFK state
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
+	enc1_sw_prev = 1; // ENC1_SW is active-low, starts high
 
 	int e = g_timeout_add(1, ui_tick, NULL);
 
@@ -7064,13 +7101,43 @@ gboolean ui_tick(gpointer gook)
 	}
 
 	int scroll = enc_read(&enc_a);
-	if (scroll && f_focus)
+	if (scroll)
 	{
-		if (scroll < 0)
-			edit_field(f_focus, MIN_KEY_DOWN);
-		else
-			edit_field(f_focus, MIN_KEY_UP);
+		// Update the last activity timestamp
+		mfk_last_ms = sbitx_millis();
+		
+		if (mfk_locked_to_volume)
+		{
+			// MFK is locked to volume control
+			mfk_adjust_volume(scroll);
+		}
+		else if (f_focus)
+		{
+			// Normal MFK behavior - control focused field
+			if (scroll < 0)
+				edit_field(f_focus, MIN_KEY_DOWN);
+			else
+				edit_field(f_focus, MIN_KEY_UP);
+		}
 	}
+	else
+	{
+		// Check if we should lock to volume due to timeout
+		if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS)
+		{
+			mfk_locked_to_volume = 1;
+		}
+	}
+	
+	// Check ENC1_SW for unlock (edge detection)
+	int enc1_sw_now = digitalRead(ENC1_SW);
+	if (enc1_sw_now == 0 && enc1_sw_prev != 0)
+	{
+		// Falling edge detected - unlock MFK
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
+	}
+	enc1_sw_prev = enc1_sw_now;
 	
 	return TRUE;
 }
@@ -7130,6 +7197,9 @@ void ui_init(int argc, char *argv[])
 
 int get_tx_data_byte(char *c)
 {
+  if ((tx_mode == MODE_CW || tx_mode == MODE_CWR) && text_ready == 0)
+  return 0;
+      
 	// If we are in a voice mode, don't clear the text textbox
 	switch (tx_mode)
 	{
@@ -7156,7 +7226,10 @@ int get_tx_data_byte(char *c)
 	}
 	f->is_dirty = 1;
 	f->update_remote = 1;
-	// update_field(f);
+	// reset flag after text buffer emptied
+  if (strlen(f->value) == 0) {
+    text_ready = 0; 
+  }
 	return length;
 }
 
@@ -8004,6 +8077,26 @@ void cmd_exec(char *cmd)
 		set_radio_mode(args);
 		update_field(get_field("r1:mode"));
 	}
+  else if (!strcasecmp(exec, "cwreverse"))
+  {
+    extern bool cw_reverse;  // declared in modem_cw.c
+    if (args[0] == '\0') {
+      if (cw_reverse) {
+        write_console(FONT_LOG, "cwreverse: on\n");
+      } else {
+        write_console(FONT_LOG, "cwreverse: off\n");
+      }
+    } else if (!strcasecmp(args, "on")) {
+      cw_reverse = true;
+      write_console(FONT_LOG, "cwreverse: on\n");
+    } else if (!strcasecmp(args, "off")) {
+      cw_reverse = false;
+      write_console(FONT_LOG, "cwreverse: off\n");
+    } else {
+      write_console(FONT_LOG, "Invalid value for cwreverse. Use on or off.\n");
+    }
+  // should we store the setting in user_settings.ini? 
+  }
 	else if (!strcmp(exec, "t"))
 		tx_on(TX_SOFT);
 	else if (!strcmp(exec, "r"))
