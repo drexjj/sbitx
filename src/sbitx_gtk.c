@@ -42,6 +42,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "hamlib.h"
 #include "remote.h"
 #include "modem_ft8.h"
+#include "modem_cw.h"
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
@@ -2937,86 +2938,88 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 
-	if (zero_beat_enabled)
-	{
-		// --- Zero Beat indicator
-		const char *zerobeat_text = "ZBEAT";
-		cairo_set_font_size(gfx, FONT_SMALL);
-	
-		
-		// Only show zero beat indicator in CW/CWR modes
-		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
-			// Get zero beat value from calculate_zero_beat
-			int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
-	
-	
-			// Position and draw the text in gray
-			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
-			int zerobeat_text_y = f_spectrum->y + 30;
-	
-			// Draw text in gray always
-			cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray text
-			cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
-			cairo_show_text(gfx, zerobeat_text);
-	
-			// Draw LED indicators
-			int box_width = 15;
-			int box_height = 5;
-			int spacing = 2;
-			int led_y = zerobeat_text_y - 5;
-			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
-	
-			// Draw LED background
-			cairo_save(gfx);
-			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
-			cairo_rectangle(gfx, led_x - 2, led_y - 2, 
-						   (box_width + spacing) * 5 + 4, box_height + 4);
-			cairo_fill(gfx);
-	
-			// Draw 5 LEDs
-	
-			
-			for(int i = 0; i < 5; i++) {
-				cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width, box_height);
-				
-				// Set LED color based on zero beat value and position
-				if (i == 0 && zerobeat_value == 1) { // Far below
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-				}
-				else if (i == 1 && zerobeat_value == 2) { // Slightly below
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
-				}
-				else if (i == 2 && zerobeat_value == 3) { // Centered
-		
-		
-					cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
-				}
-				else if (i == 3 && zerobeat_value == 4) { // Slightly above
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
-				}
-				else if (i == 4 && zerobeat_value == 5) { // Far above
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-				}
-				else {
-		
-		
-					cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Inactive LED
-				}
-	
-				cairo_fill(gfx);
-			}
-			cairo_restore(gfx);
-		}
-	}
-
+	if (zero_beat_enabled) {
+    // --- Zero Beat indicator
+    const char *zerobeat_text = "ZBEAT";
+    cairo_set_font_size(gfx, FONT_SMALL);
+  
+    // Only show zero beat indicator in CW/CWR modes
+    if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
+      // Get zero beat value from calculate_zero_beat
+      int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
+  
+      // Position and draw the text in gray
+      int zerobeat_text_x = f_spectrum->x + f_spectrum->width -
+                            measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) -
+                            183;
+      int zerobeat_text_y = f_spectrum->y + 30;
+  
+      // Draw text in gray always
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2);  // Gray text
+      cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
+      cairo_show_text(gfx, zerobeat_text);
+  
+      // Draw LED indicators
+      int box_width = 15;
+      int box_height = 5;
+      int spacing = 2;
+      int led_y = zerobeat_text_y - 5;
+      int led_x = zerobeat_text_x +
+                  measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
+  
+      // Draw LED background
+      cairo_save(gfx);
+      cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
+      cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 4,
+                      box_height + 4);
+      cairo_fill(gfx);
+  
+      // Draw 5 LEDs
+      for (int i = 0; i < 5; i++) {
+        cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width,
+                        box_height);
+  
+        // Set LED color based on zero beat value and position
+        if (i == 0 && zerobeat_value == 1) {  // Far below
+          cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+        } else if (i == 1 && zerobeat_value == 2) {  // Slightly below
+          cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+        } else if (i == 2 && zerobeat_value == 3) {  // Centered
+          cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
+        } else if (i == 3 && zerobeat_value == 4) {  // Slightly above
+          cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+        } else if (i == 4 && zerobeat_value == 5) {  // Far above
+          cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+        } else {
+          // Inactive background color
+          cairo_set_source_rgb(gfx, 0.13, 0.13, 0.13);
+        }
+  
+        cairo_fill(gfx);
+      }
+  
+      // Draw a highlight frame around the LED corresponding to the CW decoder's
+      // strongest bin Mapping is left-to-right: 0:-80 Hz, 1:-35 Hz, 2:0 Hz, 3:+35
+      // Hz, 4:+80 Hz
+      int hi = cw_get_max_bin_highlight_index();
+      if (hi >= 0 && hi < 5) {
+        const double pad = 2.0;     // frame padding around the LED box
+        const double line_w = 2.0;  // frame thickness
+        const double fx = led_x + hi * (box_width + spacing) - pad;
+        const double fy = led_y - pad;
+        const double fw = box_width + 2 * pad;
+        const double fh = box_height + 2 * pad;
+  
+        // Use a distinct color for the frame; cyan stands out across LED colors
+        cairo_set_source_rgb(gfx, 0.0, 1.0, 1.0);
+        cairo_set_line_width(gfx, line_w);
+        cairo_rectangle(gfx, fx, fy, fw, fh);
+        cairo_stroke(gfx);
+      }
+      cairo_restore(gfx);
+    }
+  }  
+  
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
 						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
