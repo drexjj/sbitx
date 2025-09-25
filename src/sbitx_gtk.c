@@ -55,7 +55,7 @@ extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
-void ft8_process(char *received, int operation);
+int ft8_process(char *received, int operation);
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */

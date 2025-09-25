@@ -24,6 +24,12 @@
 #include "ft8_lib/ft8/constants.h"
 #include "ft8_lib/fft/kiss_fftr.h"
 
+// We try to avoid calling automatically the same stations again and again, at least in this session
+#define min(x, y) (((x) < (y)) ? (x) : (y))
+#define FT8_CALLED_SIZE 64
+static char ft8_already_called[FT8_CALLED_SIZE][32];
+static int ft8_already_called_n = 0;
+
 static int32_t ft8_rx_buff[FT8_MAX_BUFF];
 static float ft8_rx_buffer[FT8_MAX_BUFF];
 static float ft8_tx_buff[FT8_MAX_BUFF];
@@ -435,6 +441,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
     }
 
 		int n_decodes = 0;
+
+    bool processingqso = false;
+
     // Go over candidates and attempt to decode messages
     for (int idx = 0; idx < num_candidates; ++idx)
     {
@@ -484,22 +493,104 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
            decoded_hashtable[idx_hash] = &decoded[idx_hash];
            ++num_decoded;
 
-			char buff[1000];
-            sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
-			  cand->score, cand->snr, freq_hz, message.text);
-			//For troubleshooting you can display the time offset - n1qm
-			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
-			//  cand->snr, freq_hz, message.text);
-			if (strstr(buff, mycallsign_upper)){
-				write_console(FONT_FT8_REPLY, buff);
-				ft8_process(buff, FT8_CONTINUE_QSO);
-			}
-			else 
-				write_console(FONT_FT8_RX, buff);
-			n_decodes++;
+           char buff[1000];
+           sprintf(buff, "%s %3d %+03d %-4.0f ~  %s\n", time_str, 
+                   cand->score, cand->snr, freq_hz, message.text);
+           
+           //For troubleshooting you can display the time offset - n1qm
+           //sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
+           //  cand->snr, freq_hz, message.text);
+           if (strstr(buff, mycallsign_upper)) {
+               write_console(FONT_FT8_REPLY, buff);
+               processingqso |= ft8_process(buff, FT8_CONTINUE_QSO);
+           }
+           else 
+               write_console(FONT_FT8_RX, buff);
+
+           // Store a string that may need to be parsed again in the future
+           // For compatibility with other parts of the software, this historically
+           // has to be the same that is shown in the GUI (and is clickable)
+           strncpy(decoded[idx_hash].displaytext, buff, sizeof(message.displaytext));
+           decoded[idx_hash].displaytext[sizeof(message.displaytext)-1] = '\0';
+
+           n_decodes++;
         }
     }
     //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
+
+    // Here we have a populated hash table with the decoded messages
+    // If we are in autorespond mode and in idle state (i.e. no QSO ongoing),
+    //  we would like to answer to a CQ call
+    // This simple implementation just answers to a random CQ call (if any)
+    //  by scanning sequentially the hash table until one is found that
+    //  has not been answered since the start of the sbitx program,
+    //  with a max number of entries stored into a circular buffer
+    // In the future, this could be made more sophisticated, with blacklists or
+    //  prioritization criteria or querying the log
+    // In theory, we could also start a CQ ourselves,
+    //  however this would not be consistent with the idea of auto responder that
+    // is shown in the GUI. We may consider this option in the future,
+    //  and make it behave more like FT8CN (i.e. a sort of
+    // completely autonomous ft8 bot), according to the preferences of the user
+    if (!strcmp(field_str("FT8_AUTO"), "ON") && !strlen(field_str("CALL")) && !processingqso) {
+       char *candmsg = NULL;       
+       char *candtext = NULL;
+       printf("Looking for a CQ to answer to\n");
+
+       for (int idx = 0; idx < kMax_decoded_messages; idx++) {
+           // We prioritize POTA and SOTA and /QRP and /P
+           if ( decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
+              
+              if ( !strncmp(decoded_hashtable[idx]->text, "CQ POTA ", 8) || 
+                  !strncmp(decoded_hashtable[idx]->text, "CQ SOTA ", 8) ||
+                  ( !strncmp(decoded_hashtable[idx]->text, "CQ ", 3) &&
+                    (strstr(decoded_hashtable[idx]->text, "/QRP") ||
+                     strstr(decoded_hashtable[idx]->text, "/P")) ) ) {
+
+                 // We try to avoid calling automatically the same stations again and again, at least in this session
+                 bool found = false;
+                 for (int ii = 0; ii < min(ft8_already_called_n, FT8_CALLED_SIZE); ii++) {
+                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii]))
+                        found = true;
+                 }
+
+                 if (!found) {
+                    candmsg = decoded_hashtable[idx]->displaytext;
+                    candtext = decoded_hashtable[idx]->text;
+                 }
+                 break;
+              }
+
+              if ( !strncmp(decoded_hashtable[idx]->text, "CQ ", 3) ) {
+
+                 // We try to avoid calling automatically the same stations again and again, at least in this session
+                 bool found = false;
+                 for (int ii = 0; ii < min(ft8_already_called_n, FT8_CALLED_SIZE); ii++) {
+                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii]))
+                        found = true;
+                 }
+
+                 if (!found) {
+                    candmsg = decoded_hashtable[idx]->displaytext;
+                    candtext = decoded_hashtable[idx]->text;
+                 }
+
+              }
+
+           }
+       }
+
+       if (candmsg) {
+          printf("Maybe we should respond to '%s' ... ", candmsg);
+          if (ft8_process(candmsg, FT8_START_QSO)) {
+             strcpy(ft8_already_called[ft8_already_called_n % FT8_CALLED_SIZE], candtext);
+             ft8_already_called_n++;
+             printf("yes, doing it\n");
+          }
+          else
+             printf("no\n");
+       }
+    }
 
     monitor_free(&mon);
 
@@ -657,8 +748,8 @@ void ft8_poll(int seconds, int tx_is_on){
 		return;
 	}
 	
-	if (!ft8_repeat || seconds == last_second)
-		return;
+	if (!ft8_repeat || seconds == last_second) 
+            return;
 
 	//we poll for this only once every second
 	//we are here only if we are rx-ing and we have a pending transmission 
@@ -672,6 +763,8 @@ void ft8_poll(int seconds, int tx_is_on){
 		tx_on(TX_SOFT);
 		ft8_start_tx(seconds % 15);
 		ft8_repeat--;
+		if (!ft8_repeat)
+                   call_wipe();
 	} 
 }
 
@@ -819,12 +912,13 @@ void ft8_on_signal_report(){
 	//enter_qso();
 }
 
-void ft8_process(char *message, int operation){
+// Return nonzero if this message has triggered some action
+int ft8_process(char *message, int operation){
 	char buff[100], reply_message[100], *p;
 	int auto_respond = 0;
 
 	if (ft8_message_tokenize(message) == -1)
-		return;
+		return 0;
 
 	call = field_str("CALL");
 	exchange = field_str("EXCH");
@@ -842,19 +936,19 @@ void ft8_process(char *message, int operation){
 	//we can start call in reply to a cq, cq dx or anyone else ending the call
 	if (operation == FT8_START_QSO){
 		ft8_on_start_qso(message);
-		return;
+		return 1;
 	}
 
 	// see if you are on auto responder, the logger is empty and we are the called party
 	if (auto_respond && !strlen(call) && !strcmp(m1, mycall)){
 		ft8_on_start_qso(message);
-		return;
+		return 2;
 	}
 
 	//by now, any message that comes to us should have our callsign as m1
 	if (strcmp(m1, mycall)){
 		printf("FT8: Not a message for %s\n", mycall);
-		return;
+		return 0;
 	}
 
 
@@ -862,7 +956,7 @@ void ft8_process(char *message, int operation){
 		ft8_abort();
 		enter_qso(); // W9JES
 		ft8_repeat = 0;
-		return;
+		return 1;
 	}
 
 	//the other station has sent either an RRR or an RR73
@@ -874,18 +968,21 @@ void ft8_process(char *message, int operation){
 		enter_qso();
 		call_wipe();
 		ft8_repeat = 1;
+                return 1;
 	}	
 	
 	//beyond this point, we need to have a call filled up in the logger
 	if (!strlen(call))
-		return;
+		return 0;
 
 
 	//this is a signal report, at times, other call can just send their sig report
 	if (m3[0] == '-' || (m3[0] == 'R' && m3[1] == '-') || m3[0] == '+' || (m3[0] == 'R' && m3[1] == '+')){
 		ft8_on_signal_report();
-		return;
+		return 1;
 	}
+
+	return 0;
 }
 
 void ft8_init(){
