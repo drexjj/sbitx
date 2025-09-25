@@ -105,12 +105,14 @@ char pins[15] = {0, 2, 3, 6, 7,
 #define ENC2_B (2)
 #define ENC2_SW (3)
 
+#define ENCODER_DEBOUNCE_US 150  // ignore edges that arrive before this many microseconds
+
 #define SW5 (22)
 #define PTT (7)
 #define DASH (21)
 
-#define ENC_FAST 1
-#define ENC_SLOW 5
+#define ENC_FAST 4
+#define ENC_SLOW 5    // not used anywhere?
 
 #define DS3231_I2C_ADD 0x68
 // time sync, when the NTP time is not synced, this tracks the number of seconds
@@ -146,6 +148,7 @@ struct encoder
 	int speed;
 	int prev_state;
 	int history;
+  unsigned int last_us;  // last accepted transition time (microseconds)
 };
 void tuning_isr(void);
 
@@ -6408,74 +6411,75 @@ int key_poll() {
     }
   return key;
 }
+        
+// read the two output pins on the encoder
+int enc_state(struct encoder *e)
+{
+	return (digitalRead(e->pin_a) ? 1 : 0) + (digitalRead(e->pin_b) ? 2 : 0);
+}
 
 void enc_init(struct encoder *e, int speed, int pin_a, int pin_b)
 {
 	e->pin_a = pin_a;
 	e->pin_b = pin_b;
 	e->speed = speed;
-	e->history = 5;
+	e->history = 0;
+  e->prev_state = enc_state(e) & 0x3;  // capture current encoder state
+  e->last_us = micros();               // and time
 }
 
-int enc_state(struct encoder *e)
-{
-	return (digitalRead(e->pin_a) ? 1 : 0) + (digitalRead(e->pin_b) ? 2 : 0);
+// read encoder output and determine rotation direction
+int enc_read(struct encoder *e) {
+  // 4x4 transition table, index = (prev<<2) | curr
+  // entries: -1 = CCW, +1 = CW, 0 = no movement/invalid
+  static const int8_t qdec[16] = {
+    /* prev=00 */  0, +1, -1,  0,
+    /* prev=01 */ -1,  0,  0, +1,
+    /* prev=10 */ +1,  0,  0, -1,
+    /* prev=11 */  0, -1, +1,  0 };
+
+  // debounce just ignores transitions that arrive too quickly
+  unsigned int now = micros();
+  if ((unsigned int)(now - e->last_us) < ENCODER_DEBOUNCE_US) {
+    return 0;
+  }
+
+  // determine direction of knob rotation
+  int curr = enc_state(e) & 0x3;  // current A/B state (00..11)
+  int idx = ((e->prev_state & 0x3) << 2) | curr;  // idx is 4 bits
+  int step = qdec[idx];  // use transition table to determine direction (-1, 0, +1)
+
+  // if no logical movement, keep time loose (don’t update last_us)
+  if (step == 0) {
+    e->prev_state = curr;
+    return 0;
+  }
+  // accept this movement, update timestamp and previous state
+  e->last_us = now;
+  e->prev_state = curr;
+
+  // accumulate steps into history to implement 'speed' threshold
+  e->history += step;
+
+  // report a tick once accumulated movement passes threshold
+  // 'speed' is number of steps required to make a movement
+  if (e->history >= e->speed) {
+    e->history = 0;
+    return +1;  // CW tick
+  } else if (e->history <= -e->speed) {
+    e->history = 0;
+    return -1;  // CCW tick
+  }
+  return 0;  // not enough accumulated movement yet
 }
 
-int enc_read(struct encoder *e)
-{
-	int result = 0;
-	int newState;
-
-	newState = enc_state(e); // Get current state
-
-	if (newState != e->prev_state)
-		delay(1);
-
-	if (enc_state(e) != newState || newState == e->prev_state)
-		return 0;
-
-	// these transitions point to the encoder being rotated anti-clockwise
-	if ((e->prev_state == 0 && newState == 2) ||
-		(e->prev_state == 2 && newState == 3) ||
-		(e->prev_state == 3 && newState == 1) ||
-		(e->prev_state == 1 && newState == 0))
-	{
-		e->history--;
-		// result = -1;
-	}
-	// these transitions point to the enccoder being rotated clockwise
-	if ((e->prev_state == 0 && newState == 1) ||
-		(e->prev_state == 1 && newState == 3) ||
-		(e->prev_state == 3 && newState == 2) ||
-		(e->prev_state == 2 && newState == 0))
-	{
-		e->history++;
-	}
-	e->prev_state = newState; // Record state for next pulse interpretation
-	if (e->history > e->speed)
-	{
-		result = 1;
-		e->history = 0;
-	}
-	if (e->history < -e->speed)
-	{
-		result = -1;
-		e->history = 0;
-	}
-	return result;
+static volatile int tuning_ticks = 0;
+void tuning_isr(void) {
+  int tuning = enc_read(&enc_b);
+  if (tuning < 0) tuning_ticks++;
+  if (tuning > 0) tuning_ticks--;
 }
-
-static int tuning_ticks = 0;
-void tuning_isr(void)
-{
-	int tuning = enc_read(&enc_b);
-	if (tuning < 0)
-		tuning_ticks++;
-	if (tuning > 0)
-		tuning_ticks--;
-}
-
+        
 void query_swr()
 {
 	uint8_t response[4];
