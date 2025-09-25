@@ -484,20 +484,23 @@ static void handle_mode_straight(uint8_t symbol_now) {
 static void handle_mode_bug(uint8_t symbol_now) {
   switch (cw_current_symbol) {
     case CW_IDLE:
-      if (symbol_now == CW_IDLE)     { key_off_short(); cw_current_symbol = CW_IDLE; }
-      if (symbol_now == CW_DOT)      { send_dot();      cw_current_symbol = CW_DOT;  }
-      if (symbol_now == CW_DASH)     { key_on_short();  cw_current_symbol = CW_DASH; }
-      if (symbol_now == CW_SQUEEZE)  { cw_current_symbol = CW_IDLE; }
+      if (symbol_now == CW_IDLE)       { key_off_short(); cw_current_symbol = CW_IDLE; }
+      else if (symbol_now == CW_DOT)   { send_dot();      cw_current_symbol = CW_DOT;  }
+      else if (symbol_now == CW_DASH)  { key_on_short();  cw_current_symbol = CW_DASH; }
+      else if (symbol_now == CW_SQUEEZE) { cw_current_symbol = CW_IDLE; }
       break;
     case CW_DOT:
-      if (symbol_now == CW_IDLE)     { cw_current_symbol = CW_IDLE; }
-      if (symbol_now == CW_DOT)      { send_dot();      cw_current_symbol = CW_DOT;  }
-      if (symbol_now == CW_DASH)     { key_on_short();  cw_current_symbol = CW_DASH; }
+      if (symbol_now == CW_IDLE)       { cw_current_symbol = CW_IDLE; }
+      else if (symbol_now == CW_DOT)   { send_dot();      cw_current_symbol = CW_DOT;  }
+      else if (symbol_now == CW_DASH)  { key_on_short();  cw_current_symbol = CW_DASH; }
       break;
     case CW_DASH:
-      if (symbol_now == CW_IDLE)     { cw_current_symbol = CW_IDLE; }
-      if (symbol_now == CW_DOT)      { send_dot();      cw_current_symbol = CW_DOT;  }
-      if (symbol_now == CW_DASH)     { key_on_short();  cw_current_symbol = CW_DASH; }
+      if (symbol_now == CW_IDLE)       { cw_current_symbol = CW_IDLE; }
+      else if (symbol_now == CW_DOT)   { send_dot();      cw_current_symbol = CW_DOT;  }
+      else if (symbol_now == CW_DASH)  { key_on_short();  cw_current_symbol = CW_DASH; }
+      break;
+    default:
+      cw_current_symbol = CW_IDLE;
       break;
   }
 }
@@ -627,9 +630,19 @@ static void handle_mode_kbd(uint8_t symbol_now) {
   }
 }
 
-// just call the function based on current mode
+// call the keyer function for current mode
 void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
-  // reverse paddle input (EXPERIMENTAL)
+  static uint8_t prev_mode = 0xFF;
+  // initialize when changing modes
+  if (state_machine_mode != prev_mode) {
+    cw_current_symbol     = CW_IDLE;
+    cw_last_symbol        = CW_IDLE;
+    cw_next_symbol        = CW_IDLE;
+    cw_next_symbol_flag   = 0;
+  }
+  prev_mode = state_machine_mode;
+  
+  // reverse paddle input
   if (cw_reverse && state_machine_mode != CW_KBD) {
     if (symbol_now == CW_DOT) symbol_now = CW_DASH;
     else if (symbol_now == CW_DASH) symbol_now = CW_DOT;
