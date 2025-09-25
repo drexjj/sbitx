@@ -776,6 +776,15 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   p->ticker++;
 }
 
+// this function only called from sbitx_gtk.c to supply zerobeat indicator 
+// with info on which bin to highlight
+int cw_get_max_bin_highlight_index(void) {
+  // return -1 if no signal present or if no streak (I might tune the streak number)
+  if (!decoder.sig_state) return -1;
+  if (decoder.max_bin_streak < 2) return -1;
+  return decoder.max_bin_idx; // 0..4, where 2 is the center bin
+}
+
 // use fractional Goertzel algorithm to detect the magnitude of a specific frequency bin
 static int cw_rx_bin_detect(struct bin *p, int32_t *data) {
   // Q1 and Q2 are the previous two states in the Goertzel recurrence
