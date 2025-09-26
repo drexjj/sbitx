@@ -347,7 +347,7 @@ static int cw_read_key(){
 			char buff[5];
 			buff[0] = toupper(c);
 			buff[1] = 0;
-			write_console(FONT_CW_TX, buff);
+			write_console(STYLE_CW_TX, buff);
 		}
 	if (symbol_next)
 		return cw_get_next_symbol(); 
@@ -1065,11 +1065,11 @@ static void cw_rx_match_letter(struct cw_decoder *p){
 	p->next_symbol = 0;
 	for (int i = 0; i < sizeof(morse_rx_table)/sizeof(struct morse_rx); i++)
 		if (!strcmp(code, morse_rx_table[i].code)){
-			write_console(FONT_CW_RX, morse_rx_table[i].c);
+			write_console(STYLE_CW_RX, morse_rx_table[i].c);
 			return;
 		}
 	//un-decoded phrases
-	write_console(FONT_CW_RX, code);
+	write_console(STYLE_CW_RX, code);
 
 }
 
@@ -1147,7 +1147,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p){
 	else if (p->mark == 0 && p->prev_mark == 0){ //continuing space
 		if (p->next_symbol == 0){
 	 		if(p->ticker > (p->dash_len * 3)/2){
-				write_console(FONT_CW_RX, " ");
+				write_console(STYLE_CW_RX, " ");
 				p->ticker = 0;
 			}
 		}
@@ -1155,7 +1155,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p){
 			cw_rx_add_symbol(p, ' ');
 			cw_rx_match_letter(p);
 			if (p->ticker > (p->dash_len * 3)/2){
-				write_console(FONT_CW_RX, " ");
+				write_console(STYLE_CW_RX, " ");
 			}
 			p->ticker = 0;
 		}

@@ -27,7 +27,7 @@ void config_update(char *key, char *value){
 	if (strlen(value) >= MAX_VALUE){
 		printf("*Error: value of key [%s] is too big\n", value);
 		return;
-	} 
+	}
 
 	//search an existing key
 	while(e){
@@ -38,7 +38,7 @@ void config_update(char *key, char *value){
 	if (!e){
 		e = (struct entry *)malloc(sizeof(struct entry));
 		if (!e){
-			printf("*Error: Out of memory entering [%s] = %s", key, value); 
+			printf("*Error: Out of memory entering [%s] = %s", key, value);
 			return;
 		}
 		strcpy(e->key, key);
@@ -46,7 +46,7 @@ void config_update(char *key, char *value){
 		settings_head = e;
 	}
 	strcpy(e->value, value);
-}	
+}
 
 void config_update_int(char *key, int v){
 	char value[MAX_VALUE];
@@ -68,21 +68,21 @@ int config_get_int(char *key, int *d){
 
 	if (config_get(key, v))
 		return 1;
-	*d = atoi(v);		
+	*d = atoi(v);
 	return 0;
 }
 
 void config_load(){
 	char buff [MAX_LINE];
 	FILE *pf = fopen("sbitx.conf", "r");
-	
+
 	while (!fgets(buff, MAX_LINE, pf)){
 		if (buff[0] == '#')
 			continue;
 		char *k = strtok(buff, "=");
 		if(!k)
-			continue;	
-		char *v = strtok(NULL, "\n\r");	
+			continue;
+		char *v = strtok(NULL, "\n\r");
 		if (v)
 			config_update(k, v);
 	}
@@ -103,7 +103,7 @@ void config_save(){
 
 /*
 void main(){
-	config_update("r1:freq", "7100000");	
+	config_update("r1:freq", "7100000");
 	config_save();
 	int data;
 	if (!config_get_int("r1:freq",&data))

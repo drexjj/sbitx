@@ -5,7 +5,7 @@
 #include "i2cbb.h"
 #include "si5351.h"
 
-#define SDA 23 
+#define SDA 23
 #define SCL 22
 
 #define SI_CLK0_CONTROL  16      // Register definitions
@@ -30,8 +30,8 @@
 #define SI_CLK_SRC_PLL_A  0b00000000
 #define SI_CLK_SRC_PLL_B  0b00100000
 
-#define SI5351_CLK_PLL_SELECT_B (1<<5) 
-#define SI5351_CLK_INTEGER_MODE (1<<6)   
+#define SI5351_CLK_PLL_SELECT_B (1<<5)
+#define SI5351_CLK_INTEGER_MODE (1<<6)
 #define SI5351_CLK_INPUT_MULTISYNTH_N  (3<<2)
 
 #define SI5351_CLK_DRIVE_STRENGTH_MASK    (3<<0)
@@ -42,7 +42,7 @@
 
 #define PLL_N 35
 #define PLLFREQ (xtal_freq_calibrated * PLL_N)
-//int xtal_freq_calibrated = 25012725; // crystal oscillator 
+//int xtal_freq_calibrated = 25012725; // crystal oscillator
 int xtal_freq_calibrated = 25000000; // tcxo
 
 uint32_t plla_freq, pllb_freq;
@@ -53,11 +53,11 @@ static int i2c_error_count = 0;       // counts I2C Errors
 
 /*
 void i2cSendRegister(uint8_t reg, uint8_t* data, uint8_t n){
-  i2cbb_write_i2c_block_data (SI5351_ADDR, reg, n, data); 
+  i2cbb_write_i2c_block_data (SI5351_ADDR, reg, n, data);
 }
 */
 
-void i2cSendRegister(uint8_t reg, uint8_t val){ 
+void i2cSendRegister(uint8_t reg, uint8_t val){
   while (i2cbb_write_byte_data(SI5351_ADDR, reg, val) < 0)
   {
     printf("Repeating I2C #%d\n",i2c_error_count++);  // reports number of I2C repeats caused by errors
@@ -66,7 +66,7 @@ void i2cSendRegister(uint8_t reg, uint8_t val){
 }
 
 void si5351_reset(){
-  i2cSendRegister(SI_PLL_RESET, 0xA0);  
+  i2cSendRegister(SI_PLL_RESET, 0xA0);
 }
 
 void si5351a_clkoff(uint8_t clk)
@@ -93,7 +93,7 @@ static void setup_pll(uint8_t pll, uint8_t mult, uint32_t num, uint32_t denom)
   if (num == 0){
     P1 = 128 * mult - 512;
     P2 = 0;
-    P3 = 1;    
+    P3 = 1;
   }
   else {
     P1 = (uint32_t)(128 * ((float)num / (float)denom));
@@ -128,9 +128,9 @@ static void setup_multisynth(uint8_t clk, uint8_t pllSource, uint32_t divider,  
     default:
       synth = 58;
       control = 18;
-      break;   
+      break;
   }
-  
+
   uint8_t dat;
 
   uint32_t P1;
@@ -149,8 +149,8 @@ static void setup_multisynth(uint8_t clk, uint8_t pllSource, uint32_t divider,  
    *  P3[19:0] = c
    */
   /* Set the main PLL config registers */
- #define SI5351_DIVBY4     (3<<2) 
-  
+ #define SI5351_DIVBY4     (3<<2)
+
   if (divider == 4) {
     div4 = SI5351_DIVBY4;
     P1 = P2 = 0;
@@ -235,13 +235,13 @@ void si5351bx_setfreq(uint8_t clk, uint32_t frequency){
   //round to the next even integer
   if (pll_div * 650000000l != frequency)
     pll_div++;
- 
+
   if (pll_div & 1)
     pll_div++;
 
-   set_freq_fixeddiv(clk, pll, frequency, pll_div, 
+   set_freq_fixeddiv(clk, pll, frequency, pll_div,
                     SI5351_CLK_DRIVE_STRENGTH_8MA);
-//	set_frequency_fixedpll(clk, pll, PLLFREQ, frequency, SI_R_DIV_1, 
+//	set_frequency_fixedpll(clk, pll, PLLFREQ, frequency, SI_R_DIV_1,
 //		SI5351_CLK_DRIVE_STRENGTH_8MA);
 }
 
@@ -250,7 +250,7 @@ void si5351_set_calibration(int32_t cal){
     xtal_freq_calibrated = cal;
 }
 
-void si5351bx_init(){ 
+void si5351bx_init(){
   i2cbb_init(SDA, SCL);
 	delay(10);
   si5351_reset();
