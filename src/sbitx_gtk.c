@@ -4661,118 +4661,111 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 	return 0;
 }
+
 // called for RIT as well as the main tuning
-int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
+int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+  int v = atoi(f->value);
 
-	static struct timespec last_change_time, this_change_time;
-	int v = atoi(f->value);
-	int temp_tuning_step = tuning_step;
+  if (event == FIELD_EDIT) {
+    // measure time between tuning steps and keep weighted moving average
+    static uint64_t last_us = 0;
+    static double ema_rate = 0.0;  // events per second, smoothed
+    const double alpha = 0.25;     // moving average factor; higher = more responsive
 
-	if (event == FIELD_EDIT)
-	{
+    int base_step = tuning_step;  // keep user step chosen in UI is immutable per event
+    int local_step = base_step;   // computed each event
 
-		if (!strcmp(get_field("tuning_acceleration")->value, "ON"))
-		{
-			clock_gettime(CLOCK_MONOTONIC_RAW, &this_change_time);
-			uint64_t delta_us = (this_change_time.tv_sec - last_change_time.tv_sec) * 1000000 + (this_change_time.tv_nsec - last_change_time.tv_nsec) / 1000;
-			char temp_char[100];
-			// sprintf(temp_char, "delta: %d", delta_us);
-			// strcat(temp_char,"\r\n");
-			// write_console(FONT_LOG, temp_char);
-			clock_gettime(CLOCK_MONOTONIC_RAW, &last_change_time);
-			if (delta_us < atof(get_field("tuning_accel_thresh2")->value))
-			{
-				if (tuning_step < 10000)
-				{
-					tuning_step = tuning_step * 100;
-					// sprintf(temp_char, "x100 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
-				}
-			}
-			else if (delta_us < atof(get_field("tuning_accel_thresh1")->value))
-			{
-				if (tuning_step < 1000)
-				{
-					tuning_step = tuning_step * 10;
-					// printf(temp_char, "x10 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
-				}
-			}
-		}
+    if (!strcmp(get_field("tuning_acceleration")->value, "ON")) {
+      // get time of this tuning tick arrival
+      struct timespec ts;
+      clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + ts.tv_nsec / 1000ull;
 
-		if (vfo_lock_enabled == 0)
-		{
+      if (last_us != 0) {
+        uint64_t dt = now_us - last_us;
+        if (dt > 0) {
+          double inst_rate = 1e6 / (double)dt;  // events per second
+          // compute weighted moving average
+          ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
-			if (a == MIN_KEY_UP && v + f->step <= f->max)
-			{
-				// this is tuning the radio
-				// Fix a compiler warning - n1qm
-				// orig: if (!strcmp(get_field("#rit")->value, "ON")){
-				if (!strcmp(field_str("RIT"), "ON"))
-				{
-					struct field *f = get_field("#rit_delta");
-					int rit_delta = atoi(f->value);
-					if (rit_delta < MAX_RIT)
-					{
-						rit_delta += tuning_step;
-						char tempstr[100];
-						sprintf(tempstr, "%d", rit_delta);
-						set_field("#rit_delta", tempstr);
-						printf("moved rit to %s\n", f->value);
-					}
-					else
-						return 1;
-				}
-				else
-					v = (v / tuning_step + 1) * tuning_step;
-			}
-			else if (a == MIN_KEY_DOWN && v - f->step >= f->min)
-			{
-				// Fix a compiler warning - n1qm
-				// orig: if (!strcmp(get_field("#rit")->value, "ON")){
-				if (!strcmp(field_str("RIT"), "ON"))
-				{
-					struct field *f = get_field("#rit_delta");
-					int rit_delta = atoi(f->value);
-					if (rit_delta > -MAX_RIT)
-					{
-						rit_delta -= tuning_step;
-						char tempstr[100];
-						sprintf(tempstr, "%d", rit_delta);
-						set_field("#rit_delta", tempstr);
-						printf("moved rit to %s\n", f->value);
-					}
-					else
-						return 1;
-				}
-				else
-					v = (v / tuning_step - 1) * tuning_step;
-				abort_tx();
-			}
-		}
+          // set tuning rate multiplier based on average rate
+          int mult;
+          if (ema_rate < 5.0)
+            mult = 1;
+          else if (ema_rate < 20.0)
+            mult = 5;
+          else if (ema_rate < 50.0)
+            mult = 10;
+          else
+            mult = 100;
 
-		sprintf(f->value, "%d", v);
-		tuning_step = temp_tuning_step;
-		// send the new frequency to the sbitx core
-		char buff[100];
-		// sprintf(buff, "%s=%s", f->cmd, f->value);
-		sprintf(buff, "%s %s", f->label, f->value);
-		do_control_action(buff);
-		// update the GUI
-		update_field(f);
-		settings_updated++;
-		// leave it to us, we have handled it
+          // set a max tuning rate
+          // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K
+          long cap = 50000;
+          long proposed = (long)base_step * mult;
+          if (proposed > cap) proposed = cap;
+          local_step = (int)proposed;
+        }
+      }
+      last_us = now_us;
+    } else {
+      // no acceleration
+      local_step = base_step;
+    }
 
-		return 1;
-	}
-	else if (event == FIELD_DRAW)
-	{
-		draw_dial(f, gfx);
+    // Movement application
+    // VFO LOCK? If so, skip.
+    // RIT uses additive deltas; VFO uses integral multiples of base step to keep aligned.
+    if (vfo_lock_enabled == 0) {
+      if (!strcmp(field_str("RIT"), "ON")) {
+        struct field *fr = get_field("#rit_delta");
+        int rit_delta = atoi(fr->value);
+        if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
+          rit_delta += local_step;
+          if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
+        } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
+          rit_delta -= local_step;
+          if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
+        } else {
+          return 1;
+        }
+        char tempstr[32];
+        sprintf(tempstr, "%d", rit_delta);
+        set_field("#rit_delta", tempstr);
+        // leave v unchanged for RIT path
+        return 1;
+      } else {
+        // Keep alignment to base_step, but move by multiple of base_step derived from
+        // local_step. example: local_step/base_step = 1, 5, 10, 100...
+        int k = local_step / base_step;
+        if (k < 1) k = 1;
 
-		return 1;
-	}
-	return 0;
+        long vv = v;
+        if (a == MIN_KEY_UP && v + base_step <= f->max) {
+          // snap to base grid, then add k steps
+          vv = (v / base_step) * base_step + k * base_step;
+        } else if (a == MIN_KEY_DOWN && v - base_step >= f->min) {
+          vv = (v / base_step) * base_step - k * base_step;
+        } else {
+          return 1;
+        }
+        v = (int)vv;
+      }
+    }
+
+    // From here on, keep existing send/refresh
+    sprintf(f->value, "%d", v);
+    char buff[100];
+    sprintf(buff, "%s %s", f->label, f->value);
+    do_control_action(buff);
+    update_field(f);
+    settings_updated++;
+    return 1;
+  } else if (event == FIELD_DRAW) {
+    draw_dial(f, gfx);
+    return 1;
+  }
+  return 0;
 }
 
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
