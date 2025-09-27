@@ -3011,7 +3011,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
         const double fh = box_height + 2 * pad;
   
         // use cyan color for the frame (cyan is r=0.0, g=1.0, b=1.0)
-        cairo_set_source_rgba(gfx, 0.0, 1.0, 1.0, 0.3);  // make frame 30% opaque
+        cairo_set_source_rgba(gfx, 0.0, 1.0, 1.0, 0.4);  // make frame 40% opaque
         cairo_set_line_width(gfx, line_w);
         cairo_rectangle(gfx, fx, fy, fw, fh);
         cairo_stroke(gfx);
