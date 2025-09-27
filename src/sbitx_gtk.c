@@ -4691,14 +4691,16 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
           // set tuning rate multiplier based on average rate
           int mult;
           if (ema_rate < 10.0)
-            mult = 1;
+            mult = 1;    // 10 Hz steps stay at 10 Hz with slow turns
           else if (ema_rate < 20.0)
-            mult = 5;
-          else     // ema_rate > 20.0
-            mult = 10;
+            mult = 5;    // 10 Hz steps become 50 Hz steps
+          else if (ema_rate < 40.0)
+            mult = 10;    // 10 Hz steps become 100 Hz steps
+          else   // ema_rate > 40.0
+            mult = 50;    // 10 Hz steps become 500 Hz steps
          
           // set a max tuning rate
-          // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K
+          // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K steps
           long cap = 50000;
           long proposed = (long)base_step * mult;
           if (proposed > cap) proposed = cap;
