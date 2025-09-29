@@ -304,19 +304,14 @@ void spectrum_reset()
 
 void spectrum_update()
 {
-	// we are only using the lower half of the bins,
-	// so this copies twice as many bins,
-	// it can be optimized. leaving it here just in case
-	// someone wants to try I Q channels
-	// in hardware
-
-	// this has been hand optimized to lower
-	// the inordinate cpu usage
+	struct rx *r = rx_list;
 	for (int i = 1269; i < 1803; i++)
 	{
-
+		// Shift bins by 1 (or -1) to correct off-by-one error
+		int bin = i - 1; // or i - 1, depending on direction of error
+		if (bin >= 1803) bin -= (1803 - 1269); // wrap around if needed
 		fft_bins[i] = ((1.0 - spectrum_speed) * fft_bins[i]) +
-					  (spectrum_speed * cabs(fft_spectrum[i]));
+					  (spectrum_speed * cabs(fft_spectrum[bin]));
 
 		int y = power2dB(cnrmf(fft_bins[i]));
 		spectrum_plot[i] = y;
