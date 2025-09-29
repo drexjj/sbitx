@@ -659,7 +659,8 @@ void ft8_tx(char *message, int freq){
 	//if we are not transmitting CQ, then we follow
 	//the slot selected earlier in ft8_process()
 
-	if (!strncmp(message, "CQ", 2)){ 
+	if (!strncmp(message, "CQ", 2)){
+		call_wipe(); 
 		if(!strcmp(str_tx1st, "ON"))
 			ft8_tx1st = 1;
 		else
@@ -975,13 +976,18 @@ int ft8_process(char *message, int operation){
 	if (!strlen(call))
 		return 0;
 
-
-	//this is a signal report, at times, other call can just send their sig report
-	if (m3[0] == '-' || (m3[0] == 'R' && m3[1] == '-') || m3[0] == '+' || (m3[0] == 'R' && m3[1] == '+')){
-		ft8_on_signal_report();
-		return 1;
+	//this is a signal report, at times, some other call can just send their sig report, even if we are in the
+        // middle of a different qso. We shall not overwrite the fields relative to the current qso, mixing things up,
+	// hence we stick to the already ongoing one
+	if (!strcmp(call, m2)) {
+		if (m3[0] == '-' || (m3[0] == 'R' && m3[1] == '-') || m3[0] == '+' || (m3[0] == 'R' && m3[1] == '+')) {
+			printf("FT8: Got a signal report '%s' '%s' '%s'\n", m1, m2, m3);
+			ft8_on_signal_report();
+			return 1;
+		}
+	} else {
+		printf("FT8: Ignoring an unsolicited signal report '%s' '%s' '%s'. Current call was '%s'\n", m1, m2, m3, call);
 	}
-
 	return 0;
 }
 
