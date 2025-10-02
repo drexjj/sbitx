@@ -111,7 +111,6 @@ static const struct morse_tx morse_tx_table[] = {
     {'\'', ".----."},   // apostrophe
     {'!', "-.-.--"},
     {'/', "-..-."},
-    {'(', "-.--."},
     {')', "-.--.-"},
     {':', "---..."},
     {';', "-.-.-."},
@@ -120,9 +119,12 @@ static const struct morse_tx morse_tx_table[] = {
     {'"', ".-..-."},    // quote
     {'@', ".--.-."},
     {'$', "...-..-"},
-    {'=', "-...-"},     // equals (same code as BT prosign)
     {'+', ".-.-."},     // plus (same code as AR prosign)
-    {'&', ".-..."}      // ampersand (same code as AS prosign)
+    {'=', "-...-"},     // equals (same code as BT prosign)
+    {'&', ".-..."},     // ampersand (same code as AS prosign)
+    {'(', "-.--."},     // left paren (same code as KN prosign)
+    {'>', "...-.-"},    // <SK> prosign
+    {'<', "-...-.-"}    // <BK> prosign
 };
 
 // 256-entry look-up table gets filled from morse tx table above
