@@ -7121,10 +7121,15 @@ gboolean ui_tick(gpointer gook)
 	else
 	{
 		// Check if we should lock to volume due to timeout
-		if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS)
-		{
-			mfk_locked_to_volume = 1;
-		}
+    if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS) {
+      // lock MFK to volume after inactivity AND move UI focus to the volume control
+      mfk_locked_to_volume = 1;
+      struct field *vol_field = get_field("r1:volume");
+      // now simulate the “knob press” focus change so the green highlight updates
+      if (vol_field) {
+        focus_field(vol_field);
+      }
+    }
 	}
 	
 	// Check ENC1_SW for unlock (edge detection)
