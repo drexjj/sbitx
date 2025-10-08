@@ -4673,7 +4673,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     // measure time between tuning steps and keep weighted moving average
     static uint64_t last_us = 0;
     static double ema_rate = 0.0;  // events per second, smoothed
-    const double alpha = 0.10;     // moving average factor; higher = more responsive
+    const double alpha = 0.05;     // moving average factor; higher = more responsive
 
     int base_step = tuning_step;  // keep user step chosen in UI is immutable per event
     int local_step = base_step;   // computed each event
@@ -4688,17 +4688,17 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
         uint64_t dt = now_us - last_us;
         if (dt > 0) {
           double inst_rate = 1e6 / (double)dt;  // events per second
-          // compute weighted moving average
+          // compute exponential moving average (events per second)
           ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
-          // set tuning rate multiplier based on weighted moving average rate
+          // set tuning rate multiplier based on moving average rate
           int mult;
-          if (ema_rate < 25.0)
+          if (ema_rate < 35.0)
             mult = 1;    // 10 Hz steps stay at 10 Hz with slow turns
-          else if (ema_rate < 35.0)
-            mult = 10;    // 10 Hz steps become 100 Hz steps
-          else   // ema_rate > 35.0
-            mult = 100;   // 10 Hz steps become 1000 Hz steps
+          else if (ema_rate < 45.0)
+            mult = 5;    // 10 Hz steps become 50 Hz steps
+          else   // ema_rate >= 45.0
+            mult = 20;   // 10 Hz steps become 200 Hz steps
          
           // set a max tuning rate
           // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K steps
