@@ -7711,9 +7711,15 @@ void do_control_action(char *cmd)
 		tx_off();
 	}
 	else if (!strncmp(request, "RIT", 3))
-	{
-		update_field(get_field("r1:freq"));
-	}
+  {
+    // Keep SDR tuned to RX when RIT toggles or delta changes
+    struct field *freq = get_field("r1:freq");
+    if (freq && freq->value) {
+      char resp2[128];
+      set_operating_freq(atoi(freq->value), resp2);
+    }
+    update_field(get_field("r1:freq"));
+  }
 	else if (!strncmp(request, "SPLIT", 5))
 	{
 		update_field(get_field("r1:freq"));
