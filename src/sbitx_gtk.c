@@ -4771,7 +4771,7 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     // measure time between tuning steps and keep weighted moving average
     static uint64_t last_us = 0;
     static double ema_rate = 0.0;  // events per second, smoothed
-    const double alpha = 0.10;     // moving average factor; higher = more responsive
+    const double alpha = 0.05;     // moving average factor; higher = more responsive
 
     int base_step = tuning_step;  // keep user step chosen in UI is immutable per event
     int local_step = base_step;   // computed each event
@@ -4791,12 +4791,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 
           // set tuning rate multiplier based on weighted moving average rate
           int mult;
-          if (ema_rate < 25.0)
-            mult = 1;    // 10 Hz steps stay at 10 Hz with slow turns
-          else if (ema_rate < 35.0)
-            mult = 10;    // 10 Hz steps become 100 Hz steps
-          else   // ema_rate > 35.0
-            mult = 100;   // 10 Hz steps become 1000 Hz steps
+          if (ema_rate < 35.0)      mult = 1;  // 10 Hz steps stay 10 Hz
+          else if (ema_rate < 45.0) mult = 5;  // 10 Hz steps become 50 Hz steps
+          else                      mult = 20; // 10 Hz steps become 200 Hz steps
          
           // set a max tuning rate
           // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K steps
@@ -4812,46 +4809,45 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
       local_step = base_step;
     }
 
-    // Movement application
-    // VFO LOCK? If so, skip.
-    // RIT uses additive deltas; VFO uses integral multiples of base step to keep aligned.
-    if (vfo_lock_enabled == 0) {
-      if (!strcmp(field_str("RIT"), "ON")) {
-        struct field *fr = get_field("#rit_delta");
-        int rit_delta = atoi(fr->value);
-        if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
-          rit_delta += local_step;
-          if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
-        } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
-          rit_delta -= local_step;
-          if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
-        } else {
-          return 1;
-        }
-        char tempstr[32];
-        sprintf(tempstr, "%d", rit_delta);
-        set_field("#rit_delta", tempstr);
-        // leave v unchanged for RIT path
-        return 1;
+    // RIT path, disable acceleration (use base_step only)
+    if (!strcmp(field_str("RIT"), "ON")) {
+      struct field *fr = get_field("#rit_delta");
+      int rit_delta = atoi(fr->value);
+
+      // No acceleration for RIT
+      const int rit_step = base_step;
+
+      if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
+        rit_delta += rit_step;
+        if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
+      } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
+        rit_delta -= rit_step;
+        if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
       } else {
-        // Keep alignment to base_step, but move by multiple of base_step derived from
-        // local_step. example: local_step/base_step = 1, 5, 10, 100...
-        int k = local_step / base_step;
-        if (k < 1) k = 1;
-
-        long vv = v;
-        if (a == MIN_KEY_UP && v + base_step <= f->max) {
-          // snap to base grid, then add k steps
-          vv = (v / base_step) * base_step + k * base_step;
-        } else if (a == MIN_KEY_DOWN && v - base_step >= f->min) {
-          vv = (v / base_step) * base_step - k * base_step;
-        } else {
-          return 1;
-        }
-        v = (int)vv;
+        return 1;
       }
+      char tempstr[32];
+      sprintf(tempstr, "%d", rit_delta);
+      set_field("#rit_delta", tempstr);
+      return 1;
     }
+    
+    // Normal VFO tuning (keep acceleration)
+    if (vfo_lock_enabled == 0) {
+      int k = local_step / base_step;
+      if (k < 1) k = 1;
 
+      long vv = v;
+      if (a == MIN_KEY_UP && v + base_step <= f->max) {
+        vv = (v / base_step) * base_step + k * base_step;
+      } else if (a == MIN_KEY_DOWN && v - base_step >= f->min) {
+        vv = (v / base_step) * base_step - k * base_step;
+      } else {
+        return 1;
+      }
+      v = (int)vv;
+    }
+    
     // From here on, keep existing send/refresh
     sprintf(f->value, "%d", v);
     char buff[100];
