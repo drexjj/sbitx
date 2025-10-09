@@ -583,6 +583,7 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -646,7 +647,7 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
@@ -3025,8 +3026,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
   
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	long f_start = freq - (4 * freq_div);
+					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+  
+	// Get RIT status and delta to adjust frequency display when RIT is enabled
+	struct field *rit = get_field("#rit");
+	struct field *rit_delta = get_field("#rit_delta");
+	long display_freq = freq;
+	
+	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
+	if (!strcmp(rit->value, "ON") && !in_tx) {
+		// Adjust the display frequency to show RX frequency (freq + rit_delta)
+		display_freq = freq + atoi(rit_delta->value);
+	}
+	
+	long f_start = display_freq - (4 * freq_div);					 
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3290,6 +3303,91 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 	{
 		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
+
+    
+		// Draw TX frequency indicator when RIT is enabled
+		struct field *rit = get_field("#rit");
+		struct field *rit_delta = get_field("#rit_delta");
+		struct field *freq_field = get_field("r1:freq");
+		struct field *mode_f = get_field("r1:mode");
+		
+		if (!strcmp(rit->value, "ON") && !in_tx)
+		{
+			// Get the RIT delta value and current frequency
+			int rit_delta_value = atoi(rit_delta->value);
+			long rx_freq = atol(freq_field->value);
+			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
+			
+			// Calculate the TX bin position directly
+			// We need to calculate where the TX frequency would be in the spectrum
+			// First, determine the frequency span visible in the spectrum
+			float span_khz = atof(get_field("#span")->value);
+			float span_hz = span_khz * 1000;
+			
+			// Now we calculate the frequency difference between RX and TX in Hz
+			long freq_diff = rx_freq - tx_freq;
+			
+			// Let's calculate the pixel offset based on the frequency difference and span
+			// The center of the spectrum is at f->width/2
+			// The full width represents span_hz
+			float pixels_per_hz = (float)f->width / span_hz;
+			// Invert the offset to match the spectrum panning direction
+			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
+			
+			// Calculate the TX needle position
+			// WE can use the same calculation method as the RX needle (tuned_bin)
+			// but with an offset based on the RIT delta
+			int tx_needle_x;
+			
+			// Calculate the TX needle position directly from the RX needle position
+			// The RX needle is always at the center (f->width/2)
+			// We just need to offset it based on the RIT delta
+			tx_needle_x = (f->width / 2) + offset_pixels;
+			
+			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
+			int is_at_edge = 0;
+			int arrow_direction = 0; // -1 for left, 1 for right
+      
+			if (tx_needle_x < 0) {
+				tx_needle_x = 0;
+        is_at_edge = 1;
+				arrow_direction = -1; // Point left
+			}
+			if (tx_needle_x >= f->width) {
+				tx_needle_x = f->width - 1;
+			  is_at_edge = 1;
+				arrow_direction = 1; // Point right
+			}
+			// Draw red TX frequency indicator
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			cairo_set_line_width(gfx, 1.0);
+			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
+			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
+			cairo_stroke(gfx);
+
+      // This part is will draw a small red triangle arrow at the center of the line if at edge of the scope
+			if (is_at_edge) {
+				int center_y = f->y + (grid_height / 2);
+				int arrow_size = 10; // Size of the triangle
+				
+				// Fill a triangle pointing in the direction of the TX frequency
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+				cairo_move_to(gfx, f->x + tx_needle_x, center_y);
+				
+				if (arrow_direction < 0) { // Point left
+					// Triangle pointing left
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y + arrow_size/2);
+				} else { // Point right
+					// Triangle pointing right
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y + arrow_size/2);
+				}
+				
+				cairo_close_path(gfx);
+				cairo_fill(gfx);
+			}
+		}
 	}
 }
 
@@ -4830,6 +4928,34 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	if (event == GDK_BUTTON_PRESS)
 	{
 		set_field("#menu", "OFF");
+		focus_field(f_last_text);
+		return 1;
+	}
+	return 0;
+}
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		if (!strcmp(field_str("RIT"), "OFF"))
+		{ 
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			int current_freq = atoi(freq->value);
+			char response[128];
+			
+			// Adjust VFO up by 10Hz
+			set_operating_freq(current_freq + 10, response);
+			
+			// Small 5ms delay 
+			usleep(5000); 
+			
+			// Adjust VFO back down by 10Hz to original frequency
+			set_operating_freq(current_freq, response);
+		}
+		set_field("#rit_delta", "000000"); // zero the RIT delta
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -8056,7 +8182,45 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
-	else if (!strcmp(exec, "exit"))
+	else if (!strcmp(exec, "rit"))
+	{
+		struct field *rit_field = get_field("#rit");
+		if (!rit_field) {
+			write_console(FONT_LOG, "Error: RIT field not found\n");
+			return;
+		}
+		
+		if (!strcasecmp(args, "on"))
+		{
+			// Turn RIT on
+			set_field("#rit", "ON");
+			set_field("#rit_delta", "000000"); // zero the RIT delta
+		}
+		else if (!strcasecmp(args, "off"))
+		{
+			// Turn RIT off
+			set_field("#rit", "OFF");
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				int current_freq = atoi(freq->value);
+				char response[128];
+				
+				// Adjust VFO up by 10Hz
+				set_operating_freq(current_freq + 10, response);
+				
+				// Small 5ms delay 
+				usleep(5000); 
+				
+				// Adjust VFO back down by 10Hz to original frequency
+				set_operating_freq(current_freq, response);
+			}
+		}
+		focus_field(f_last_text);
+	}
+  else if (!strcmp(exec, "exit"))
 	{
 		tx_off();
 		set_field("#record", "OFF");
@@ -8434,6 +8598,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
+  field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
