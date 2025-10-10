@@ -559,7 +559,7 @@ void cmd_exec(char *cmd);
 
 int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_waterfall(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int (struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -637,7 +637,7 @@ struct field main_controls[] = {
 	 "OFF/SLOW/MED/FAST", 0, 1024, 1, COMMON_CONTROL},
 	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 100, 1, COMMON_CONTROL},
-	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
+	{"r1:freq", , 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
 	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 75, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
@@ -4763,41 +4763,44 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
-// called for RIT as well as the main tuning
+// track tuning rate and adjust tuning rate acceleration
 int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-  int v = atoi(f->value);
+  const uint64_t IDLE_RESET = 500000; // reset EMA after 500ms idle
 
   if (event == FIELD_EDIT) {
-    // measure time between tuning steps and keep weighted moving average
     static uint64_t last_us = 0;
-    static double ema_rate = 0.0;  // events per second, smoothed
-    const double alpha = 0.05;     // moving average factor; higher = more responsive
+    static double ema_rate = 0.0;      // events per second, smoothed
+    const double alpha = 0.05;         // moving average factor; higher = more responsive
 
-    int base_step = tuning_step;  // keep user step chosen in UI is immutable per event
-    int local_step = base_step;   // computed each event
+    int base_step = tuning_step;       // keep user tuning step chosen in UI unchanged
+    if (base_step <= 0) base_step = 1; // guard against zero/negative (probably not needed?)
+    int local_step = base_step;        // the possibly accelerated step used in tuning
 
-    if (!strcmp(get_field("tuning_acceleration")->value, "ON")) {
-      // get time of this tuning tick arrival
+    struct field *accel_f = get_field("tuning_acceleration");
+    int accel_on = (accel_f && accel_f->value && strcmp(accel_f->value, "ON") == 0);
+
+    if (accel_on) {
       struct timespec ts;
       clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + ts.tv_nsec / 1000ull;
+      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + (uint64_t)(ts.tv_nsec / 1000ull);
 
       if (last_us != 0) {
         uint64_t dt = now_us - last_us;
+        if (IDLE_RESET > 0 && dt > IDLE_RESET) {
+          ema_rate = 0.0; // reset EMA after breaks in tuning to make next ramp responsive
+        }
         if (dt > 0) {
-          double inst_rate = 1e6 / (double)dt;  // events per second
-          // compute weighted moving average
+          double inst_rate = 1e6 / (double)dt; // events per second
           ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
-          // set tuning rate multiplier based on weighted moving average rate
           int mult;
-          if (ema_rate < 35.0)      mult = 1;  // 10 Hz steps stay 10 Hz
-          else if (ema_rate < 45.0) mult = 5;  // 10 Hz steps become 50 Hz steps
-          else                      mult = 20; // 10 Hz steps become 200 Hz steps
-         
-          // set a max tuning rate
-          // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K steps
-          long cap = 50000;
+          if (ema_rate < 35.0)      mult = 1;   // 10 Hz steps stay 10 Hz
+          else if (ema_rate < 40.0) mult = 2;   // 10 Hz steps become 20 Hz steps
+          else if (ema_rate < 45.0) mult = 5;   // 10 Hz steps become 50 Hz steps
+          else if (ema_rate < 50.0) mult = 10;  // 10 Hz steps become 100 Hz steps
+          else                      mult = 20;  // 10 Hz steps become 200 Hz steps
+
+          const long cap = 50000;               // largest accelerated tuning step we accept
           long proposed = (long)base_step * mult;
           if (proposed > cap) proposed = cap;
           local_step = (int)proposed;
@@ -4805,17 +4808,16 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
       }
       last_us = now_us;
     } else {
-      // no acceleration
-      local_step = base_step;
+      local_step = base_step; // no acceleration
     }
 
     // RIT path, disable acceleration (use base_step only)
-    if (!strcmp(field_str("RIT"), "ON")) {
+    if (field_str && field_str("RIT") && strcmp(field_str("RIT"), "ON") == 0) {
       struct field *fr = get_field("#rit_delta");
-      int rit_delta = atoi(fr->value);
+      if (!fr || !fr->value) return 1;
 
-      // No acceleration for RIT
-      const int rit_step = base_step;
+      int rit_delta = atoi(fr->value);
+      const int rit_step = base_step; // no acceleration for RIT
 
       if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
         rit_delta += rit_step;
@@ -4827,35 +4829,46 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
         return 1;
       }
       char tempstr[32];
-      sprintf(tempstr, "%d", rit_delta);
+      snprintf(tempstr, sizeof(tempstr), "%d", rit_delta);
       set_field("#rit_delta", tempstr);
       return 1;
     }
-    
-    // Normal VFO tuning (keep acceleration)
-    if (vfo_lock_enabled == 0) {
-      int k = local_step / base_step;
-      if (k < 1) k = 1;
 
-      long vv = v;
-      if (a == MIN_KEY_UP && v + base_step <= f->max) {
-        vv = (v / base_step) * base_step + k * base_step;
-      } else if (a == MIN_KEY_DOWN && v - base_step >= f->min) {
-        vv = (v / base_step) * base_step - k * base_step;
-      } else {
-        return 1;
-      }
-      v = (int)vv;
+    // normal VFO tuning with possible acceleration
+    if (vfo_lock_enabled != 0) {
+      return 1; // avoid unnecessary updates when locked
     }
-    
+
+    int v = atoi(f->value);
+    int k = local_step / base_step;
+    if (k < 1) k = 1;
+
+    long vv = v;
+    if (a == MIN_KEY_UP) {
+      long aligned = (v / base_step) * base_step; // note: truncates toward zero for negatives
+      vv = aligned + (long)k * base_step;
+    } else if (a == MIN_KEY_DOWN) {
+      long aligned = (v / base_step) * base_step;
+      vv = aligned - (long)k * base_step;
+    } else {
+      return 1;
+    }
+
+    // Clamp to bounds to avoid overshoot when k > 1
+    if (vv > f->max) vv = f->max;
+    if (vv < f->min) vv = f->min;
+
+    v = (int)vv;
+
     // From here on, keep existing send/refresh
-    sprintf(f->value, "%d", v);
-    char buff[100];
-    sprintf(buff, "%s %s", f->label, f->value);
+    snprintf(f->value, 32, "%d", v);
+    char buff[128];
+    snprintf(buff, sizeof(buff), "%s %s", f->label ? f->label : "", f->value);
     do_control_action(buff);
     update_field(f);
     settings_updated++;
     return 1;
+
   } else if (event == FIELD_DRAW) {
     draw_dial(f, gfx);
     return 1;
