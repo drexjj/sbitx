@@ -6,6 +6,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <linux/types.h>
 #include <math.h>
 #include <fcntl.h>
@@ -31,7 +32,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <sys/file.h>
 #include <errno.h>
 #include <sys/file.h>
-#include <string.h>
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
@@ -177,7 +177,7 @@ float palette[][3] = {
 	{0.5, 0.5, 0.5}, // COLOR_TEXT_MUTED
 	{1, 1, 0},		 // COLOR_SELECTED_BOX
 	{0, 0, 0},		 // COLOR_BACKGROUND
-	{1, 1, 0},		 // COLOR_FREQ
+	{1, 1, 0},       // COLOR_FREQ
 	{1, 0, 1},		 // COLOR_LABEL
 	// spectrum
 	{0, 0, 0},		 // SPECTRUM_BACKGROUND
@@ -407,6 +407,40 @@ static void rect(cairo_t *gfx, int x, int y, int w, int h,
 	cairo_set_line_width(gfx, thickness);
 	cairo_rectangle(gfx, x, y, w, h);
 	cairo_stroke(gfx);
+}
+
+static void rounded_rect_path(cairo_t *cr, double x, double y, double w, double h, double r)
+{
+    // Clamp radius so it fits the rect
+    if (r < 0) r = 0;
+    double maxr = (w < h ? w : h) / 2.0;
+    if (r > maxr) r = maxr;
+
+    double x2 = x + w;
+    double y2 = y + h;
+
+    // Path: start at top-left corner, offset by radius
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r, r, -M_PI_2, 0);         // top-right corner
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI_2);       // bottom-right
+    cairo_arc(cr, x + r,     y + h - r, r, M_PI_2, M_PI);    // bottom-left
+    cairo_arc(cr, x + r,     y + r,     r, M_PI, 3*M_PI_2);  // top-left
+    cairo_close_path(cr);
+}
+
+static void fill_round_rect(cairo_t *cr, int x, int y, int w, int h, int color, int radius_px)
+{
+    cairo_set_source_rgb(cr, palette[color][0], palette[color][1], palette[color][2]);
+    rounded_rect_path(cr, x, y, w, h, radius_px);
+    cairo_fill(cr);
+}
+
+static void stroke_round_rect(cairo_t *cr, int x, int y, int w, int h, int color, int thickness, int radius_px)
+{
+    cairo_set_source_rgb(cr, palette[color][0], palette[color][1], palette[color][2]);
+    cairo_set_line_width(cr, thickness);
+    rounded_rect_path(cr, x, y, w, h, radius_px);
+    cairo_stroke(cr);
 }
 
 /****************************************************************************
@@ -676,7 +710,7 @@ struct field main_controls[] = {
 	{"#logbook", NULL, 410, 50, 40, 40, "LOG", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, COMMON_CONTROL},
 	{"#text_in", do_text, 5, 70, 285, 20, "TEXT", 70, "text box", FIELD_TEXT, FONT_LOG,
 	 "nothing valuable", 0, 128, 0, COMMON_CONTROL},
-	{"#toggle_kbd", do_toggle_kbd, 495, 50, 40, 40, "KBD", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#toggle_kbd", do_toggle_kbd, 495, 50, 40, 37, "KBD", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	/* end of common controls */
@@ -978,95 +1012,100 @@ struct field main_controls[] = {
 	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, FONT_SMALL,
 	 "", 0, 32, 1, 0},
 
-	// soft keyboard
-	{"#kbd_q", do_kbd, 0, 300, 50, 50, "", 1, "Q", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_w", do_kbd, 50, 300, 50, 50, "", 1, "W", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_e", do_kbd, 100, 300, 50, 50, "", 1, "E", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_r", do_kbd, 150, 300, 50, 50, "", 1, "R", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_t", do_kbd, 200, 300, 50, 50, "", 1, "T", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_y", do_kbd, 250, 300, 50, 50, "", 1, "Y", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_u", do_kbd, 300, 300, 50, 50, "", 1, "U", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_i", do_kbd, 350, 300, 50, 50, "", 1, "I", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_o", do_kbd, 400, 300, 50, 50, "", 1, "O", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_p", do_kbd, 450, 300, 50, 50, "", 1, "P", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_@", do_kbd, 500, 300, 50, 50, "", 1, "@", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#kbd_1", do_kbd, 550, 300, 50, 50, "", 1, "1", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_2", do_kbd, 600, 300, 50, 50, "", 1, "2", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_3", do_kbd, 650, 300, 50, 50, "", 1, "3", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_bs", do_kbd, 700, 300, 100, 50, "", 1, "DEL", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#kbd_alt", do_kbd, 0, 350, 50, 50, "", 1, "CMD", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_a", do_kbd, 50, 350, 50, 50, "*", 1, "A", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_s", do_kbd, 100, 350, 50, 50, "", 1, "S", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_d", do_kbd, 150, 350, 50, 50, "", 1, "D", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_f", do_kbd, 200, 350, 50, 50, "", 1, "F", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_g", do_kbd, 250, 350, 50, 50, "", 1, "G", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_h", do_kbd, 300, 350, 50, 50, "", 1, "H", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_j", do_kbd, 350, 350, 50, 50, "", 1, "J", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_k", do_kbd, 400, 350, 50, 50, "'", 1, "K", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_l", do_kbd, 450, 350, 50, 50, "", 1, "L", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_/", do_kbd, 500, 350, 50, 50, "", 1, "/", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#kbd_4", do_kbd, 550, 350, 50, 50, "", 1, "4", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_5", do_kbd, 600, 350, 50, 50, "", 1, "5", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_6", do_kbd, 650, 350, 50, 50, "", 1, "6", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_enter", do_kbd, 700, 400, 100, 50, "", 1, "Enter", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#kbd_ ", do_kbd, 0, 400, 50, 50, "", 1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_z", do_kbd, 50, 400, 50, 50, "", 1, "Z", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_x", do_kbd, 100, 400, 50, 50, "", 1, "X", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_c", do_kbd, 150, 400, 50, 50, "", 1, "C", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_v", do_kbd, 200, 400, 50, 50, "", 1, "V", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_b", do_kbd, 250, 400, 50, 50, "", 1, "B", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_n", do_kbd, 300, 400, 50, 50, "", 1, "N", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_m", do_kbd, 350, 400, 50, 50, "", 1, "M", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_,", do_kbd, 400, 400, 50, 50, "", 1, ",", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_.", do_kbd, 450, 400, 50, 50, "", 1, ".", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_?", do_kbd, 500, 400, 50, 50, "", 1, "?", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#kbd_7", do_kbd, 550, 400, 50, 50, "", 1, "7", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_8", do_kbd, 600, 400, 50, 50, "", 1, "8", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_9", do_kbd, 650, 400, 50, 50, "", 1, "9", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_0", do_kbd, 700, 350, 50, 50, "", 1, "0", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	// macros keyboard
+  // macros keyboard
 
 	// row 1
-	{"#mf1", do_macro, 0, 1360, 65, 40, "F1", 1, "CQ", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf2", do_macro, 65, 1360, 65, 40, "F2", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf3", do_macro, 130, 1360, 65, 40, "F3", 1, "Reply", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf4", do_macro, 195, 1360, 65, 40, "F4", 1, "RRR", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf5", do_macro, 260, 1360, 70, 40, "F5", 1, "73", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf6", do_macro, 330, 1360, 70, 40, "F6", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf1", do_macro, 0, 1360, 65, 37, "F1", 1, "CQ", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf2", do_macro, 65, 1360, 65, 37, "F2", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf3", do_macro, 130, 1360, 65, 37, "F3", 1, "Reply", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf4", do_macro, 195, 1360, 65, 37, "F4", 1, "RRR", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf5", do_macro, 260, 1360, 70, 37, "F5", 1, "73", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf6", do_macro, 330, 1360, 70, 37, "F6", 1, "Call", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// row 2
-
-	{"#mf7", do_macro, 0, 1400, 65, 40, "F7", 1, "Exch", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf8", do_macro, 65, 1400, 65, 40, "F8", 1, "Tu", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf9", do_macro, 130, 1400, 65, 40, "F9", 1, "Rpt", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf10", do_macro, 195, 1400, 65, 40, "F10", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf11", do_macro, 260, 1400, 70, 40, "F11", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
-	{"#mf12", do_macro, 330, 1400, 70, 40, "F12", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf7", do_macro, 0, 1400, 65, 37, "F7", 1, "Exch", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf8", do_macro, 65, 1400, 65, 37, "F8", 1, "Tu", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf9", do_macro, 130, 1400, 65, 37, "F9", 1, "Rpt", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf10", do_macro, 195, 1400, 65, 37, "F10", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf11", do_macro, 260, 1400, 70, 37, "F11", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mf12", do_macro, 330, 1400, 70, 37, "F12", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// row 3
-
 	{"#mfedit", do_macro, 195, 1440, 65, 40, "Edit", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-
 	{"#mfspot", do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#mfkbd", do_macro, 330, 1440, 70, 37, "Kbd", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
-	{"#mfkbd", do_macro, 330, 1440, 70, 40, "Kbd", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+ 	// soft keyboard
+  // 4-row keyboard within 148px total height
+  // draw keyboard last in lame attempt to ensure it is always on top
+  // Row 1: 1 2 3 4 5 6 7 8 9 0 + ( ) / \ del
+  {"#kbd_1",  do_kbd, 0,   300, 50, 37, "", 1, "1",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_2",  do_kbd, 50,  300, 50, 37, "", 1, "2",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_3",  do_kbd, 100, 300, 50, 37, "", 1, "3",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_4",  do_kbd, 150, 300, 50, 37, "", 1, "4",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_5",  do_kbd, 200, 300, 50, 37, "", 1, "5",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_6",  do_kbd, 250, 300, 50, 37, "", 1, "6",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_7",  do_kbd, 300, 300, 50, 37, "", 1, "7",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_8",  do_kbd, 350, 300, 50, 37, "", 1, "8",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_9",  do_kbd, 400, 300, 50, 37, "", 1, "9",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_0",  do_kbd, 450, 300, 50, 37, "", 1, "0",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_+",  do_kbd, 500, 300, 50, 37, "", 1, "+",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_(",  do_kbd, 550, 300, 50, 37, "", 1, "(",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_)",  do_kbd, 600, 300, 50, 37, "", 1, ")",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_/",  do_kbd, 650, 300, 50, 37, "", 1, "/",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_bksl",do_kbd,700, 300, 50, 37, "", 1, "=",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_bs", do_kbd, 750, 300, 50, 37, "", 1, "DEL",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  
+  // Row 2: tab  Q  W  E  R  T  Y  U  I  O  P  -  _  '  {  }
+  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_q",  do_kbd, 50,  350, 50, 37, "", 1, "Q",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_w",  do_kbd, 100, 350, 50, 37, "", 1, "W",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_e",  do_kbd, 150, 350, 50, 37, "", 1, "E",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_r",  do_kbd, 200, 350, 50, 37, "", 1, "R",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_t",  do_kbd, 250, 350, 50, 37, "", 1, "T",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_y",  do_kbd, 300, 350, 50, 37, "", 1, "Y",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_u",  do_kbd, 350, 350, 50, 37, "", 1, "U",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_i",  do_kbd, 400, 350, 50, 37, "", 1, "I",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_o",  do_kbd, 450, 350, 50, 37, "", 1, "O",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_p",  do_kbd, 500, 350, 50, 37, "", 1, "P",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_-",  do_kbd, 550, 350, 50, 37, "", 1, "-",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd__",  do_kbd, 600, 350, 50, 37, "", 1, "_",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_ast",do_kbd, 650, 350, 50, 37, "", 1, ";",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_{",  do_kbd, 700, 350, 50, 37, "", 1, "'",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_}",  do_kbd, 750, 350, 50, 37, "", 1, "\"",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
+  // Row 3: staggered by 25px relative to row 2
+  {"#kbd_alt", do_kbd,   0,  400, 75, 37, "",  1, "CMD", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_a",   do_kbd,  75,  400, 50, 37, "",  1, "A",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_s",   do_kbd,  125, 400, 50, 37, "",  1, "S",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_d",   do_kbd,  175, 400, 50, 37, "",  1, "D",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_f",   do_kbd,  225, 400, 50, 37, "",  1, "F",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_g",   do_kbd,  275, 400, 50, 37, "",  1, "G",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_h",   do_kbd,  325, 400, 50, 37, "",  1, "H",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_j",   do_kbd,  375, 400, 50, 37, "",  1, "J",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_k",   do_kbd,  425, 400, 50, 37, "",  1, "K",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_l",   do_kbd,  475, 400, 50, 37, "",  1, "L",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_excl",do_kbd,  525, 400, 50, 37, "",  1, "!",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_lt",  do_kbd,  575, 400, 50, 37, "",  1, "<",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_gt",  do_kbd,  625, 400, 50, 37, "",  1, ">",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_enter",do_kbd, 675, 400, 125,37, "",  1, "Enter",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+
+	// Row 4: space  Z X C V B N M , . ? &  space  kbd
+	{"#kbd_ ",      do_kbd,      0,   450, 100,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_z",      do_kbd,      100, 450, 50, 37, "",  1, "Z",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_x",      do_kbd,      150, 450, 50, 37, "",  1, "X",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_c",      do_kbd,      200, 450, 50, 37, "",  1, "C",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_v",      do_kbd,      250, 450, 50, 37, "",  1, "V",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_b",      do_kbd,      300, 450, 50, 37, "",  1, "B",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_n",      do_kbd,      350, 450, 50, 37, "",  1, "N",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_m",      do_kbd,      400, 450, 50, 37, "",  1, "M",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_,",      do_kbd,      450, 450, 50, 37, "",  1, ",",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_.",      do_kbd,      500, 450, 50, 37, "",  1, ".",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_?",      do_kbd,      550, 450, 50, 37, "",  1, "?",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_amp",    do_kbd,      600, 450, 50, 37, "",  1, "&",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_space2", do_kbd,      650, 450, 100,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	//{"#kbd_kbd",    do_kbd_close,750, 450, 50, 37, "",  1, "KBD",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 };
@@ -3551,29 +3590,44 @@ void invalidate_rect(int x, int y, int width, int height)
 // These functions have been removed to avoid memory corruption issues
 // The regular UI update cycle will handle refreshing the display when needed
 
-// the keyboard appears at the bottom 150 pixels of the window
-void keyboard_display(int show)
-{
-	struct field *f;
+// the keyboard appears at the bottom 148 pixels of the window
+#define KEYBOARD_HEIGHT 148
 
-	// we start the height at -200 because the first key
-	// will bump it down by a row
-	int height = screen_height - 200;
-	for (f = active_layout; f->cmd[0]; f++)
-	{
-		if (!strncmp(f->cmd, "#kbd", 4))
-		{
-			// start of a new line? move down
-			if (f->x == 0)
-				height += 50;
-			update_field(f);
-			if (show && f->y < 0)
-				f->y = height;
-			else if (!show)
-				f->y = -1000;
-			update_field(f);
-		}
-	}
+void keyboard_display(int show) {
+  struct field *f;
+
+  // determine how many rows the keyboard has by counting '#kbd' fields with x==0
+  int row_count = 0;
+  for (f = active_layout; f->cmd[0]; f++) {
+    if (!strncmp(f->cmd, "#kbd", 4) && f->x == 0) row_count++;
+  }
+  if (row_count <= 0) row_count = 1;
+
+  // Fit exactly into KEYBOARD_HEIGHT
+  int base_step = KEYBOARD_HEIGHT / row_count;
+  int remainder = KEYBOARD_HEIGHT % row_count;
+
+  int base_y = screen_height - KEYBOARD_HEIGHT;
+  int current_row = -1;
+  int current_row_y = base_y;
+
+  for (f = active_layout; f->cmd[0]; f++) {
+    if (!strncmp(f->cmd, "#kbd", 4)) {
+      // new row begins when x==0
+      if (f->x == 0) {
+        current_row++;
+        int step = base_step + ((current_row < remainder) ? 1 : 0);
+        current_row_y = base_y + current_row * step;
+      }
+
+      if (show)
+        f->y = current_row_y;  // place at computed row height while showing
+      else
+        f->y = -1000;  // hide keyboard rows
+
+      update_field(f);
+    }
+  }
 }
 // the control sub menu appears at the bottom 150 pixels of the window - W2JON
 
@@ -3711,272 +3765,369 @@ void menu2_display(int show)
 	}
 }
 
-// scales the ui as per current screen width from
-// the nominal 800x480 size of the original layout
+// scales the the sbitx ui and places on-screen fields and controls
 static void layout_ui()
 {
-	int x1, y1, x2, y2;
-	struct field *f;
+  struct field *f;
+  int x1, y1, x2, y2;
+  x1 = 0;
+  x2 = screen_width;
+  y1 = 100;  // top 100 pixels reserved for main controls at top of screen
+  y2 = screen_height;  // “content” bottom that moves up when menu or keyboard are shown
 
-	x1 = 0;
-	x2 = screen_width;
-	y1 = 100;
-	y2 = screen_height;
+  // define standard size for spectrum
+  int default_spectrum_height = scope_size;
+  // clamp SCOPESIZE to 70 only when in CW mode, FULL spectrum, and KBD ON (layout-only)
+  // don't like doing this clamp here but I couldn't figure out how to fix
+  // the scope and waterfall under this condition
+  {
+    const char *m  = field_str("MODE");
+    const char *sp = field_str("SPECT");
+    const char *kb = field_str("KBD");
+    if (m && sp && kb &&
+        strcmp(m,  "CW")   == 0 &&
+        strcmp(sp, "FULL") == 0 &&
+        strcmp(kb, "ON")   == 0 &&
+        default_spectrum_height > 70) {
+      default_spectrum_height = 70;
+    }
+  }
+  // shared column layout for SPECT NORM: left console and right panadapter
+  const int col_left_x      = 5;    // left margin for console
+  const int split_x         = 360;  // left edge of spectrum/waterfall in SPECT NORM
+  const int split_gap       = 3;    // gap between console and spectrum
+  const int console_right_x = split_x - split_gap; // unified console right edge
 
-	// Define standard sizes for spectrum
-	int default_spectrum_height = scope_size; // Spectrum height
+  // move all other controls out of view if COMMON_CONTROL flag not set
+  for (f = active_layout; f->cmd[0]; f++)
+  {
+    if (!(f->section & COMMON_CONTROL))
+    {
+      update_field(f);
+      f->y = -1000;  // off screen
+      update_field(f);
+    }
+  }
 
-	// Move controls out of view if not common
-	for (f = active_layout; f->cmd[0]; f++)
-	{
-		if (!(f->section & COMMON_CONTROL))
-		{
-			update_field(f);
-			f->y = -1000;
-			update_field(f);
-		}
-	}
+  // Locate the KBD ON|OFF button (bottom right corner of screen)
+  field_move("KBD", screen_width - 48, screen_height - 37, 45, 37);
+  
+  // place main radio controls at top of screen, positions relative to right edge 
+  field_move("AUDIO", x2 - 45, 5, 40, 40);
+  field_move("FREQ", x2 - 205, 0, 180, 40);
+  field_move("STEP", x2 - 252, 5, 40, 40);
+  field_move("RIT", x2 - 292, 5, 40, 40);
+  
+  field_move("IF", x2 - 45, 50, 40, 40);
+  field_move("DRIVE", x2 - 85, 50, 40, 40);
+  field_move("BW", x2 - 125, 50, 40, 40);
+  field_move("AGC", x2 - 165, 50, 40, 40);
+  field_move("SPAN", x2 - 205, 50, 40, 40);
+  field_move("VFO", x2 - 245, 50, 40, 40);
+  field_move("SPLIT", x2 - 285, 50, 40, 40);
 
-	// Locate the keyboard
-	field_move("KBD", screen_width - 47, screen_height - 47, 45, 45);
+  // adjust screen height for keyboard
+  if (!strcmp(field_str("KBD"), "ON")) {
+    // Use the exact keyboard height to avoid off-by-one layout overlaps
+    y2 = screen_height - KEYBOARD_HEIGHT;  // was: 150
+    keyboard_display(1);
+  } else {
+    keyboard_display(0);
+  }
 
-	// Main radio controls
-	field_move("FREQ", x2 - 205, 0, 180, 40);
-	field_move("AUDIO", x2 - 45, 5, 40, 40);
-	field_move("IF", x2 - 45, 50, 40, 40);
-	field_move("DRIVE", x2 - 85, 50, 40, 40);
-	field_move("BW", x2 - 125, 50, 40, 40);
-	field_move("AGC", x2 - 165, 50, 40, 40);
+  // adjust screen height for menu
+  if (!strcmp(field_str("MENU"), "1")) {
+    y2 = screen_height - 105;
+    menu_display(1);
+  } else if (!strcmp(field_str("MENU"), "2")) {
+    y2 = screen_height - 105;
+    menu2_display(1);
+  } else {
+    menu_display(0);
+    menu2_display(0);
+  }
 
-	field_move("STEP", x2 - 252, 5, 40, 40);
-	field_move("RIT", x2 - 292, 5, 40, 40);
-	field_move("SPLIT", x2 - 285, 50, 40, 40);
-	field_move("VFO", x2 - 245, 50, 40, 40);
-	field_move("SPAN", x2 - 205, 50, 40, 40);
+  // layout adjustments per mode
+  int m_id = mode_id(field_str("MODE"));
+  int waterfall_height = 10; // legacy var (used in default)
+  switch (m_id) {
+  case MODE_FT8:
+    console_init();
 
-	// Adjust for keyboard/menu
-	if (!strcmp(field_str("KBD"), "ON"))
-	{
-		y2 = screen_height - 150;
-		keyboard_display(1);
-	}
-	else
-	{
-		keyboard_display(0);
-	}
+    // Place buttons and calculate highest Y position for FT8
+    {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < 40) console_w = 40;
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
+    }
+    field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
 
-	if (!strcmp(field_str("MENU"), "1"))
-	{
-		y2 = screen_height - 105;
-		menu_display(1);
-	}
-	else if (!strcmp(field_str("MENU"), "2"))
-	{
-		y2 = screen_height - 105;
-		menu2_display(1);
-	}
-	else
-	{
-		menu_display(0);
-		menu2_display(0);
-	}
+    // Two-row layout at 37px height (similar to CW/CWR)
+    {
+      const int row_h = 37;
+      const int row_gap = 3;
+      const int y_top = y2 - (row_h * 2 + row_gap);  // top row
+      const int y_bottom = y2 - row_h;               // bottom row (flush to bottom)
 
-	// Layout adjustments per mode
-	int m_id = mode_id(field_str("MODE"));
-	int waterfall_height = 10;
-	switch (m_id)
-	{
-	case MODE_FT8:
-		// Place buttons and calculate highest Y position for FT8
-		
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
-		if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+      // Compute WF height up to the control rows (strict clamp + 1px floor)
+      int wf_h = y_top - (y1 + default_spectrum_height);
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, wf_h);
 
-		// Place FT8-specific buttons
-		//field_move("ESC", 5, y2 - 47, 40, 45);
-		//field_move("F1", 50, y2 - 47, 50, 45);
-		//field_move("F2", 100, y2 - 47, 50, 45);
-		//field_move("F3", 150, y2 - 47, 50, 45);
-		//field_move("F4", 200, y2 - 47, 50, 45);
-		//field_move("F5", 250, y2 - 47, 50, 45);
-		//field_move("F6", 300, y2 - 47, 50, 45);
-		//field_move("F7", 350, y2 - 47, 50, 45);
-		//field_move("F8", 400, y2 - 47, 45, 45);
-		//field_move("FT8_REPEAT", 450, y2 - 47, 50, 45);
-		//field_move("FT8_TX1ST", 500, y2 - 47, 50, 45);
-		//field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
-		//field_move("TX_PITCH", 600, y2 - 47, 73, 45);
-		//field_move("SIDETONE", 675, y2 - 47, 73, 45);
-    
-    // Reformat 2 lines for macro button  W9JES 
-		y1 = y2 - 97;
-		field_move("FT8_TX1ST", 375, y1, 75, 45);
-		field_move("FT8_AUTO", 450, y1, 75, 45);
-		field_move("FT8_REPEAT", 525, y1, 75, 45);
-		field_move("MACRO", 600, y1, 75, 45);
-		field_move("TX_PITCH", 675, y1, 75, 45);
- 		y1 += 50;
-		field_move("F1", 5, y1, 70, 45);
-		field_move("F2", 75, y1, 75, 45);
-		field_move("F3", 150, y1, 75, 45);
-		field_move("F4", 225, y1, 75, 45);
-		field_move("F5", 300, y1, 75, 45);
-		field_move("F6", 375, y1, 75, 45);
-		field_move("F7", 450, y1, 75, 45);
-		field_move("F8", 525, y1, 75, 45);
-		field_move("SIDETONE", 600, y1, 75, 45);
-		field_move("ESC", 675, y1, 75, 45);
-		field_move("TUNE", 1000, -1000, 40, 40);
-		break;
+      // Top row: FT8 mode controls
+      field_move("FT8_TX1ST", 375, y_top, 75, row_h);
+      field_move("FT8_AUTO", 450, y_top, 75, row_h);
+      field_move("FT8_REPEAT", 525, y_top, 75, row_h);
+      field_move("MACRO", 600, y_top, 75, row_h);
+      field_move("TX_PITCH", 675, y_top, 75, row_h);
 
-	case MODE_CW:
-	case MODE_CWR:
-		console_init();// clear the console buffer to help prevent artifacts
-		// Place buttons and calculate highest Y position for CW
-		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 105);
-		if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-      
-		if (!strcmp(field_str("SPECT"), "FULL"))
-		{
-      // Ensure waterfall height is at least 40 pixels to prevent negative height and malloc error resulting in a segfault
-      int adjusted_waterfall_height = waterfall_height;
-      if (adjusted_waterfall_height < 80) // Need at least 80 pixels to accommodate both waterfall and console
-        adjusted_waterfall_height = 80;
-      
-      // Check if MENU is on MENU 1 or MENU 2 becasue we need to hide the console when menus are active
-      const char* menu_state = field_str("MENU");
-      if (!strcmp(menu_state, "1") || !strcmp(menu_state, "2")) {
-        // Move console off-screen when menus are active to prevent partial visibility behind buttons
+      // Bottom row: function keys and extras
+      field_move("F1", 5, y_bottom, 70, row_h);
+      field_move("F2", 75, y_bottom, 75, row_h);
+      field_move("F3", 150, y_bottom, 75, row_h);
+      field_move("F4", 225, y_bottom, 75, row_h);
+      field_move("F5", 300, y_bottom, 75, row_h);
+      field_move("F6", 375, y_bottom, 75, row_h);
+      field_move("F7", 450, y_bottom, 75, row_h);
+      field_move("F8", 525, y_bottom, 75, row_h);
+      field_move("SIDETONE", 600, y_bottom, 75, row_h);
+      field_move("ESC", 675, y_bottom, 75, row_h);
+    }
+
+    // Keep TUNE hidden
+    field_move("TUNE", 1000, -1000, 40, 40);
+    break;
+
+  case MODE_CW:
+  case MODE_CWR:
+    console_init();  // start with a clean log
+  
+    const int row_h = 37;  // row height since we adopted 4-row keyboard
+    const int row_gap = 3;
+    const int y_top = y2 - (row_h * 2 + row_gap);
+    const int y_bottom = y2 - row_h;
+  
+    const int line_height = font_table[FONT_LOG].height;
+    const int full_left_x = 5;  // 5 pixel margin at left and right side
+    const int full_width = x2 - 10;
+    const int spect_is_full = (!strcmp(field_str("SPECT"), "FULL"));
+    const int kbd_is_on = (!strcmp(field_str("KBD"), "ON"));
+    const char *menu_state = field_str("MENU");
+    const int menu_active = (!strcmp(menu_state, "1") || !strcmp(menu_state, "2"));
+  
+    if (spect_is_full) {
+      if (menu_active) {
+        // hide console and keyboard display
         field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-      } else {
-        // Resume the viewable console position when menus are not active
-        field_move("CONSOLE", 5, y1 + default_spectrum_height + adjusted_waterfall_height - 37, x2 - 7, 40);
+        keyboard_display(0);
+  
+        // full spectrum + waterfall up to y_top (strict clamp + 1px floor)
+        field_move("SPECTRUM", 5, y1, x2 - 10, default_spectrum_height);
+        int adjusted_waterfall_height = y_top - (y1 + default_spectrum_height);
+        if (adjusted_waterfall_height <= 0) adjusted_waterfall_height = 1;
+        field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 10, adjusted_waterfall_height);
+      } else {  // no menu to display
+        // KBD ON => 2-line overlay (waterfall extends behind)
+        // KBD OFF => 5-line block (waterfall stops at top)
+        int desired_lines = kbd_is_on ? 2 : 5;
+        const int console_pad_px = 2;
+        int console_h = desired_lines * line_height + console_pad_px;
+  
+        const int sep_px = 3;
+        const int safety_px = 2;
+  
+        // The console must fit between the bottom of the spectrum and the top-row boundary
+        const int min_y = y1 + default_spectrum_height;               // bottom of spectrum
+        const int max_console_bottom = y_top - (sep_px + safety_px);  // just below top-row
+        int max_console_h = max_console_bottom - min_y;
+        if (max_console_h < 0) max_console_h = 0;
+  
+        // If not enough room for the current # of lines, shrink to fit
+        if (console_h > max_console_h) {
+          int max_lines_fit = max_console_h / line_height;
+          if (max_lines_fit < 1 && max_console_h > 0) max_lines_fit = 1;
+          if (max_lines_fit > 0) {
+            desired_lines = max_lines_fit;
+            console_h = desired_lines * line_height + console_pad_px;
+          } else {
+            // No room at all; collapse to pad only
+            desired_lines = 0;
+            console_h = MIN(console_pad_px, max_console_h);
+          }
+        }
+  
+        // Place the console so its bottom aligns with max_console_bottom
+        int console_y = max_console_bottom - console_h;
+        if (console_y < min_y) console_y = min_y;
+  
+        // Compute WF height so it ends at the console bottom for KBD ON,
+        // or at the console top for KBD OFF. Clamp with 1px floor.
+        int wf_h;
+        if (kbd_is_on) {
+          int console_bottom = console_y + console_h;  // ≤ y_top - (sep + safety)
+          wf_h = console_bottom - (y1 + default_spectrum_height);
+        } else {
+          wf_h = console_y - (y1 + default_spectrum_height);
+        }
+        if (wf_h <= 0) wf_h = 1;
+  
+        field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+        field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+        field_move("CONSOLE", full_left_x, console_y, full_width, console_h);
       }
-      
+    } else {
+      // SPECT NORM (strict clamp + 1px floor)
+    field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+    int wf_h = y_top - (y1 + default_spectrum_height);
+    if (wf_h <= 0) wf_h = 1;
+    field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+
+    // Console sizing and placement — anchor TOP at y1 (to match voice modes),
+    // and shrink-to-fit height so its bottom stays above the control row.
+    int desired_lines  = kbd_is_on ? 7 : 21;
+    const int console_pad_px = 2;
+    int console_h = desired_lines * line_height + console_pad_px;
+
+    int norm_width = console_right_x - col_left_x;
+    if (norm_width < 40) norm_width = 40;
+
+    const int sep_px = 3;
+    const int safety_px = 2;
+
+    // Maximum console height between y1 and just above the top control row
+    int max_console_h = (y_top - (sep_px + safety_px)) - y1;
+    if (max_console_h < 0) max_console_h = 0;
+
+    if (console_h > max_console_h) {
+      int max_lines_fit = (max_console_h - console_pad_px) / line_height;
+      if (max_lines_fit < 0) max_lines_fit = 0;
+      desired_lines = max_lines_fit;
+      console_h = (desired_lines > 0)
+                  ? (desired_lines * line_height + console_pad_px)
+                  : MIN(console_pad_px, max_console_h);
+    }
+
+    // Anchor top edge at y1 (like voice modes)
+    int console_y = y1;
+
+    field_move("CONSOLE", col_left_x, console_y, norm_width, console_h);
+    }
+  
+    // Top row CW controls
+    field_move("ESC", 5, y_top, 70, row_h);
+    field_move("WPM", 75, y_top, 75, row_h);
+    field_move("PITCH", 150, y_top, 75, row_h);
+    field_move("CW_DELAY", 225, y_top, 75, row_h);
+    field_move("CW_INPUT", 300, y_top, 75, row_h);
+    field_move("SIDETONE", 375, y_top, 75, row_h);
+    field_move("MACRO", 450, y_top, 75, row_h);
+    field_move("ZEROBEAT", 600, y_top, 75, row_h);
+    field_move("SPECT", x2 - 48, y_top, 45, row_h);
+  
+    // Bottom row CW function keys
+    field_move("F1", 5, y_bottom, 70, row_h);
+    field_move("F2", 75, y_bottom, 75, row_h);
+    field_move("F3", 150, y_bottom, 75, row_h);
+    field_move("F4", 225, y_bottom, 75, row_h);
+    field_move("F5", 300, y_bottom, 75, row_h);
+    field_move("F6", 375, y_bottom, 75, row_h);
+    field_move("F7", 450, y_bottom, 75, row_h);
+    field_move("F8", 525, y_bottom, 75, row_h);
+    field_move("F9", 600, y_bottom, 75, row_h);
+    field_move("F10", 675, y_bottom, 70, row_h);
+  
+    // TUNE control is offscreen in this mode
+    field_move("TUNE", 1000, -1000, 40, 40);
+    break;
+    
+  case MODE_USB:
+  case MODE_LSB:
+  case MODE_AM:
+  case MODE_NBFM:
+  case MODE_2TONE:
+  {
+    // single bottom row
+    const int row_h   = 37;
+    const int y_top   = y2 - row_h;
+    const int y_bottom= y2 - row_h;
+
+    if (!strcmp(field_str("SPECT"), "FULL")) {
+      field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
       field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, adjusted_waterfall_height - 40);
-       //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-	   //field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-	   //field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
-		}
-		else
-		{
-			
-			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-			waterfall_height = y2 - y1 - (default_spectrum_height + 105);
+      int wf_h = y_top - (y1 + default_spectrum_height);
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+    } else {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < 40) console_w = 40;
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
 
-			if (waterfall_height < MIN_WATERFALL_HEIGHT)
-				waterfall_height = MIN_WATERFALL_HEIGHT;
-			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
-		}
-		// field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height);
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+    }
 
-		// Place CW-specific buttons
-		y1 = y2 - 97;
-		field_move("ESC", 5, y1, 70, 45);
-		field_move("WPM", 75, y1, 75, 45);
-		field_move("PITCH", 150, y1, 75, 45);
-		field_move("CW_DELAY", 225, y1, 75, 45);
-		field_move("CW_INPUT", 300, y1, 75, 45);
-		field_move("SIDETONE", 375, y1, 75, 45);
-		field_move("MACRO", 450, y1, 75, 45); 
-		field_move("ZEROBEAT", 600, y1, 75, 45);
+    // One-row control bar
+    field_move("MIC", 5, y_bottom, 45, row_h);
+    field_move("LOW", 60, y_bottom, 95, row_h);
+    field_move("HIGH", 160, y_bottom, 95, row_h);
+    field_move("TX", 260, y_bottom, 95, row_h);
+    field_move("RX", 360, y_bottom, 95, row_h);
+    field_move("SPECT", x2 - 48, y_bottom, 45, row_h);
 
-		field_move("SPECT", 752, y1, 45, 45);
-		y1 += 50;
-		field_move("F1", 5, y1, 70, 45);
-		field_move("F2", 75, y1, 75, 45);
-		field_move("F3", 150, y1, 75, 45);
-		field_move("F4", 225, y1, 75, 45);
-		field_move("F5", 300, y1, 75, 45);
-		field_move("F6", 375, y1, 75, 45);
-		field_move("F7", 450, y1, 75, 45);
-		field_move("F8", 525, y1, 75, 45);
-		field_move("F9", 600, y1, 75, 45);
-		field_move("F10", 675, y1, 70, 45);
-		field_move("TUNE", 1000, -1000, 40, 40);
-		
-		break;
-	case MODE_USB:
-	case MODE_LSB:
-	case MODE_AM:
-	case MODE_NBFM:
-	case MODE_2TONE:
-		// Place buttons and calculate highest Y position for these modes
-		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
-		if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-		if (!strcmp(field_str("SPECT"), "FULL"))
-		{
-			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
-		}
-		else
-		{
-			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
-		}
-		y1 = y2 - 50;
-		field_move("MIC", 5, y1, 45, 45);
-		field_move("LOW", 60, y1, 95, 45);
-		field_move("HIGH", 160, y1, 95, 45);
-		field_move("TX", 260, y1, 95, 45);
-		field_move("RX", 360, y1, 95, 45);
-		field_move("TUNE", 460, 5, 40, 40);
-		 
-		break;
-	case MODE_DIGITAL: // W9JES
-		// N1QM
-		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
-		if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-		if (!strcmp(field_str("SPECT"), "FULL"))
-		{
-			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
-		}
-		else
-		{
-			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-			field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
-		}
-		y1 = y2 - 50;
-		field_move("MIC", 5, y1, 45, 45);
-		field_move("LOW", 60, y1, 95, 45);
-		field_move("HIGH", 160, y1, 95, 45);
-		field_move("TX", 260, y1, 95, 45);
-		field_move("RX", 360, y1, 95, 45);
-		field_move("TUNE", 460, 5, 40, 40);
-		// Don't show pitch field in DIGI mode
-		// field_move("PITCH", 460, y1, 95, 45);
-		field_move("SIDETONE", 460, y1, 95, 45); // Added back in for ext modes W9JES
-		break;
-	default:
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-		waterfall_height = y2 - y1 - (default_spectrum_height + 55);
-		if (waterfall_height < MIN_WATERFALL_HEIGHT)
-			waterfall_height = MIN_WATERFALL_HEIGHT;
-		field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
-		break;
-	}
+    field_move("TUNE", 460, 5, 40, 40);
+  }
+  break;
 
-	// Redraw entire screen
+  case MODE_DIGITAL: 
+  {
+    const int row_h   = 37;
+    const int y_top   = y2 - row_h;
+    const int y_bottom= y2 - row_h;
 
-	invalidate_rect(0, 0, screen_width, screen_height);
+    if (!strcmp(field_str("SPECT"), "FULL")) {
+      field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height);
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+    } else {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < 40) console_w = 40;
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
+
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height);
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+    }
+
+    // One-row control bar for digital
+    field_move("MIC", 5, y_bottom, 45, row_h);
+    field_move("LOW", 60, y_bottom, 95, row_h);
+    field_move("HIGH", 160, y_bottom, 95, row_h);
+    field_move("TX", 260, y_bottom, 95, row_h);
+    field_move("RX", 360, y_bottom, 95, row_h);
+    field_move("SIDETONE", 460, y_bottom, 95, row_h);
+    field_move("SPECT", x2 - 48, y_bottom, 45, row_h);
+
+    // keep TUNE where it lives on top row
+    field_move("TUNE", 460, 5, 40, 40);
+  }
+  break;
+
+  default:
+    field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
+    field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
+    waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+    if (waterfall_height <= 0) waterfall_height = 1; // strict clamp + 1px floor
+    field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+    break;
+  }
+
+  // Redraw entire screen
+  invalidate_rect(0, 0, screen_width, screen_height);
 }
 
 void dump_ui()
@@ -4788,8 +4939,8 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
         uint64_t dt = now_us - last_us;
         if (IDLE_RESET > 0 && dt > IDLE_RESET) {
           ema_rate = 0.0; // reset EMA after breaks in tuning to make next ramp responsive
-        }
-        if (dt > 0) {
+        } 
+        if (dt > 0) {  
           double inst_rate = 1e6 / (double)dt; // events per second
           ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
@@ -4899,37 +5050,53 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		return 1;
 	}
 	else if (event == FIELD_DRAW)
-	{
-		int label_height = font_table[FONT_FIELD_LABEL].height;
-		int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
-		int offset_x = f->x + f->width / 2 - width / 2;
-		int label_y;
-		int value_font;
+    {
+        int label_height = font_table[FONT_FIELD_LABEL].height;
+        int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+        int offset_x = f->x + f->width / 2 - width / 2;
+        int label_y;
+        int value_font;
 
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
-		// is it a two line display or a single line?
-		if (!f->value[0])
-		{
-			label_y = f->y + (f->height - label_height) / 2;
-			draw_text(gfx, offset_x, label_y, f->label, FONT_FIELD_LABEL);
-		}
-		else
-		{
-			if (width >= f->width + 2)
-				value_font = FONT_SMALL_FIELD_VALUE;
-			else
-				value_font = FONT_FIELD_VALUE;
-			int value_height = font_table[value_font].height;
-			label_y = f->y + 3;
-			draw_text(gfx, f->x + 3, label_y, f->label, FONT_FIELD_LABEL);
-			width = measure_text(gfx, f->value, value_font);
-			label_y = f->y + (f->height - label_height) / 2;
-			draw_text(gfx, f->x + f->width / 2 - width / 2, label_y, f->value, value_font);
-		}
-		return 1;
-	}
-	return 0;
+        // Choose a nice corner radius (e.g., min(10, min(w,h)/4))
+        int wh_min = (f->width < f->height) ? f->width : f->height;
+        int radius = wh_min / 4;
+        if (radius > 10) radius = 10;
+        if (radius < 4)  radius = 4;
+
+        // Fill background with rounded rectangle
+        fill_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND, radius);
+
+        // Outline depending on state
+        if (f_focus == f)
+            stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 2, radius);
+        else if (f_hover == f)
+            stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 1, radius);
+        else
+            stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1, radius);
+
+        // Text rendering unchanged below
+        if (!f->value[0])
+        {
+            label_y = f->y + (f->height - label_height) / 2;
+            draw_text(gfx, offset_x, label_y, f->label, FONT_FIELD_LABEL);
+        }
+        else
+        {
+            if (width >= f->width + 2)
+                value_font = FONT_SMALL_FIELD_VALUE;
+            else
+                value_font = FONT_FIELD_VALUE;
+
+            int value_height = font_table[value_font].height;
+            label_y = f->y + 3;
+            draw_text(gfx, f->x + 3, label_y, f->label, FONT_FIELD_LABEL);
+            width = measure_text(gfx, f->value, value_font);
+            label_y = f->y + (f->height - label_height) / 2;
+            draw_text(gfx, f->x + f->width / 2 - width / 2, label_y, f->value, value_font);
+        }
+        return 1;
+    }
+    return 0;
 }
 
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -5088,22 +5255,49 @@ int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     return 1;
 
   } else if (event == FIELD_DRAW) {
-    int width, offset, text_length, line_start, y;
-    char this_line[MAX_FIELD_LENGTH];
-    int text_line_width = 0;
-    fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
-    rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+    // Rounded corners for function keys F1..F10 only
+    bool is_fn = false;
+    if (!strncmp(f->cmd, "#mf", 3)) {
+      int n = atoi(f->cmd + 3);
+      if (n >= 1 && n <= 10) is_fn = true;
+    }
 
-    width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
-    offset = f->width / 2 - width / 2;
-    if (strlen(f->value) == 0)
+    if (is_fn) {
+      // Radius like the soft keyboard keys
+      int wh_min = (f->width < f->height) ? f->width : f->height;
+      int radius = wh_min / 4;
+      if (radius > 10) radius = 10;
+      if (radius < 4) radius = 4;
+
+      // Fill background with rounded rectangle
+      fill_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND, radius);
+
+      // Outline depending on state
+      if (f_focus == f)
+        stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 2, radius);
+      else if (f_hover == f)
+        stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 1, radius);
+      else
+        stroke_round_rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1, radius);
+    } else {
+      // Keep previous square look for non-F1..F10 macro buttons
+      fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+      rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+    }
+
+    // Text layout same as before
+    int width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+    int offset = f->width / 2 - width / 2;
+
+    if (strlen(f->value) == 0) {
       draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
-    else {
+    } else {
       if (strlen(f->label)) {
         draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
         draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
-      } else
+      } else {
         draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
+      }
     }
     return 1;
   }
@@ -8067,6 +8261,7 @@ void initialize_macro_selection() {
 
 	It also handles many commands that don't map to a control
 	like metercal or txcal, etc.
+  Note: Now updated to allow lower case text input
 */
 void cmd_exec(char *cmd)
 {
@@ -8098,51 +8293,51 @@ void cmd_exec(char *cmd)
 
 	char response[100];
 
-	if (!strcmp(exec, "FT8"))
+	if (!strcasecmp(exec, "FT8"))
 	{
 		ft8_process(args, FT8_START_QSO);
 	}
-	else if (!strcmp(exec, "callsign"))
+	else if (!strcasecmp(exec, "callsign"))
 	{
 		strcpy(get_field("#mycallsign")->value, args);
 		sprintf(response, "\n[Your callsign is set to %s]\n", get_field("#mycallsign")->value);
 		write_console(FONT_LOG, response);
 	}
-	else if (!strcmp(exec, "metercal"))
+	else if (!strcasecmp(exec, "metercal"))
 	{
 		meter_calibrate();
 	}
-	else if (!strcmp(exec, "abort"))
+	else if (!strcasecmp(exec, "abort"))
 		abort_tx();
-	else if (!strcmp(exec, "rtc"))
+	else if (!strcasecmp(exec, "rtc"))
 		rtc_read();
-	else if (!strcmp(exec, "txcal"))
+	else if (!strcasecmp(exec, "txcal"))
 	{
 		char response[10];
 		sdr_request("txcal=", response);
 	}
-	else if (!strcmp(exec, "grid"))
+	else if (!strcasecmp(exec, "grid"))
 	{
 		set_field("#mygrid", args);
 		sprintf(response, "\n[Your grid is set to %s]\n", get_field("#mygrid")->value);
 		write_console(FONT_LOG, response);
 	}
-	else if (!strcmp(exec, "utc"))
+	else if (!strcasecmp(exec, "utc"))
 	{
 		utc_set(args, 1);
 	}
-	else if (!strcmp(exec, "logbook"))
+	else if (!strcasecmp(exec, "logbook"))
 	{
 		char fullpath[200]; // dangerous, find the MAX_PATH and replace 200 with it
 		char *path = getenv("HOME");
 		sprintf(fullpath, "mousepad %s/sbitx/data/logbook.txt", path);
 		execute_app(fullpath);
 	}
-	else if (!strcmp(exec, "clear"))
+	else if (!strcasecmp(exec, "clear"))
 	{
 		console_init();
 	}
-	else if (!strcmp(exec, "macro") || !strcmp(exec, "MACRO"))
+	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))
 		{
@@ -8168,9 +8363,9 @@ void cmd_exec(char *cmd)
 		else
 			write_console(FONT_LOG, "macro file not loaded\n");
 	}
-	else if (!strcmp(exec, "qso"))
+	else if (!strcasecmp(exec, "qso"))
 		enter_qso(args);
-	else if (!strcmp(exec, "exchange"))
+	else if (!strcasecmp(exec, "exchange"))
 	{
 		set_field("#contest_serial", "0");
 		set_field("#sent_exchange", "");
@@ -8185,7 +8380,7 @@ void cmd_exec(char *cmd)
 		write_console(FONT_LOG, get_field("#sent_exchange")->value);
 		write_console(FONT_LOG, "]\n");
 	}
-	else if (!strcmp(exec, "freq") || !strcmp(exec, "f"))
+	else if (!strcasecmp(exec, "freq") || !strcasecmp(exec, "f"))
 	{
 		long freq = atol(args);
 		if (freq == 0)
@@ -8202,7 +8397,7 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
-	else if (!strcmp(exec, "rit"))
+	else if (!strcasecmp(exec, "rit"))
 	{
 		struct field *rit_field = get_field("#rit");
 		if (!rit_field) {
@@ -8240,21 +8435,21 @@ void cmd_exec(char *cmd)
 		}
 		focus_field(f_last_text);
 	}
-  else if (!strcmp(exec, "exit"))
+  else if (!strcasecmp(exec, "exit"))
 	{
 		tx_off();
 		set_field("#record", "OFF");
 		save_user_settings(1);
 		exit(0);
 	}
-	else if (!strcmp(exec, "qrz"))
+	else if (!strcasecmp(exec, "qrz"))
 	{
 		if (strlen(args))
 			qrz(args);
 		else
 			write_console(FONT_LOG, "/qrz [callsign]\n");
 	}
-	else if (!strcmp(exec, "mode") || !strcmp(exec, "m") || !strcmp(exec, "MODE"))
+	else if (!strcasecmp(exec, "mode") || !strcasecmp(exec, "m"))
 	{
 		set_radio_mode(args);
 		update_field(get_field("r1:mode"));
@@ -8279,28 +8474,28 @@ void cmd_exec(char *cmd)
     }
   // should we store the setting in user_settings.ini? 
   }
-	else if (!strcmp(exec, "t"))
+	else if (!strcasecmp(exec, "t"))
 		tx_on(TX_SOFT);
-	else if (!strcmp(exec, "r"))
+	else if (!strcasecmp(exec, "r"))
 		tx_off();
 	// added rtx for web remote tx function coming soon
-	else if (!strcmp(exec, "rtx"))
+	else if (!strcasecmp(exec, "rtx"))
 	{
 		tx_on(TX_SOFT);
 		sound_input(1);
 	}
-	else if (!strcmp(exec, "telnet"))
+	else if (!strcasecmp(exec, "telnet"))
 	{
 		if (strlen(args) > 5)
 			telnet_open(args);
 		else
 			telnet_open(get_field("#telneturl")->value);
 	}
-	else if (!strcmp(exec, "tclose"))
+	else if (!strcasecmp(exec, "tclose"))
 		telnet_close(args);
-	else if (!strcmp(exec, "tel"))
+	else if (!strcasecmp(exec, "tel"))
 		telnet_write(args);
-	else if (!strcmp(exec, "txpitch"))
+	else if (!strcasecmp(exec, "txpitch"))
 	{
 		if (strlen(args))
 		{
@@ -8315,7 +8510,7 @@ void cmd_exec(char *cmd)
 		write_console(FONT_LOG, buff);
 	}
 
-	else if (!strcmp(exec, "bfo"))
+	else if (!strcasecmp(exec, "bfo"))
 	{
 		// Change runtime BFO to get rid of birdies in passband
 		//  bfo is additive, i.e. if bfo is 1000, set a bfo of -2000 to change to -1000
@@ -8345,7 +8540,7 @@ void cmd_exec(char *cmd)
 		write_console(FONT_LOG, output);
 	}
 	//'Band scale' setting to adjust scale for easier adjustment for tuning power output - n1qm
-	else if (!strcmp(exec, "bs"))
+	else if (!strcasecmp(exec, "bs"))
 	{
 		// printf("In band power+\n");
 		char responsejnk[20];
@@ -8364,7 +8559,7 @@ void cmd_exec(char *cmd)
 		}
 	}
 
-else if (!strcmp(exec, "apf"))  // read command, load params in struct
+else if (!strcasecmp(exec, "apf"))  // read command, load params in struct
 	{
 			char output[50];
 			char *token;
@@ -8389,14 +8584,14 @@ else if (!strcmp(exec, "apf"))  // read command, load params in struct
 		}			
 		write_console(FONT_LOG, output);						
 	}
-	/*	else if (!strcmp(exec, "PITCH")){
+	/*	else if (!strcasecmp(exec, "PITCH")){
 			struct field *f = get_field_by_label(exec);
 			field_set("PITCH", args);
 			focus_field(f);
 		}
 	*/
 
-	else if (exec[0] == 'F' && isdigit(exec[1]))
+	else if ((exec[0] == 'F' || exec[0] == 'f') && isdigit(exec[1]))
 	{
 		char buff[1000];
 		printf("executing macro %s\n", exec);
