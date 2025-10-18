@@ -4074,7 +4074,7 @@ static void layout_ui()
     field_move("HIGH", 160, y_bottom, 95, row_h);
     field_move("TX", 260, y_bottom, 95, row_h);
     field_move("RX", 360, y_bottom, 95, row_h);
-    field_move("SPECT", x2 - 48, y_bottom, 45, row_h);
+    field_move("SPECT", x2 - 97, y_bottom, 45, row_h);
 
     field_move("TUNE", 460, 5, 40, 40);
   }
@@ -4110,7 +4110,7 @@ static void layout_ui()
     field_move("TX", 260, y_bottom, 95, row_h);
     field_move("RX", 360, y_bottom, 95, row_h);
     field_move("SIDETONE", 460, y_bottom, 95, row_h);
-    field_move("SPECT", x2 - 48, y_bottom, 45, row_h);
+    field_move("SPECT", x2 - 97, y_bottom, 45, row_h);
 
     // keep TUNE where it lives on top row
     field_move("TUNE", 460, 5, 40, 40);
