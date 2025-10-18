@@ -4068,13 +4068,16 @@ static void layout_ui()
       field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
     }
 
-    // One-row control bar
+    // top row control
+    field_move("SPECT", x2 - 48, y_top, 45, row_h);
+    
+    // bottom row control bar
     field_move("MIC", 5, y_bottom, 45, row_h);
     field_move("LOW", 60, y_bottom, 95, row_h);
     field_move("HIGH", 160, y_bottom, 95, row_h);
     field_move("TX", 260, y_bottom, 95, row_h);
     field_move("RX", 360, y_bottom, 95, row_h);
-    field_move("SPECT", x2 - 48, y_bottom, 45, row_h);
+    field_move("KBD", x2 - 48, y_bottom, 45, row_h);
 
     field_move("TUNE", 460, 5, 40, 40);
   }
