@@ -1057,7 +1057,7 @@ struct field main_controls[] = {
   {"#kbd_bs", do_kbd, 750, 300, 50, 37, "", 1, "DEL",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   
   // Row 2: tab  Q  W  E  R  T  Y  U  I  O  P  -  _  '  {  }
-  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "\t", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_q",  do_kbd, 50,  350, 50, 37, "", 1, "Q",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_w",  do_kbd, 100, 350, 50, 37, "", 1, "W",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_e",  do_kbd, 150, 350, 50, 37, "", 1, "E",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -6147,7 +6147,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		case GDK_KEY_Right:
 			struct field *f;
 			int forward = 1;
-			if (event->keyval == GDK_KEY_ISO_Left_Tab | event->keyval == GDK_KEY_leftarrow | event->keyval == GDK_KEY_Left)
+			if (event->keyval == GDK_KEY_ISO_Left_Tab || event->keyval == GDK_KEY_leftarrow || event->keyval == GDK_KEY_Left)
 				forward = 0;
 			if (!strcmp(f_focus->cmd, "#contact_callsign"))
 			{
