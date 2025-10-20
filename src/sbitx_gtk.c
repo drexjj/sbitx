@@ -3665,28 +3665,28 @@ void menu_display(int show)
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 
 				// Line 1 (screen_height - 140)
-				field_move("SET", 5, screen_height - 100, 45, 45);
-				field_move("TXEQ", 70, screen_height - 100, 45, 45);
-				field_move("RXEQ", 120, screen_height - 100, 45, 45);
-				field_move("NOTCH", 185, screen_height - 100, 95, 45);
-				field_move("ANR", 285, screen_height - 100, 45, 45);
-				field_move("COMP", 350, screen_height - 100, 45, 45);
-				field_move("TXMON", 400, screen_height - 100, 45, 45);
-				field_move("TNDUR", 500, screen_height - 100, 45, 45);
+				field_move("SET", 5, screen_height - 80, 45, 37);
+				field_move("TXEQ", 70, screen_height - 80, 45, 37);
+				field_move("RXEQ", 120, screen_height - 80, 45, 37);
+				field_move("NOTCH", 185, screen_height - 80, 95, 37);
+				field_move("ANR", 285, screen_height - 80, 45, 37);
+				field_move("COMP", 350, screen_height - 80, 45, 37);
+				field_move("TXMON", 400, screen_height - 80, 45, 37);
+				field_move("TNDUR", 500, screen_height - 80, 45, 37);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 45);
+					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 37);
 				}
 
 				// Line 2 (screen_height - 90)
-				field_move("WEB", 5, screen_height - 50, 45, 45);
-				field_move("EQSET", 70, screen_height - 50, 95, 45);
-				field_move("NFREQ", 185, screen_height - 50, 45, 45);
-				field_move("BNDWTH", 235, screen_height - 50, 45, 45);
-				field_move("DSP", 285, screen_height - 50, 45, 45);
-				field_move("BFO", 350, screen_height - 50, 45, 45);
-				field_move("VFOLK", 400, screen_height - 50, 45, 45);
-				field_move("TNPWR", 500, screen_height - 50, 45, 45);
+				field_move("WEB", 5, screen_height - 40, 45, 37);
+				field_move("EQSET", 70, screen_height - 40, 95, 37);
+				field_move("NFREQ", 185, screen_height - 40, 45, 37);
+				field_move("BNDWTH", 235, screen_height - 40, 37, 37);
+				field_move("DSP", 285, screen_height - 40, 45, 37);
+				field_move("BFO", 350, screen_height - 40, 45, 37);
+				field_move("VFOLK", 400, screen_height - 40, 45, 37);
+				field_move("TNPWR", 500, screen_height - 40, 45, 37);
 			}
 
 			else
@@ -3730,16 +3730,16 @@ void menu2_display(int show)
 		// Display the waveform-related controls in a new layout
 
 		// Single line (screen_height - 140)
-		field_move("WFMIN", 5, screen_height - 100, 70, 45);
-		field_move("WFMAX", 5, screen_height - 50, 70, 45);
-		field_move("WFSPD", 80, screen_height - 100, 70, 45);
-		field_move("SCOPEGAIN", 170, screen_height - 100, 70, 45);
-		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
-		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
-		field_move("TXPANAFAL", 320, screen_height - 100, 70, 45); // Add TXPANAFAL field
-		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
-		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
+		field_move("WFMIN", 5, screen_height - 80, 70, 37);
+		field_move("WFMAX", 5, screen_height - 40, 70, 37);
+		field_move("WFSPD", 80, screen_height - 80, 70, 37);
+		field_move("SCOPEGAIN", 170, screen_height - 80, 70, 37);
+		field_move("SCOPEAVG", 170, screen_height - 40, 70, 37);  // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 80, 70, 37); // Add SCOPESIZE field
+		field_move("TXPANAFAL", 320, screen_height - 80, 70, 37); // Add TXPANAFAL field
+		field_move("INTENSITY", 245, screen_height - 40, 70, 37); // Add SCOPE ALPHA field
+		field_move("AUTOSCOPE", 320, screen_height - 40, 70, 37); // Add AUTOADJUST spectrum field
+		field_move("PWR-DWN", screen_width - 94, screen_height - 80, 95, 37); // Add PWR-DWN field
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
 		const char *current_mode = field_str("MODE");
 		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
@@ -3747,7 +3747,7 @@ void menu2_display(int show)
 		    strcmp(current_mode, "CW") != 0 && 
 		    strcmp(current_mode, "CWR") != 0)
 		{
-			field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
+			field_move("WFCALL", screen_width - 94, screen_height - 155, 95, 37); // Add WFCALL
 		}
 		
 
