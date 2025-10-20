@@ -3646,87 +3646,123 @@ void field_move(char *field_label, int x, int y, int width, int height)
 		init_waterfall();
 }
 
-void menu_display(int show) {
-  struct field *f;
+void menu_display(int show)
+{
+	struct field *f;
 
-  // Determine row height from an existing control if possible
-  int row_h = 37;   // default fallback
-  int row_gap = 3;  // gap between rows
-  struct field *probe = get_field("SET");
-  if (probe && probe->height > 0) row_h = probe->height;
+	// We start the height at -200 because the first key
+	// will bump it down by a row
+	int height = screen_height - 200;
 
-  // bottom margin (distance from bottom of screen to bottom of controls)
-  int bottom_margin = 5;
+	for (f = active_layout; f->cmd[0]; f++)
+	{
+		if (!strncmp(f->cmd, "#eq_", 4))
+		{
+			if (show)
+			{
 
-  // compute Y positions for the two rows
-  int y_bottom = screen_height - row_h - bottom_margin;
-  int y_top = y_bottom - row_gap - row_h;
+				// NEW LAYOUT @ 3.2
+				// Move each control to the appropriate position, grouped by line and ordered left to right
 
-  for (f = active_layout; f->cmd[0]; f++) {
-    if (!strncmp(f->cmd, "#eq_", 4)) {
-      if (show) {
-        // Line 1 (y_top)
-        field_move("SET", 5, y_top, 45, row_h);
-        field_move("TXEQ", 70, y_top, 45, row_h);
-        field_move("RXEQ", 120, y_top, 45, row_h);
-        field_move("NOTCH", 185, y_top, 95, row_h);
-        field_move("ANR", 285, y_top, 45, row_h);
-        field_move("COMP", 350, y_top, 45, row_h);
-        field_move("TXMON", 400, y_top, 45, row_h);
-        field_move("TNDUR", 500, y_top, 45, row_h);
-        if (!strcmp(field_str("EPTTOPT"), "ON")) {
-          field_move("ePTT", screen_width - 94, y_top, 92, row_h);
-        }
+				// Line 1 (screen_height - 140)
+				field_move("SET", 5, screen_height - 80, 45, 37);
+				field_move("TXEQ", 70, screen_height - 80, 45, 37);
+				field_move("RXEQ", 120, screen_height - 80, 45, 37);
+				field_move("NOTCH", 185, screen_height - 80, 95, 37);
+				field_move("ANR", 285, screen_height - 80, 45, 37);
+				field_move("COMP", 350, screen_height - 80, 45, 37);
+				field_move("TXMON", 400, screen_height - 80, 45, 37);
+				field_move("TNDUR", 500, screen_height - 80, 45, 37);
+				if (!strcmp(field_str("EPTTOPT"), "ON"))
+				{
+					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 37);
+				}
 
-        // Line 2 (y_bottom)
-        field_move("WEB", 5, y_bottom, 45, row_h);
-        field_move("EQSET", 70, y_bottom, 95, row_h);
-        field_move("NFREQ", 185, y_bottom, 45, row_h);
-        field_move("BNDWTH", 235, y_bottom, 45, row_h);
-        field_move("DSP", 285, y_bottom, 45, row_h);
-        field_move("BFO", 350, y_bottom, 45, row_h);
-        field_move("VFOLK", 400, y_bottom, 45, row_h);
-        field_move("TNPWR", 500, y_bottom, 45, row_h);
-      }
-    }
-  }
+				// Line 2 (screen_height - 90)
+				field_move("WEB", 5, screen_height - 40, 45, 37);
+				field_move("EQSET", 70, screen_height - 40, 95, 37);
+				field_move("NFREQ", 185, screen_height - 40, 45, 37);
+				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
+				field_move("DSP", 285, screen_height - 40, 45, 37);
+				field_move("BFO", 350, screen_height - 40, 45, 37);
+				field_move("VFOLK", 400, screen_height - 40, 45, 37);
+				field_move("TNPWR", 500, screen_height - 40, 45, 37);
+			}
+
+			else
+			{
+
+				// Move the fields off-screen if not showing
+				// field_move("B0F", -1000, screen_height - 150, 45, 45);
+				// field_move("B0G", -1000, screen_height - 150, 45, 45);
+				// field_move("B0B", -1000, screen_height - 150, 45, 45);
+				// field_move("B1F", -1000, screen_height - 150, 45, 45);
+				// field_move("B1G", -1000, screen_height - 150, 45, 45);
+				// field_move("B1B", -1000, screen_height - 150, 45, 45);
+				// field_move("B2F", -1000, screen_height - 150, 45, 45);
+				// field_move("B2G", -1000, screen_height - 150, 45, 45);
+				// field_move("B2B", -1000, screen_height - 150, 45, 45);
+				// field_move("B3F", -1000, screen_height - 150, 45, 45);
+				// field_move("B3G", -1000, screen_height - 150, 45, 45);
+				// field_move("B3B", -1000, screen_height - 150, 45, 45);
+				// field_move("B4F", -1000, screen_height - 150, 45, 45);
+				// field_move("B4G", -1000, screen_height - 150, 45, 45);
+				// field_move("B4B", -1000, screen_height - 150, 45, 45);
+				// field_move("TXEQ", -1000, screen_height - 120, 45, 45);
+				// field_move("DSP", -1000, screen_height - 120, 45, 45);
+				// field_move("INTVL", -1000, screen_height - 145, 45, 45);
+				// field_move("THSHLD", -1000, screen_height - 95, 45, 45);
+				// field_move("ANR", -1000, screen_height - 120, 45, 45);
+			}
+		}
+	}
 }
 
-void menu2_display(int show) {
-  // Determine row height from an existing control if possible
-  int row_h = 37;   // default fallback
-  int row_gap = 3;  // gap between rows
-  struct field *probe = get_field("WFMIN");
-  if (probe && probe->height > 0) row_h = probe->height;
+void menu2_display(int show)
+{
+	// Start the height at -200 because the first key
+	// will bump it down by a row
+	int height = screen_height - 200;
 
-  // bottom margin (distance from bottom of screen to bottom of controls)
-  int bottom_margin = 5;
+	if (show)
+	{
 
-  // compute Y positions for the two rows
-  int y_bottom = screen_height - row_h - bottom_margin;
-  int y_top = y_bottom - row_gap - row_h;
+		// Display the waveform-related controls in a new layout
 
-  if (show) {
-    // Single line (y_top)
-    field_move("WFMIN", 5, y_top, 70, row_h);
-    field_move("WFMAX", 5, y_bottom, 70, row_h);  // keep WFMAX on bottom row in original layout
-    field_move("WFSPD", 80, y_top, 70, row_h);
-    field_move("SCOPEGAIN", 170, y_top, 70, row_h);
-    field_move("SCOPEAVG", 170, y_bottom, 70, row_h);
-    field_move("SCOPESIZE", 245, y_top, 70, row_h);
-    field_move("TXPANAFAL", 320, y_top, 70, row_h);
-    field_move("INTENSITY", 245, y_bottom, 70, row_h);
-    field_move("AUTOSCOPE", 320, y_bottom, 70, row_h);
-    field_move("PWR-DWN", screen_width - 94, y_top, 92, row_h);
+		// Single line (screen_height - 140)
+		field_move("WFMIN", 5, screen_height - 80, 70, 37);
+		field_move("WFMAX", 5, screen_height - 40, 70, 37);
+		field_move("WFSPD", 80, screen_height - 80, 70, 37);
+		field_move("SCOPEGAIN", 170, screen_height - 80, 70, 37);
+		field_move("SCOPEAVG", 170, screen_height - 40, 70, 37);  // Add SCOPEAVG field
+		field_move("SCOPESIZE", 245, screen_height - 80, 70, 37); // Add SCOPESIZE field
+		field_move("TXPANAFAL", 320, screen_height - 80, 70, 37); // Add TXPANAFAL field
+		field_move("INTENSITY", 245, screen_height - 40, 70, 37); // Add SCOPE ALPHA field
+		field_move("AUTOSCOPE", 320, screen_height - 40, 70, 37); // Add AUTOADJUST spectrum field
+		field_move("PWR-DWN", screen_width - 97, screen_height - 80, 95, 37); // Add PWR-DWN field
+		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
+		const char *current_mode = field_str("MODE");
+		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
+		    strcmp(current_mode, "FT8") != 0 && 
+		    strcmp(current_mode, "CW") != 0 && 
+		    strcmp(current_mode, "CWR") != 0)
+		{
+			field_move("WFCALL", screen_width - 240, screen_height - 80, 95, 37); // Add WFCALL
+		}
+		
 
-    // Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
-    const char *current_mode = field_str("MODE");
-    if (!strcmp(field_str("WFCALLOPT"), "ON") && strcmp(current_mode, "FT8") != 0 &&
-        strcmp(current_mode, "CW") != 0 && strcmp(current_mode, "CWR") != 0) {
-      // Put WFCALL on the bottom row (y_bottom) to match other controls
-      field_move("WFCALL", screen_width - 240, y_bottom, 95, row_h);
-    }
-  }
+	}
+	else
+	{
+
+		// Move the fields off-screen if not showing
+		// field_move("WFMIN", -1000, screen_height - 140, 70, 45);
+		// field_move("WFMAX", -1000, screen_height - 140, 70, 45);
+		// field_move("WFSPD", -1000, screen_height - 140, 70, 45);
+		// field_move("SCOPEGAIN", -1000, screen_height - 140, 70, 45);
+		// field_move("SCOPEAVG", -1000, screen_height - 140, 70, 45); // Move SCOPEAVG off-screen
+		// field_move("SCOPESIZE", -1000, screen_height - 140, 70, 45); // Move SCOPESIZE off-screen
+	}
 }
 
 // scales the the sbitx ui and places on-screen fields and controls
