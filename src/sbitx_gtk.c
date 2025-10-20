@@ -3829,7 +3829,7 @@ static void layout_ui()
   // adjust screen height for keyboard
   if (!strcmp(field_str("KBD"), "ON")) {
     // Use the exact keyboard height to avoid off-by-one layout overlaps
-    y2 = screen_height - KEYBOARD_HEIGHT;  // was: 150
+    y2 = screen_height - KEYBOARD_HEIGHT;  
     keyboard_display(1);
   } else {
     keyboard_display(0);
@@ -3837,10 +3837,10 @@ static void layout_ui()
 
   // adjust screen height for menu
   if (!strcmp(field_str("MENU"), "1")) {
-    y2 = screen_height - 105;
+    y2 = screen_height - 85;
     menu_display(1);
   } else if (!strcmp(field_str("MENU"), "2")) {
-    y2 = screen_height - 105;
+    y2 = screen_height - 85;
     menu2_display(1);
   } else {
     menu_display(0);
