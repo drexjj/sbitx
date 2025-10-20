@@ -3682,7 +3682,7 @@ void menu_display(int show)
 				field_move("WEB", 5, screen_height - 40, 45, 37);
 				field_move("EQSET", 70, screen_height - 40, 95, 37);
 				field_move("NFREQ", 185, screen_height - 40, 45, 37);
-				field_move("BNDWTH", 235, screen_height - 40, 37, 37);
+				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
 				field_move("DSP", 285, screen_height - 40, 45, 37);
 				field_move("BFO", 350, screen_height - 40, 45, 37);
 				field_move("VFOLK", 400, screen_height - 40, 45, 37);
