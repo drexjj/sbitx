@@ -3624,7 +3624,6 @@ void keyboard_display(int show) {
         f->y = current_row_y;  // place at computed row height while showing
       else
         f->y = -1000;  // hide keyboard rows
-
       update_field(f);
     }
   }
@@ -3646,25 +3645,14 @@ void field_move(char *field_label, int x, int y, int width, int height)
 		init_waterfall();
 }
 
-void menu_display(int show)
-{
+void menu_display(int show) {
 	struct field *f;
-
-	// We start the height at -200 because the first key
-	// will bump it down by a row
-	int height = screen_height - 200;
-
-	for (f = active_layout; f->cmd[0]; f++)
-	{
-		if (!strncmp(f->cmd, "#eq_", 4))
-		{
-			if (show)
-			{
-
+	for (f = active_layout; f->cmd[0]; f++) {
+		if (!strncmp(f->cmd, "#eq_", 4)) {
+			if (show) {
 				// NEW LAYOUT @ 3.2
 				// Move each control to the appropriate position, grouped by line and ordered left to right
-
-				// Line 1 (screen_height - 140)
+				// Line 1 
 				field_move("SET", 5, screen_height - 80, 45, 37);
 				field_move("TXEQ", 70, screen_height - 80, 45, 37);
 				field_move("RXEQ", 120, screen_height - 80, 45, 37);
@@ -3678,7 +3666,7 @@ void menu_display(int show)
 					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 37);
 				}
 
-				// Line 2 (screen_height - 90)
+				// Line 2 
 				field_move("WEB", 5, screen_height - 40, 45, 37);
 				field_move("EQSET", 70, screen_height - 40, 95, 37);
 				field_move("NFREQ", 185, screen_height - 40, 45, 37);
@@ -3689,9 +3677,7 @@ void menu_display(int show)
 				field_move("TNPWR", 500, screen_height - 40, 45, 37);
 			}
 
-			else
-			{
-
+			else {
 				// Move the fields off-screen if not showing
 				// field_move("B0F", -1000, screen_height - 150, 45, 45);
 				// field_move("B0G", -1000, screen_height - 150, 45, 45);
@@ -3718,18 +3704,9 @@ void menu_display(int show)
 	}
 }
 
-void menu2_display(int show)
-{
-	// Start the height at -200 because the first key
-	// will bump it down by a row
-	int height = screen_height - 200;
-
-	if (show)
-	{
-
-		// Display the waveform-related controls in a new layout
-
-		// Single line (screen_height - 140)
+void menu2_display(int show) {
+	if (show) { 
+		// Display the waterfall-related controls in a new layout
 		field_move("WFMIN", 5, screen_height - 80, 70, 37);
 		field_move("WFMAX", 5, screen_height - 40, 70, 37);
 		field_move("WFSPD", 80, screen_height - 80, 70, 37);
@@ -3745,16 +3722,11 @@ void menu2_display(int show)
 		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
 		    strcmp(current_mode, "FT8") != 0 && 
 		    strcmp(current_mode, "CW") != 0 && 
-		    strcmp(current_mode, "CWR") != 0)
-		{
+		    strcmp(current_mode, "CWR") != 0)	{
 			field_move("WFCALL", screen_width - 240, screen_height - 80, 95, 37); // Add WFCALL
 		}
 		
-
-	}
-	else
-	{
-
+	} else {
 		// Move the fields off-screen if not showing
 		// field_move("WFMIN", -1000, screen_height - 140, 70, 45);
 		// field_move("WFMAX", -1000, screen_height - 140, 70, 45);
