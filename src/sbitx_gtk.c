@@ -6138,86 +6138,24 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 	mfk_last_ms = sbitx_millis();
 
 	// Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
-	if (f_focus)
-	{
-		switch (event->keyval)
-		{
-		case GDK_KEY_ISO_Left_Tab:
-		case GDK_KEY_Tab:
-		case GDK_KEY_rightarrow:
-		case GDK_KEY_leftarrow:
-		case GDK_KEY_Left:
-		case GDK_KEY_Right:
-			struct field *f;
-			int forward = 1;
-			if (event->keyval == GDK_KEY_ISO_Left_Tab || event->keyval == GDK_KEY_leftarrow || event->keyval == GDK_KEY_Left)
-				forward = 0;
-			if (!strcmp(f_focus->cmd, "#contact_callsign"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("SENT");
-				else
-					f = get_field_by_label("WIPE");
-			}
-			else if (!strcmp(f_focus->cmd, "#rst_sent"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("RECV");
-				else
-					f = get_field_by_label("CALL");
-			}
-			else if (!strcmp(f_focus->cmd, "#rst_received"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("EXCH");
-				else
-					f = get_field_by_label("SENT");
-			}
-			else if (!strcmp(f_focus->cmd, "#exchange_received"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("NR");
-				else
-					f = get_field_by_label("RECV");
-			}
-			else if (!strcmp(f_focus->cmd, "#exchange_sent"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("TEXT");
-				else
-					f = get_field_by_label("EXCH");
-			}
-			else if (!strcmp(f_focus->cmd, "#text_in"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("SAVE");
-				else
-					f = get_field_by_label("NR");
-			}
-			else if (!strcmp(f_focus->cmd, "#enter_qso"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("WIPE");
-				else
-					f = get_field_by_label("TEXT");
-			}
-			else if (!strcmp(f_focus->cmd, "#wipe"))
-			{
-				if (forward == 1)
-					f = get_field_by_label("CALL");
-				else
-					f = get_field_by_label("SAVE");
-			}
-			else
-			{
-				// Switch to first qso log if no match for control with current focus
-				f = get_field_by_label("CALL");
-			}
-			focus_field_without_toggle(f);
-			return FALSE;
-			break;
-		}
-	}
+	if (f_focus) {
+  switch (event->keyval) {
+    case GDK_KEY_ISO_Left_Tab:
+    case GDK_KEY_Left:
+    case GDK_KEY_leftarrow:
+      /* Shift-Tab / left arrow -> move backward */
+      tab_focus_advance(0);
+      return TRUE; /* handled */
+    case GDK_KEY_Tab:
+    case GDK_KEY_Right:
+    case GDK_KEY_rightarrow:
+      /* Tab / right arrow -> move forward */
+      tab_focus_advance(1);
+      return TRUE; /* handled */
+    default:
+      break;
+  }
+}
 
 	char request[1000], response[1000];
 
