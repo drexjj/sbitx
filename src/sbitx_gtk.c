@@ -1057,7 +1057,7 @@ struct field main_controls[] = {
   {"#kbd_bs", do_kbd, 750, 300, 50, 37, "", 1, "DEL",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   
   // Row 2: tab  Q  W  E  R  T  Y  U  I  O  P  -  _  '  {  }
-  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "\t", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_q",  do_kbd, 50,  350, 50, 37, "", 1, "Q",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_w",  do_kbd, 100, 350, 50, 37, "", 1, "W",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_e",  do_kbd, 150, 350, 50, 37, "", 1, "E",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -5014,6 +5014,8 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			edit_field(f_text, COMMAND_ESCAPE);
 		else if (!strcmp(f->value, "SPACE"))
 			edit_field(f_text, ' ');
+		else if (!strcmp(f->cmd, "#kbd_tab") || !strcmp(f->value, "TAB"))
+			edit_field(f_text, MIN_KEY_TAB);
 		else if (!strcmp(f->cmd, "#kbd_enter"))
 			edit_field(f_text, '\n');
 		else
