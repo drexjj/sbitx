@@ -6108,26 +6108,60 @@ static void tab_focus_advance(int forward) {
   struct field *f = NULL;
 
   if (!f_focus) return;
+
   if (!strcmp(f_focus->cmd, "#contact_callsign")) {
-    f = forward ? get_field_by_label("SENT") : get_field_by_label("WIPE");
+    if (forward) {
+      f = get_field_by_label("SENT");
+    } else {
+      f = get_field_by_label("WIPE");
+    }
   } else if (!strcmp(f_focus->cmd, "#rst_sent")) {
-    f = forward ? get_field_by_label("RECV") : get_field_by_label("CALL");
+    if (forward) {
+      f = get_field_by_label("RECV");
+    } else {
+      f = get_field_by_label("CALL");
+    }
   } else if (!strcmp(f_focus->cmd, "#rst_received")) {
-    f = forward ? get_field_by_label("EXCH") : get_field_by_label("SENT");
+    if (forward) {
+      f = get_field_by_label("EXCH");
+    } else {
+      f = get_field_by_label("SENT");
+    }
   } else if (!strcmp(f_focus->cmd, "#exchange_received")) {
-    f = forward ? get_field_by_label("NR") : get_field_by_label("RECV");
+    if (forward) {
+      f = get_field_by_label("NR");
+    } else {
+      f = get_field_by_label("RECV");
+    }
   } else if (!strcmp(f_focus->cmd, "#exchange_sent")) {
-    f = forward ? get_field_by_label("TEXT") : get_field_by_label("EXCH");
+    if (forward) {
+      f = get_field_by_label("TEXT");
+    } else {
+      f = get_field_by_label("EXCH");
+    }
   } else if (!strcmp(f_focus->cmd, "#text_in")) {
-    f = forward ? get_field_by_label("SAVE") : get_field_by_label("NR");
+    if (forward) {
+      f = get_field_by_label("SAVE");
+    } else {
+      f = get_field_by_label("NR");
+    }
   } else if (!strcmp(f_focus->cmd, "#enter_qso")) {
-    f = forward ? get_field_by_label("WIPE") : get_field_by_label("TEXT");
+    if (forward) {
+      f = get_field_by_label("WIPE");
+    } else {
+      f = get_field_by_label("TEXT");
+    }
   } else if (!strcmp(f_focus->cmd, "#wipe")) {
-    f = forward ? get_field_by_label("CALL") : get_field_by_label("SAVE");
+    if (forward) {
+      f = get_field_by_label("CALL");
+    } else {
+      f = get_field_by_label("SAVE");
+    }
   } else {
     /* Fallback: go to first call field (CALL) */
     f = get_field_by_label("CALL");
   }
+
   if (f) focus_field(f);
 }
 
