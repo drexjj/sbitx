@@ -3664,7 +3664,7 @@ void menu_display(int show) {
 				field_move("TNDUR", 500, screen_height - 80, 45, 37);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 37);
+					field_move("ePTT", screen_width - 190, screen_height - 80, 92, 37);
 				}
 
 				// Line 2 
