@@ -326,6 +326,7 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event,
 							   gpointer user_data);
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
 							 gpointer user_data);
+static void tab_focus_advance(int forward);
 static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event,
 							   gpointer data);
 static gboolean on_mouse_move(GtkWidget *widget, GdkEventButton *event,
