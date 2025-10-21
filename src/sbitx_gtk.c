@@ -5015,7 +5015,7 @@ int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		else if (!strcmp(f->value, "SPACE"))
 			edit_field(f_text, ' ');
 		else if (!strcmp(f->cmd, "#kbd_tab") || !strcmp(f->value, "TAB"))
-			edit_field(f_text, MIN_KEY_TAB);
+			tab_focus_advance(1);
 		else if (!strcmp(f->cmd, "#kbd_enter"))
 			edit_field(f_text, '\n');
 		else
@@ -6100,6 +6100,34 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer u
 	// if (event->keyval == MIN_KEY_TAB){
 	//   tx_off();
 	// }
+}
+
+// advance focus to next text field
+static void tab_focus_advance(int forward) {
+  struct field *f = NULL;
+
+  if (!f_focus) return;
+  if (!strcmp(f_focus->cmd, "#contact_callsign")) {
+    f = forward ? get_field_by_label("SENT") : get_field_by_label("WIPE");
+  } else if (!strcmp(f_focus->cmd, "#rst_sent")) {
+    f = forward ? get_field_by_label("RECV") : get_field_by_label("CALL");
+  } else if (!strcmp(f_focus->cmd, "#rst_received")) {
+    f = forward ? get_field_by_label("EXCH") : get_field_by_label("SENT");
+  } else if (!strcmp(f_focus->cmd, "#exchange_received")) {
+    f = forward ? get_field_by_label("NR") : get_field_by_label("RECV");
+  } else if (!strcmp(f_focus->cmd, "#exchange_sent")) {
+    f = forward ? get_field_by_label("TEXT") : get_field_by_label("EXCH");
+  } else if (!strcmp(f_focus->cmd, "#text_in")) {
+    f = forward ? get_field_by_label("SAVE") : get_field_by_label("NR");
+  } else if (!strcmp(f_focus->cmd, "#enter_qso")) {
+    f = forward ? get_field_by_label("WIPE") : get_field_by_label("TEXT");
+  } else if (!strcmp(f_focus->cmd, "#wipe")) {
+    f = forward ? get_field_by_label("CALL") : get_field_by_label("SAVE");
+  } else {
+    /* Fallback: go to first call field (CALL) */
+    f = get_field_by_label("CALL");
+  }
+  if (f) focus_field(f);
 }
 
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
