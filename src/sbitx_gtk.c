@@ -4918,11 +4918,10 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
           ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
           int mult;
-          if (ema_rate < 35.0)      mult = 1;   // 10 Hz steps stay 10 Hz
-          else if (ema_rate < 40.0) mult = 2;   // 10 Hz steps become 20 Hz steps
-          else if (ema_rate < 45.0) mult = 5;   // 10 Hz steps become 50 Hz steps
-          else if (ema_rate < 50.0) mult = 10;  // 10 Hz steps become 100 Hz steps
-          else                      mult = 20;  // 10 Hz steps become 200 Hz steps
+          if (ema_rate < 28.0)      mult = 1;   // 10 Hz steps stay 10 Hz
+          else if (ema_rate < 35.0) mult = 2;   // 10 Hz steps become 20 Hz steps
+          else if (ema_rate < 40.0) mult = 5;   // 10 Hz steps become 50 Hz steps
+          else                      mult = 10;  // 10 Hz steps become 100 Hz steps
 
           const long cap = 50000;               // largest accelerated tuning step we accept
           long proposed = (long)base_step * mult;
