@@ -238,6 +238,7 @@
                     <option value="CW">CW</option>
                     <option value="CWR">CWR</option>
                     <option value="FT8">FT8</option>
+                    <option value="FT4">FT4</option>
                     <option value="DIGI">DIGI</option>
                     <option value="2TONE">2TONE</option>
                     <option value="AM">AM</option>
@@ -963,7 +964,7 @@
         // Check if this is a mode change message
         if (str.startsWith("MODE ")) {
             var mode = str.split(" ")[1];
-            if ((mode === "FT8" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
+            if ((mode === "FT8" || mode === "FT4" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
                 toggleBrowserMic(); // Turn off browser mic
             }
         }
@@ -1430,8 +1431,8 @@
         // Get current filter values
         const mode = el("MODE").value;
 
-        // Skip filter edge detection for FT8 mode
-        if (mode === "FT8") {
+        // Skip filter edge detection for FTx modes
+        if (mode === "FT8" || mode === "FT4") {
             return null;
         }
 
@@ -2084,8 +2085,8 @@
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         }
 
-        // Skip filter visualization for FT8 mode
-        if (mode !== "FT8") {
+        // Skip filter visualization for FTx modes
+        if (mode !== "FT8" && mode !== "FT4") {
             // Calculate the visual edge positions (where the edges are actually drawn)
             const visualLeftEdgeX = filterLeftX;
             const visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
@@ -2150,7 +2151,7 @@
 
                 // Adjust the spectrum level calculation for FT8 mode
                 let ph;
-                if (mode === "FT8") {
+                if (mode === "FT8" || mode === "FT4") {
                     // Use a more appropriate scaling for FT8 mode
                     ph = -((update.charCodeAt(x + 3) - 32) * drawHeight) / 100;
                 } else {
@@ -2273,7 +2274,7 @@
         }
         ctx.stroke();
 
-        if (mode === "FT8") {
+        if (mode === "FT8" || mode === "FT4") {
             ctx.beginPath();
             ctx.strokeStyle = "red";
             ctx.fillStyle = "red";
@@ -2383,10 +2384,10 @@
         // Get mode and pitch values
         const mode = modeEl.value;
         const rx_pitch = parseFloat(pitchEl.value);
-        const tx_pitch = mode === "FT8" ? parseFloat(txPitchEl.value) : 0;
+        const tx_pitch = mode === "FT8" || mode === "FT4" ? parseFloat(txPitchEl.value) : 0;
 
         // Calculate repeat and spot positions
-        const repeat = mode === "FT8" ? 1 : mode === "CW" || mode === "CWR" ? 2 : 2;
+        const repeat = mode === "FT8" || mode === "FT4" ? 1 : mode === "CW" || mode === "CWR" ? 2 : 2;
 
         // Simplify rx_spot calculation
         let rx_spot;
@@ -2398,7 +2399,7 @@
             rx_spot = Math.round(half_width + rx_pitch * hz_per_pixel);
         }
 
-        const tx_spot = mode === "FT8" ? Math.round(half_width + tx_pitch * hz_per_pixel) : -1;
+        const tx_spot = mode === "FT8" || mode === "FT4" ? Math.round(half_width + tx_pitch * hz_per_pixel) : -1;
 
         // Shift existing image down
         const img = ctx.getImageData(0, 0, width, height);
@@ -3248,7 +3249,7 @@ function FT8_stylize_message_item(item, text, style) {
 function FT8_list_append(list_id, text, style){
         var item = document.createElement("li");
         FT8_stylize_message_item(item, text, style);
-        item.id = deco_strip(text).replace(/[^\w\-\/\~]+/g, "_");
+        item.id = deco_strip(text).replace(/[^\w\-\/\~\.]+/g, "_");
         item.addEventListener("click", FT8_message_chosen);
         el(list_id).children[0].appendChild(item);
         item.scrollIntoView({ behaviour: 'smooth', block: 'nearest' });
@@ -3916,7 +3917,7 @@ function FT8_list_append(list_id, text, style){
 
         $(".mode-panel").hide();
 
-        if (new_mode === 'CW' || new_mode === 'CWR' || new_mode === 'FT8' || new_mode === 'DIGI') {
+        if (new_mode === 'CW' || new_mode === 'CWR' || new_mode === 'FT8' || new_mode === 'FT4' || new_mode === 'DIGI') {
             $(".cw-ft8-control").show();
         } else {
             $(".cw-ft8-control").hide();
@@ -3946,6 +3947,7 @@ function FT8_list_append(list_id, text, style){
                 $("#digi_ui").show();
                 $("#more_keys").hide();
                 break;
+            case 'FT4':
             case 'FT8':
                 sp.height = 50;
                 wf.height = 50;
@@ -4430,7 +4432,7 @@ function FT8_list_append(list_id, text, style){
         // If this is the MODE control, check if we need to disable browser mic
         if (id === "MODE") {
             var mode = select_control.value;
-            if ((mode === "FT8" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
+            if ((mode === "FT4" || mode === "FT8" || mode === "DIGI") && window.sbitxMic && window.sbitxMic.enabled) {
                 toggleBrowserMic(); // Turn off browser mic
             }
         }
@@ -4565,7 +4567,7 @@ function FT8_list_append(list_id, text, style){
             return;
         }
 
-        const disabledModes = ['CW', 'CWR', 'FT8'];
+        const disabledModes = ['CW', 'CWR', 'FT8', 'FT4'];
         const currentMode = modeSelect.value;
 
         if (disabledModes.includes(currentMode)) {
