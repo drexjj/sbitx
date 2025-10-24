@@ -2233,7 +2233,9 @@
         // Draw RX/TX lines
         const rx_pitch = parseFloat(pitchEl.value);
         const tx_pitch = mode === "AM" ? 0 : parseFloat(txPitchEl.value);
-
+        const rit = el("RIT").value;
+        const rit_delta = parseInt(el("RIT_DELTA").value) || 0;
+      
         ctx.beginPath();
         ctx.strokeStyle = "cyan";
         ctx.fillStyle = "white";
@@ -2280,6 +2282,88 @@
             ctx.lineTo(tx_x, drawHeight);
             ctx.fillText("TX", tx_x - 10, drawHeight + 12);
             ctx.stroke();
+        }
+           
+        // Draw TX frequency indicator when RIT is enabled.
+        // Similar to the implementation we have in sbitx_gtk.c for the local visualizations
+        if (rit === "ON" && !in_tx) {
+            ctx.beginPath();
+            ctx.strokeStyle = "red";
+            ctx.fillStyle = "red";
+            
+            // Calculate TX frequency position
+            // TX freq = RX freq - RIT delta (same calculation as in GTK)
+            const freq_diff = -rit_delta; // Negative because we subtract RIT delta from RX freq
+            const offset_pixels = freq_diff * hz_per_pixel;
+            const tx_needle_x = half_width + offset_pixels;
+            
+            // Check if TX indicator is within visible range
+            let is_at_edge = false;
+            let arrow_direction = 0;
+            let display_x = tx_needle_x;
+            
+            if (tx_needle_x < 0) {
+                display_x = 0;
+                is_at_edge = true;
+                arrow_direction = -1;
+            }
+            if (tx_needle_x >= width) {
+                display_x = width - 1;
+                is_at_edge = true;
+                arrow_direction = 1;
+            }
+            
+            // Draw the vertical line
+            ctx.moveTo(display_x, 0);
+            ctx.lineTo(display_x, drawHeight);
+            ctx.stroke();
+            
+            // Draw arrow if TX frequency is outside visible range
+            if (is_at_edge) {
+                const center_y = drawHeight / 2;
+                const arrow_size = 10;
+                
+                ctx.beginPath();
+                ctx.moveTo(display_x, center_y);
+                
+                if (arrow_direction < 0) {
+                    // Arrow pointing right (TX is to the left of visible area)
+                    ctx.lineTo(display_x + arrow_size, center_y - arrow_size/2);
+                    ctx.lineTo(display_x + arrow_size, center_y + arrow_size/2);
+                } else {
+                    // Arrow pointing left (TX is to the right of visible area)
+                    ctx.lineTo(display_x - arrow_size, center_y - arrow_size/2);
+                    ctx.lineTo(display_x - arrow_size, center_y + arrow_size/2);
+                }
+                
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            // Add TX label if there's room
+            const tx_label_x = display_x - 10;
+            let tx_label_overlaps = false;
+            const tx_label_width = ctx.measureText("TX").width + 5;
+            
+            // Check for overlap with spot labels and RX label
+            for (const spot of spots_with_x) {
+                const spot_label_x = spot.x - 10;
+                const spot_label_width = ctx.measureText(spot.callsign).width + 5;
+                const min_gap = Math.max(tx_label_width, spot_label_width);
+                if (Math.abs(tx_label_x - spot_label_x) < min_gap) {
+                    tx_label_overlaps = true;
+                    break;
+                }
+            }
+            
+            // Also check overlap with RX label
+            if (Math.abs(tx_label_x - rx_x + 10) < tx_label_width) {
+                tx_label_overlaps = true;
+            }
+            
+            if (!tx_label_overlaps) {
+                ctx.fillText("TX", tx_label_x, drawHeight + 12);
+            }
         }
     }
     // Cache DOM elements (assumed to be stable) outside the function
@@ -2822,6 +2906,10 @@
         if (e.id === "BAND") {
             log("Sending band command: " + e.value); // Debug log
             websocket_send(e.value); // Send just the band value, e.g., "20M"
+        } else if (e.id === "RIT" && e.value == "ON") {
+            websocket_send("rit" + " " + "on"); // Original behavior for other selects
+        } else if (e.id === "RIT" && e.value == "OFF") {
+            websocket_send("rit" + " " + "off"); // Original behavior for other selects    
         } else {
             log("Sending command: " + e.id + " " + e.value); // Debug log
             websocket_send(e.id + " " + e.value); // Original behavior for other selects
