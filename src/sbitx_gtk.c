@@ -1039,6 +1039,10 @@ struct field main_controls[] = {
 	 "", 0, 20, 1, 0},
 	{"#critical_voltage", NULL, 1000, -1000, 400, 149, "CRITVOLT", 70, "10.0", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 20, 1, 0},
+	{"#xota_loc", NULL, 1000, -1000, 400, 149, "LOCATION", 70, "PEAK/PARK/ISLE", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 32, 1, 0},
+	{"#xota", NULL, 1000, -1000, 400, 149, "xOTA", 40, "", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "NONE/IOTA/SOTA/POTA", 0, 0, 0, COMMON_CONTROL},
 
 	// moving global variables into fields
 	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1978,7 +1982,9 @@ void enter_qso()
 	const char *rst_received = get_field("#rst_received")->value;
 	const char *exch_sent = get_field("#exchange_sent")->value;
 	const char *exch_received = get_field("#exchange_received")->value;
+	const char *xota = get_field("#xota")->value;
 	const char *comment = get_field("#text_in")->value;
+	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4);
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -1995,7 +2001,7 @@ void enter_qso()
 
 	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received,
 				last_fwdpower, last_vswr,
-				"", "", // xota: TODO
+				has_xota ? xota : "", has_xota ? get_field("#xota_loc")->value : "",
 				comment);
 
 	char buff[100];
