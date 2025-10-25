@@ -5380,6 +5380,7 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
+
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (event == GDK_BUTTON_PRESS)
@@ -5408,21 +5409,25 @@ int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c
 	}
 	return 0;
 }
+
 int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (event == GDK_BUTTON_PRESS)
-	{
+	switch (event) {
+	case GDK_BUTTON_PRESS:
 		set_field("#toggle_kbd", "OFF");
 		focus_field(f_last_text); // this will prevent the controls from bouncing
-		if (strlen(get_field("#current_macro")->value))
+		if (strlen(f->value))
 		{
 			write_console(STYLE_LOG, "current macro is ");
-			write_console(STYLE_LOG, get_field("#current_macro")->value);
+			write_console(STYLE_LOG, f->value);
 			write_console(STYLE_LOG, "\n");
 		}
-		macro_load(get_field("#current_macro")->value, NULL);
+		macro_load(f->value, NULL);
 		layout_needs_refresh = true;
-
+		return 1;
+	case GDK_SCROLL:
+		macro_load(f->value, NULL);
+		layout_needs_refresh = true;
 		return 1;
 	}
 	return 0;
@@ -6709,6 +6714,8 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 			else
 				edit_field(hoverField, MIN_KEY_DOWN);
 		}
+		if (!strcmp(hoverField->cmd, "#current_macro"))
+			do_toggle_macro(hoverField, NULL, GDK_SCROLL, 0, 0, 0);
 	}
 }
 
@@ -9118,6 +9125,9 @@ int main(int argc, char *argv[])
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
+	// read available macros before reading user_settings.ini: #current_macro is one of the settings
+	initialize_macro_selection();
+
 	char directory[PATH_MAX];
 	char *path = getenv("HOME");
 	strcpy(directory, path);
@@ -9185,8 +9195,6 @@ int main(int argc, char *argv[])
 
 	// Configure the INA260
 	configure_ina260();
-
-	initialize_macro_selection();
 
 	// Read voltage and current
 	// read_voltage_current(&voltage, &current);
