@@ -1216,7 +1216,7 @@ void ft8_on_signal_report(){
 	if (m3[0] == 'R'){
 		//skip the 'R'
 		field_set("RECV", m3+1);
-		ft8_tx_3f(call, mycall, "RRR");
+		ft8_tx_3f(call, mycall, "RR73");
 	}
 	else{
 		field_set("RECV", m3);
