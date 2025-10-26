@@ -4889,12 +4889,12 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 // track tuning rate and adjust tuning rate acceleration
 int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-  const uint64_t IDLE_RESET = 500000; // reset EMA after 500ms idle
+  const uint64_t IDLE_RESET = 800000; // reset EMA after 800ms idle
 
   if (event == FIELD_EDIT) {
     static uint64_t last_us = 0;
     static double ema_rate = 0.0;      // events per second, smoothed
-    const double alpha = 0.05;         // moving average factor; higher = more responsive
+    const double alpha = 0.1;         // moving average factor; higher = more responsive
 
     int base_step = tuning_step;       // keep user tuning step chosen in UI unchanged
     if (base_step <= 0) base_step = 1; // guard against zero/negative (probably not needed?)
@@ -4934,13 +4934,31 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
       local_step = base_step; // no acceleration
     }
 
-    // RIT path, disable acceleration (use base_step only)
+    // RIT path previously had no acceleration at all
+    // Now we have a little acceleration and it gives us some smoothing
     if (field_str && field_str("RIT") && strcmp(field_str("RIT"), "ON") == 0) {
       struct field *fr = get_field("#rit_delta");
       if (!fr || !fr->value) return 1;
 
+      // Derive a gentle multiplier from the computed local_step but cap it
+      int rit_step = base_step;
+      if (accel_on) {
+        // compute a tame multiplier from ema_rate (same thresholds as above),
+        // but cap at 5x for RIT (never have that far to tune!)
+        int mult;
+        if (ema_rate < 28.0)      mult = 1;
+        else if (ema_rate < 35.0) mult = 2;
+        else if (ema_rate < 40.0) mult = 3;
+        else                      mult = 5;
+        long proposed = (long)base_step * mult;
+        const long rit_cap = 20000; // keep RIT safe
+        if (proposed > rit_cap) proposed = rit_cap;
+        rit_step = (int)proposed;
+      } else {
+        rit_step = base_step;
+      }
+
       int rit_delta = atoi(fr->value);
-      const int rit_step = base_step; // no acceleration for RIT
 
       if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
         rit_delta += rit_step;
