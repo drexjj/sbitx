@@ -1929,6 +1929,7 @@ void enter_qso()
 	}
 	const int power = field_int("POWER");
 	const int swr = field_int("REF");
+
 	logbook_add(get_field("#contact_callsign")->value,
 				get_field("#rst_sent")->value,
 				get_field("#exchange_sent")->value,
@@ -1936,6 +1937,7 @@ void enter_qso()
 				get_field("#exchange_received")->value,
 				power,
 				swr,
+				"", "", // xota: TODO
 				get_field("#text_in")->value);
 
 	char buff[100];
