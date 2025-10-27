@@ -1089,11 +1089,11 @@ struct field main_controls[] = {
 	{"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 6000, 50, 0},
 
-	// FT8 controls
+	// FTx controls
 	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
-	{"#ft8_tx1st", NULL, 1000, -1000, 50, 50, "FT8_TX1ST", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
+	 "OFF/ON", 0, 0, 0, FT8_CONTROL},
+	{"#ftx_cq", NULL, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ft8_repeat", NULL, 1000, -1000, 50, 50, "FT8_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
 
@@ -4123,7 +4123,7 @@ static void layout_ui()
       field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, wf_h);
 
       // Top row: FTx mode controls
-      field_move("FT8_TX1ST", 375, y_top, 75, row_h);
+      field_move("FTX_CQ", 375, y_top, 75, row_h);
       field_move("FT8_AUTO", 450, y_top, 75, row_h);
       field_move("FT8_REPEAT", 525, y_top, 75, row_h);
       field_move("MACRO", 600, y_top, 75, row_h);
