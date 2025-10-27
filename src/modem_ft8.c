@@ -624,7 +624,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
         decoded_hashtable[i] = NULL;
 
 	int n_decodes = 0;
+	int crc_mismatches = 0;
 	bool processingqso = false;
+
     // Go over candidates and attempt to decode messages
     for (int idx = 0; idx < num_candidates; ++idx)
     {
@@ -640,10 +642,10 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
         ftx_decode_status_t status;
         if (!ftx_decode_candidate(&mon.wf, cand, kLDPC_iterations, &message, &status)){
             // printf("000000 %3d %+4.2f %4.0f ~  ---\n", cand->score, time_sec, freq_hz);
-            if (status.ldpc_errors > 0)
-                LOG(LOG_DEBUG, "LDPC decode: %d errors\n", status.ldpc_errors);
-            else if (status.crc_calculated != status.crc_extracted)
-                LOG(LOG_DEBUG, "CRC mismatch!\n");
+			if (status.crc_calculated != status.crc_extracted)
+				++crc_mismatches;
+            //~ else if (status.ldpc_errors > 0)
+                //~ LOG(LOG_DEBUG, "LDPC decode: %d errors\n", status.ldpc_errors);
             continue;
         }
 
@@ -774,6 +776,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
         }
     }
     //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
+	if (crc_mismatches)
+		LOG(LOG_DEBUG, "%d CRC mismatches\n", crc_mismatches);
 
     // Here we have a populated hash table with the decoded messages
     // If we are in autorespond mode and in idle state (i.e. no QSO ongoing),
