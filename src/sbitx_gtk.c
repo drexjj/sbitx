@@ -9144,8 +9144,7 @@ int main(int argc, char *argv[])
 	// the logger fields may have an unfinished qso details
 	call_wipe();
 
-	if (strlen(get_field("#current_macro")->value))
-		macro_load(get_field("#current_macro")->value, NULL);
+	macro_load(get_field("#current_macro")->value, NULL);
 
 	char buff[1000];
 

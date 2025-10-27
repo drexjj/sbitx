@@ -103,7 +103,7 @@ void call_wipe();
 void update_log_ed();
 void write_call_log();
 
-int macro_load(char *filename, char *output);
+int macro_load(const char *filename, char *output);
 int macro_exec(int key, char *dest);
 void macro_label(int fn_key, char *label);
 void macro_list(char *output);

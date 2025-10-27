@@ -463,14 +463,6 @@ void modem_poll(int mode){
 		//clear the text buffer
 		abort_tx();
 
-		if (current_mode == MODE_FT8 || current_mode == MODE_FT4)
-			macro_load("FT8", NULL);
-		else if (current_mode == MODE_RTTY || current_mode == MODE_PSK31 || current_mode == MODE_CWR || current_mode == MODE_CW)
-		{
-			macro_load("CW1", NULL);
-			modem_set_pitch(get_pitch(),current_mode);
-		}
-
 		if (current_mode == MODE_CW || current_mode == MODE_CWR)
 			cw_init();
 	}
