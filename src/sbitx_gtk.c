@@ -57,9 +57,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
-#define FT8_START_QSO 1
-#define FT8_CONTINUE_QSO 0
-int ft8_process(char *received, int operation);
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -1347,7 +1344,7 @@ int field_set(const char *label, const char *new_value)
 	update_field(f);
 }
 
-int get_field_value(char *cmd, char *value)
+int get_field_value(const char *cmd, char *value)
 {
 	struct field *f = get_field(cmd);
 	if (!f)
@@ -1356,7 +1353,7 @@ int get_field_value(char *cmd, char *value)
 	return 0;
 }
 
-int get_field_value_by_label(char *label, char *value)
+int get_field_value_by_label(const char *label, char *value)
 {
 	struct field *f = get_field_by_label(label);
 	if (!f)
@@ -1754,7 +1751,7 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 				char time[10];
 				if (console_extract_semantic(time, sizeof(time), console_selected_line, STYLE_TIME) >= 0)
-					console_selected_time = atoi(time);
+					console_selected_time = atoi(time); // skip tenths of seconds
 
 				char pitch[7];
 				if (console_extract_semantic(pitch, sizeof(pitch), console_selected_line, STYLE_FREQ) >= 0)
@@ -8643,7 +8640,7 @@ void cmd_exec(char *cmd)
 
 	if (!strcasecmp(exec, "FT8") || !strcasecmp(exec, "FT4"))
 	{
-		ft8_process(args, FT8_START_QSO);
+		ft8_process(args, FTX_START_QSO);
 	}
 	else if (!strcasecmp(exec, "callsign"))
 	{
