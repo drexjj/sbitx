@@ -193,6 +193,8 @@ struct power_settings band_power[] = {
 
 struct Queue qremote;
 
+extern struct apf apf1; // added for apf by RLB
+
 void radio_tune_to(u_int32_t f)
 {
 	if (rx_list->mode == MODE_CW)
@@ -302,19 +304,14 @@ void spectrum_reset()
 
 void spectrum_update()
 {
-	// we are only using the lower half of the bins,
-	// so this copies twice as many bins,
-	// it can be optimized. leaving it here just in case
-	// someone wants to try I Q channels
-	// in hardware
-
-	// this has been hand optimized to lower
-	// the inordinate cpu usage
+	struct rx *r = rx_list;
 	for (int i = 1269; i < 1803; i++)
 	{
-
+		// Shift bins by 1 (or -1) to correct off-by-one error
+		int bin = i - 1; // or i - 1, depending on direction of error
+		if (bin >= 1803) bin -= (1803 - 1269); // wrap around if needed
 		fft_bins[i] = ((1.0 - spectrum_speed) * fft_bins[i]) +
-					  (spectrum_speed * cabs(fft_spectrum[i]));
+					  (spectrum_speed * cabs(fft_spectrum[bin]));
 
 		int y = power2dB(cnrmf(fft_bins[i]));
 		spectrum_plot[i] = y;
@@ -1419,6 +1416,33 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		r->fft_freq[i] *= r->filter->fir_coeff[i];
 	}
 
+	if (r->mode == MODE_CW || r->mode == MODE_CWR) {  // apply apf
+		if (apf1.ison){
+
+			int center;
+
+			if ( r->mode == MODE_CW)
+			{
+				center = (int)(rx_pitch/ (96000.0 / MAX_BINS)); // rx_pitch
+			}
+			else if ( r->mode == MODE_CWR)
+			{
+				center = MAX_BINS - (int)(rx_pitch/ (96000.0 / MAX_BINS));
+			}
+
+			r->fft_freq[center-4] *= apf1.coeff[0]; 
+			r->fft_freq[center-3] *= apf1.coeff[1]; 			
+			r->fft_freq[center-2] *= apf1.coeff[2]; 
+			r->fft_freq[center-1] *= apf1.coeff[3]; 		
+			r->fft_freq[center] *= apf1.coeff[4]; // peak
+			r->fft_freq[center+1] *= apf1.coeff[5];
+			r->fft_freq[center+2] *= apf1.coeff[6];
+			r->fft_freq[center+3] *= apf1.coeff[7];
+			r->fft_freq[center+4] *= apf1.coeff[8];
+		}
+	}
+
+	
 	// STEP 7: Convert back to time domain
 	my_fftw_execute(r->plan_rev);
 
@@ -1471,7 +1495,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     if (rx_eq_is_enabled == 1)
     {
         // Step 1: Apply EQ with built-in normalization and clamping
-        apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
+        apply_eq(&rx_eq, output_speaker, n_samples, 96000.0);
 
         // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
         const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom 
@@ -1641,9 +1665,9 @@ void tx_process(
 		if (eq_is_enabled == 1)
 		{
 			if (use_browser_mic) {
-				apply_eq(&tx_eq, browser_mic_samples, n_samples, 48000.0);
+				apply_eq(&tx_eq, browser_mic_samples, n_samples, 96000.0);
 			} else {
-				apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+				apply_eq(&tx_eq, input_mic, n_samples, 96000.0);
 			}
 		}
 	}

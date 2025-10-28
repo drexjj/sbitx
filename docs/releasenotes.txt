@@ -1,0 +1,40 @@
+Summary:
+New features: apf, cwreverse volume knob timeout
+Enhancements: keying envelope, CW decoder, keyboard CW, new macros capabilities, built-in ft8 enhancements
+Bug fixes: EQ frequencies and VFO/display better aligned, changing filter changes pitch corrected  
+
+Details:
+- The keyer code has been really cleaned up, and I don't think we broke anything. Development has been an adventure, there has been a lot written about the differences between keyers but there is no single 'spec' to describe iambic keyers' operation in different modes.  Users are adamant about which ones are working right and which ones are wrong ... Chris (W0ANM) was very helpful in getting our keyer where it is today. It is quite nice.
+ 
+- Left handers have asked for a 'paddle reverse' function.  A 'cwreverse' command is now available.
+Command: cwreverse (on/off)
+
+- The cw keying envelope on the sbitx has always been good, with the early code using a raised-cosine leading and trailing edge.  Once we adopted a data table-driven method of shaping the waveform, we switched to a Blackman-Harris envelope. It should be even better, but honestly we haven't got the spectrum analyzer data yet to verify it.
+
+- In the Morse code tables used in sending from the keyboard, and in the cw decoder on receive, we still found things to fix and improve.
+
+- We've changed the behavior when sending cw from the keyboard.  Text entered is displayed in the on-screen text buffer as typed but not transmitted as Morse until an 'enter' key is pressed.  Once an enter key is pressed the buffer will be sent until emptied.
+
+- The sBtix has always supported macros.  Multiple macros can now be stacked one after the other, and even intermixed with keyboard input.  You may want to think about whether your stored macros should begin or end with a space, so that when 'stacked' they don't get run together.
+
+- A long standing little bug where macros could not be triggered when the focus was on a text entry field is now fixed. 
+
+- On the receive side, the cw decoder has been reworked.  We added a low-pass filter before down sampling the data to reduce aliasing and theoretically improving our SNR.  We tweaked the Goertzel function used to detect signal presence to precisely center on the CW signal.  At the same time we added detectors at +/- 35 hz from the expected signal center to accommodate poorly tuned signals.  We tweaked the functions for most of the remaining functions in the decoder.  Again, getting objective test results to demonstrate decoder performance is hard, but subjectively we think it's doing better.
+
+- An audio peaking filter (apf) has been added. It is the complement to filters in that it boosts a signal without sharp skirts. It scales the gain set by a Gaussian curve centered on the pitch with the curve width controlled by the width setting. This can make a CW signal pop up out of the background without too annoying artifacts if used moderately.  It is currently controlled by a text command. It only works in cw mode, and I leave it on at a low gain level all the time now. 
+Command: apf gain width  example: apf 6 100, apf alone turns it off
+
+- The multi-function knob (aka the volume control) now reverts to being the volume control after 15 seconds of inactivity.  Of course you can still push the knob to toggle back to volume immediately
+
+- Working on the decoder and the APF led us to discover that the Rcv and Xmit EQ frequency controls needed to be adjusted and that changing the filter width inadvertently changed the pitch. These were fixed.The VFO and spectrum were also better aligned.
+
+- The code that reads the frequency control was changed to eliminate jumps and make it work smoother.  The existing command '\TA ON' works as before (the commands to change tuning acceleration thresholds TAT1 and TAT2 no longer have any effect).  With a slow to moderate turn of the knob the tuning rate is whatever was selected in the user interface.  When you turn moderately fast the rate increases one step up in the UI, i.e. a 10 Hz tuning rate becomes 100 Hz.  If you turn very fast you get another increase.  Of course the increases are only temporary. 
+
+- The built-in ft8 functionality doesn't get a lot of respect, but @fabrizio f4vuk made some improvements inclduing tracking call signs already worked in the current session in automatic mode and clearing old QSO data when calling CQ.
+
+Special thanks to all the sbitx 64bit developers and user commmunity. JJ and his team have greatly improved virtually every aspect of this radio.  It gets better with every release.  We consider ourselves fortunate to be a part of it.
+
+Of course none of this would have happened without the inspired vision of Ashhar Farhan (VU2ESE)and everyone at HFSignals, who developed and produce this terrific radio.
+
+- Mike KB2ML
+- Bob KD8CGH

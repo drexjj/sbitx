@@ -273,3 +273,12 @@ void sound_reset(int force);
 // Zero beat detection 
 extern int calculate_zero_beat(struct rx *r, double sampling_rate);
 extern int zero_beat_min_magnitude;
+
+// apf
+typedef struct apf
+{
+	int ison;
+	float gain;
+	float width;
+	float coeff[10];
+} apf;
