@@ -766,7 +766,7 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
-	{"#fullscreen", do_toggle_option, 1000, -1000, 40, 40, "FULLSCR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#fullscreen", do_toggle_option, 1000, -1000, 40, 40, "FULLSCREEN", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0, 0, 0, 0, COMMON_CONTROL}, 
@@ -3568,7 +3568,7 @@ void menu2_display(int show)
 		field_move("TXPANAFAL", 320, screen_height - 100, 70, 45); // Add TXPANAFAL field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
-		field_move("FULLSCR", screen_width - 191, screen_height - 100, 92, 45); // Add FULLSCR field
+		field_move("FULLSCREEN", screen_width - 191, screen_height - 100, 92, 45); // Add FULLSCR field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
 		const char *current_mode = field_str("MODE");
