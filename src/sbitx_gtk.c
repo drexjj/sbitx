@@ -3738,7 +3738,7 @@ void menu2_display(int show) {
 		field_move("TXPANAFAL", 320, screen_height - 80, 70, 37); // Add TXPANAFAL field
 		field_move("INTENSITY", 245, screen_height - 40, 70, 37); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 40, 70, 37); // Add AUTOADJUST spectrum field
-    field_move("FULLSCREEN", screen_width - 191, screen_height - 100, 92, 45); // Add FULLSCR field
+    	field_move("FULLSCREEN", screen_width - 197, screen_height - 80, 95, 37); // Add FULLSCR field
 		field_move("PWR-DWN", screen_width - 97, screen_height - 80, 95, 37); // Add PWR-DWN field
 
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
