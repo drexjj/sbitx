@@ -315,6 +315,7 @@ GtkWidget *window;
 GtkWidget *display_area = NULL;
 GtkWidget *waterfall_gain_slider;
 GtkWidget *text_area = NULL;
+static int is_fullscreen = 0;
 
 extern void settings_ui(GtkWidget *p);
 extern void eq_ui(GtkWidget *p);
@@ -839,6 +840,8 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
+	{"#fullscreen", do_toggle_option, 1000, -1000, 40, 40, "FULLSCREEN", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
 	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 		"", 0, 0, 0, 0, COMMON_CONTROL}, 
 
@@ -2009,6 +2012,24 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 	}
 }
 
+// Function to toggle fullscreen mode
+static void on_fullscreen_toggle(const int requested_state)
+{
+	if( requested_state != is_fullscreen){
+		if (is_fullscreen)
+		{
+			gtk_window_unfullscreen(GTK_WINDOW(window));
+			gtk_window_set_decorated(GTK_WINDOW(window), TRUE);
+			is_fullscreen = 0;
+		}
+		else
+		{
+			gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
+			gtk_window_fullscreen(GTK_WINDOW(window));
+			is_fullscreen = 1;
+		}
+	}
+}
 
 // Transmit Callsign in Waterfall
 extern struct field *get_field(const char *name);
@@ -3717,7 +3738,9 @@ void menu2_display(int show) {
 		field_move("TXPANAFAL", 320, screen_height - 80, 70, 37); // Add TXPANAFAL field
 		field_move("INTENSITY", 245, screen_height - 40, 70, 37); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", 320, screen_height - 40, 70, 37); // Add AUTOADJUST spectrum field
+    	field_move("FULLSCREEN", screen_width - 197, screen_height - 80, 95, 37); // Add FULLSCR field
 		field_move("PWR-DWN", screen_width - 97, screen_height - 80, 95, 37); // Add PWR-DWN field
+
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
 		const char *current_mode = field_str("MODE");
 		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
@@ -5821,7 +5844,16 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
-	
+	struct field *fullscreen_stat = get_field("#fullscreen");
+
+	if (fullscreen_stat)
+	{
+		if( !strcmp(fullscreen_stat->value, "ON"))
+			on_fullscreen_toggle(1);
+		else if (!strcmp(fullscreen_stat->value, "OFF"))
+			on_fullscreen_toggle(0);
+	}
+
 	if (tx_panafall_stat)
 	{
 		if (!strcmp(tx_panafall_stat->value, "ON"))
@@ -7469,7 +7501,7 @@ gboolean ui_tick(gpointer gook)
 	return TRUE;
 }
 
-void ui_init(int argc, char *argv[])
+void ui_init(int argc, char *argv[], int fullscreen)
 {
 
 	gtk_init(&argc, &argv);
@@ -7490,6 +7522,13 @@ void ui_init(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
+
+	// Apply fullscreen mode if requested
+	if (fullscreen) {
+		gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
+		gtk_window_fullscreen(GTK_WINDOW(window));
+		is_fullscreen = 1;
+	}
 
 	display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
@@ -8708,13 +8747,22 @@ int main(int argc, char *argv[])
 	puts(VER_STR);
 	active_layout = main_controls;
 
+	// Parse command line arguments for fullscreen mode
+	int fullscreen = 0;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--fullscreen") == 0) {
+			fullscreen = 1;
+			break;
+		}
+	}
+
 	// ensure_single_instance();
 
 	// unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
 
-	ui_init(argc, argv);
+	ui_init(argc, argv, fullscreen);
 	hw_init();
 	console_init();
 
