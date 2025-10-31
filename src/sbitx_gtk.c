@@ -3980,7 +3980,7 @@ static void layout_ui()
 
     // Console sizing and placement — anchor TOP at y1 (to match voice modes),
     // and shrink-to-fit height so its bottom stays above the control row.
-    int desired_lines  = kbd_is_on ? 7 : 21;
+    int desired_lines  = kbd_is_on ? 7 : 40;
     const int console_pad_px = 2;
     int console_h = desired_lines * line_height + console_pad_px;
 
