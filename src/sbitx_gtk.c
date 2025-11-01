@@ -139,7 +139,7 @@ static int last_mouse_y = -1;
 // MFK timeout state
 static int mfk_locked_to_volume = 0;
 static unsigned long mfk_last_ms = 0;
-static const unsigned long MFK_TIMEOUT_MS = 15000UL;
+static unsigned long mfk_timeout_ms = 10000UL; // default 10 seconds (in milliseconds)
 static int enc1_sw_prev = 1; // active-low; idle high due to pull-up
 
 // encoder state
@@ -1777,6 +1777,9 @@ void save_user_settings(int forced)
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
 
+  // write "audiofocus" so it will be saved to usersettings.ini
+  fprintf(f, "audiofocus=%lu\n", (unsigned long)(mfk_timeout_ms / 1000UL));
+  
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
@@ -1861,6 +1864,16 @@ static int user_settings_handler(void *user, const char *section,
 	// if it is an empty section
 	else if (strlen(section) == 0)
 	{
+    // allow "audiofocus" (seconds) in user_settings.ini
+    // if present, convert to milliseconds and store in mfk_timeout_ms
+    // if invalid or <=0 default to 10 seconds
+    if (!strcmp(name, "audiofocus"))
+      {
+        int secs = atoi(value);
+        if (secs <= 0) secs = 10;
+        mfk_timeout_ms = (unsigned long)secs * 1000UL;
+        return 1;
+      }
 		sprintf(cmd, "%s", name);
 		// skip the button actions
 		struct field *f = get_field(cmd);
@@ -7477,7 +7490,7 @@ gboolean ui_tick(gpointer gook)
 	else
 	{
 		// Check if we should lock to volume due to timeout
-    if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS) {
+    if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > mfk_timeout_ms) {
       // lock MFK to volume after inactivity AND move UI focus to the volume control
       mfk_locked_to_volume = 1;
       struct field *vol_field = get_field("r1:volume");
