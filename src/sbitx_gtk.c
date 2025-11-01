@@ -3811,7 +3811,7 @@ static void layout_ui()
   
   // place main radio controls at top of screen, positions relative to right edge 
   field_move("AUDIO", x2 - 45, 5, 40, 40);
-  field_move("FREQ", x2 - 205, 0, 180, 40);
+  field_move("FREQ", x2 - 212, 3, 180, 40);
   field_move("STEP", x2 - 252, 5, 40, 40);
   field_move("RIT", x2 - 292, 5, 40, 40);
   
