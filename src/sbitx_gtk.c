@@ -3846,7 +3846,6 @@ static void layout_ui()
     // Use the exact keyboard height to avoid off-by-one layout overlaps
     y2 = screen_height - KEYBOARD_HEIGHT;  
     keyboard_display(1);
-	field_move("KBD", screen_width - 48, screen_height - 37, 45, 37);
   } else {
     keyboard_display(0);
   }
