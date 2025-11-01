@@ -637,6 +637,10 @@ int current_layout = LAYOUT_KBD;
 #define VOICE_CONTROL 8
 #define DIGITAL_CONTROL 16
 
+#define KEYBOARD_LEFT_PADDING 5 
+#define KEYBOARD_RIGHT_PADDING 2
+#define KEYBOARD_BOTTOM_PADDING 3
+
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
 
@@ -1044,7 +1048,7 @@ struct field main_controls[] = {
   // 4-row keyboard within 148px total height
   // draw keyboard last in lame attempt to ensure it is always on top
   // Row 1: 1 2 3 4 5 6 7 8 9 0 + ( ) / \ del
-  {"#kbd_1",  do_kbd, 0,   300, 50, 37, "", 1, "1",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_1",  do_kbd, KEYBOARD_LEFT_PADDING,   300, 50 - KEYBOARD_LEFT_PADDING, 37, "", 1, "1",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_2",  do_kbd, 50,  300, 50, 37, "", 1, "2",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_3",  do_kbd, 100, 300, 50, 37, "", 1, "3",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_4",  do_kbd, 150, 300, 50, 37, "", 1, "4",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -1059,10 +1063,10 @@ struct field main_controls[] = {
   {"#kbd_)",  do_kbd, 600, 300, 50, 37, "", 1, ")",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_/",  do_kbd, 650, 300, 50, 37, "", 1, "/",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_bksl",do_kbd,700, 300, 50, 37, "", 1, "=",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-  {"#kbd_bs", do_kbd, 750, 300, 50, 37, "", 1, "DEL",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_bs", do_kbd, 750, 300, 50 - KEYBOARD_RIGHT_PADDING, 37, "", 1, "DEL",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   
   // Row 2: tab  Q  W  E  R  T  Y  U  I  O  P  -  _  '  {  }
-  {"#kbd_tab",do_kbd, 0,   350, 50, 37, "", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_tab",do_kbd, KEYBOARD_LEFT_PADDING,   350, 50 - KEYBOARD_LEFT_PADDING, 37, "", 1, "TAB", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_q",  do_kbd, 50,  350, 50, 37, "", 1, "Q",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_w",  do_kbd, 100, 350, 50, 37, "", 1, "W",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_e",  do_kbd, 150, 350, 50, 37, "", 1, "E",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -1077,10 +1081,10 @@ struct field main_controls[] = {
   {"#kbd__",  do_kbd, 600, 350, 50, 37, "", 1, "_",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_ast",do_kbd, 650, 350, 50, 37, "", 1, ";",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_{",  do_kbd, 700, 350, 50, 37, "", 1, "'",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-  {"#kbd_}",  do_kbd, 750, 350, 50, 37, "", 1, "\"",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_}",  do_kbd, 750, 350, 50 - KEYBOARD_RIGHT_PADDING, 37, "", 1, "\"",  FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
   // Row 3: staggered by 25px relative to row 2
-  {"#kbd_alt", do_kbd,   0,  400, 75, 37, "",  1, "CMD", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_alt", do_kbd,   KEYBOARD_LEFT_PADDING,  400, 75 - KEYBOARD_LEFT_PADDING, 37, "",  1, "CMD", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_a",   do_kbd,  75,  400, 50, 37, "",  1, "A",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_s",   do_kbd,  125, 400, 50, 37, "",  1, "S",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_d",   do_kbd,  175, 400, 50, 37, "",  1, "D",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -1093,10 +1097,10 @@ struct field main_controls[] = {
   {"#kbd_excl",do_kbd,  525, 400, 50, 37, "",  1, "!",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_lt",  do_kbd,  575, 400, 50, 37, "",  1, "<",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
   {"#kbd_gt",  do_kbd,  625, 400, 50, 37, "",  1, ">",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-  {"#kbd_enter",do_kbd, 675, 400, 125,37, "",  1, "Enter",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+  {"#kbd_enter",do_kbd, 675, 400, 125 - KEYBOARD_RIGHT_PADDING,37, "",  1, "Enter",FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// Row 4: space  Z X C V B N M , . ? &  space  kbd
-	{"#kbd_ ",      do_kbd,      0,   450, 100,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_ ",      do_kbd,      KEYBOARD_LEFT_PADDING,   450, 100 - KEYBOARD_LEFT_PADDING,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	{"#kbd_z",      do_kbd,      100, 450, 50, 37, "",  1, "Z",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	{"#kbd_x",      do_kbd,      150, 450, 50, 37, "",  1, "X",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	{"#kbd_c",      do_kbd,      200, 450, 50, 37, "",  1, "C",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
@@ -1108,7 +1112,7 @@ struct field main_controls[] = {
 	{"#kbd_.",      do_kbd,      500, 450, 50, 37, "",  1, ".",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	{"#kbd_?",      do_kbd,      550, 450, 50, 37, "",  1, "?",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	{"#kbd_amp",    do_kbd,      600, 450, 50, 37, "",  1, "&",     FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
-	{"#kbd_space2", do_kbd,      650, 450, 100,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
+	{"#kbd_space2", do_kbd,      650, 450, 102,37, "",  1, "SPACE", FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	//{"#kbd_kbd",    do_kbd_close,750, 450, 50, 37, "",  1, "KBD",   FIELD_BUTTON, FONT_FIELD_VALUE, "", 0, 0, 0, 0},
 	
 	// the last control has empty cmd field
@@ -3628,14 +3632,15 @@ void invalidate_rect(int x, int y, int width, int height)
 
 // the keyboard appears at the bottom 148 pixels of the window
 #define KEYBOARD_HEIGHT 148
-
 void keyboard_display(int show) {
   struct field *f;
 
   // determine how many rows the keyboard has by counting '#kbd' fields with x==0
   int row_count = 0;
   for (f = active_layout; f->cmd[0]; f++) {
-    if (!strncmp(f->cmd, "#kbd", 4) && f->x == 0) row_count++;
+    if (!strncmp(f->cmd, "#kbd", 4) && f->x == KEYBOARD_LEFT_PADDING) {
+		 row_count++;
+	}
   }
   if (row_count <= 0) row_count = 1;
 
@@ -3649,11 +3654,11 @@ void keyboard_display(int show) {
 
   for (f = active_layout; f->cmd[0]; f++) {
     if (!strncmp(f->cmd, "#kbd", 4)) {
-      // new row begins when x==0
-      if (f->x == 0) {
+      // new row begins when x==KEYBOARD_LEFT_PADDING
+      if (f->x == KEYBOARD_LEFT_PADDING) {
         current_row++;
         int step = base_step + ((current_row < remainder) ? 1 : 0);
-        current_row_y = base_y + current_row * step;
+        current_row_y = base_y + current_row * step - KEYBOARD_BOTTOM_PADDING;
       }
 
       if (show)
