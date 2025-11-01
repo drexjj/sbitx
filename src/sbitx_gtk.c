@@ -89,6 +89,7 @@ float scope_alpha_plus = 0.0;	 // Default additional scope alpha
 static int spectrum_history[AVERAGING_FRAMES][MAX_BINS] = {0};
 
 #define MIN_WATERFALL_HEIGHT 10 // Define a minimum safe height
+#define WATERFALL_Y_OFFSET 2   // Pixels to move waterfall up from spectrum bottom
 
 // Index of the current frame in the history buffer
 static int current_frame_index = 0;
@@ -3674,7 +3675,7 @@ void menu_display(int show) {
 			if (show) {
 				// NEW LAYOUT @ 3.2
 				// Move each control to the appropriate position, grouped by line and ordered left to right
-				// Line 1 
+				// Line 1
 				field_move("SET", 5, screen_height - 80, 45, 37);
 				field_move("TXEQ", 70, screen_height - 80, 45, 37);
 				field_move("RXEQ", 120, screen_height - 80, 45, 37);
@@ -3688,7 +3689,7 @@ void menu_display(int show) {
 					field_move("ePTT", screen_width - 190, screen_height - 80, 92, 37);
 				}
 
-				// Line 2 
+				// Line 2
 				field_move("WEB", 5, screen_height - 40, 45, 37);
 				field_move("EQSET", 70, screen_height - 40, 95, 37);
 				field_move("NFREQ", 185, screen_height - 40, 45, 37);
@@ -3727,7 +3728,7 @@ void menu_display(int show) {
 }
 
 void menu2_display(int show) {
-	if (show) { 
+	if (show) {
 		// Display the waterfall-related controls in a new layout
 		field_move("WFMIN", 5, screen_height - 80, 70, 37);
 		field_move("WFMAX", 5, screen_height - 40, 70, 37);
@@ -3743,9 +3744,9 @@ void menu2_display(int show) {
 
 		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
 		const char *current_mode = field_str("MODE");
-		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
-		    strcmp(current_mode, "FT8") != 0 && 
-		    strcmp(current_mode, "CW") != 0 && 
+		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
+		    strcmp(current_mode, "FT8") != 0 &&
+		    strcmp(current_mode, "CW") != 0 &&
 		    strcmp(current_mode, "CWR") != 0)	{
 			field_move("WFCALL", screen_width - 197, screen_height - 40, 95, 37); // Add WFCALL
 		}
@@ -3806,7 +3807,7 @@ static void layout_ui()
   }
 
   // Locate the KBD ON|OFF button (bottom right corner of screen)
-  field_move("KBD", screen_width - 48, screen_height - 37, 45, 37);
+  field_move("KBD", screen_width - 48, screen_height - 40, 45, 37);
   
   // place main radio controls at top of screen, positions relative to right edge 
   field_move("AUDIO", x2 - 45, 5, 40, 40);
@@ -3827,6 +3828,7 @@ static void layout_ui()
     // Use the exact keyboard height to avoid off-by-one layout overlaps
     y2 = screen_height - KEYBOARD_HEIGHT;  
     keyboard_display(1);
+	field_move("KBD", screen_width - 48, screen_height - 37, 45, 37);
   } else {
     keyboard_display(0);
   }
@@ -3862,13 +3864,13 @@ static void layout_ui()
     {
       const int row_h = 37;
       const int row_gap = 3;
-      const int y_top = y2 - (row_h * 2 + row_gap);  // top row
-      const int y_bottom = y2 - row_h;               // bottom row (flush to bottom)
+      const int y_top = y2 - (row_h + row_gap) * 2;  // top row
+      const int y_bottom = y2 - (row_h + row_gap);               // bottom row (flush to bottom)
 
       // Compute WF height up to the control rows (strict clamp + 1px floor)
-      int wf_h = y_top - (y1 + default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, wf_h);
+      field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, wf_h);
 
       // Top row: FT8 mode controls
       field_move("FT8_TX1ST", 375, y_top, 75, row_h);
@@ -3897,11 +3899,11 @@ static void layout_ui()
   case MODE_CW:
   case MODE_CWR:
     console_init();  // start with a clean log
-  
+
     const int row_h = 37;  // row height since we adopted 4-row keyboard
     const int row_gap = 3;
-    const int y_top = y2 - (row_h * 2 + row_gap);
-    const int y_bottom = y2 - row_h;
+    const int y_top = y2 - ((row_h + row_gap) * 2) - row_gap;
+    const int y_bottom = y2 - (row_h + row_gap);
   
     const int line_height = font_table[FONT_LOG].height;
     const int full_left_x = 5;  // 5 pixel margin at left and right side
@@ -3919,9 +3921,9 @@ static void layout_ui()
   
         // full spectrum + waterfall up to y_top (strict clamp + 1px floor)
         field_move("SPECTRUM", 5, y1, x2 - 10, default_spectrum_height);
-        int adjusted_waterfall_height = y_top - (y1 + default_spectrum_height);
+        int adjusted_waterfall_height = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
         if (adjusted_waterfall_height <= 0) adjusted_waterfall_height = 1;
-        field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 10, adjusted_waterfall_height);
+        field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 10, adjusted_waterfall_height);
       } else {  // no menu to display
         // KBD ON => 2-line overlay (waterfall extends behind)
         // KBD OFF => 5-line block (waterfall stops at top)
@@ -3961,26 +3963,26 @@ static void layout_ui()
         int wf_h;
         if (kbd_is_on) {
           int console_bottom = console_y + console_h;  // ≤ y_top - (sep + safety)
-          wf_h = console_bottom - (y1 + default_spectrum_height);
+          wf_h = console_bottom - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
         } else {
-          wf_h = console_y - (y1 + default_spectrum_height);
+          wf_h = console_y - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
         }
         if (wf_h <= 0) wf_h = 1;
-  
+
         field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-        field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+        field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
         field_move("CONSOLE", full_left_x, console_y, full_width, console_h);
       }
     } else {
       // SPECT NORM (strict clamp + 1px floor)
     field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
-    int wf_h = y_top - (y1 + default_spectrum_height);
+    int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
     if (wf_h <= 0) wf_h = 1;
-    field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+    field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
 
     // Console sizing and placement — anchor TOP at y1 (to match voice modes),
     // and shrink-to-fit height so its bottom stays above the control row.
-    int desired_lines  = kbd_is_on ? 7 : 40;
+    int desired_lines  = kbd_is_on ? 14 : 40;
     const int console_pad_px = 2;
     int console_h = desired_lines * line_height + console_pad_px;
 
@@ -4044,24 +4046,24 @@ static void layout_ui()
   {
     // single bottom row
     const int row_h   = 37;
-    const int y_top   = y2 - row_h;
-    const int y_bottom= y2 - row_h;
+    const int y_top   = y2 - 40;
+    const int y_bottom= y2 - 40;
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
       field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-      int wf_h = y_top - (y1 + default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
     } else {
       int console_w = console_right_x - col_left_x;
       if (console_w < 40) console_w = 40;
       field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
 
       field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
-      int wf_h = y_top - (y1 + default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
     }
 
     // One-row control bar
@@ -4076,27 +4078,27 @@ static void layout_ui()
   }
   break;
 
-  case MODE_DIGITAL: 
+  case MODE_DIGITAL:
   {
     const int row_h   = 37;
-    const int y_top   = y2 - row_h;
-    const int y_bottom= y2 - row_h;
+    const int y_top   = y2 - 40;
+    const int y_bottom= y2 - 40;
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
       field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-      int wf_h = y_top - (y1 + default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, wf_h);
+      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
     } else {
       int console_w = console_right_x - col_left_x;
       if (console_w < 40) console_w = 40;
       field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
 
       field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
-      int wf_h = y_top - (y1 + default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", split_x, y1 + default_spectrum_height, x2 - (split_x + 5), wf_h);
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
     }
 
     // One-row control bar for digital
@@ -4116,9 +4118,9 @@ static void layout_ui()
   default:
     field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
     field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-    waterfall_height = y2 - y1 - (default_spectrum_height + 55);
+    waterfall_height = y2 - y1 - (default_spectrum_height + 55) - WATERFALL_Y_OFFSET;
     if (waterfall_height <= 0) waterfall_height = 1; // strict clamp + 1px floor
-    field_move("WATERFALL", 360, y1 + default_spectrum_height, x2 - 365, waterfall_height);
+    field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, waterfall_height);
     break;
   }
 
