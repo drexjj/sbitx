@@ -118,8 +118,7 @@ int ff_lookup_style(char* id, int style, int style_default) {
 	return style;
 }
 
-char *ff_cs(char * markup, int style) {
-	markup[0] = HD_MARKUP_CHAR;
+char ff_char(int style) {
 
 	/* used to be 'A' + style, where style came from these:
 	#define FONT_FIELD_LABEL 0
@@ -148,71 +147,61 @@ char *ff_cs(char * markup, int style) {
 	switch (style) {
 		// console styles
 		case STYLE_LOG:
-			markup[1] = 'A' + 5;
-			break;
+			return 'A' + 5;
 		case STYLE_MYCALL:
-			markup[1] = 'A' + 16;
-			break;
+			return 'A' + 16;
 		case STYLE_CALLER:
-			markup[1] = 'A' + 17;
-			break;
+			return 'A' + 17;
 		case STYLE_CALLEE:
-			markup[1] = 'A' + 5;
-			break;
+			return 'A' + 5;
 		case STYLE_GRID:
-			markup[1] = 'A' + 18;
-			break;
+			return 'A' + 18;
+		case STYLE_TIME:
+		case STYLE_FREQ:
 		case STYLE_FT8_RX:
-			markup[1] = 'A' + 6;
-			break;
+			return 'A' + 6;
+		case STYLE_SNR:
 		case STYLE_FT8_TX:
-			markup[1] = 'A' + 7;
-			break;
+			return 'A' + 7;
 		case STYLE_FT8_QUEUED:
-			markup[1] = 'A' + 14;
-			break;
+			return 'A' + 14;
 		case STYLE_FT8_REPLY:
-			markup[1] = 'A' + 15;
-			break;
+			return 'A' + 15;
 		case STYLE_CW_RX:
-			markup[1] = 'A' + 9;
-			break;
+			return 'A' + 9;
 		case STYLE_CW_TX:
-			markup[1] = 'A' + 10;
-			break;
+			return 'A' + 10;
 		case STYLE_FLDIGI_RX:
-			markup[1] = 'A' + 11;
-			break;
+			return 'A' + 11;
 		case STYLE_FLDIGI_TX:
-			markup[1] = 'A' + 12;
-			break;
+			return 'A' + 12;
 		case STYLE_TELNET:
-			markup[1] = 'A' + 13;
-			break;
+			return 'A' + 13;
 
 		// field styles
 		case STYLE_FIELD_LABEL:
-			markup[1] = 'A' + 0;
-			break;
+			return 'A' + 0;
 		case STYLE_FIELD_VALUE:
-			markup[1] = 'A' + 1;
-			break;
+			return 'A' + 1;
 		case STYLE_LARGE_FIELD:
-			markup[1] = 'A' + 2;
-			break;
+			return 'A' + 2;
 		case STYLE_LARGE_VALUE:
-			markup[1] = 'A' + 3;
-			break;
+			return 'A' + 3;
 		case STYLE_SMALL:
-			markup[1] = 'A' + 4;
-			break;
+			return 'A' + 4;
 		case STYLE_SMALL_FIELD_VALUE:
-			markup[1] = 'A' + 8;
-			break;
+			return 'A' + 8;
 		case STYLE_BLACK:
-			markup[1] = 'A' + 19;
-			break;
+			return 'A' + 19;
+		default:
+			printf("warning: unhandled style %d treated as \"log\"\n", style);
+			return 'A' + 5;
 	}
+}
+
+char *ff_cs(char * markup, int style) {
+	markup[0] = HD_MARKUP_CHAR;
+	markup[1] = ff_char(style);
 	markup[2] = 0;
 	return markup;
 }
