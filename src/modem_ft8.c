@@ -89,25 +89,33 @@ static void ftx_update_clock()
 }
 
 /*!
-	Format time as HHMMSS.half-second to the given buffer, and return
+	Format the day-time-in-millseconds \a day_ms
+	(or wallclock time instead if \a day_ms is -1)
+	as HHMMSS.half-second to the given buffer, and return
 	a pointer to the character after what has been printed
 	(e.g. to continue printing something else with sprintf).
 	In practice, it always prints 8 characters and returns buf + 8.
 */
 // TODO move this and ftx_update_clock to sbitx.h or so: use a global clock
-static char *hmst_time_sprint(char *buf)
+static char *hmst_time_sprint(char *buf, int day_ms)
 {
-	int wallclock_day_s = wallclock_day_ms / 1000;
+	const int dms = day_ms >= 0 ? day_ms : wallclock_day_ms;
+	int wallclock_day_s = dms / 1000;
 	// simple arithmetic instead of using modulus (%): assuming the latter is much more expensive
 	// it could be that this is less efficient though; it could be checked with callgrind or so
 	int h = wallclock_day_s / (3600);
 	int m = (wallclock_day_s - (h * 3600)) / 60;
 	int s = wallclock_day_s - (h * 3600 + m * 60);
-	int tenth_sec = (wallclock_day_ms - (wallclock_day_s * 1000)) / 100;
+	int tenth_sec = (dms - (wallclock_day_s * 1000)) / 100;
 	const int len = tenth_sec ?
 		sprintf(buf, "%02d%02d%02d.%01d", h, m, s, tenth_sec) :
 		sprintf(buf, "%02d%02d%02d  ", h, m, s);
 	return buf + len;
+}
+
+static char *hmst_wallclock_time_sprint(char *buf)
+{
+	return hmst_time_sprint(buf, -1);
 }
 
 #define FT8_SYMBOL_BT 2.0f ///< symbol smoothing filter bandwidth factor (BT)
@@ -693,7 +701,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			decoded[idx_hash].spans = spans;
 
 			char buf[64];
-			int prefix_len = 8 + snprintf(hmst_time_sprint(buf), sizeof(buf) - 8, " %3d %+03d %4d ~ ", cand->score, cand->snr, freq_hz);
+			int prefix_len = 8 + snprintf(hmst_time_sprint(buf, raw_ms), sizeof(buf) - 8, " %3d %+03d %4d ~ ", cand->score, cand->snr, freq_hz);
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s\n", text);
 			const int message_type = ftx_message_get_i3(&message);
 			//~ char type_utf8[4] = {0xE2, message_type ? 0x91 : 0x93, message_type ? 0xA0 + message_type - 1 : 0xAA, 0 };
@@ -932,7 +940,7 @@ static void ftx_start_tx(int offset_ms){
 		ft8_pitch = freq;
 	ft8_tx_nsamples = sbitx_ftx_msg_audio(freq,  ft8_tx_buff);
 
-	snprintf(hmst_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n",
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n",
 		ft8_pitch, ft8_tx_text);
 	write_console(STYLE_FT8_TX, buf);
 
@@ -969,7 +977,7 @@ void ft8_tx(char *message, int freq){
 	ftx_would_send(); // update wallclock_day_ms, ft8_pitch, ft8_tx1st
 	if (!freq)
 		freq = ft8_pitch;
-	snprintf(hmst_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", freq, ft8_tx_text);
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", freq, ft8_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
 	LOG(LOG_INFO, "<- %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), buf);
 
@@ -1005,7 +1013,7 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	}
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
 	ftx_would_send(); // update ft8_pitch, is_cq, ft8_tx1st
-	snprintf(hmst_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ft8_pitch, ft8_tx_text);
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ft8_pitch, ft8_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
 	LOG(LOG_INFO, "<- %d.%c '%s' '%s' '%s'",
 		message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), call_to, call_de, extra);
