@@ -1,3 +1,41 @@
+v5.2 - 
+**New Features:**
+- **RIT tuning** fully implemented (by Jon W2JON) with excellent spectrum visualization of RX/TX offset relationship.
+- **Paddle reverse** for left-handed operators: `cwreverse on/off`.
+- **Audio Peaking Filter (APF)** added (CW mode only). Boosts weak signals with Gaussian curve, no sharp skirts.  
+  Command: `apf <gain> <width>` (e.g., `apf 6 100`); `apf` alone = off.
+- Fullscreen mode for the radio GUI
+
+**CW Keyer Overhaul:**
+- Complete keyer code cleanup and refactoring. Iambic modes aligned with real-world expectations (big thanks to Chris W0ANM).
+- New keyboard CW behavior: text typed into buffer is **not sent** until **Enter** is pressed. Allows editing and mixing with macros before transmission.
+- **Macro stacking** now supported: multiple macros + keyboard input can be queued and sent sequentially. Tip: add leading/trailing spaces to macros to prevent words running together.
+- Fixed long-standing bug: macros now trigger even when text entry field has focus.
+
+**CW Envelope & Shaping:**
+- TX keying envelope upgraded to **Blackman-Harris** (previously raised-cosine → table-driven). Expected to be cleaner; spectrum analyzer verification pending.
+
+**CW Decoder Improvements:**
+- Added pre-downsampling low-pass filter to reduce aliasing and improve SNR.
+- Goertzel detector now precisely centers on CW pitch with additional ±35 Hz side detectors for off-frequency signals.
+- Extensive tweaking of all decoder stages. Subjective decoding performance significantly better (objective tests still difficult).
+
+**UI/UX Fixes & Enhancements:**
+- Multi-function knob auto-reverts to volume control after 15 seconds of inactivity (or instant push-to-toggle).
+- Fixed RX/TX EQ frequency controls and filter-width/pitch interaction bug.
+- Improved VFO/spectrum alignment.
+- Smoothed VFO tuning code: eliminated jumps.  
+  - `\TA ON` still enables acceleration.  
+  - TAT1/TAT2 commands removed.  
+  - Slow → normal rate; moderate → 5× rate; very fast → higher rate (temporary, auto-resets).
+
+**Morse Tables:**
+- Further corrections and improvements to TX keyboard tables and RX decoder tables.
+
+**Built-in FT8 Updates** (by Fabrizio F4VUK):
+- Auto-mode now tracks calls already worked in current session.
+- Old QSO data cleared when calling CQ.
+
 v5.01 - 
 - Fixed logbook open command for web interface
 - Fixed the tune toggle function in the web interface
