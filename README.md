@@ -1,5 +1,5 @@
 # sBitx - 64-Bit Version
-![sBitx image](sbv52.jpg)
+![sBitx image](sb52.jpg)
 
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64-bit Raspberry Pi image, which can be downloaded [here](https://github.com/drexjj/sbitx/releases).
