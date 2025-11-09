@@ -1,228 +1,237 @@
+#!/usr/bin/env python3
 import gi
 import telnetlib
 import os
 import sys
-
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk
+from gi.repository import Gtk, Gdk, GLib
 
 LOCK_FILE = '/tmp/frequency_keypad.lock'
-POSITION_FILE = '/home/pi/sbitx/data/keypad_position.txt'  # File to store the window position
+POSITION_FILE = '/home/pi/sbitx/data/keypad_position.txt'
 
 class FrequencyKeypad(Gtk.Window):
     def __init__(self):
-        super().__init__(title="Frequency Keypad", decorated=False)  # Hide the title bar
-        self.set_border_width(10)
+        super().__init__(title="Freq Keypad", decorated=False)
+        self.set_border_width(6)
         self.set_default_size(300, 300)
-
-        # Read previous position from file
         self.load_position()
-
-        # Initialize frequency input
-        self.frequency_input = ""
-
-        # Apply CSS styles
+        self.freq = ""
         self.apply_css()
 
-        # Create a vertical box to arrange widgets
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.add(vbox)
+        main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.add(main)
 
-        # Create the close button
-        close_button = Gtk.Button(label="X")
-        close_button.set_name("close_button")
-        close_button.connect("clicked", self.on_close_button_clicked)
-        vbox.pack_start(close_button, False, True, 0)
+        # LEFT: Band buttons (vertical)
+        band_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        main.pack_start(band_box, False, False, 0)
 
-        # Create the display label
-        self.display = Gtk.Label()
-        self.display.set_text("Enter kHz")
-        self.display.set_name("display_label")  
-        vbox.pack_start(self.display, True, True, 0)
-
-        # Keypad buttons
-        buttons = [
-            ['1', '2', '3'],
-            ['4', '5', '6'],
-            ['7', '8', '9'],
-            ['←', '0', '↵']
+        bands = [
+            ("80M", "3750"), ("60M", "5357"), ("40M", "7150"),
+            ("30M", "10136"), ("20M", "14175"), ("17M", "18118"),
+            ("15M", "21225"), ("12M", "24940"), ("10M", "28800")
         ]
+        for label, khz in bands:
+            b = Gtk.Button(label=label)
+            b.set_name("band_button")
+            b.connect("clicked", self.tune_band, khz)
+            band_box.pack_start(b, True, True, 0)
 
-        for row in buttons:
-            hbox = Gtk.Box(spacing=6)
-            vbox.pack_start(hbox, True, True, 0)
-            for label in row:
-                button = Gtk.Button(label=label)
-                button.connect("clicked", self.on_button_clicked)
-                button.set_name("keypad_button")  
-                hbox.pack_start(button, True, True, 0)
+        # RIGHT: Display + Keypad
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        main.pack_start(right, True, True, 0)
 
-        # Connect mouse events for dragging the window
-        self.connect("button-press-event", self.on_button_press_event)
-        self.connect("button-release-event", self.on_button_release_event)
-        self.connect("motion-notify-event", self.on_motion_notify_event)
+        # Close button
+        close = Gtk.Button(label="X")
+        close.set_name("close_button")
+        close.connect("clicked", lambda x: self.close_win())
+        top = Gtk.Box()
+        top.pack_end(close, False, False, 0)
+        right.pack_start(top, False, False, 0)
 
-        self.is_dragging = False
-        self.drag_start_x = 0
-        self.drag_start_y = 0
+        # Display
+        self.disp = Gtk.Label()
+        self.disp.set_text("Enter kHz")
+        self.disp.set_name("display_label")
+        right.pack_start(self.disp, False, False, 0)
+
+        # Keypad
+        grid = Gtk.Grid()
+        grid.set_row_homogeneous(True)
+        grid.set_column_homogeneous(True)
+        grid.set_row_spacing(4)
+        grid.set_column_spacing(4)
+        right.pack_start(grid, True, True, 0)
+
+        layout = [
+            ['1','2','3'],
+            ['4','5','6'],
+            ['7','8','9'],
+            ['<-','0','Enter']
+        ]
+        for r, row in enumerate(layout):
+            for c, txt in enumerate(row):
+                b = Gtk.Button(label=txt)
+                b.set_name("key_button")
+                if txt == "Enter":
+                    b.get_style_context().add_class("enter_button")
+                if txt == "<-":
+                    b.get_style_context().add_class("back_button")
+                b.connect("clicked", self.key_press)
+                grid.attach(b, c, r, 1, 1)
+
+        # Drag
+        self.connect("button-press-event", self.drag_start)
+        self.connect("button-release-event", self.drag_stop)
+        self.connect("motion-notify-event", self.drag_move)
+        self.dragging = False
         self.set_keep_above(True)
 
-    def on_button_press_event(self, widget, event):
-        """Start dragging the window when the mouse button is pressed."""
-        if event.button == 1:  # Left mouse button
-            self.is_dragging = True
-            self.drag_start_x = event.x
-            self.drag_start_y = event.y
+    def tune_band(self, btn, khz):
+        self.send(khz)
+        self.disp.set_text(f"Tuned {khz}")
+        GLib.timeout_add(600, lambda: self.disp.set_text("Enter kHz"))
+        GLib.timeout_add(900, self.close_win)
 
-    def on_button_release_event(self, widget, event):
-        """Stop dragging the window when the mouse button is released."""
-        if event.button == 1:  # Left mouse button
-            self.is_dragging = False
-            self.save_position()  # Save the position when dragging stops
-
-    def on_motion_notify_event(self, widget, event):
-        """Move the window if dragging is in progress."""
-        if self.is_dragging:
-            window_x, window_y = self.get_position()
-            self.move(window_x + event.x - self.drag_start_x, window_y + event.y - self.drag_start_y)
-
-    def on_close_button_clicked(self, button):
-        """Handle the close button click event."""
-        self.save_position()  # Save position before closing
-        remove_lock_file()  # Ensure the lock file is removed
-        Gtk.main_quit()  # Exit the GTK main loop
-
-    def on_button_clicked(self, button):
-        label = button.get_label()
-
-        if label == "↵":
-            self.send_frequency_to_telnet()
-        elif label == "←":
-            self.frequency_input = self.frequency_input[:-1]
-            self.update_display()
+    def key_press(self, btn):
+        t = btn.get_label()
+        if t == "Enter":
+            if self.freq:
+                self.send(self.freq)
+                self.freq = ""
+                self.close_win()
+        elif t == "<-":
+            self.freq = self.freq[:-1]
         else:
-            self.frequency_input += label
-            self.update_display()
+            self.freq += t
+        self.disp.set_text(self.freq or "Enter kHz")
 
-    def update_display(self):
-        if self.frequency_input == "":
-            self.display.set_text("Enter kHz")
-        else:
-            self.display.set_text(self.frequency_input)
-
-    def send_frequency_to_telnet(self):
-        if not self.frequency_input:
-            return
-
-        # Sending the 'f <frequency>\n' command to the Telnet server
-        frequency_command = f"f {self.frequency_input}\n"
-
+    def send(self, khz):
         try:
-            # Establishing Telnet connection
             with telnetlib.Telnet("127.0.0.1", 8081) as tn:
-                tn.write(frequency_command.encode('utf-8'))
-                print(f"Sent frequency command: {frequency_command.strip()}")
-        except ConnectionError:
-            print("Could not connect to the Telnet server.")
+                tn.write(f"f {khz}\n".encode())
+            print(f"Tuned: {khz} kHz")
+        except Exception as e:
+            print("Telnet error:", e)
 
-        # Clear input after sending
-        self.frequency_input = ""
-        self.update_display()
+    def drag_start(self, w, e):
+        if e.button == 1:
+            self.dragging = True
+            self.ox, self.oy = e.x, e.y
 
-        # Automatically close the window
-        self.on_close_button_clicked(None)
+    def drag_stop(self, w, e):
+        if e.button == 1:
+            self.dragging = False
+            self.save_position()
+
+    def drag_move(self, w, e):
+        if self.dragging:
+            x, y = self.get_position()
+            self.move(x + e.x - self.ox, y + e.y - self.oy)
+
+    def close_win(self):
+        self.save_position()
+        remove_lock_file()
+        Gtk.main_quit()
 
     def apply_css(self):
-        css = b"""
-        window {
-            background-color: #000000;
-        }
+        css = """
+        window { background-color: #000000; }
         #display_label {
-            color: white;
-            font-size: 20px;
-            padding: 10px;
+            color: #00ff00;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #001111;
+            padding: 8px;
+            border-radius: 6px;
+            margin: 4px 8px;
         }
-        #keypad_button {
-            background-color: #008080;
-            color: white;
+        #band_button {
+            background-color: #003333;
+            color: #00ff00;
+            font-size: 14px;
+            font-weight: bold;
+            min-width: 48px;
+            min-height: 28px;
+            border-radius: 6px;
+        }
+        #band_button:hover {
+            background-color: #00ff00;
+            color: #000000;
+        }
+        #key_button {
+            background-color: #006666;
+            color: #ffffff;
             font-size: 16px;
-            border-radius: 10px;
-            border-width: 1px;
+            font-weight: bold;
+            min-width: 56px;
+            min-height: 36px;
+            border-radius: 6px;
         }
-        #keypad_button:hover {
+        #key_button:hover {
             background-color: #009999;
         }
+        .enter_button {
+            background-color: #008800;
+        }
+        .enter_button:hover {
+            background-color: #00bb00;
+        }
+        .back_button {
+            background-color: #aa5500;
+        }
+        .back_button:hover {
+            background-color: #cc7700;
+        }
         #close_button {
-            background-color: #ff3333;  /* Red color for close button */
-            color: white;
-            font-size: 16px;
-            border-radius: 10px;
-            border-width: 1px;
-            margin-bottom: 10px;  /* Add some space below the close button */
+            background-color: #cc0000;
+            color: #ffffff;
+            font-size: 14px;
+            min-width: 32px;
+            border-radius: 6px;
         }
         #close_button:hover {
-            background-color: #ff5555;  /* Lighter red on hover */
+            background-color: #ff4444;
         }
         """
-
-        style_provider = Gtk.CssProvider()
-        style_provider.load_from_data(css)
-
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css.encode('utf-8'))
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(),
-            style_provider,
+            provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
     def save_position(self):
-        """Save the current window position to a file."""
         x, y = self.get_position()
         try:
-            with open(POSITION_FILE, 'w') as f:
+            with open(POSITION_FILE, "w") as f:
                 f.write(f"{x},{y}")
-                print(f"Saved position: {x},{y}")
-        except Exception as e:
-            print(f"Error saving position: {e}")
+        except: pass
 
     def load_position(self):
-        """Load the window position from a file."""
         if os.path.exists(POSITION_FILE):
             try:
-                with open(POSITION_FILE, 'r') as f:
-                    position = f.read().strip()
-                    x, y = map(int, position.split(','))
+                with open(POSITION_FILE) as f:
+                    x, y = map(int, f.read().strip().split(','))
                     self.move(x, y)
-                    print(f"Loaded position: {x},{y}")
-            except Exception as e:
-                print(f"Error loading position: {e}")
+            except: pass
 
 def create_lock_file():
-    """Create a lock file to prevent multiple instances."""
     try:
-        with open(LOCK_FILE, 'x'):
-            pass
+        open(LOCK_FILE, 'x').close()
     except FileExistsError:
-        print("Another instance is already running.")
+        print("Another instance running!")
         sys.exit(1)
 
 def remove_lock_file():
-    """Remove the lock file when exiting."""
     if os.path.exists(LOCK_FILE):
-        try:
-            os.remove(LOCK_FILE)
-            print("Lock file removed.")
-        except Exception as e:
-            print(f"Error removing lock file: {e}")
+        try: os.remove(LOCK_FILE)
+        except: pass
 
 if __name__ == "__main__":
     create_lock_file()
     win = FrequencyKeypad()
-    
-    # Ensure lock file is removed on exit
     win.connect("destroy", lambda w: (remove_lock_file(), Gtk.main_quit()))
-    
     win.show_all()
     Gtk.main()
-
-    # Remove lock file when exiting the main loop
     remove_lock_file()
