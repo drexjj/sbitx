@@ -964,6 +964,10 @@ struct field main_controls[] = {
 	 "", 4, 6, 1, 0},
 	{"#passkey", NULL, 1000, -1000, 400, 149, "PASSKEY", 70, "123", FIELD_TEXT, FONT_SMALL,
 	 "", 0, 32, 1, 0},
+	{"#warn_voltage", NULL, 1000, -1000, 400, 149, "WARNVOLT", 70, "12.8", FIELD_TEXT, FONT_SMALL,
+	 "", 0, 20, 1, 0},
+	{"#critical_voltage", NULL, 1000, -1000, 400, 149, "CRITVOLT", 70, "10.0", FIELD_TEXT, FONT_SMALL,
+	 "", 0, 20, 1, 0},
 
 	// moving global variables into fields
 	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, FONT_FIELD_VALUE,
@@ -1869,16 +1873,16 @@ static int user_settings_handler(void *user, const char *section,
 	// if it is an empty section
 	else if (strlen(section) == 0)
 	{
-    // allow "audiofocus" (seconds) in user_settings.ini
-    // if present, convert to milliseconds and store in mfk_timeout_ms
-    // if invalid or <=0 default to 10 seconds
-    if (!strcmp(name, "audiofocus"))
-      {
-        int secs = atoi(value);
-        if (secs <= 0) secs = 10;
-        mfk_timeout_ms = (unsigned long)secs * 1000UL;
-        return 1;
-      }
+		// allow "audiofocus" (seconds) in user_settings.ini
+		// if present, convert to milliseconds and store in mfk_timeout_ms
+		// if invalid or <=0 default to 10 seconds
+		if (!strcmp(name, "audiofocus"))
+		{
+			int secs = atoi(value);
+			if (secs <= 0) secs = 10;
+			mfk_timeout_ms = (unsigned long)secs * 1000UL;
+			return 1;
+		}
 		sprintf(cmd, "%s", name);
 		// skip the button actions
 		struct field *f = get_field(cmd);
@@ -3618,6 +3622,38 @@ void draw_dial(struct field *f, cairo_t *gfx)
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
 			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
 		}
+	}
+
+	// Draw voltage readout if INA260 is available
+	if (has_ina260 == 1 && voltage > 0.0f) {
+		sprintf(buff, "%.1fV", voltage);
+
+		// Get voltage thresholds from user settings
+		struct field *warn_v = get_field("#warn_voltage");
+		struct field *crit_v = get_field("#critical_voltage");
+		float warn_voltage = 12.8f;  // Fallback default (should come from user_settings.ini)
+		float critical_voltage = 10.0f;  // Fallback default (should come from user_settings.ini)
+
+		if (warn_v && warn_v->value)
+			warn_voltage = atof(warn_v->value);
+		if (crit_v && crit_v->value)
+			critical_voltage = atof(crit_v->value);
+
+		// Set font style first
+		struct font_style *s = set_style(gfx, FONT_FIELD_LABEL);
+
+		// Set color based on voltage level (after set_style to override default color)
+		if (voltage >= warn_voltage) {
+			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green - good
+		} else if (voltage >= critical_voltage) {
+			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Yellow - warning
+		} else {
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red - critical
+		}
+
+		int width = measure_text(gfx, buff, FONT_FIELD_LABEL);
+		cairo_move_to(gfx, f->x + 163 - width, f->y + 1 + s->height);
+		cairo_show_text(gfx, buff);
 	}
 }
 
@@ -7454,6 +7490,8 @@ gboolean ui_tick(gpointer gook)
 		if (has_ina260 == 1)
 		{
 			check_read_ina260_cadence(&voltage, &current);
+			// Update the VFO display to show the new voltage reading
+			update_field(get_field("r1:freq"));
 		}
 
 		ticks = 0;
@@ -7977,15 +8015,15 @@ void do_control_action(char *cmd)
 		tx_off();
 	}
 	else if (!strncmp(request, "RIT", 3))
-  {
-    // Keep SDR tuned to RX when RIT toggles or delta changes
-    struct field *freq = get_field("r1:freq");
-    if (freq && freq->value) {
-      char resp2[128];
-      set_operating_freq(atoi(freq->value), resp2);
-    }
-    update_field(get_field("r1:freq"));
-  }
+	{
+		// Keep SDR tuned to RX when RIT toggles or delta changes
+		struct field *freq = get_field("r1:freq");
+		if (freq && freq->value) {
+		char resp2[128];
+		set_operating_freq(atoi(freq->value), resp2);
+		}
+		update_field(get_field("r1:freq"));
+	}
 	else if (!strncmp(request, "SPLIT", 5))
 	{
 		update_field(get_field("r1:freq"));
