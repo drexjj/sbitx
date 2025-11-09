@@ -71,15 +71,27 @@ A huge thank you to the contributors who have played a vital role in this projec
 - **Lars - OZ7BX**
 - **Jeff - KF7DYU**
 - **Mike - KB2ML**
+- **Shawn - K7IHZ**
+- **Jared - KJ5DTK**
 - **Chris - W0ANM**
 - **Gyula - HA3HZ**
 - **Pete - VK3PYE**
 - **Mike - WD0OM**
-- **Farhan - VU2ESE**
 - **Paul - G0KAO**
 - **Don - KK7OIM**
 - **Fabrizio - F4VUK**
 - **Bob - KD8CGH**
+- **Farhan - VU2ESE**
+- **Bob - W7PUA**
+- **Phil - KA9Q**
+- **Gerald - K5SDR**
+- **Evan - AC9TU**
+- **Steve - N3SB**
+
+## Background
+
+To learn more about the sBitx and how it came to be; visit https://www.vu2ese.com/index.php/2022/07/20/the-sbitx-the-sdr-for-the-homebrewer/
+
 
 ## 🌟 Support the Project
 
