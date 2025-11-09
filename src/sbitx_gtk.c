@@ -3643,14 +3643,17 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		struct font_style *s = set_style(gfx, FONT_FIELD_LABEL);
 
 		// Set color based on voltage level (after set_style to override default color)
-		if (voltage >= warn_voltage) {
+		if( in_tx ){
+			sprintf(buff, "%.1fA", current);
+			cairo_set_source_rgb(gfx, 0.0, 0.5, 1.0); // Blue for Current
+		} else if (voltage >= warn_voltage) {
 			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green - good
 		} else if (voltage >= critical_voltage) {
 			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Yellow - warning
 		} else {
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red - critical
 		}
-
+	
 		int width = measure_text(gfx, buff, FONT_FIELD_LABEL);
 		cairo_move_to(gfx, f->x + 163 - width, f->y + 1 + s->height);
 		cairo_show_text(gfx, buff);
