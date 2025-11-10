@@ -3645,7 +3645,7 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		// Set color based on voltage level (after set_style to override default color)
 		if( in_tx ){
 			sprintf(buff, "%.1fA", current);
-			cairo_set_source_rgb(gfx, 0.0, 0.5, 1.0); // Blue for Current
+			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Yellow to match SWR indicator during TX
 		} else if (voltage >= warn_voltage) {
 			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green - good
 		} else if (voltage >= critical_voltage) {
