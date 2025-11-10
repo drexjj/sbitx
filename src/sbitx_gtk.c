@@ -3626,7 +3626,7 @@ void draw_dial(struct field *f, cairo_t *gfx)
 
 	// Draw voltage readout if INA260 is available
 	if (has_ina260 == 1 && voltage > 0.0f) {
-		sprintf(buff, "%.1fV", voltage);
+		sprintf(buff, "%.2fV", voltage);
 
 		// Get voltage thresholds from user settings
 		struct field *warn_v = get_field("#warn_voltage");
@@ -3644,7 +3644,7 @@ void draw_dial(struct field *f, cairo_t *gfx)
 
 		// Set color based on voltage level (after set_style to override default color)
 		if( in_tx ){
-			sprintf(buff, "%.1fA", current);
+			sprintf(buff, "%.2fA", current);
 			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Yellow to match SWR indicator during TX
 		} else if (voltage >= warn_voltage) {
 			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green - good
