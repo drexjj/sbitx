@@ -667,7 +667,7 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#record", do_record, 420, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#record", do_record, 459, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
@@ -692,7 +692,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
-	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#split", NULL, 502, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
@@ -918,7 +918,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
-	{"#menu", do_toggle_option, 462, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
+	{"#menu", do_toggle_option, 459, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
 	 "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	// Notch Filter Controls
@@ -3873,12 +3873,12 @@ static void layout_ui()
   field_move("RIT", x2 - 292, 5, 40, 40);
   
   field_move("IF", x2 - 45, 50, 40, 40);
-  field_move("DRIVE", x2 - 85, 50, 40, 40);
-  field_move("BW", x2 - 125, 50, 40, 40);
-  field_move("AGC", x2 - 165, 50, 40, 40);
-  field_move("SPAN", x2 - 205, 50, 40, 40);
-  field_move("VFO", x2 - 245, 50, 40, 40);
-  field_move("SPLIT", x2 - 285, 50, 40, 40);
+  field_move("DRIVE", x2 - 87, 50, 42, 40);
+  field_move("BW", x2 - 127, 50, 40, 40);
+  field_move("AGC", x2 - 170, 50, 42, 40);
+  field_move("SPAN", x2 - 212, 50, 42, 40);
+  field_move("VFO", x2 - 252, 50, 40, 40);
+  field_move("SPLIT", x2 - 292, 50, 40, 40);
 
   // adjust screen height for keyboard
   if (!strcmp(field_str("KBD"), "ON")) {
