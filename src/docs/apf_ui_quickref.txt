@@ -1,0 +1,142 @@
+APF UI Controls - Quick Reference for Developers
+================================================
+
+OVERVIEW
+--------
+This document provides a quick reference for the APF UI controls implementation
+in Menu 1. For detailed documentation, see docs/APF_UI_Implementation.md
+
+CODE LOCATIONS
+--------------
+
+Field Definitions (src/sbitx_gtk.c, lines 946-951):
+  #apf_plugin  - Toggle control (ON/OFF)
+  #apf_gain    - Numeric control (0-20 dB, default 6)
+  #apf_width   - Numeric control (10-500, default 100)
+
+UI Positioning (src/sbitx_gtk.c, menu_display function):
+  Line 3707:  field_move("APF", 550, screen_height - 80, 45, 37);
+  Line 3721:  field_move("GAIN", 550, screen_height - 40, 45, 37);
+  Line 3722:  field_move("WIDTH", 600, screen_height - 40, 45, 37);
+
+Handler Function (src/sbitx_gtk.c, lines 5672-5692):
+  int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+  - Updates apf1.gain and apf1.width from field values
+  - Calls init_apf() to recalculate coefficients
+  - Sets apf1.ison based on toggle state
+
+Status Checking (src/sbitx_gtk.c, lines 5892, 5987-6000):
+  Integrated into check_plugin_controls() function
+  - Monitors #apf_plugin field for state changes
+  - Updates apf1 struct when toggle changes
+
+Default Settings (data/default_settings.ini, lines 100-102):
+  #apf_plugin=OFF
+  #apf_gain=6
+  #apf_width=100
+
+DATA STRUCTURES
+---------------
+
+APF Struct (src/sdr.h, lines 278-284):
+  typedef struct apf {
+      int ison;           // 0=off, 1=on
+      float gain;         // dB (0-20)
+      float width;        // Width parameter (10-500)
+      float coeff[10];    // Filter coefficients
+  } apf;
+
+APF Instance (src/sbitx_gtk.c, line 498):
+  struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 };
+
+KEY FUNCTIONS
+-------------
+
+init_apf() - src/sbitx_gtk.c, lines 501-519
+  Calculates APF filter coefficients from gain and width
+  Called when APF settings change
+
+APF Filter Application - src/sbitx.c, lines 1420-1441
+  Applies APF coefficients to FFT bins in DSP pipeline
+  Multiplies bins by precomputed coefficients when apf1.ison==1
+
+FIELD SYSTEM INTEGRATION
+-------------------------
+
+Field Access:
+  struct field *f = get_field("#apf_plugin");     // Get field pointer
+  const char *value = field_str("APF");           // Get field value
+  field_set("APF", "ON");                         // Set field value
+
+Field Types:
+  FIELD_TOGGLE - ON/OFF switch (APF)
+  FIELD_NUMBER - Numeric input with range (GAIN, WIDTH)
+
+CONSOLE COMMANDS
+----------------
+
+  apf                    # Disable APF
+  apf 6 100             # Enable APF with gain=6dB, width=100
+
+DEBUGGING
+---------
+
+Print APF Status:
+  printf("APF: ison=%d, gain=%.2f, width=%.2f\n", 
+         apf1.ison, apf1.gain, apf1.width);
+
+Check Console Output:
+  Look for init_apf() output: "gain 6.00  width 100.00"
+
+Verify Settings:
+  cat ~/sbitx/data/user_settings.ini | grep apf
+
+COMMON MODIFICATIONS
+--------------------
+
+Change Default Values:
+  Edit data/default_settings.ini:
+    #apf_gain=10      # Change default gain to 10dB
+    #apf_width=200    # Change default width to 200
+
+Change Value Ranges:
+  Edit field definition in src/sbitx_gtk.c:
+    {"#apf_gain", do_apf_edit, ..., "", 0, 30, 1, 0},  // Increase max to 30
+
+Change UI Position:
+  Edit menu_display() in src/sbitx_gtk.c:
+    field_move("APF", 600, screen_height - 80, 45, 37);  // Move to x=600
+
+DESIGN PATTERN
+--------------
+
+This implementation follows the NOTCH filter pattern:
+1. Add field definitions (toggle + parameters)
+2. Add field positioning in menu_display()
+3. Create handler function (do_<name>_edit)
+4. Add status checking in check_plugin_controls()
+5. Add default values to default_settings.ini
+
+TESTING CHECKLIST
+-----------------
+
+[ ] Build succeeds: ./build sbitx
+[ ] APF controls visible in Menu 1
+[ ] Toggle switches ON/OFF
+[ ] GAIN adjusts 0-20
+[ ] WIDTH adjusts 10-500
+[ ] init_apf() called on changes
+[ ] Filter applies when ON
+[ ] Settings persist across restarts
+[ ] No console errors
+[ ] Compatible with other DSP features
+
+REFERENCES
+----------
+
+- docs/APF_UI_Implementation.md - Full documentation
+- docs/apfdoc.pdf - APF filter theory
+- src/docs/how_gui_is_organized.txt - UI system overview
+- src/docs/ui_notes.txt - UI coding conventions
+
+Last Updated: 2025-11-13

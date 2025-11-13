@@ -614,6 +614,7 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -940,6 +941,14 @@ struct field main_controls[] = {
 	// ANR Control
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+
+	// APF (Audio Peak Filter) Controls
+	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_gain", do_apf_edit, 1000, -1000, 40, 40, "GAIN", 80, "6", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 20, 1, 0},
+	{"#apf_width", do_apf_edit, 1000, -1000, 40, 40, "WIDTH", 80, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 10, 500, 10, 0},
 
 	// Compressor Control
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -3702,6 +3711,7 @@ void menu_display(int show) {
 				field_move("COMP", 350, screen_height - 80, 45, 37);
 				field_move("TXMON", 400, screen_height - 80, 45, 37);
 				field_move("TNDUR", 500, screen_height - 80, 45, 37);
+				field_move("APF", 550, screen_height - 80, 45, 37);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
 					field_move("ePTT", screen_width - 190, screen_height - 80, 92, 37);
@@ -3716,6 +3726,8 @@ void menu_display(int show) {
 				field_move("BFO", 350, screen_height - 40, 45, 37);
 				field_move("VFOLK", 400, screen_height - 40, 45, 37);
 				field_move("TNPWR", 500, screen_height - 40, 45, 37);
+				field_move("GAIN", 550, screen_height - 40, 45, 37);
+				field_move("WIDTH", 600, screen_height - 40, 45, 37);
 			}
 
 			else {
@@ -5657,6 +5669,27 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (!strcmp(field_str("APF"), "ON"))
+	{
+		struct field *apf_gain_field = get_field("#apf_gain");
+		int apf_gain_value = atoi(apf_gain_field->value);
+		apf1.gain = (float)apf_gain_value;
+		struct field *apf_width_field = get_field("#apf_width");
+		int apf_width_value = atoi(apf_width_field->value);
+		apf1.width = (float)apf_width_value;
+		apf1.ison = 1;
+		init_apf();
+	}
+	else
+	{
+		apf1.ison = 0;
+	}
+
+	return 0;
+}
+
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *compression_control_field = field_str("COMP");
@@ -5856,6 +5889,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *eq_stat = get_field("#eq_plugin");
 	struct field *rx_eq_stat = get_field("#rx_eq_plugin");
 	struct field *notch_stat = get_field("#notch_plugin");
+	struct field *apf_stat = get_field("#apf_plugin");
 	struct field *dsp_stat = get_field("#dsp_plugin");
 	struct field *anr_stat = get_field("#anr_plugin");
 	struct field *eptt_stat = get_field("#eptt");
@@ -5943,6 +5977,26 @@ gboolean check_plugin_controls(gpointer data)
 		else if (!strcmp(notch_stat->value, "OFF"))
 		{
 			notch_enabled = 0;
+		}
+	}
+
+	if (apf_stat)
+	{
+		if (!strcmp(apf_stat->value, "ON"))
+		{
+			struct field *apf_gain_field = get_field("#apf_gain");
+			struct field *apf_width_field = get_field("#apf_width");
+			if (apf_gain_field && apf_width_field)
+			{
+				apf1.gain = (float)atoi(apf_gain_field->value);
+				apf1.width = (float)atoi(apf_width_field->value);
+				apf1.ison = 1;
+				init_apf();
+			}
+		}
+		else if (!strcmp(apf_stat->value, "OFF"))
+		{
+			apf1.ison = 0;
 		}
 	}
 
