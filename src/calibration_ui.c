@@ -65,6 +65,24 @@ static long get_time_ms(void) {
     return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
+// Update band button styles based on modifications
+static void update_band_button_styles(void) {
+    for (int i = 0; i < 9; i++) {
+        GtkStyleContext *context = gtk_widget_get_style_context(cal_state.band_buttons[i]);
+
+        if (i == cal_state.selected_band) {
+            // Selected band - remove yellow so blue shows through
+            gtk_style_context_remove_class(context, "modified-band");
+        } else if (band_power[i].scale != cal_state.original_scales[i]) {
+            // Modified but not selected - add yellow highlight
+            gtk_style_context_add_class(context, "modified-band");
+        } else {
+            // Not modified - remove yellow highlight
+            gtk_style_context_remove_class(context, "modified-band");
+        }
+    }
+}
+
 // Update the display labels
 static void update_display(void) {
     char buff[256];
@@ -79,9 +97,19 @@ static void update_display(void) {
     sprintf(buff, "Frequency: %.1f kHz", (cal_freq[band_idx]) / 1000.0);
     gtk_label_set_text(GTK_LABEL(cal_state.freq_label), buff);
 
-    // Update scale factor
-    sprintf(buff, "Scale Factor: %.4f", band_power[band_idx].scale);
+    // Update scale factor - show saved value in parentheses if modified
+    double current_scale = band_power[band_idx].scale;
+    double saved_scale = cal_state.original_scales[band_idx];
+
+    if (current_scale != saved_scale) {
+        sprintf(buff, "Scale Factor: %.4f (%.4f)", current_scale, saved_scale);
+    } else {
+        sprintf(buff, "Scale Factor: %.4f", current_scale);
+    }
     gtk_label_set_text(GTK_LABEL(cal_state.scale_label), buff);
+
+    // Update band button styles
+    update_band_button_styles();
 }
 
 // Stop transmitting
@@ -301,7 +329,7 @@ void calibration_ui(GtkWidget *parent) {
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
                        grid, TRUE, TRUE, 0);
 
-    // Add CSS for selected band button
+    // Add CSS for selected and modified band buttons
     GtkCssProvider *css_provider = gtk_css_provider_new();
     const char *css_data =
         ".selected-band { "
@@ -309,6 +337,11 @@ void calibration_ui(GtkWidget *parent) {
         "  background-color: #3584e4; "  // Blue background
         "  color: white; "
         "  font-weight: bold; "
+        "}"
+        ".modified-band { "
+        "  background-image: none; "
+        "  background-color: #f9f06b; "  // Yellow background
+        "  color: black; "
         "}";
     gtk_css_provider_load_from_data(css_provider, css_data, -1, NULL);
     gtk_style_context_add_provider_for_screen(
