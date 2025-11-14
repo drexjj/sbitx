@@ -500,7 +500,7 @@ struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 };
 // then convert back to linear for application
 int init_apf()  // define filter gain coefficients
 {
-	printf( " gain %.2f  width %.2f\n", apf1.gain, apf1.width );	
+//	printf( " gain %.2f  width %.2f\n", apf1.gain, apf1.width );	
 	double binw = 96000.0 / MAX_BINS;  // about 46.9
 	double  q = 2*apf1.width*apf1.width;
 
@@ -513,12 +513,12 @@ int init_apf()  // define filter gain coefficients
 	apf1.coeff[6]=apf1.coeff[2];
 	apf1.coeff[7]=apf1.coeff[1];
 	apf1.coeff[8]=apf1.coeff[0];
-	
+/*	
 	for (int i=0; i < 9; i++){
 				printf("%.3f ",apf1.coeff[i]);
 			}
 			printf(" \n");
-	 	
+*/	 	
 };
 
 
@@ -3711,7 +3711,7 @@ void menu_display(int show) {
 				field_move("COMP", 350, screen_height - 80, 45, 37);
 				field_move("TXMON", 400, screen_height - 80, 45, 37);
 				field_move("TNDUR", 500, screen_height - 80, 45, 37);
-				field_move("APF", 550, screen_height - 80, 45, 37);
+				field_move("APF", 600, screen_height - 80, 95, 37);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
 					field_move("ePTT", screen_width - 190, screen_height - 80, 92, 37);
@@ -3726,8 +3726,8 @@ void menu_display(int show) {
 				field_move("BFO", 350, screen_height - 40, 45, 37);
 				field_move("VFOLK", 400, screen_height - 40, 45, 37);
 				field_move("TNPWR", 500, screen_height - 40, 45, 37);
-				field_move("GAIN", 550, screen_height - 40, 45, 37);
-				field_move("WIDTH", 600, screen_height - 40, 45, 37);
+				field_move("GAIN", 600, screen_height - 40, 45, 37);
+				field_move("WIDTH", 650, screen_height - 40, 45, 37);
 			}
 
 			else {
@@ -5671,7 +5671,7 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (!strcmp(field_str("APF"), "ON"))
+	if (!strcmp(field_str("APF"), "ON") && apf1.ison == 0)
 	{
 		struct field *apf_gain_field = get_field("#apf_gain");
 		int apf_gain_value = atoi(apf_gain_field->value);
@@ -5681,6 +5681,7 @@ int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		apf1.width = (float)apf_width_value;
 		apf1.ison = 1;
 		init_apf();
+
 	}
 	else
 	{
@@ -5986,7 +5987,8 @@ gboolean check_plugin_controls(gpointer data)
 		{
 			struct field *apf_gain_field = get_field("#apf_gain");
 			struct field *apf_width_field = get_field("#apf_width");
-			if (apf_gain_field && apf_width_field)
+			if ( ((abs(apf1.gain - (float)atoi(apf_gain_field->value))) > 1e-9) || // only if changed
+			     ((abs(apf1.width - (float)atoi(apf_width_field->value))) > 1.e-9) )
 			{
 				apf1.gain = (float)atoi(apf_gain_field->value);
 				apf1.width = (float)atoi(apf_width_field->value);
