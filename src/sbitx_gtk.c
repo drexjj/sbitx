@@ -50,6 +50,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include "calibration_ui.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -71,6 +72,7 @@ int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
+int calibration_ui_active = 0;  // Flag to disable encoders when calibration dialog is open
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -843,6 +845,8 @@ struct field main_controls[] = {
 	 "", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
+	{"#cal", NULL, 1000, -1000, 40, 40, "CAL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, 0, COMMON_CONTROL},
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
 	{"#fullscreen", do_toggle_option, 1000, -1000, 40, 40, "FULLSCREEN", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -6882,11 +6886,15 @@ int enc_read(struct encoder *e)
 static int tuning_ticks = 0;
 void tuning_isr(void)
 {
-	int tuning = enc_read(&enc_b);
-	if (tuning < 0)
-		tuning_ticks++;
-	if (tuning > 0)
-		tuning_ticks--;
+	// Only process tuning encoder if calibration UI is not active
+	if (!calibration_ui_active)
+	{
+		int tuning = enc_read(&enc_b);
+		if (tuning < 0)
+			tuning_ticks++;
+		if (tuning > 0)
+			tuning_ticks--;
+	}
 }
         
 void query_swr()
@@ -7515,39 +7523,44 @@ gboolean ui_tick(gpointer gook)
 			tx_off();
 	}
 
-	int scroll = enc_read(&enc_a);
-	if (scroll)
+	// Only process encoder if calibration UI is not active
+	if (!calibration_ui_active)
 	{
-		// Update the last activity timestamp
-		mfk_last_ms = sbitx_millis();
-		
-		if (mfk_locked_to_volume)
+		int scroll = enc_read(&enc_a);
+		if (scroll)
 		{
-			// MFK is locked to volume control
-			mfk_adjust_volume(scroll);
-		}
-		else if (f_focus)
-		{
-			// Normal MFK behavior - control focused field
-			if (scroll < 0)
-				edit_field(f_focus, MIN_KEY_DOWN);
-			else
-				edit_field(f_focus, MIN_KEY_UP);
+			// Update the last activity timestamp
+			mfk_last_ms = sbitx_millis();
+
+			if (mfk_locked_to_volume)
+			{
+				// MFK is locked to volume control
+				mfk_adjust_volume(scroll);
+			}
+			else if (f_focus)
+			{
+				// Normal MFK behavior - control focused field
+				if (scroll < 0)
+					edit_field(f_focus, MIN_KEY_DOWN);
+				else
+					edit_field(f_focus, MIN_KEY_UP);
+			}
 		}
 	}
 	else
 	{
 		// Check if we should lock to volume due to timeout
-    if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > mfk_timeout_ms) {
-      // lock MFK to volume after inactivity AND move UI focus to the volume control
-      mfk_locked_to_volume = 1;
-      struct field *vol_field = get_field("r1:volume");
-      // now simulate the “knob press” focus change so the green highlight updates
-      if (vol_field) {
-        focus_field(vol_field);
-      }
-    }
+		if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > mfk_timeout_ms) {
+			// lock MFK to volume after inactivity AND move UI focus to the volume control
+			mfk_locked_to_volume = 1;
+			struct field *vol_field = get_field("r1:volume");
+			// now simulate the “knob press” focus change so the green highlight updates
+			if (vol_field) {
+				focus_field(vol_field);
+			}
+		}
 	}
+	
 	
 	// Check ENC1_SW for unlock (edge detection)
 	int enc1_sw_now = digitalRead(ENC1_SW);
@@ -7972,6 +7985,10 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "SET"))
 	{
 		settings_ui(window);
+	}
+	else if (!strcmp(request, "CAL"))
+	{
+		calibration_ui(window);
 	}
 	else if (!strcmp(request, "PWR-DWN"))
 	{
