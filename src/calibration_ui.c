@@ -230,8 +230,8 @@ static void on_save_clicked(GtkWidget *widget, gpointer data) {
     gtk_widget_destroy(msg_dialog);
 }
 
-// Close button clicked
-static void on_close_clicked(GtkWidget *widget, gpointer data) {
+// Restore original values and stop transmission
+static void restore_and_cleanup(void) {
     // Stop any ongoing transmission
     stop_tx();
 
@@ -241,9 +241,22 @@ static void on_close_clicked(GtkWidget *widget, gpointer data) {
     }
 
     printf("Calibration: Closed without saving, scale values restored\n");
+}
+
+// Close button clicked
+static void on_close_clicked(GtkWidget *widget, gpointer data) {
+    restore_and_cleanup();
 
     // Close the dialog by sending response
     gtk_dialog_response(GTK_DIALOG(cal_state.dialog), GTK_RESPONSE_CLOSE);
+}
+
+// Handle window delete event (X button)
+static gboolean on_delete_event(GtkWidget *widget, GdkEvent *event, gpointer data) {
+    restore_and_cleanup();
+
+    // Allow the window to close
+    return FALSE;
 }
 
 // Main calibration UI function
@@ -276,6 +289,9 @@ void calibration_ui(GtkWidget *parent) {
     // Remove window control buttons (close, maximize, minimize)
     gtk_window_set_deletable(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+    // Connect delete-event handler in case X button appears despite deletable=FALSE
+    g_signal_connect(dialog, "delete-event", G_CALLBACK(on_delete_event), NULL);
 
     // Create grid for layout
     grid = gtk_grid_new();
