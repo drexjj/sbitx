@@ -12,7 +12,6 @@
 struct power_settings {
     int f_start;
     int f_stop;
-    int f_cal;
     int max_watts;
     double scale;
 };
@@ -50,12 +49,12 @@ struct calibration_state {
     GtkWidget *band_buttons[9]; // Band selection button widgets
     GtkWidget *band_label;      // Label showing selected band
     GtkWidget *freq_label;      // Label showing calibration frequency
-    GtkWidget *target_label;    // Label showing target power
     GtkWidget *scale_label;     // Label showing scale factor
     GtkWidget *test_button;     // TEST button widget
     GtkWidget *dialog;          // Dialog widget
     guint timeout_id;           // GTK timeout callback ID
 };
+const int cal_freq[] = {3535000, 5330500,  7035000, 1013500, 1403500, 1806800, 2103500, 2489500, 2803500 };
 
 static struct calibration_state cal_state;
 
@@ -77,12 +76,8 @@ static void update_display(void) {
     gtk_label_set_text(GTK_LABEL(cal_state.band_label), buff);
 
     // Update frequency
-    sprintf(buff, "Frequency: %.1f kHz", band_power[band_idx].f_cal / 1000.0);
+    sprintf(buff, "Frequency: %.1f kHz", (cal_freq[band_idx]) / 1000.0);
     gtk_label_set_text(GTK_LABEL(cal_state.freq_label), buff);
-
-    // Update target power
-    sprintf(buff, "Target Power: %d W", band_power[band_idx].max_watts);
-    gtk_label_set_text(GTK_LABEL(cal_state.target_label), buff);
 
     // Update scale factor
     sprintf(buff, "Scale Factor: %.4f", band_power[band_idx].scale);
@@ -198,7 +193,7 @@ static void on_test_clicked(GtkWidget *widget, gpointer data) {
     int band_idx = cal_state.selected_band;
 
     // Set frequency to calibration frequency
-    set_rx1(band_power[band_idx].f_cal);
+    set_rx1(cal_freq[band_idx]);
 
     // Set calibration mode
     extern struct rx *tx_list;
@@ -346,11 +341,6 @@ void calibration_ui(GtkWidget *parent) {
     cal_state.freq_label = gtk_label_new("Frequency: 0 kHz");
     gtk_label_set_xalign(GTK_LABEL(cal_state.freq_label), 0.0);
     gtk_grid_attach(GTK_GRID(grid), cal_state.freq_label, 0, row, 5, 1);
-    row++;
-
-    cal_state.target_label = gtk_label_new("Target Power: 0 W");
-    gtk_label_set_xalign(GTK_LABEL(cal_state.target_label), 0.0);
-    gtk_grid_attach(GTK_GRID(grid), cal_state.target_label, 0, row, 5, 1);
     row++;
 
     cal_state.scale_label = gtk_label_new("Scale Factor: 0.0000");
