@@ -171,7 +171,6 @@ struct power_settings
 {
 	int f_start;
 	int f_stop;
-	int f_cal;
 	int max_watts;
 	double scale;
 };
@@ -2054,10 +2053,6 @@ static int hw_settings_handler(void *user, const char *section,
 		band_power[hw_init_index].f_start = atoi(value);
 	if (!strcmp(name, "f_stop"))
 		band_power[hw_init_index].f_stop = atoi(value);
-	if (!strcmp(name, "f_cal"))
-		band_power[hw_init_index].f_cal = atoi(value);
-	if (!strcmp(name, "max_watts"))
-		band_power[hw_init_index].max_watts = atoi(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
 	if (!strcmp(name, "bfo_freq"))
@@ -2184,9 +2179,8 @@ void save_hw_settings()
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_power) / sizeof(struct power_settings); i++)
 	{
-		fprintf(f, "[tx_band]\nf_start=%d\nf_stop=%d\nf_cal=%d\nmax_watts=%d\nscale=%g\n\n",
-				band_power[i].f_start, band_power[i].f_stop, band_power[i].f_cal,
-				band_power[i].max_watts, band_power[i].scale);
+		fprintf(f, "[tx_band]\nf_start=%d\nf_stop=%d\nscale=%g\n\n",
+				band_power[i].f_start, band_power[i].f_stop, band_power[i].scale);
 	}
 
 	fclose(f);
