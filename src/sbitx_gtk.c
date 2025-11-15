@@ -72,7 +72,7 @@ int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
-int calibration_ui_active = 0;  // Flag to disable encoders when calibration dialog is open
+int main_ui_encoders_enabled = 1;  // Flag to disable encoders when calibration dialog is open
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -531,7 +531,7 @@ static struct field *f_last_text = NULL;
 
 // variables to power up and down the tx
 
-static int in_tx = TX_OFF;
+int in_tx = TX_OFF;
 static int key_down = 0;
 static int tx_start_time = 0;
 
@@ -6886,8 +6886,7 @@ int enc_read(struct encoder *e)
 static int tuning_ticks = 0;
 void tuning_isr(void)
 {
-	// Only process tuning encoder if calibration UI is not active
-	if (!calibration_ui_active)
+	if (main_ui_encoders_enabled)
 	{
 		int tuning = enc_read(&enc_b);
 		if (tuning < 0)
@@ -7523,8 +7522,7 @@ gboolean ui_tick(gpointer gook)
 			tx_off();
 	}
 
-	// Only process encoder if calibration UI is not active
-	if (!calibration_ui_active)
+	if (main_ui_encoders_enabled)
 	{
 		int scroll = enc_read(&enc_a);
 		if (scroll)

@@ -38,7 +38,8 @@ extern void tr_switch(int tx_on);
 extern void set_tx_power_levels(void);
 extern void save_hw_settings(void);
 extern int enc_read(struct encoder *e);
-extern int calibration_ui_active;  // Flag to disable main UI encoders
+extern int main_ui_encoders_enabled;  // Flag to disable main UI encoders
+extern void sdr_request(char *request, char *response);
 
 // Calibration state
 struct calibration_state {
@@ -54,7 +55,7 @@ struct calibration_state {
     GtkWidget *dialog;          // Dialog widget
     guint timeout_id;           // GTK timeout callback ID
 };
-const int cal_freq[] = {3535000, 5330500,  7035000, 1013500, 1403500, 1806800, 2103500, 2489500, 2803500 };
+const int cal_freq[] = {3535000, 5330500,  7035000, 10135000, 14035000, 18068000, 21035000, 24895000, 28035000 };
 
 static struct calibration_state cal_state;
 
@@ -94,7 +95,7 @@ static void update_display(void) {
     gtk_label_set_text(GTK_LABEL(cal_state.band_label), buff);
 
     // Update frequency
-    sprintf(buff, "Frequency: %.1f kHz", (cal_freq[band_idx]) / 1000.0);
+    sprintf(buff, "Frequency: %.3f MHz", (cal_freq[band_idx]) / 1000000.0);
     gtk_label_set_text(GTK_LABEL(cal_state.freq_label), buff);
 
     // Update scale factor - show saved value in parentheses if modified
@@ -116,8 +117,10 @@ static void update_display(void) {
 static void stop_tx(void) {
     if (cal_state.is_transmitting) {
         tr_switch(0);  // Disable TX
+        in_tx = TX_OFF;
+
         cal_state.is_transmitting = 0;
-        gtk_button_set_label(GTK_BUTTON(cal_state.test_button), "TEST (5 sec)");
+        gtk_button_set_label(GTK_BUTTON(cal_state.test_button), "TEST");
         gtk_widget_set_sensitive(cal_state.test_button, TRUE);
     }
 }
@@ -214,11 +217,16 @@ static void on_scale_adjust(GtkWidget *widget, gpointer data) {
 // TEST button clicked
 static void on_test_clicked(GtkWidget *widget, gpointer data) {
     if (cal_state.is_transmitting) {
-        // Already transmitting, ignore
+        // Already transmitting, stop it
+        stop_tx();
         return;
     }
 
     int band_idx = cal_state.selected_band;
+    
+    char response[100];
+    // Set drive to 100 for calibration
+    sdr_request("tx_power=100", response);
 
     // Set frequency to calibration frequency
     set_rx1(cal_freq[band_idx]);
@@ -227,16 +235,19 @@ static void on_test_clicked(GtkWidget *widget, gpointer data) {
     extern struct rx *tx_list;
     tx_list->mode = MODE_CALIBRATE;
 
+    // Apply power levels with new drive setting
+    set_tx_power_levels();
+
     // Enable transmit
     tr_switch(1);
+    in_tx = TX_SOFT;
 
     // Mark as transmitting and record start time
     cal_state.is_transmitting = 1;
     cal_state.tx_start_time = get_time_ms();
 
-    // Update button label
-    gtk_button_set_label(GTK_BUTTON(cal_state.test_button), "Transmitting...");
-    gtk_widget_set_sensitive(cal_state.test_button, FALSE);
+    // Update button label to show it can be clicked to stop
+    gtk_button_set_label(GTK_BUTTON(cal_state.test_button), "STOP");
 }
 
 // Save button clicked
@@ -302,7 +313,7 @@ void calibration_ui(GtkWidget *parent) {
     }
 
     // Disable main UI encoders while calibration is active
-    calibration_ui_active = 1;
+    main_ui_encoders_enabled = 0;
 
     // Create modal dialog
     dialog = gtk_dialog_new_with_buttons(
@@ -312,7 +323,10 @@ void calibration_ui(GtkWidget *parent) {
         NULL);
 
     cal_state.dialog = dialog;
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 400, 230);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 180, 300);
+
+    // Position window on the left side of the screen
+    gtk_window_move(GTK_WINDOW(dialog), 10, 50);
 
     // Remove window control buttons (close, maximize, minimize)
     gtk_window_set_deletable(GTK_WINDOW(dialog), FALSE);
@@ -349,28 +363,27 @@ void calibration_ui(GtkWidget *parent) {
         GTK_STYLE_PROVIDER(css_provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
-    // Band selection buttons (row 0-1) - reversed order (10M to 80M)
+    // Band selection buttons in 3x3 grid
     const char *band_names[] = {"80M", "60M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"};
 
-    // First row of band buttons (10M-20M)
-    for (int i = 8; i >= 4; i--) {
-        button = gtk_button_new_with_label(band_names[i]);
-        gtk_widget_set_size_request(button, 70, 40);
-        g_signal_connect(button, "clicked", G_CALLBACK(on_band_selected), GINT_TO_POINTER(i));
-        gtk_grid_attach(GTK_GRID(grid), button, 8 - i, row, 1, 1);
-        cal_state.band_buttons[i] = button;  // Store button reference
-    }
-    row++;
+    // 3x3 grid layout: 80M-40M (row 0), 30M-17M (row 1), 15M-10M (row 2)
+    int band_indices[3][3] = {
+        {0, 1, 2},  // Row 0: 80M, 60M, 40M
+        {3, 4, 5},  // Row 1: 30M, 20M, 17M
+        {6, 7, 8}   // Row 2: 15M, 12M, 10M
+    };
 
-    // Second row of band buttons (30M-80M)
-    for (int i = 3; i >= 0; i--) {
-        button = gtk_button_new_with_label(band_names[i]);
-        gtk_widget_set_size_request(button, 70, 40);
-        g_signal_connect(button, "clicked", G_CALLBACK(on_band_selected), GINT_TO_POINTER(i));
-        gtk_grid_attach(GTK_GRID(grid), button, 3 - i, row, 1, 1);
-        cal_state.band_buttons[i] = button;  // Store button reference
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 3; c++) {
+            int i = band_indices[r][c];
+            button = gtk_button_new_with_label(band_names[i]);
+            gtk_widget_set_size_request(button, 70, 40);
+            g_signal_connect(button, "clicked", G_CALLBACK(on_band_selected), GINT_TO_POINTER(i));
+            gtk_grid_attach(GTK_GRID(grid), button, c, row + r, 1, 1);
+            cal_state.band_buttons[i] = button;  // Store button reference
+        }
     }
-    row++;
+    row += 3;
 
     // Highlight 80M button by default (index 0)
     GtkStyleContext *context = gtk_widget_get_style_context(cal_state.band_buttons[0]);
@@ -378,53 +391,53 @@ void calibration_ui(GtkWidget *parent) {
 
     // Add spacing
     label = gtk_label_new("");
-    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 5, 1);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 3, 1);
     row++;
 
     // Display labels
     cal_state.band_label = gtk_label_new("Selected Band: 80M");
     gtk_label_set_xalign(GTK_LABEL(cal_state.band_label), 0.0);
-    gtk_grid_attach(GTK_GRID(grid), cal_state.band_label, 0, row, 5, 1);
+    gtk_grid_attach(GTK_GRID(grid), cal_state.band_label, 0, row, 3, 1);
     row++;
 
     cal_state.freq_label = gtk_label_new("Frequency: 0 kHz");
     gtk_label_set_xalign(GTK_LABEL(cal_state.freq_label), 0.0);
-    gtk_grid_attach(GTK_GRID(grid), cal_state.freq_label, 0, row, 5, 1);
+    gtk_grid_attach(GTK_GRID(grid), cal_state.freq_label, 0, row, 3, 1);
     row++;
 
     cal_state.scale_label = gtk_label_new("Scale Factor: 0.0000");
     gtk_label_set_xalign(GTK_LABEL(cal_state.scale_label), 0.0);
-    gtk_grid_attach(GTK_GRID(grid), cal_state.scale_label, 0, row, 5, 1);
+    gtk_grid_attach(GTK_GRID(grid), cal_state.scale_label, 0, row, 3, 1);
     row++;
 
     // Scale adjustment buttons
     button = gtk_button_new_with_label("Scale -");
-    gtk_widget_set_size_request(button, 80, 35);
+    gtk_widget_set_size_request(button, 70, 35);
     g_signal_connect(button, "clicked", G_CALLBACK(on_scale_adjust), GINT_TO_POINTER(-1));
     gtk_grid_attach(GTK_GRID(grid), button, 0, row, 1, 1);
 
     button = gtk_button_new_with_label("Scale +");
-    gtk_widget_set_size_request(button, 80, 35);
+    gtk_widget_set_size_request(button, 70, 35);
     g_signal_connect(button, "clicked", G_CALLBACK(on_scale_adjust), GINT_TO_POINTER(1));
     gtk_grid_attach(GTK_GRID(grid), button, 1, row, 1, 1);
 
     // TEST button
-    cal_state.test_button = gtk_button_new_with_label("TEST (5 sec)");
-    gtk_widget_set_size_request(cal_state.test_button, 120, 35);
+    cal_state.test_button = gtk_button_new_with_label("TEST");
+    gtk_widget_set_size_request(cal_state.test_button, 70, 35);
     g_signal_connect(cal_state.test_button, "clicked", G_CALLBACK(on_test_clicked), NULL);
-    gtk_grid_attach(GTK_GRID(grid), cal_state.test_button, 3, row, 2, 1);
+    gtk_grid_attach(GTK_GRID(grid), cal_state.test_button, 2, row, 1, 1);
     row++;
 
     // Save and Close buttons
     button = gtk_button_new_with_label("Save");
     gtk_widget_set_size_request(button, 100, 35);
     g_signal_connect(button, "clicked", G_CALLBACK(on_save_clicked), NULL);
-    gtk_grid_attach(GTK_GRID(grid), button, 0, row, 2, 1);
+    gtk_grid_attach(GTK_GRID(grid), button, 0, row, 1, 1);
 
     button = gtk_button_new_with_label("Close");
     gtk_widget_set_size_request(button, 100, 35);
     g_signal_connect(button, "clicked", G_CALLBACK(on_close_clicked), NULL);
-    gtk_grid_attach(GTK_GRID(grid), button, 3, row, 2, 1);
+    gtk_grid_attach(GTK_GRID(grid), button, 2, row, 1, 1);
 
     // Initial display update
     update_display();
@@ -442,5 +455,5 @@ void calibration_ui(GtkWidget *parent) {
     gtk_widget_destroy(dialog);
 
     // Re-enable main UI encoders
-    calibration_ui_active = 0;
+    main_ui_encoders_enabled = 1;
 }
