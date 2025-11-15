@@ -140,13 +140,13 @@ static gboolean calibration_tick(gpointer user_data) {
     if (scroll != 0) {
         int band_idx = cal_state.selected_band;
 
-        // Adjust scale by ±0.0001 per encoder click
-        double delta = scroll * 0.0001;
+        // Adjust scale by ±0.001 per encoder click
+        double delta = scroll * 0.001;
         band_power[band_idx].scale += delta;
 
         // Clamp to reasonable range
-        if (band_power[band_idx].scale < 0.0001)
-            band_power[band_idx].scale = 0.0001;
+        if (band_power[band_idx].scale < 0.001)
+            band_power[band_idx].scale = 0.001;
         if (band_power[band_idx].scale > 0.015)
             band_power[band_idx].scale = 0.015;
 
@@ -190,13 +190,13 @@ static void on_scale_adjust(GtkWidget *widget, gpointer data) {
     int direction = GPOINTER_TO_INT(data);  // +1 or -1
     int band_idx = cal_state.selected_band;
 
-    // Adjust scale by ±0.0001
-    double delta = direction * 0.0001;
+    // Adjust scale by ±0.001
+    double delta = direction * 0.001;
     band_power[band_idx].scale += delta;
 
     // Clamp to reasonable range
-    if (band_power[band_idx].scale < 0.0001)
-        band_power[band_idx].scale = 0.0001;
+    if (band_power[band_idx].scale < 0.001)
+        band_power[band_idx].scale = 0.001;
     if (band_power[band_idx].scale > 0.015)
         band_power[band_idx].scale = 0.015;
 
