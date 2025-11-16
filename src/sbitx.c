@@ -1417,10 +1417,11 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 	}
 
 	if (r->mode == MODE_CW || r->mode == MODE_CWR) {  // apply apf
+
 		if (apf1.ison){
-
+			
 			int center;
-
+//			printf("   apf applied \n");
 			if ( r->mode == MODE_CW)
 			{
 				center = (int)(rx_pitch/ (96000.0 / MAX_BINS)); // rx_pitch
