@@ -1715,7 +1715,7 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 			draw_text(gfx, offset_x, label_y, f->label, FONT_FIELD_LABEL);
 		}
 		else
-		{
+		{ 
 			int font_ix = f->font_index;
 			value_height = font_table[font_ix].height;
 			label_y = f->y + ((f->height - label_height - value_height) / 2);
@@ -2051,17 +2051,19 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 static void on_fullscreen_toggle(const int requested_state)
 {
 	if( requested_state != is_fullscreen){
-		if (is_fullscreen)
-		{
-			gtk_window_unfullscreen(GTK_WINDOW(window));
-			gtk_window_set_decorated(GTK_WINDOW(window), TRUE);
-			is_fullscreen = 0;
-		}
-		else
+		if (requested_state == 1)
 		{
 			gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
 			gtk_window_fullscreen(GTK_WINDOW(window));
 			is_fullscreen = 1;
+			set_field("#fullscreen", "ON");
+		}
+		else
+		{
+			gtk_window_unfullscreen(GTK_WINDOW(window));
+			gtk_window_set_decorated(GTK_WINDOW(window), TRUE);
+			is_fullscreen = 0;
+			set_field("#fullscreen", "OFF");
 		}
 	}
 }
@@ -5946,10 +5948,8 @@ gboolean check_plugin_controls(gpointer data)
 
 	if (fullscreen_stat)
 	{
-		if( !strcmp(fullscreen_stat->value, "ON"))
-			on_fullscreen_toggle(1);
-		else if (!strcmp(fullscreen_stat->value, "OFF"))
-			on_fullscreen_toggle(0);
+		int fs = !strcmp(fullscreen_stat->value, "ON") ? 1 : 0;
+		on_fullscreen_toggle(fs);
 	}
 
 	if (tx_panafall_stat)
@@ -7633,7 +7633,7 @@ gboolean ui_tick(gpointer gook)
 	return TRUE;
 }
 
-void ui_init(int argc, char *argv[], int fullscreen)
+void ui_init(int argc, char *argv[])
 {
 
 	gtk_init(&argc, &argv);
@@ -7654,14 +7654,7 @@ void ui_init(int argc, char *argv[], int fullscreen)
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
-
-	// Apply fullscreen mode if requested
-	if (fullscreen) {
-		gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
-		gtk_window_fullscreen(GTK_WINDOW(window));
-		is_fullscreen = 1;
-	}
-
+	
 	display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
 
@@ -8851,22 +8844,13 @@ int main(int argc, char *argv[])
 	puts(VER_STR);
 	active_layout = main_controls;
 
-	// Parse command line arguments for fullscreen mode
-	int fullscreen = 0;
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--fullscreen") == 0) {
-			fullscreen = 1;
-			break;
-		}
-	}
-
 	// ensure_single_instance();
 
 	// unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
 
-	ui_init(argc, argv, fullscreen);
+	ui_init(argc, argv);
 	hw_init();
 	console_init();
 
@@ -8960,7 +8944,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
-  field_set("RIT", "OFF");
+  	field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
@@ -9004,6 +8988,19 @@ int main(int argc, char *argv[])
 
 	// Register a function to be called when the application exits
 	atexit(cleanup_on_exit);
+
+// Parse command line arguments for fullscreen mode
+	int fullscreen = 0;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--fullscreen") == 0) {
+			fullscreen = 1;
+		}
+	}
+	if( fullscreen ){
+		set_field("#fullscreen", "ON");
+	} else {
+		set_field("#fullscreen", "OFF");
+	}
 
 	gtk_main();
 
