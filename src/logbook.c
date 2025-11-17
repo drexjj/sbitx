@@ -293,10 +293,10 @@ void logbook_open(){
     }
 }
 
-void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
+void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	char *rst_recv, char *exchange_recv, char *comments){
-	char statement[1000], *err_msg, date_str[10], time_str[10];
+	char statement[1000], *err_msg, date_str[11], time_str[10];
 	char freq[12], log_freq[12], mode[10], mycallsign[10];
 
 	time_t log_time = time_sbitx();
@@ -305,12 +305,12 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 	get_field_value("r1:mode", mode);
 	get_field_value("#mycallsign", mycallsign);
 
-	sprintf(log_freq, "%d", atoi(freq)/1000);
-	
-	sprintf(date_str, "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
-	sprintf(time_str, "%02d%02d", tmp->tm_hour, tmp->tm_min);
+	snprintf(log_freq, sizeof(log_freq), "%d", atoi(freq)/1000);
 
-	sprintf(statement,
+	snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
+	snprintf(time_str, sizeof(time_str), "%02d%02d", tmp->tm_hour, tmp->tm_min);
+
+	snprintf(statement, sizeof(statement),
 		"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
 		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
 		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
