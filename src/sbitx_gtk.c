@@ -247,6 +247,7 @@ struct encoder enc_a, enc_b;
 #define FIELD_TEXT 4
 #define FIELD_STATIC 5
 #define FIELD_CONSOLE 6
+#define FIELD_DROPDOWN 7
 
 // The console is a series of lines
 #define MAX_CONSOLE_BUFFER 10000
@@ -528,6 +529,8 @@ static unsigned long focus_since = 0;
 static struct field *f_focus = NULL;
 static struct field *f_hover = NULL;
 static struct field *f_last_text = NULL;
+static struct field *f_dropdown_expanded = NULL; // which dropdown is currently expanded
+static int dropdown_highlighted = 0; // which option is highlighted in the expanded dropdown
 
 // variables to power up and down the tx
 
@@ -625,6 +628,9 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+struct band *get_band_by_frequency(int frequency);
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -651,25 +657,9 @@ struct field main_controls[] = {
 	{"#band_stack_pos_option", do_toggle_option, 1000, -1000, 40, 40, "BSTACKPOSOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
-	/* band stack registers */
-	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#17m", NULL, 170, 5, 40, 40, "17M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#20m", NULL, 210, 5, 40, 40, "20M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#30m", NULL, 250, 5, 40, 40, "30M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#40m", NULL, 290, 5, 40, 40, "40M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#60m", NULL, 330, 5, 40, 40, "60M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#80m", NULL, 370, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
+	/* band stack registers - replaced with #band dropdown */
+	{"#band", do_band_dropdown, 50, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	 "80M/60M/40M/30M/20M/17M/15M/12M/10M", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -677,7 +667,7 @@ struct field main_controls[] = {
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"r1:agc", NULL, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"r1:agc", do_dropdown, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_DROPDOWN, FONT_FIELD_VALUE,
 	 "OFF/SLOW/MED/FAST", 0, 1024, 1, COMMON_CONTROL},
 	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 1, 100, 1, COMMON_CONTROL},
@@ -687,9 +677,9 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#step", NULL, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, FONT_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
-	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
 	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
@@ -699,7 +689,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
-	{"r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE,
+	{"r1:mode", do_dropdown, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_DROPDOWN, FONT_FIELD_VALUE,
 	 "USB/LSB/AM/CW/CWR/FT8/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 
 	/* logger controls */
@@ -923,8 +913,11 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
-	{"#menu", do_toggle_option, 459, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
-	 "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
+	// {"#menu", do_toggle_option, 459, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
+	//  "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
+
+	{"#menu", do_dropdown, 459, 50, 40, 40, "MENU", 1, "OFF", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	 "OFF/1/2", 0, 0, 0, COMMON_CONTROL},
 
 	// Notch Filter Controls
 	{"#notch_plugin", do_toggle_option, 1000, -1000, 40, 40, "NOTCH", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1897,39 +1890,39 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 		sprintf(cmd, "%s", name);
-		// skip the button actions
+
+		// Check if this is a band button setting (e.g., #80m, #60m, etc.)
+		char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
+		char *ptr = strstr(bands, cmd);
+		if (ptr != NULL)
+		{
+			// Set the selected band stack index (even though individual band buttons no longer exist)
+			int band = (ptr - bands) / 4;
+			int ix = get_band_stack_index(new_value);
+			if (ix < 0)
+			{
+				ix = 0;
+			}
+			band_stack[band].index = ix;
+			settings_updated++;
+			return 1;
+		}
+
+		// Handle #selband setting
+		if (!strcmp(cmd, "#selband"))
+		{
+			int new_band = atoi(value);
+			highlight_band_field(new_band);
+			return 1;
+		}
+
+		// For other fields, set the value if the field exists and is not a button
 		struct field *f = get_field(cmd);
 		if (f)
 		{
 			if (f->value_type != FIELD_BUTTON)
 			{
 				set_field(cmd, new_value);
-			}
-			char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
-			char *ptr = strstr(bands, cmd);
-			if (ptr != NULL)
-			{
-				// Set the selected band stack index
-				int band = (ptr - bands) / 4;
-				int ix = get_band_stack_index(new_value);
-				if (ix < 0)
-				{
-					// printf("Band stack index for %c%cm set to 0!\n", *(ptr+1), *(ptr+2));
-					ix = 0;
-				}
-				band_stack[band].index = ix;
-				if (!strcmp(field_str("BSTACKPOSOPT"), "ON"))
-				{
-					strcpy(new_value, stack_place[ix]);
-					strcpy(f->value, new_value);
-					// printf("user_settings_handler: Band stack index for %c%cm set to %d\n", *(ptr+1), *(ptr+2), ix);
-				}
-				settings_updated++;
-			}
-			if (!strcmp(cmd, "#selband"))
-			{
-				int new_band = atoi(value);
-				highlight_band_field(new_band);
 			}
 		}
 		return 1;
@@ -4240,6 +4233,11 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 	{
 		double cx1, cx2, cy1, cy2;
 		struct field *f = active_layout + i;
+
+		// Skip the expanded dropdown in the normal loop - it will be drawn last
+		if (f == f_dropdown_expanded)
+			continue;
+
 		cx1 = f->x;
 		cx2 = cx1 + f->width;
 		cy1 = f->y;
@@ -4249,6 +4247,10 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 		// else if (f->label[0] == 'F')
 		//	printf("skipping %s\n", active_layout[i].label);
 	}
+
+	// Draw the expanded dropdown last so it appears on top of all other fields
+	if (f_dropdown_expanded)
+		draw_field(widget, gfx, f_dropdown_expanded);
 }
 
 /* gtk specific routines */
@@ -4496,28 +4498,17 @@ void apply_band_settings(long frequency)
 			return;
 		}
 
-		// Highlight the correct button
+		// Focus the band dropdown if appropriate
 		struct field *current_focus = get_focused_field(); // Get the currently focused field
+		struct field *band_field = get_field("#band");
 
-		for (int i = 0; i < max_bands; i++)
+		if (band_field && current_focus)
 		{
-			struct field *band_field = get_field_by_label(band_stack[i].name);
-
-			if (band_field)
+			// Only focus the band dropdown if the frequency adjustment field is not focused
+			if (strcmp(current_focus->label, "FREQ") != 0 &&
+			    strcmp(current_focus->label, "SPECTRUM") != 0)
 			{
-				if (i == new_band)
-				{
-					// Only focus the band button if the frequency adjustment field is not focused
-					if (current_focus && strcmp(current_focus->label, "FREQ") != 0 &&
-						strcmp(current_focus->label, "SPECTRUM") != 0)
-					{
-						focus_field_without_toggle(band_field);
-					}
-				}
-			}
-			else
-			{
-				printf("Error: Field not found for name: %s\n", band_stack[i].name);
+				focus_field_without_toggle(band_field);
 			}
 		}
 
@@ -5227,6 +5218,299 @@ int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c
 	}
 	return 0;
 }
+
+int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	// Count and store the options
+	char options_buf[1000];
+	char options_copy[1000];
+	strcpy(options_buf, f->selection);
+	int option_count = 0;
+	char *option_list[50]; // max 50 options
+
+	// Build the option list
+	strcpy(options_copy, f->selection);
+	char *p = strtok(options_copy, "/");
+	while (p && option_count < 50)
+	{
+		option_list[option_count++] = p;
+		p = strtok(NULL, "/");
+	}
+
+	int is_expanded = (f_dropdown_expanded == f);
+
+	if (event == FIELD_DRAW)
+	{
+		// Always draw the collapsed state (label + current value)
+		if (f_focus == f)
+			fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
+		else
+			fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+
+		if (f_focus == f)
+			rect(gfx, f->x, f->y, f->width - 1, f->height, SELECTED_LINE, 2);
+		else if (f_hover == f)
+			rect(gfx, f->x, f->y, f->width, f->height, COLOR_SELECTED_BOX, 1);
+		else
+			rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+
+		// Draw label
+		int label_width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+		int label_x = f->x + (f->width - label_width) / 2;
+		int label_y = f->y + ((f->height - font_table[FONT_FIELD_LABEL].height - font_table[f->font_index].height) / 2);
+		draw_text(gfx, label_x, label_y, f->label, FONT_FIELD_LABEL);
+
+		// Draw current value
+		int value_width = measure_text(gfx, f->value, f->font_index);
+		int value_x = f->x + (f->width - value_width) / 2;
+		int value_y = label_y + font_table[FONT_FIELD_LABEL].height;
+		draw_text(gfx, value_x, value_y, f->value, f->font_index);
+
+		// If expanded, draw the dropdown options BELOW the main button
+		if (is_expanded)
+		{
+			int item_height = 40;
+			int dropdown_start_y = f->y + f->height; // Start below the main button
+
+			// Draw each option
+			for (int i = 0; i < option_count; i++)
+			{
+				int y = dropdown_start_y + (i * item_height);
+
+				// Get the option text by re-parsing (strtok modified the buffer)
+				strcpy(options_copy, f->selection);
+				p = strtok(options_copy, "/");
+				for (int j = 0; j < i && p; j++)
+					p = strtok(NULL, "/");
+
+				if (!p)
+					continue;
+
+				// Blue highlight for the option being scrolled to
+				int is_highlighted = (i == dropdown_highlighted);
+
+				if (is_highlighted)
+					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_FIELD_SELECTED);
+				else
+					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_BACKGROUND);
+
+				// Draw border
+				rect(gfx, f->x, y, f->width, item_height, COLOR_CONTROL_BOX, 1);
+
+				// Draw the option text centered
+				int text_width = measure_text(gfx, p, f->font_index);
+				int text_x = f->x + (f->width - text_width) / 2;
+				int text_y = y + (item_height - font_table[f->font_index].height) / 2;
+				draw_text(gfx, text_x, text_y, p, f->font_index);
+			}
+		}
+
+		return 1; // We handled the drawing
+	}
+	else if (event == GDK_BUTTON_PRESS)
+	{
+		// a and b contain the mouse x, y coordinates
+		int click_x = a;
+		int click_y = b;
+
+		// Toggle expand/collapse
+		int item_height = 40;  // Define once for both branches
+
+		if (is_expanded)
+		{
+			// Check if click is within the expanded dropdown area (below the main button)
+			int clicked_option = -1;
+			int dropdown_start_y = f->y + f->height;
+
+			// Determine which option was clicked based on y coordinate
+			if (click_y >= dropdown_start_y && click_y < dropdown_start_y + (option_count * item_height))
+			{
+				clicked_option = (click_y - dropdown_start_y) / item_height;
+				if (clicked_option >= 0 && clicked_option < option_count)
+				{
+					dropdown_highlighted = clicked_option;
+				}
+			}
+
+			// Collapse and select the highlighted option
+			strcpy(options_copy, f->selection);
+			p = strtok(options_copy, "/");
+			for (int i = 0; i < dropdown_highlighted && p; i++)
+				p = strtok(NULL, "/");
+
+			if (p)
+			{
+				strcpy(f->value, p);
+				// Send command to radio
+				char buff[200];
+				sprintf(buff, "%s %s", f->label, f->value);
+				do_control_action(buff);
+				f->is_dirty = 1;
+				f->update_remote = 1;
+				settings_updated++;
+			}
+
+			f_dropdown_expanded = NULL;
+			// Invalidate the area that was expanded (below the main button)
+			int expanded_height = option_count * item_height;
+			invalidate_rect(f->x, f->y + f->height, f->width, expanded_height);
+			update_field(f);
+		}
+		else
+		{
+			// Expand the dropdown
+			f_dropdown_expanded = f;
+			// Find the current value's index
+			dropdown_highlighted = 0;
+			strcpy(options_copy, f->selection);
+			p = strtok(options_copy, "/");
+			int idx = 0;
+			while (p)
+			{
+				if (!strcmp(p, f->value))
+				{
+					dropdown_highlighted = idx;
+					break;
+				}
+				idx++;
+				p = strtok(NULL, "/");
+			}
+
+			// Invalidate the expanded area to force redraw (below the main button)
+			int item_height = 40;
+			int expanded_height = option_count * item_height;
+			invalidate_rect(f->x, f->y + f->height, f->width, expanded_height);
+			update_field(f);
+		}
+		return 1;
+	}
+	else if (event == FIELD_EDIT)
+	{
+		if (is_expanded)
+		{
+			// Navigate through options when expanded
+			if (a == MIN_KEY_DOWN)
+			{
+				dropdown_highlighted++;
+				if (dropdown_highlighted >= option_count)
+					dropdown_highlighted = 0; // wrap around
+			}
+			else if (a == MIN_KEY_UP)
+			{
+				dropdown_highlighted--;
+				if (dropdown_highlighted < 0)
+					dropdown_highlighted = option_count - 1; // wrap around
+			}
+			// Invalidate the expanded area to show the new highlight (below the main button)
+			int item_height = 40;
+			int expanded_height = option_count * item_height;
+			invalidate_rect(f->x, f->y + f->height, f->width, expanded_height);
+			update_field(f);
+			return 1;
+		}
+		// If not expanded, let the default handler deal with it
+	}
+
+	return 0; // Let default handler deal with other events
+}
+
+// Band dropdown - specialized version that handles band selection
+int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	// For drawing and navigation, use the standard dropdown handler
+	if (event == FIELD_DRAW || event == FIELD_EDIT)
+	{
+		return do_dropdown(f, gfx, event, a, b, c);
+	}
+
+	// For button press, handle band selection specially
+	if (event == GDK_BUTTON_PRESS)
+	{
+		// If not expanded, expand the dropdown
+		if (f_dropdown_expanded != f)
+		{
+			return do_dropdown(f, gfx, event, a, b, c);
+		}
+
+		// If expanded, check if click is on an option
+		int option_y = f->y + 40; // Start after the main button
+		char temp[1000];
+		strcpy(temp, f->selection);
+		char *p = strtok(temp, "/");
+		int option_index = 0;
+		char *selected_band = NULL;
+
+		while (p)
+		{
+			// Check if this option was clicked
+			if (a >= f->x && a <= f->x + f->width && b >= option_y && b <= option_y + 40)
+			{
+				selected_band = p;
+				break;
+			}
+			option_y += 40;
+			option_index++;
+			p = strtok(NULL, "/");
+		}
+
+		if (selected_band)
+		{
+			// Find the band in the band_stack
+			struct band *band_found = NULL;
+			for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
+			{
+				if (!strcmp(band_stack[i].name, selected_band))
+				{
+					band_found = &band_stack[i];
+					break;
+				}
+			}
+
+			if (band_found)
+			{
+				// Get the current stack position for this band
+				int stack_pos = band_found->index;
+				char freq_str[20];
+				sprintf(freq_str, "%d", band_found->freq[stack_pos]);
+
+				// Set the frequency directly
+				set_field("r1:freq", freq_str);
+
+				// Update the band dropdown label and value
+				strcpy(f->label, selected_band);
+
+				// Create stack position indicator (=---, -=--, --=-, ---=)
+				char stack_indicator[5];
+				for (int i = 0; i < 4; i++)
+				{
+					stack_indicator[i] = (i == stack_pos) ? '=' : '-';
+				}
+				stack_indicator[4] = '\0';
+				strcpy(f->value, stack_indicator);
+			}
+
+			// Collapse the dropdown
+			f_dropdown_expanded = NULL;
+
+			// Invalidate the full screen to redraw everything
+			invalidate_rect(0, 0, screen_width, screen_height);
+
+			update_field(f);
+			return 1; // Event handled
+		}
+		else
+		{
+			// Click was on the main button area - collapse dropdown
+			f_dropdown_expanded = NULL;
+			invalidate_rect(f->x, f->y, f->width, 40 + (option_index + 1) * 40);
+			update_field(f);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (event == GDK_BUTTON_PRESS)
@@ -6590,6 +6874,40 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 	else if (event->type == GDK_BUTTON_PRESS /*&& event->button == GDK_BUTTON_PRIMARY*/)
 	{
 
+		// Check if we have an expanded dropdown first
+		if (f_dropdown_expanded)
+		{
+			// Count options to calculate expanded height
+			char temp[1000];
+			strcpy(temp, f_dropdown_expanded->selection);
+			int num_options = 0;
+			char *p = strtok(temp, "/");
+			while (p)
+			{
+				num_options++;
+				p = strtok(NULL, "/");
+			}
+			int expanded_height = 40 + (num_options * 40);
+
+			// Check if click is within expanded dropdown area
+			if (f_dropdown_expanded->x < event->x &&
+			    event->x < f_dropdown_expanded->x + f_dropdown_expanded->width &&
+			    f_dropdown_expanded->y < event->y &&
+			    event->y < f_dropdown_expanded->y + expanded_height)
+			{
+				if (f_dropdown_expanded->fn)
+				{
+					f_dropdown_expanded->fn(f_dropdown_expanded, NULL, GDK_BUTTON_PRESS, event->x, event->y, event->button);
+				}
+				last_mouse_x = (int)event->x;
+				last_mouse_y = (int)event->y;
+				mouse_down = 1;
+				mfk_locked_to_volume = 0;
+				mfk_last_ms = sbitx_millis();
+				return FALSE;
+			}
+		}
+
 		// printf("mouse event at %d, %d\n", (int)(event->x), (int)(event->y));
 		for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 		{
@@ -7846,29 +8164,25 @@ void change_band(char *request)
 
 void highlight_band_field(int new_band)
 {
-	int max_bands = sizeof(band_stack) / sizeof(struct band);
-	for (int b = 0; b < max_bands; b++)
+	// Get the band dropdown field
+	struct field *band_field = get_field("#band");
+	if (!band_field)
+		return;
+
+	// Update the label to show the current band name
+	strcpy(band_field->label, band_stack[new_band].name);
+
+	// Create stack position indicator (=---, -=--, --=-, ---=)
+	int stack_pos = band_stack[new_band].index;
+	char stack_indicator[5];
+	for (int i = 0; i < 4; i++)
 	{
-		struct field *band_field = get_field_by_label(band_stack[b].name);
-		if (!strcmp(field_str("BSTACKPOSOPT"), "ON"))
-		{
-			sprintf(band_field->value, "%s", stack_place[band_stack[b].index]);
-			if (b == new_band)
-			{
-				band_field->font_index = FONT_FIELD_LABEL; // FONT_FIELD_SELECTED;
-			}
-			else
-			{
-				band_field->font_index = FONT_BLACK;
-			}
-		}
-		else
-		{
-			band_field->value[0] = 0;
-		}
-		// printf("highlight_band_field:  Band %s value set to %s\n", band_stack[b].name, band_field->value);
-		update_field(band_field);
+		stack_indicator[i] = (i == stack_pos) ? '=' : '-';
 	}
+	stack_indicator[4] = '\0';
+	strcpy(band_field->value, stack_indicator);
+
+	update_field(band_field);
 }
 
 void utc_set(char *args, int update_rtc)
