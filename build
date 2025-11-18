@@ -46,6 +46,8 @@ mkdir -p "./audio"
 mkdir -p "./data"
 mkdir -p "./web"
 
+git submodule update --init
+
 if test -f "data/sbitx.db"; then
 	echo "database is intact"
 else
