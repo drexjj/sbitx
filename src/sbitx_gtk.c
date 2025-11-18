@@ -3750,14 +3750,15 @@ void menu_display(int show) {
 				field_move("TXEQ", 70, screen_height - 80, 45, 37);
 				field_move("RXEQ", 120, screen_height - 80, 45, 37);
 				field_move("NOTCH", 185, screen_height - 80, 95, 37);
-				field_move("ANR", 285, screen_height - 80, 45, 37);
-				field_move("COMP", 350, screen_height - 80, 45, 37);
-				field_move("TXMON", 410, screen_height - 80, 45, 37);
-				field_move("TNDUR", 470, screen_height - 80, 45, 37);
-				field_move("APF", 530, screen_height - 80, 95, 37);
+				field_move("ANR", 295, screen_height - 80, 45, 37);
+				field_move("APF", 355, screen_height - 80, 95, 37);				
+				field_move("COMP", 470, screen_height - 80, 45, 37);
+				field_move("TXMON", 535, screen_height - 80, 45, 37);
+				field_move("TNDUR", 600, screen_height - 80, 45, 37);
+
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", screen_width - 160, screen_height - 80, 92, 37);
+					field_move("ePTT", screen_width - 135, screen_height - 80, 70, 37);
 				}
 
 				// Line 2
@@ -3765,12 +3766,13 @@ void menu_display(int show) {
 				field_move("EQSET", 70, screen_height - 40, 95, 37);
 				field_move("NFREQ", 185, screen_height - 40, 45, 37);
 				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
-				field_move("DSP", 285, screen_height - 40, 45, 37);
-				field_move("BFO", 350, screen_height - 40, 45, 37);
-				field_move("VFOLK", 410, screen_height - 40, 45, 37);
-				field_move("TNPWR", 470, screen_height - 40, 45, 37);
-				field_move("GAIN", 530, screen_height - 40, 45, 37);
-				field_move("WIDTH", 580, screen_height - 40, 45, 37);
+				field_move("DSP", 295, screen_height - 40, 45, 37);
+				field_move("GAIN", 355, screen_height - 40, 45, 37);
+				field_move("WIDTH", 405, screen_height - 40, 45, 37);								
+				field_move("BFO", 470, screen_height - 40, 45, 37);
+				field_move("VFOLK", 535, screen_height - 40, 45, 37);
+				field_move("TNPWR", 600, screen_height - 40, 45, 37);
+
 			}
 
 			else {
