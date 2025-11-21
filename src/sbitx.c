@@ -1551,7 +1551,7 @@ void read_power()
 			vswr = 100;
 		else
 			vswr = (10 * (vfwd + vref)) / (vfwd - vref);
-	}
+		} 
 
 	// Check and handle VSWR
 	check_and_handle_vswr(vswr);
@@ -2326,6 +2326,9 @@ void setup()
 	modem_init();
 	
 	// Initialize VSWR monitor to ensure clean startup state
+	vswr = 0;
+	fwdpower = 0;
+	fwdpower_calc = 0;
 	init_vswr_monitor();
 	
 	add_rx(7000000, MODE_LSB, -3000, -300);

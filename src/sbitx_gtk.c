@@ -8569,7 +8569,7 @@ void cmd_exec(char *cmd)
 			{
 				max_vswr = new_max_vswr;
 				char msg[128];
-				snprintf(msg, sizeof(msg), "max_vswr changed to %.1f\n", max_vswr);
+				snprintf(msg, sizeof(msg), "\n max_vswr changed to %.1f\n", max_vswr);
 				write_console(STYLE_LOG, msg);
 			}
 			else

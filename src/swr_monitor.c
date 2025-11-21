@@ -59,7 +59,7 @@ void check_and_handle_vswr(int vswr)
 			// Write warning to console
 			char warning_msg[128];
 			snprintf(warning_msg, sizeof(warning_msg), 
-			         "*VSWR WARNING: SWR %.1f exceeds threshold %.1f, reducing drive to %d\n",
+			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f, reducing drive to %d\n",
 			         swr, max_vswr, tunepower);
 			write_console(STYLE_LOG, warning_msg);
 		}
@@ -77,7 +77,7 @@ void check_and_handle_vswr(int vswr)
 		// Write info to console
 		char info_msg[128];
 		snprintf(info_msg, sizeof(info_msg), 
-		         "*VSWR: SWR %.1f back below threshold %.1f, UI cleared (drive NOT restored)\n",
+		         "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared (drive NOT restored)\n",
 		         swr, max_vswr);
 		write_console(STYLE_LOG, info_msg);
 		
@@ -111,6 +111,7 @@ void init_vswr_monitor(void)
 {
 	// Ensure tripped flag is off
 	vswr_tripped = 0;
+	
 	
 	// Clear UI fields to ensure clean startup
 	set_field("#vswr_alert", "0");
