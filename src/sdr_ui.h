@@ -79,8 +79,9 @@ void loop();
 void display();
 void redraw();
 void key_pressed(char c);
-
+int set_field(const char *id, const char *value);
 int field_set(const char *label, const char *new_value);
+
 int get_field_value(char *id, char *value);
 int get_field_value_by_label(char *label, char *value);
 const char *field_str(const char *label);

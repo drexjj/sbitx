@@ -1134,6 +1134,15 @@ struct field main_controls[] = {
 	{"#kbd_space2", do_kbd,      650, 450, 102,37, "",  1, "SPACE", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 	//{"#kbd_kbd",    do_kbd_close,750, 450, 50, 37, "",  1, "KBD",   FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
+	// VSWR monitoring fields (internal state, not visible controls)
+	// Position coordinates (1000, -1000) are used to hide these fields from display
+	{"#vswr_alert", NULL, 1000, -1000, 10, 10, "VSWR_ALERT", 70, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 10, 1, COMMON_CONTROL},
+	{"#spectrum_left_msg", NULL, 1000, -1000, 100, 10, "SPECTRUM_LEFT_MSG", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 100, 1, COMMON_CONTROL},
+	{"#spectrum_left_color", NULL, 1000, -1000, 20, 10, "SPECTRUM_LEFT_COLOR", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 20, 1, COMMON_CONTROL},
+
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 };
@@ -3063,6 +3072,28 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 	bool is_s_meter_on = strcmp(field_str("SMETEROPT"), "ON") == 0;
+
+	// --- HIGH SWR indicator (left side, red message)
+	const char *swr_msg = field_str("SPECTRUM_LEFT_MSG");
+	const char *swr_color = field_str("SPECTRUM_LEFT_COLOR");
+	
+	if (swr_msg && strlen(swr_msg) > 0) {
+		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
+		
+		// Set color based on spectrum_left_color field below smeter
+		if (swr_color && strcmp(swr_color, "red") == 0) {
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
+		} else {
+			cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);  // White default
+		}
+		
+		// Position on left side of spectrum
+		int swr_text_x = f_spectrum->x + 9;
+		int swr_text_y = f_spectrum->y + 50;
+		
+		cairo_move_to(gfx, swr_text_x, swr_text_y);
+		cairo_show_text(gfx, swr_msg);
+	}
 
 	if (zero_beat_enabled) {
 		// --- Zero Beat indicator
@@ -8528,6 +8559,32 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
+	
+		else if (!strcasecmp(exec, "max_vswr"))
+	{
+		if (strlen(args) > 0)
+		{
+			float new_max_vswr = atof(args);
+			if (new_max_vswr >= 1.0f && new_max_vswr <= 10.0f)
+			{
+				max_vswr = new_max_vswr;
+				char msg[128];
+				snprintf(msg, sizeof(msg), "max_vswr changed to %.1f\n", max_vswr);
+				write_console(STYLE_LOG, msg);
+			}
+			else
+			{
+				write_console(STYLE_LOG, "max_vswr must be between 1.0 and 10.0\n");
+			}
+		}
+		else
+		{
+			char msg[128];
+			snprintf(msg, sizeof(msg), "max_vswr = %.1f\n", max_vswr);
+			write_console(STYLE_LOG, msg);
+		}
+	}
+	
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))

@@ -7,6 +7,9 @@ extern float max_vswr;
 // Flag indicating if VSWR has been tripped
 extern int vswr_tripped;
 
+// Initialize VSWR monitor at startup
+void init_vswr_monitor(void);
+
 // Check VSWR and handle reduction/recovery
 // vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
 void check_and_handle_vswr(int vswr);

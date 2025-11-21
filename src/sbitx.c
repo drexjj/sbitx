@@ -2325,6 +2325,9 @@ void setup()
 
 	modem_init();
 	
+	// Initialize VSWR monitor to ensure clean startup state
+	init_vswr_monitor();
+	
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
