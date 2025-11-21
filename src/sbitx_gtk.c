@@ -52,6 +52,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 #include "calibration_ui.h"
+#include "swr_monitor.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -7004,6 +7005,9 @@ void query_swr()
 	set_field("#fwdpower", buff);
 	sprintf(buff, "%d", vswr);
 	set_field("#vswr", buff);
+
+	// Check and handle VSWR
+	check_and_handle_vswr(vswr);
 }
 void oled_toggle_band()
 {

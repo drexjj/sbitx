@@ -23,6 +23,7 @@
 #include "si5351.h"
 #include "ini.h"
 #include "para_eq.h"
+#include "swr_monitor.h"
 
 #define DEBUG 0
 
@@ -1551,6 +1552,9 @@ void read_power()
 		else
 			vswr = (10 * (vfwd + vref)) / (vfwd - vref);
 	}
+
+	// Check and handle VSWR
+	check_and_handle_vswr(vswr);
 
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
