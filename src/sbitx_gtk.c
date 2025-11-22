@@ -1138,9 +1138,9 @@ struct field main_controls[] = {
 	// Position coordinates (1000, -1000) are used to hide these fields from display
 	{"#vswr_alert", NULL, 1000, -1000, 10, 10, "VSWR_ALERT", 70, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 10, 1, COMMON_CONTROL},
-	{"#spectrum_left_msg", NULL, 1000, -1000, 100, 10, "SPECTRUM_LEFT_MSG", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	{"#high_vswr_msg", NULL, 1000, -1000, 100, 10, "HIGH_VSWR_MSG", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#spectrum_left_color", NULL, 1000, -1000, 20, 10, "SPECTRUM_LEFT_COLOR", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	{"#high_vswr_color", NULL, 1000, -1000, 20, 10, "HIGH_VSWR_COLOR", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 20, 1, COMMON_CONTROL},
 
 	// the last control has empty cmd field
@@ -3074,13 +3074,13 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	bool is_s_meter_on = strcmp(field_str("SMETEROPT"), "ON") == 0;
 
 	// --- HIGH SWR indicator (left side, red message)
-	const char *swr_msg = field_str("SPECTRUM_LEFT_MSG");
-	const char *swr_color = field_str("SPECTRUM_LEFT_COLOR");
+	const char *swr_msg = field_str("HIGH_VSWR_MSG");
+	const char *swr_color = field_str("HIGH_VSWR_COLOR");
 	
 	if (swr_msg && strlen(swr_msg) > 0 && vswr_tripped ==1) {
 		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
 		
-		// Set color based on high_vswr_color field below smeter
+		// Set color based on spectrum_left_color field below smeter
 		if (swr_color && strcmp(swr_color, "red") == 0) {
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
 		} else {

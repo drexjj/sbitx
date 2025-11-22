@@ -70,9 +70,9 @@ void check_and_handle_vswr(int vswr)
 			// Update UI: set alert flag
 			set_field("#vswr_alert", "1");
 			
-			// Set spectrum left message to "HIGH SWR" in red
-			set_field("#spectrum_left_msg", "HIGH SWR");
-			set_field("#spectrum_left_color", "red");
+			// Set message to "HIGH SWR" in red
+			set_field("#high_vswr_msg", "HIGH SWR");
+			set_field("#high_vswr_color", "red");
 			
 			// Write warning to console
 			char warning_msg[128];
@@ -89,8 +89,8 @@ void check_and_handle_vswr(int vswr)
 		
 		// Clear UI alerts
 		set_field("#vswr_alert", "0");
-		set_field("#spectrum_left_msg", "");
-		set_field("#spectrum_left_color", "");
+		set_field("#high_vswr_msg", "");
+		set_field("#high_vswr_color", "");
 		
 		// Write info to console
 		char info_msg[128];
@@ -112,6 +112,6 @@ void init_vswr_monitor(void)
 	
 	// Clear UI fields to ensure clean startup
 	set_field("#vswr_alert", "0");
-	set_field("#spectrum_left_msg", "");
-	set_field("#spectrum_left_color", "");
+	set_field("#high_vswr_msg", "");
+	set_field("#high_vswr_color", "");
 }
