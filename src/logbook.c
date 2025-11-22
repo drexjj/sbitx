@@ -330,20 +330,27 @@ void logbook_open()
 	}
 }
 
-void logbook_add(char* contact_callsign, char* rst_sent, char* exchange_sent,
-	char* rst_recv, char* exchange_recv, int tx_power, int tx_vswr,
-	char* xota, char* xota_loc, char* comments)
+void logbook_add(const char* contact_callsign, const char* rst_sent, const char* exchange_sent,
+	const char* rst_recv, const char* exchange_recv, int tx_power, int tx_vswr,
+	const char* xota, const char* xota_loc, const char* comments)
 {
 	char statement[1000], *err_msg, date_str[11], time_str[5];
-	char freq[12], log_freq[12], mode[10], mycallsign[12];
+	char log_freq[12], mode[10], mycallsign[12];
 
 	time_t log_time = time_sbitx();
 	struct tm* tmp = gmtime(&log_time);
-	get_field_value("r1:freq", freq);
 	get_field_value("r1:mode", mode);
+	const bool ftx = !strcmp(mode, "FT8");
+	int freq = field_int("FREQ");
+	// For FT8/FT4 we log dial frequency + audio frequency
+	if (ftx) {
+		const int pitch = field_int("PITCH");
+		printf("FTx: freq %d + pitch %d\n", freq, pitch);
+		freq += pitch;
+	}
 	get_field_value("#mycallsign", mycallsign);
 
-	snprintf(log_freq, sizeof(log_freq), "%d", atoi(freq) / 1000);
+	snprintf(log_freq, sizeof(log_freq), "%d", freq);
 	snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday);
 	snprintf(time_str, sizeof(time_str), "%02d%02d", tmp->tm_hour, tmp->tm_min);
 
@@ -535,11 +542,20 @@ int write_adif_record(void *stmt, char *buf, int len) {
 				rec = 0;
 			break;
 		case 2: { // freq
-			long f = atoi(field_value);
-			float ffreq=atof(field_value)/1000.0;  // convert kHz to MHz
-			snprintf(field_value, sizeof(field_value), "%.3f",ffreq); // write out with 3 decimal digits
+			long hz = atoi(field_value);
+			if (hz > 100000) {
+				// big number: it must really be in hz (new log entry)
+				float mhz = hz / 1000000.0;
+				snprintf(field_value, sizeof(field_value), "%.6f", mhz); // write out with 6 decimal digits
+			} else {
+				// assume it's in khz (old log entry)
+				hz *= 1000;
+				float mhz = hz / 1000000.0;
+				snprintf(field_value, sizeof(field_value), "%.3f", mhz); // write out only the 3 digits we know
+			}
+			const long khz = hz / 1000;
 			for (int j = 0 ; j < sizeof(bands)/sizeof(struct band_name); j++)
-				if (bands[j].from <= f && f <= bands[j].to)
+				if (bands[j].from <= khz && khz <= bands[j].to)
 					buf_offset += snprintf(buf + buf_offset, len - buf_offset,
 						"<BAND:%d>%s ", strlen(bands[j].name), bands[j].name);
 		} break;

@@ -1911,9 +1911,14 @@ void save_user_settings(int forced)
 
 void enter_qso()
 {
-	const char *callsign = field_str("CALL");
-	const char *rst_sent = field_str("SENT");
-	const char *rst_received = field_str("RECV");
+	const char *callsign = get_field("#contact_callsign")->value;
+	const char *rst_sent = get_field("#rst_sent")->value;
+	const char *rst_received = get_field("#rst_received")->value;
+	const char *exch_sent = get_field("#exchange_sent")->value;
+	const char *exch_received = get_field("#exchange_received")->value;
+	const char *comment = get_field("#text_in")->value;
+	const int power = field_int("POWER");
+	const int swr = field_int("REF");
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -1927,22 +1932,14 @@ void enter_qso()
 		printf("Duplicate log entry not accepted for %s within two minutes of last entry of %s.\n", callsign, callsign);
 		return;
 	}
-	const int power = field_int("POWER");
-	const int swr = field_int("REF");
 
-	logbook_add(get_field("#contact_callsign")->value,
-				get_field("#rst_sent")->value,
-				get_field("#exchange_sent")->value,
-				get_field("#rst_received")->value,
-				get_field("#exchange_received")->value,
-				power,
-				swr,
+	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received, power, swr,
 				"", "", // xota: TODO
-				get_field("#text_in")->value);
+				comment);
 
 	char buff[100];
 	snprintf(buff, sizeof(buff), "Logged: %s %s s %s r %s pwr %d.%d swr %d.%d\n",
-			field_str("CALL"), field_str("EXCH"), field_str("SENT"), field_str("RECV"),
+			callsign, exch_received, rst_sent, rst_received,
 			power / 10, power % 10, swr / 10, swr % 10);
 	write_console(STYLE_LOG, buff);
 	printf(buff);
