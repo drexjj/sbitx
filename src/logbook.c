@@ -172,7 +172,7 @@ int logbook_get_grids(void (*f)(char*, int))
 					  "GROUP BY exch_recv order by exch_recv";
 	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 	int cnt = 0;
-	char grid[10];
+	char grid[20];
 	int n = 0;
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		int num_cols = sqlite3_column_count(stmt);
@@ -903,14 +903,14 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	entry_freq = gtk_entry_new();
 	gtk_grid_attach(GTK_GRID(grid), entry_freq, 1, 0, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_freq), (gchar*)freq);
-	gtk_entry_set_max_length(GTK_ENTRY(entry_freq), 12);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_freq), 19);
 	gtk_entry_set_input_purpose(GTK_ENTRY(entry_freq), GTK_INPUT_PURPOSE_NUMBER);
 
 	// mode field
 	label = gtk_label_new("Mode");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 1, 1, 1);
 	entry_mode = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_mode), 10);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_mode), 19);
 	gtk_grid_attach(GTK_GRID(grid), entry_mode, 1, 1, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_mode), (gchar*)mode);
 
@@ -918,7 +918,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("Callsign");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 2, 1, 1);
 	entry_callsign = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_callsign), 11);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_callsign), 19);
 	g_signal_connect(entry_callsign, "changed", G_CALLBACK(on_callsign_changed), NULL); // Connect signal handler
 	gtk_grid_attach(GTK_GRID(grid), entry_callsign, 1, 2, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_callsign), (gchar*)callsign);
@@ -927,7 +927,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("RST Sent");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 3, 1, 1);
 	entry_rst_sent = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_rst_sent), 10);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_rst_sent), 19);
 	gtk_grid_attach(GTK_GRID(grid), entry_rst_sent, 1, 3, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_rst_sent), (gchar*)rst_sent);
 
@@ -935,7 +935,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("Exchange Sent");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 4, 1, 1);
 	entry_exchange_sent = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_sent), 10);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_sent), 19);
 	gtk_grid_attach(GTK_GRID(grid), entry_exchange_sent, 1, 4, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_exchange_sent), (gchar*)exchange_sent);
 
@@ -943,7 +943,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("RST Rcvd");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 5, 1, 1);
 	entry_rst_recv = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_rst_recv), 6);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_rst_recv), 19);
 	gtk_grid_attach(GTK_GRID(grid), entry_rst_recv, 1, 5, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_rst_recv), (gchar*)rst_recv);
 
@@ -951,7 +951,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("Exchange Rcvd");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 6, 1, 1);
 	entry_exchange_recv = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_recv), 6);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_exchange_recv), 19);
 	gtk_grid_attach(GTK_GRID(grid), entry_exchange_recv, 1, 6, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_exchange_recv), (gchar*)exchange_recv);
 
@@ -959,7 +959,7 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	label = gtk_label_new("Comment");
 	gtk_grid_attach(GTK_GRID(grid), label, 0, 7, 1, 1);
 	entry_comment = gtk_entry_new();
-	gtk_entry_set_max_length(GTK_ENTRY(entry_comment), 40);
+	gtk_entry_set_max_length(GTK_ENTRY(entry_comment), 999);
 	gtk_grid_attach(GTK_GRID(grid), entry_comment, 1, 7, 1, 1);
 	gtk_entry_set_text(GTK_ENTRY(entry_comment), (gchar*)comment);
 
@@ -978,15 +978,15 @@ int edit_qso(char* qso_id, char* freq, char* mode, char* callsign, char* rst_sen
 	gint response = gtk_dialog_run(GTK_DIALOG(dialog));
 
 	if (response == GTK_RESPONSE_ACCEPT) {
-		const gchar* callsign_response = gtk_entry_get_text(GTK_ENTRY(entry_callsign));
-		strncpy(freq, gtk_entry_get_text(GTK_ENTRY(entry_freq)), sizeof(freq));
-		strncpy(mode, gtk_entry_get_text(GTK_ENTRY(entry_mode)), sizeof(mode));
-		strncpy(callsign, gtk_entry_get_text(GTK_ENTRY(entry_callsign)), sizeof(callsign));
-		strncpy(rst_sent, gtk_entry_get_text(GTK_ENTRY(entry_rst_sent)), sizeof(rst_sent));
-		strncpy(rst_recv, gtk_entry_get_text(GTK_ENTRY(entry_rst_recv)), sizeof(rst_recv));
-		strncpy(exchange_sent, gtk_entry_get_text(GTK_ENTRY(entry_exchange_sent)), sizeof(exchange_sent));
-		strncpy(exchange_recv, gtk_entry_get_text(GTK_ENTRY(entry_exchange_recv)), sizeof(exchange_recv));
-		strncpy(comment, gtk_entry_get_text(GTK_ENTRY(entry_comment)), sizeof(comment));
+		//~ const gchar* callsign_response = gtk_entry_get_text(GTK_ENTRY(entry_callsign));
+		strncpy(freq, gtk_entry_get_text(GTK_ENTRY(entry_freq)), 20);
+		strncpy(mode, gtk_entry_get_text(GTK_ENTRY(entry_mode)), 20);
+		strncpy(callsign, gtk_entry_get_text(GTK_ENTRY(entry_callsign)), 20);
+		strncpy(rst_sent, gtk_entry_get_text(GTK_ENTRY(entry_rst_sent)), 20);
+		strncpy(rst_recv, gtk_entry_get_text(GTK_ENTRY(entry_rst_recv)), 20);
+		strncpy(exchange_sent, gtk_entry_get_text(GTK_ENTRY(entry_exchange_sent)), 20);
+		strncpy(exchange_recv, gtk_entry_get_text(GTK_ENTRY(entry_exchange_recv)), 20);
+		strncpy(comment, gtk_entry_get_text(GTK_ENTRY(entry_comment)), 1000);
 		gtk_widget_destroy(dialog);
 		return GTK_RESPONSE_OK;
 	} else {
@@ -1166,8 +1166,11 @@ void delete_button_clicked(GtkWidget* entry, gpointer tree_view)
 
 void edit_button_clicked(GtkWidget* entry, gpointer tree_view)
 {
-	gchar *qso_id, *mode, *freq, *callsign, *rst_sent, *rst_recv, *exchange_sent,
-		*exchange_recv, *comment;
+	gchar *_qso_id, *_mode, *_freq, *_callsign, *_rst_sent, *_rst_recv, *_exchange_sent,
+		*_exchange_recv, *_comment;
+	char id[10], qso_time[20], qso_date[20], freq[20], mode[20], callsign[20],
+		rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20],
+		tx_pwr[10], swr[10], xota[5], xota_loc[16], comment[1000];
 	GtkTreeIter iter;
 
 	GtkTreeModel* model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
@@ -1175,33 +1178,35 @@ void edit_button_clicked(GtkWidget* entry, gpointer tree_view)
 	if (!gtk_tree_selection_get_selected(selection, &model, &iter))
 		return;
 
-	//  if (!gtk_tree_model_get_iter(model, &iter, path))
-	//		return;
-	gtk_tree_model_get(model, &iter, 0, &qso_id,
-		2, &freq, 3, &mode, 4, &callsign, 5, &rst_sent, 6, &exchange_sent,
-		7, &rst_recv, 8, &exchange_recv, 13, &comment,
+	// from docs: "values with type G_TYPE_STRING... have to be freed"
+	// i.e. gtk_tree_model_get() allocates just enough memory to hold each result
+	gtk_tree_model_get(model, &iter, 0, &_qso_id,
+		2, &_freq, 3, &_mode, 4, &_callsign, 5, &_rst_sent, 6, &_exchange_sent,
+		7, &_rst_recv, 8, &_exchange_recv, 13, &_comment,
 		-1);
 
-	if (edit_qso(qso_id, freq, mode, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comment)) {
-		char statement[1000], *err_msg;
+	// But we allow the user to change the sizes (especially the comment field!)
+	// so copy what we got into known-size strings, and free the strings from gtk_tree_model_get()
+	strncpy(id, _qso_id, sizeof(id)); g_free(_qso_id);
+	strncpy(mode, _mode, sizeof(mode)); g_free(_mode);
+	strncpy(freq, _freq, sizeof(freq)); g_free(_freq);
+	strncpy(callsign, _callsign, sizeof(callsign)); g_free(_callsign);
+	strncpy(rst_sent, _rst_sent, sizeof(rst_sent)); g_free(_rst_sent);
+	strncpy(exchange_sent, _exchange_sent, sizeof(exchange_sent)); g_free(_exchange_sent);
+	strncpy(rst_recv, _rst_recv, sizeof(rst_recv)); g_free(_rst_recv);
+	strncpy(exchange_recv, _exchange_recv, sizeof(exchange_recv)); g_free(_exchange_recv);
+	strncpy(comment, _comment, sizeof(comment)); g_free(_comment);
+
+	if (edit_qso(id, freq, mode, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv, comment)) {
+		char statement[2000], *err_msg;
 		snprintf(statement, sizeof(statement),
 			"UPDATE logbook SET mode = '%s', freq = '%s', callsign_recv = '%s', rst_sent = '%s', "
 			"exch_sent = '%s',rst_recv = '%s', exch_recv = '%s', comments = '%s' WHERE id = '%s'",
 			mode, freq, callsign, rst_sent, exchange_sent, rst_recv, exchange_recv,
-			comment, qso_id);
+			comment, id);
 
 		sqlite3_exec(db, statement, 0, 0, &err_msg);
 	}
-
-	g_free(qso_id);
-	g_free(mode);
-	g_free(freq);
-	g_free(callsign);
-	g_free(rst_sent);
-	g_free(exchange_sent);
-	g_free(rst_recv);
-	g_free(exchange_recv);
-	g_free(comment);
 
 	// refill the log
 	logbook_refill(NULL);
