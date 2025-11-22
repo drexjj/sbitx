@@ -7629,20 +7629,18 @@ gboolean ui_tick(gpointer gook)
 			}
 		}
 	}
-	else
-	{
-		// Check if we should lock to volume due to timeout
-		if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > mfk_timeout_ms) {
-			// lock MFK to volume after inactivity AND move UI focus to the volume control
-			mfk_locked_to_volume = 1;
-			struct field *vol_field = get_field("r1:volume");
-			// now simulate the “knob press” focus change so the green highlight updates
-			if (vol_field) {
-				focus_field(vol_field);
-			}
+
+	// Check if we should lock to volume due to timeout
+	if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > mfk_timeout_ms) {
+		// lock MFK to volume after inactivity AND move UI focus to the volume control
+		mfk_locked_to_volume = 1;
+		struct field *vol_field = get_field("r1:volume");
+		// now simulate the “knob press” focus change so the green highlight updates
+		if (vol_field) {
+			focus_field(vol_field);
 		}
 	}
-
+	
 
 	// Check ENC1_SW for unlock (edge detection)
 	int enc1_sw_now = digitalRead(ENC1_SW);
