@@ -49,7 +49,13 @@ mkdir -p "./web"
 git submodule update --init
 
 if test -f "data/sbitx.db"; then
-	echo "database is intact"
+	HAS_TX_POWER=`sqlite3 data/sbitx.db "SELECT COUNT(*) AS CNTREC FROM pragma_table_info('logbook') WHERE name='tx_power'"`
+	if [ "$HAS_TX_POWER" -eq 0 ]; then
+		echo "new columns will be added to the database"
+		sqlite3 data/sbitx.db < data/add_columns.sql
+	else
+		echo "database is intact"
+	fi
 else
 	echo "database doesn't exist, it will be created"
 	cd data
@@ -106,6 +112,6 @@ else
     echo "hw_settings.ini not found"
 fi
 
-echo "Brought to you by the sBitx 64 bit project team" 
+echo "Brought to you by the sBitx 64 bit project team"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo Build completed at $(date)
