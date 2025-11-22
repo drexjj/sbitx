@@ -6,6 +6,8 @@ extern float max_vswr;
 
 // Flag indicating if VSWR has been tripped
 extern int vswr_tripped;
+// Flag indicating if SWR protection enabled
+extern int vswr_on;
 
 // Initialize VSWR monitor at startup
 void init_vswr_monitor(void);

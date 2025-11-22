@@ -6,15 +6,34 @@
 #include "swr_monitor.h"
 #include "sdr_ui.h"
 #include "sdr.h"
+/*
+define a default max swr of 3
+initialize as enablede but not tripped
+
+If swr is over that the drive is set to TNPWR
+  a message is sent to the console
+  a large red "HIGH SWR" appears on the spectrum.
+  I thought I needed that because if you are in full display you won't see the console message.
+If the SWR drops below max_vswr
+  a console message tells you,
+  the HIGH SWR disappears
+  BUT the drive is NOT reset. You have to change manually, hopefully with some caution.
+You can set max_vswr from the command line
+  \max_vswr value (float)
+  setting it to 0 turns SWR protection off, with a console message of Caution. 
+   
+Internally vswr_tripped tracks whether max_vswr was exceeded 
+  and vswr_on tracks whether enabled or disabled  
+    
+*/
 
 // Maximum VSWR threshold (default 3.0)
 float max_vswr = 3.0f;
 
 // Flag indicating if VSWR has been tripped (0 = normal, 1 = tripped)
 int vswr_tripped = 0;
-
-// Saved drive value (for reference, not restored per requirements)
-static int saved_drive_value = 0;
+// Flag indicating if feature enabled (0 = disabled, 1 = enabled)
+int vswr_on=1;
 
 /**
  * Check VSWR and handle reduction/recovery
@@ -24,10 +43,9 @@ void check_and_handle_vswr(int vswr)
 {
 	// Convert from integer representation to float (vswr / 10.0)
 	float swr = vswr / 10.0f;
-//	printf(" handle  "); //
 	// Check if VSWR exceeds threshold and not already tripped
-	if (swr > max_vswr && vswr_tripped == 0) {
-//		printf(" tripped\n");  //
+	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
+//		printf(" tripped %d\n",vswr_on);  //
 		char response[100];
 		char drive_str[32];
 		char tnpwr_str[32];
@@ -77,49 +95,23 @@ void check_and_handle_vswr(int vswr)
 		// Write info to console
 		char info_msg[128];
 		snprintf(info_msg, sizeof(info_msg), 
-		         "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared (drive NOT restored)\n",
-		         swr, max_vswr);
+			 "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared (drive NOT restored)\n",
+			 swr, max_vswr);
 		write_console(STYLE_LOG, info_msg);
 		
 		// Do NOT restore the drive value - leave it reduced for safety
 	}
 }
 
-/**
- * Reset VSWR tripped state and clear UI without restoring drive
- */
-void reset_vswr_tripped(void)
-{
-	// Clear flag
-	vswr_tripped = 0;
-	
-	// Clear UI
-	set_field("#vswr_alert", "0");
-	set_field("#spectrum_left_msg", "");
-	set_field("#spectrum_left_color", "");
-	
-	write_console(STYLE_LOG, "*VSWR: Monitor reset\n");
-}
 
-/**
- * init_vswr_monitor - Initialize VSWR monitor at startup
- *
- * Ensures all UI fields are cleared and monitor is in a known state.
- * Should be called during application initialization.
- */
 void init_vswr_monitor(void)
 {
-	// Ensure tripped flag is off
+	// Ensure tripped flag is off, feature activated
 	vswr_tripped = 0;
-	
+	vswr_on=1;
 	
 	// Clear UI fields to ensure clean startup
 	set_field("#vswr_alert", "0");
 	set_field("#spectrum_left_msg", "");
 	set_field("#spectrum_left_color", "");
 }
-/*
- * reset_vswr_tripped - Reset VSWR trip status and clear UI
- *
- * Clears the vswr_tripped flag and UI alerts without restoring drive.
-*/

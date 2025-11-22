@@ -3077,10 +3077,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	const char *swr_msg = field_str("SPECTRUM_LEFT_MSG");
 	const char *swr_color = field_str("SPECTRUM_LEFT_COLOR");
 	
-	if (swr_msg && strlen(swr_msg) > 0) {
+	if (swr_msg && strlen(swr_msg) > 0 && vswr_tripped ==1) {
 		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
 		
-		// Set color based on spectrum_left_color field below smeter
+		// Set color based on high_vswr_color field below smeter
 		if (swr_color && strcmp(swr_color, "red") == 0) {
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
 		} else {
@@ -8562,27 +8562,38 @@ void cmd_exec(char *cmd)
 	
 		else if (!strcasecmp(exec, "max_vswr"))
 	{
+		char msg[128];
 		if (strlen(args) > 0)
 		{
-			float new_max_vswr = atof(args);
+			float new_max_vswr = atof(args);			
+			printf(" vswr %.1f \n",new_max_vswr);
+			if (new_max_vswr < .1f) 
+				{
+					vswr_on = 0;  // turn off protection
+					snprintf(msg, sizeof(msg), "\n CAUTION SWR protection disabled\n"); 
+					write_console(STYLE_LOG, msg);
+				}
+			else 
 			if (new_max_vswr >= 1.0f && new_max_vswr <= 10.0f)
-			{
-				max_vswr = new_max_vswr;
-				char msg[128];
-				snprintf(msg, sizeof(msg), "\n max_vswr changed to %.1f\n", max_vswr);
-				write_console(STYLE_LOG, msg);
-			}
-			else
-			{
-				write_console(STYLE_LOG, "max_vswr must be between 1.0 and 10.0\n");
-			}
+				{
+					vswr_on = 1;  // turn on protection
+					max_vswr = new_max_vswr;					
+					snprintf(msg, sizeof(msg), "\n max_vswr changed to %.1f\n", max_vswr);
+					write_console(STYLE_LOG, msg);
+				}
+				else
+				{
+					snprintf(msg, sizeof(msg), "\n max_vswr must be between 1.0 and 10.0\n");
+					write_console(STYLE_LOG, msg);
+				}
 		}
+		
 		else
 		{
-			char msg[128];
-			snprintf(msg, sizeof(msg), "max_vswr = %.1f\n", max_vswr);
+			snprintf(msg, sizeof(msg), "max_vswr takes value between 1.0 and 10.0\n");
 			write_console(STYLE_LOG, msg);
 		}
+
 	}
 	
 	else if (!strcasecmp(exec, "macro"))
