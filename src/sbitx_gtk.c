@@ -14,6 +14,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <complex.h>
 #include <fftw3.h>
 #include <linux/fb.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <ctype.h>
@@ -358,6 +359,55 @@ static gboolean on_resize(GtkWidget *widget, GdkEventConfigure *event,
 						  gpointer user_data);
 gboolean ui_tick(gpointer gook);
 
+// use built-in GTK capability to capture snapshot of sBitx screen
+// .png format file is saved in /sbitx/screenshots
+static int take_screenshot_desktop(void) {
+  const char *home = getenv("HOME");
+  if (!home) home = "/tmp";
+
+  // attempt to create directory, ignore errors (assume success or existence)
+  char dirpath[512];
+  snprintf(dirpath, sizeof(dirpath), "%s/sbitx/screenshots", home);
+  mkdir(dirpath, 0755);
+
+  // get root window dimensions
+  GdkWindow *root = gdk_get_default_root_window();
+  gint width = 0, height = 0;
+  if (root) {
+    width = gdk_window_get_width(root);
+    height = gdk_window_get_height(root);
+  }
+  // fallback to values for RPI TouchPanel 1 if query didn't work
+  if (width <= 0) width = 800;
+  if (height <= 0) height = 480;
+
+  // grab full screen
+  GdkPixbuf *pix = NULL;
+  if (root) pix = gdk_pixbuf_get_from_window(root, 0, 0, width, height);
+
+  // build timestamped filename
+  time_t now = time(NULL);
+  struct tm tm_now;
+  gmtime_r(&now, &tm_now);
+
+  char filename[512];
+  snprintf(filename, sizeof(filename), "%s/screenshot-%04d%02d%02d-%02d%02d%02d.png",
+           dirpath, tm_now.tm_year + 1900, tm_now.tm_mon + 1, tm_now.tm_mday,
+           tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec);
+
+  // save PNG if we have pixels
+  if (pix) {
+    GError *error = NULL;
+    gdk_pixbuf_save(pix, filename, "png", &error, NULL);
+    g_object_unref(pix);
+    if (error) g_error_free(error); /* swallow error, per "assume success" */
+  } else {
+    // if pix is NULL, do nothing!
+  }
+
+  return 0;
+}
+
 static int measure_text(cairo_t *gfx, char *text, int font_entry)
 {
 	cairo_text_extents_t ext;
@@ -676,6 +726,8 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
+  {"#snap", NULL, 1000, -1000, 40, 40, "SNAP", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+   "", 0, 0, 0, COMMON_CONTROL},
 	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
@@ -8328,6 +8380,10 @@ void do_control_action(char *cmd)
 			write_console(STYLE_LOG, "Recording stopped\n");
 		record_start = 0;
 	}
+  else if (!strcmp(request, "SNAP"))
+  {
+    take_screenshot_desktop();
+  }
 	else if (!strcmp(request, "QRZ") && strlen(field_str("CALL")) > 0)
 	{
 		qrz(field_str("CALL"));
