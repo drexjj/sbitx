@@ -391,7 +391,7 @@ static int take_screenshot_desktop(void) {
   gmtime_r(&now, &tm_now);
 
   char filename[512];
-  snprintf(filename, sizeof(filename), "%s/screenshot-%04d%02d%02d-%02d%02d%02d.png",
+  snprintf(filename, sizeof(filename), "%s/snap-%04d%02d%02d-%02d%02d%02d.png",
            dirpath, tm_now.tm_year + 1900, tm_now.tm_mon + 1, tm_now.tm_mday,
            tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec);
 
