@@ -974,11 +974,12 @@ void ft8_tx(char *message, int freq){
 
 	strncpy(ft8_tx_text, message, sizeof(ft8_tx_text));
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
-	ftx_would_send(); // update wallclock_day_ms, ft8_pitch, ft8_tx1st
+	const bool send_now = ftx_would_send(); // update wallclock_day_ms, ft8_pitch, ft8_tx1st
 	if (!freq)
 		freq = ft8_pitch;
 	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", freq, ft8_tx_text);
-	write_console(STYLE_FT8_QUEUED, buf);
+	if (!send_now)
+		write_console(STYLE_FT8_QUEUED, buf);
 	LOG(LOG_INFO, "<- %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), buf);
 
 	//also set the times of transmission
