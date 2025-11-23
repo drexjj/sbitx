@@ -26,28 +26,27 @@
 
 // We try to avoid calling automatically the same stations again and again, at least in this session
 #define min(x, y) (((x) < (y)) ? (x) : (y))
-#define FT8_CALLED_SIZE 64
-static char ft8_already_called[FT8_CALLED_SIZE][32];
-static int ft8_already_called_n = 0;
+#define FTX_CALLED_SIZE 64
+static char ftx_already_called[FTX_CALLED_SIZE][32];
+static int ftx_already_called_n = 0;
 
-static int32_t ft8_rx_buff[FT8_MAX_BUFF];
-static float ft8_rx_buffer[FT8_MAX_BUFF];
-static float ft8_tx_buff[FT8_MAX_BUFF];
-static char ft8_tx_text[128];
+static int32_t ftx_rx_buff[FT8_MAX_BUFF];
+static float ftx_rx_buffer[FT8_MAX_BUFF];
+static float ftx_tx_buff[FT8_MAX_BUFF];
+static char ftx_tx_text[128];
 ftx_message_t ftx_tx_msg;
-static int ft8_rx_buff_index = 0;
-static int ft8_tx_buff_index = 0;
-static int	ft8_tx_nsamples = 0;
-static int ft8_do_decode = 0;
-static int	ft8_do_tx = 0;
-static int	ft8_pitch = 0;
-static int	ft8_mode = FT8_SEMI;
-static pthread_t ft8_thread;
+static int ftx_rx_buff_index = 0;
+static int ftx_tx_buff_index = 0;
+static int ftx_tx_nsamples = 0;
+static int ftx_do_decode = 0;
+static int ftx_do_tx = 0;
+static int ftx_pitch = 0;
+static pthread_t ftx_thread;
 // number of repetitions left for the current message, counting down from the user setting
-static int ft8_repeat = 5;
-static bool is_cq = false; // is ft8_tx_text a CQ?
+static int ftx_repeat = 5;
+static bool is_cq = false; // is ftx_tx_text a CQ?
 static bool ft8_tx1st = true;
-static bool ft8_cq_alt = false;
+static bool ftx_cq_alt = false;
 
 static const int kMin_score = 10; // Minimum sync score threshold for candidates
 static const int kMax_candidates = 120;
@@ -366,7 +365,7 @@ int sbitx_ft8_encode_3f(const char* call_to, const char* call_de, const char* ex
 		rc = ftx_message_encode_nonstd(&ftx_tx_msg, &hash_if, call_to, call_de, extra);
 		if (rc != FTX_MESSAGE_RC_OK) {
 			LOG(LOG_DEBUG, "   ftx_message_encode_nonstd failed: %d\n", rc);
-			rc = ftx_message_encode_free(&ftx_tx_msg, ft8_tx_text);
+			rc = ftx_message_encode_free(&ftx_tx_msg, ftx_tx_text);
 		}
 	}
 
@@ -822,8 +821,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
                  // We try to avoid calling automatically the same stations again and again, at least in this session
                  bool found = false;
-                 for (int ii = 0; ii < min(ft8_already_called_n, FT8_CALLED_SIZE); ii++) {
-                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii]))
+                 for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+                     if (!strcmp(decoded_hashtable[idx]->text, ftx_already_called[ii]))
                         found = true;
                  }
 
@@ -838,8 +837,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
                  // We try to avoid calling automatically the same stations again and again, at least in this session
                  bool found = false;
-                 for (int ii = 0; ii < min(ft8_already_called_n, FT8_CALLED_SIZE); ii++) {
-                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii]))
+                 for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+                     if (!strcmp(decoded_hashtable[idx]->text, ftx_already_called[ii]))
                         found = true;
                  }
 
@@ -856,8 +855,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
        if (candmsg) {
           printf("Maybe we should respond to '%s' ... ", candmsg);
           if (ft8_process(candmsg, FTX_START_QSO)) {
-             strcpy(ft8_already_called[ft8_already_called_n % FT8_CALLED_SIZE], candtext);
-             ft8_already_called_n++;
+             strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], candtext);
+             ftx_already_called_n++;
              printf("yes, doing it\n");
           }
           else
@@ -873,18 +872,18 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 /*!
 	Returns \c true if we have anything to send at this moment (is it the right time to start?)
-	and updates ft8_pitch and is_cq.
-	If ft8_tx_text is a CQ, then it also updates ft8_tx1st
+	and updates ftx_pitch and is_cq.
+	If ftx_tx_text is a CQ, then it also updates ft8_tx1st
 	according to current settings.
 */
 static bool ftx_would_send() {
 	ftx_update_clock();
 	bool start = false;
-	is_cq = !strncmp(ft8_tx_text, "CQ ", 3);
+	is_cq = !strncmp(ftx_tx_text, "CQ ", 3);
 	bool is_ft4 = !strcmp(field_str("MODE"), "FT4");
 	int slot_time = 0;
 
-	ft8_pitch = field_int("TX_PITCH");
+	ftx_pitch = field_int("TX_PITCH");
 
 	// the FT8_TX1ST setting applies only to initiating a CQ call;
 	// otherwise, leave ft8_tx1st as set earlier, e.g. in ft8_process()
@@ -916,32 +915,15 @@ static bool ftx_would_send() {
 	return start;
 }
 
-void ft8_setmode(int config){
-	switch(config){
-		case FT8_MANUAL:
-			ft8_mode = FT8_MANUAL;
-			write_console(STYLE_LOG, "FT8 is manual now.\nSend messages through the keyboard\n");
-			break;
-		case FT8_SEMI:
-			write_console(STYLE_LOG, "FT8 is semi-automatic.\nClick on the callsign to start the QSO\n");
-			ft8_mode = FT8_SEMI;
-			break;
-		case FT8_AUTO:
-			write_console(STYLE_LOG, "FT8 is automatic.\nIt will call CQ and QSO with the first reply.\n");
-			ft8_mode = FT8_AUTO;
-			break;
-	}
-}
-
 static void ftx_start_tx(int offset_ms){
 	char buf[100];
 	int freq = field_int("TX_PITCH");
-	if (freq != ft8_pitch)
-		ft8_pitch = freq;
-	ft8_tx_nsamples = sbitx_ftx_msg_audio(freq,  ft8_tx_buff);
+	if (freq != ftx_pitch)
+		ftx_pitch = freq;
+	ftx_tx_nsamples = sbitx_ftx_msg_audio(freq,  ftx_tx_buff);
 
 	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n",
-		ft8_pitch, ft8_tx_text);
+		ftx_pitch, ftx_tx_text);
 	write_console(STYLE_FT8_TX, buf);
 
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
@@ -950,8 +932,8 @@ static void ftx_start_tx(int offset_ms){
 	// start at the beginning if at all reasonable
 	if (offset_ms < 1000)
 		offset_ms = 0;
-	ft8_tx_buff_index = offset_ms * 96;
-	printf("ftx_start_tx: starting @index %d based on offset_ms %d\n", ft8_tx_buff_index, offset_ms);
+	ftx_tx_buff_index = offset_ms * 96;
+	printf("ftx_start_tx: starting @index %d based on offset_ms %d\n", ftx_tx_buff_index, offset_ms);
 }
 
 /*!
@@ -964,7 +946,7 @@ static void ftx_start_tx(int offset_ms){
 void ft8_tx(char *message, int freq){
 	char buf[64];
 
-	ft8_tx_text[0] = 0;
+	ftx_tx_text[0] = 0;
 	for (int i = 0; i < strlen(message); i++)
 		message[i] = toupper(message[i]);
 	if (sbitx_ft8_encode(message) != FTX_MESSAGE_RC_OK) {
@@ -972,12 +954,12 @@ void ft8_tx(char *message, int freq){
 		return;
 	}
 
-	strncpy(ft8_tx_text, message, sizeof(ft8_tx_text));
+	strncpy(ftx_tx_text, message, sizeof(ftx_tx_text));
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
-	const bool send_now = ftx_would_send(); // update wallclock_day_ms, ft8_pitch, ft8_tx1st
+	const bool send_now = ftx_would_send(); // update wallclock_day_ms, ftx_pitch, ft8_tx1st
 	if (!freq)
-		freq = ft8_pitch;
-	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", freq, ft8_tx_text);
+		freq = ftx_pitch;
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", freq, ftx_tx_text);
 	if (!send_now)
 		write_console(STYLE_FT8_QUEUED, buf);
 	LOG(LOG_INFO, "<- %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), buf);
@@ -991,9 +973,9 @@ void ft8_tx(char *message, int freq){
 	//no repeat for '73'
 	int msg_length = strlen(message);
 	if (msg_length > 3 && !strcmp(message + msg_length - 3, " 73"))
-		ft8_repeat = 1;
+		ftx_repeat = 1;
 	else
-		ft8_repeat = field_int("FT8_REPEAT");
+		ftx_repeat = field_int("FT8_REPEAT");
 }
 
 /*!
@@ -1007,37 +989,37 @@ void ft8_tx(char *message, int freq){
 void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	char buf[64];
 
-	snprintf(ft8_tx_text, sizeof(ft8_tx_text), "%s %s %s", call_to, call_de, extra);
+	snprintf(ftx_tx_text, sizeof(ftx_tx_text), "%s %s %s", call_to, call_de, extra);
 	if (sbitx_ft8_encode_3f(call_to, call_de, extra) != FTX_MESSAGE_RC_OK) {
 		LOG(LOG_INFO, "failed to encode: nothing to transmit\n");
 		return;
 	}
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
-	ftx_would_send(); // update ft8_pitch, is_cq, ft8_tx1st
-	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ft8_pitch, ft8_tx_text);
+	ftx_would_send(); // update ftx_pitch, is_cq, ft8_tx1st
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ftx_pitch, ftx_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
 	LOG(LOG_INFO, "<- %d.%c '%s' '%s' '%s'",
 		message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), call_to, call_de, extra);
 
 	// no repeat for '73'
 	if (!strcmp(extra, " 73"))
-		ft8_repeat = 1;
+		ftx_repeat = 1;
 	else
-		ft8_repeat = field_int("FT8_REPEAT");
+		ftx_repeat = field_int("FT8_REPEAT");
 }
 
-void *ft8_thread_function(void *ptr){
+void *ftx_thread_function(void *ptr){
 	//wake up every 100 msec to see if there is anything to decode
 	while(1){
 		usleep(1000);
 
-		if (!ft8_do_decode)
+		if (!ftx_do_decode)
 			continue;
 
-		ft8_do_decode = 0;
-		sbitx_ft8_decode(ft8_rx_buffer, ft8_rx_buff_index);
+		ftx_do_decode = 0;
+		sbitx_ft8_decode(ftx_rx_buffer, ftx_rx_buff_index);
 		//let the next batch begin
-		ft8_rx_buff_index = 0;
+		ftx_rx_buff_index = 0;
 	}
 }
 
@@ -1049,15 +1031,15 @@ void ft8_rx(int32_t *samples, int count) {
 	int decimation_ratio = 96000/12000;
 
 	//if there is an overflow, then reset to the begining
-	if (ft8_rx_buff_index + (count/decimation_ratio) >= FT8_MAX_BUFF){
-		ft8_rx_buff_index = 0;
+	if (ftx_rx_buff_index + (count/decimation_ratio) >= FT8_MAX_BUFF){
+		ftx_rx_buff_index = 0;
 		printf("Buffer Overflow\n");
 	}
 
 	//down convert to 12000 Hz sampling rate
 	for (int i = 0; i < count; i += decimation_ratio)
-		//ft8_rx_buff[ft8_rx_buff_index++] = samples[i];
-		ft8_rx_buffer[ft8_rx_buff_index++] = samples[i] / 200000000.0f;
+		//ftx_rx_buff[ftx_rx_buff_index++] = samples[i];
+		ftx_rx_buffer[ftx_rx_buff_index++] = samples[i] / 200000000.0f;
 
 	int time_was = wallclock_day_ms;
 	ftx_update_clock();
@@ -1073,15 +1055,15 @@ void ft8_rx(int32_t *samples, int count) {
 		min_secs = 6000;
 		slot_time_decode = 13000 / 2;
 	}
-//~ printf("time %d -> %d; slot %d; ft8_rx_buff_index %d\n", time_was % 60000, wallclock_day_ms % 60000, slot_time, ft8_rx_buff_index);
+//~ printf("time %d -> %d; slot %d; ftx_rx_buff_index %d\n", time_was % 60000, wallclock_day_ms % 60000, slot_time, ftx_rx_buff_index);
 
 	if (slot_time < 500)
-		ft8_rx_buff_index = 0;
+		ftx_rx_buff_index = 0;
 
 	//we should have at least 6 or 12 seconds of samples to decode
-	if (ft8_rx_buff_index >= 13 * min_secs && slot_time > slot_time_decode) {
-		ft8_do_decode = 1;
-//~ printf("ft8_rx decoding trigger index %d, clock %d, slot_time %d\n", ft8_rx_buff_index, wallclock_day_ms % 60000, slot_time);
+	if (ftx_rx_buff_index >= 13 * min_secs && slot_time > slot_time_decode) {
+		ftx_do_decode = 1;
+//~ printf("ft8_rx decoding trigger index %d, clock %d, slot_time %d\n", ftx_rx_buff_index, wallclock_day_ms % 60000, slot_time);
 	}
 }
 
@@ -1090,15 +1072,15 @@ void ft8_poll(int tx_is_on){
 	//until we run out of ft8 sampels
 	if (tx_is_on){
 		//tx_off should not abort repeats from modem_poll, when called from here
-		int ft8_repeat_save = ft8_repeat;
-		if (ft8_tx_nsamples == 0){
+		int ftx_repeat_save = ftx_repeat;
+		if (ftx_tx_nsamples == 0){
 			tx_off();
-			ft8_repeat = ft8_repeat_save;
+			ftx_repeat = ftx_repeat_save;
 		}
 		return;
 	}
 
-	if (!ft8_repeat)
+	if (!ftx_repeat)
 		return;
 
 	//we poll for this only once every half-second
@@ -1109,25 +1091,25 @@ void ft8_poll(int tx_is_on){
 		// FT4: two transmissions take 15 secs; are we interested in the first slot or the second?
 		// FT8: two transmissions take 30 secs; are we interested in the first slot or the second?
 		const int slot_time = is_ft4 ? wallclock_day_ms % 7500 : wallclock_day_ms % 15000;
-		LOG(LOG_DEBUG, "%05d ft8_poll: tx_is_on %d ft8_tx_nsamples %d start '%s'\n",
-			wallclock_day_ms % 60000, tx_is_on, ft8_tx_nsamples, ft8_tx_text);
+		LOG(LOG_DEBUG, "%05d ft8_poll: tx_is_on %d ftx_tx_nsamples %d start '%s'\n",
+			wallclock_day_ms % 60000, tx_is_on, ftx_tx_nsamples, ftx_tx_text);
 		ftx_start_tx(slot_time); // modulate audio at current frequency setting
-		if (ft8_tx_nsamples)
+		if (ftx_tx_nsamples)
 			tx_on(TX_SOFT);
-		ft8_repeat--;
-		if (!ft8_repeat)
+		ftx_repeat--;
+		if (!ftx_repeat)
                    call_wipe();
 	}
 }
 
 float ft8_next_sample(){
 		float sample = 0;
-		if (ft8_tx_buff_index/8 < ft8_tx_nsamples){
-			sample = ft8_tx_buff[ft8_tx_buff_index/8]/7;
-			ft8_tx_buff_index++;
+		if (ftx_tx_buff_index/8 < ftx_tx_nsamples){
+			sample = ftx_tx_buff[ftx_tx_buff_index/8]/7;
+			ftx_tx_buff_index++;
 		}
 		else //stop transmitting ft8
-			ft8_tx_nsamples = 0;
+			ftx_tx_nsamples = 0;
 		return sample;
 }
 
@@ -1285,7 +1267,7 @@ void ft8_on_start_qso(char *message){
 		sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
 	}
 	field_set("NR", mygrid);
-	ft8_tx(reply_message, ft8_pitch);
+	ft8_tx(reply_message, ftx_pitch);
 }
 
 void ft8_on_signal_report(){
@@ -1333,7 +1315,7 @@ void ft8_call(int sel_time)
 	mycall = field_str("MYCALLSIGN");
 	// initial pitch; but it can also be adjusted between timeslots
 	// (audio is re-generated in ftx_start_tx())
-	ft8_pitch = field_int("TX_PITCH");
+	ftx_pitch = field_int("TX_PITCH");
 	//use only the first 4 letters of the grid
 	strcpy(mygrid, field_str("MYGRID"));
 	mygrid[4] = 0;
@@ -1364,7 +1346,7 @@ int ft8_process(char *message, ftx_operation operation)
 	report_send = field_str("SENT");
 	report_received = field_str("RECV");
 	mycall = field_str("MYCALLSIGN");
-	ft8_pitch = field_int("TX_PITCH");
+	ftx_pitch = field_int("TX_PITCH");
 	if (!strcmp(field_str("FT8_AUTO"), "ON"))
 		auto_respond = 1;
 
@@ -1394,7 +1376,7 @@ int ft8_process(char *message, ftx_operation operation)
 	if (!strcmp(m3, "73")){
 		ft8_abort();
 		enter_qso(); // W9JES
-		ft8_repeat = 0;
+		ftx_repeat = 0;
 		return 1;
 	}
 
@@ -1405,7 +1387,7 @@ int ft8_process(char *message, ftx_operation operation)
 		ft8_tx_3f(m2, mycall, "73");
 		enter_qso();
 		call_wipe();
-		ft8_repeat = 1;
+		ftx_repeat = 1;
         return 1;
 	}
 
@@ -1428,14 +1410,14 @@ int ft8_process(char *message, ftx_operation operation)
 }
 
 void ft8_init(){
-	ft8_rx_buff_index = 0;
-	ft8_tx_buff_index = 0;
-	ft8_tx_nsamples = 0;
+	ftx_rx_buff_index = 0;
+	ftx_tx_buff_index = 0;
+	ftx_tx_nsamples = 0;
 	hashtable_init();
-	pthread_create( &ft8_thread, NULL, ft8_thread_function, (void*)NULL);
+	pthread_create( &ftx_thread, NULL, ftx_thread_function, (void*)NULL);
 }
 
 void ft8_abort(){
-	ft8_tx_nsamples = 0;
-	ft8_repeat = 0;
+	ftx_tx_nsamples = 0;
+	ftx_repeat = 0;
 }
