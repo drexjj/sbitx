@@ -279,6 +279,10 @@ char console_selected_callsign[12];
 int console_selected_time = -1;
 time_t console_current_time = 0;
 
+// max power and swr from most recent transmission, for the log
+int last_fwdpower = 0;
+int last_vswr = 0;
+
 struct Queue q_web;
 int noise_threshold = 0;		// DSP
 int noise_update_interval = 50; // DSP
@@ -1229,6 +1233,12 @@ int set_field(const char *id, const char *value)
 			v = f->min;
 		if (v > f->max)
 			v = f->max;
+		if (v > 0) {
+			if (!strcmp(id, "#fwdpower") && last_fwdpower < v)
+				last_fwdpower = v;
+			else if (!strcmp(id, "#vswr") && last_vswr < v)
+				last_vswr = v;
+		}
 		sprintf(f->value, "%d", v);
 	}
 	else if (f->value_type == FIELD_SELECTION || f->value_type == FIELD_TOGGLE)
@@ -1969,8 +1979,6 @@ void enter_qso()
 	const char *exch_sent = get_field("#exchange_sent")->value;
 	const char *exch_received = get_field("#exchange_received")->value;
 	const char *comment = get_field("#text_in")->value;
-	const int power = field_int("POWER");
-	const int swr = field_int("REF");
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -1985,14 +1993,15 @@ void enter_qso()
 		return;
 	}
 
-	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received, power, swr,
+	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received,
+				last_fwdpower, last_vswr,
 				"", "", // xota: TODO
 				comment);
 
 	char buff[100];
 	snprintf(buff, sizeof(buff), "Logged: %s %s s %s r %s pwr %d.%d swr %d.%d\n",
 			callsign, exch_received, rst_sent, rst_received,
-			power / 10, power % 10, swr / 10, swr % 10);
+			last_fwdpower / 10, last_fwdpower % 10, last_vswr / 10, last_vswr % 10);
 	write_console(STYLE_LOG, buff);
 	printf(buff);
 }
@@ -6071,6 +6080,8 @@ void tx_on(int trigger)
 		struct field *freq = get_field("r1:freq");
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
+		last_fwdpower = 0;
+		last_vswr = 0;
 		// printf("TX\n");
 		//	printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 		//	printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
@@ -7769,7 +7780,7 @@ gboolean ui_tick(gpointer gook)
 			focus_field(vol_field);
 		}
 	}
-	
+
 
 	// Check ENC1_SW for unlock (edge detection)
 	int enc1_sw_now = digitalRead(ENC1_SW);
