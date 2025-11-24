@@ -12,7 +12,7 @@ initialize as enablede but not tripped
 
 If swr is over that the drive is set to TNPWR
   a message is sent to the console
-  a large red "HIGH SWR" appears on the spectrum.
+  a large red "HIGH VSWR" appears on the spectrum.
   I thought I needed that because if you are in full display you won't see the console message.
 If the SWR drops below max_vswr
   a console message tells you,
@@ -71,7 +71,7 @@ void check_and_handle_vswr(int vswr)
 			set_field("#vswr_alert", "1");
 			
 			// Set message to "HIGH SWR" in red
-			set_field("#high_vswr_msg", "HIGH SWR");
+			set_field("#high_vswr_msg", "HIGH VSWR");
 			set_field("#high_vswr_color", "red");
 			
 			// Write warning to console

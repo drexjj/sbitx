@@ -3088,8 +3088,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 		
 		// Position on left side of spectrum
-		int swr_text_x = f_spectrum->x + 9;
-		int swr_text_y = f_spectrum->y + 50;
+		int swr_text_x = f_spectrum->x + 120; // 9
+		int swr_text_y = f_spectrum->y + 25; // 50
 		
 		cairo_move_to(gfx, swr_text_x, swr_text_y);
 		cairo_show_text(gfx, swr_msg);
@@ -8560,7 +8560,7 @@ void cmd_exec(char *cmd)
 		console_init();
 	}
 	
-		else if (!strcasecmp(exec, "max_vswr"))
+		else if (!strcasecmp(exec, "maxvswr"))
 	{
 		char msg[128];
 		if (strlen(args) > 0)
@@ -8578,19 +8578,19 @@ void cmd_exec(char *cmd)
 				{
 					vswr_on = 1;  // turn on protection
 					max_vswr = new_max_vswr;					
-					snprintf(msg, sizeof(msg), "\n max_vswr changed to %.1f\n", max_vswr);
+					snprintf(msg, sizeof(msg), "\n maxvswr changed to %.1f\n", max_vswr);
 					write_console(STYLE_LOG, msg);
 				}
 				else
 				{
-					snprintf(msg, sizeof(msg), "\n max_vswr must be between 1.0 and 10.0\n");
+					snprintf(msg, sizeof(msg), "\n maxvswr must be between 1.0 and 10.0\n");
 					write_console(STYLE_LOG, msg);
 				}
 		}
 		
 		else
 		{
-			snprintf(msg, sizeof(msg), "max_vswr takes value between 1.0 and 10.0\n");
+			snprintf(msg, sizeof(msg), "maxvswr takes value between 1.0 and 10.0\n");
 			write_console(STYLE_LOG, msg);
 		}
 
