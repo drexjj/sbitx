@@ -428,7 +428,7 @@ void import_logs(char *filename){
 */
 
 // ADIF field headers, see note above
-// MY_SIG_INFO for POTA? use MY_POTA_REF for now
+// MY_SIG_INFO for POTA
 // MY_SOTA_REF for SOTA
 // IOTA for IOTA
 const static char* adif_names[] = { "ID", "MODE", "FREQ", "QSO_DATE", "TIME_ON", "OPERATOR",
@@ -586,7 +586,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		case 15: // xota_loc
 			if (!strcmp("POTA", sig)) {
 				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
-					"<MY_POTA_REF:%d>%s ", field_len, field_value);
+					"<MY_SIG_INFO:%d>%s ", field_len, field_value);
 				output_done = true;
 			} else if (!strcmp("IOTA", sig)) {
 				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
