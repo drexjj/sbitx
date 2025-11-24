@@ -1090,8 +1090,8 @@ struct field main_controls[] = {
 	 "", 300, 6000, 50, 0},
 
 	// FTx controls
-	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "OFF/ON", 0, 0, 0, FT8_CONTROL},
+	{"#ftx_auto", NULL, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/ANS/CQRESP", 0, 0, 0, FT8_CONTROL},
 	{"#ftx_cq", NULL, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ft8_repeat", NULL, 1000, -1000, 50, 50, "FT8_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1296,7 +1296,7 @@ int set_field(const char *id, const char *value)
 			strcpy(f->value, value);
 	}
 
-	if (!strcmp(id, "#rit") || !strcmp(id, "#ft8_auto"))
+	if (!strcmp(id, "#rit") || !strcmp(id, "#ftx_auto"))
 		debug = 1;
 
 	// send a command to the radio
@@ -1306,6 +1306,13 @@ int set_field(const char *id, const char *value)
 
 	update_field(f);
 	return 0;
+}
+
+int set_field_int(const char *id, int value)
+{
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d", value);
+        return set_field(id, buf);
 }
 
 struct field *get_field_by_label(const char *label)
@@ -4124,7 +4131,7 @@ static void layout_ui()
 
       // Top row: FTx mode controls
       field_move("FTX_CQ", 375, y_top, 75, row_h);
-      field_move("FT8_AUTO", 450, y_top, 75, row_h);
+      field_move("FTX_AUTO", 450, y_top, 75, row_h);
       field_move("FT8_REPEAT", 525, y_top, 75, row_h);
       field_move("MACRO", 600, y_top, 75, row_h);
       field_move("TX_PITCH", 675, y_top, 75, row_h);

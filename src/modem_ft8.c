@@ -214,6 +214,31 @@ ftx_callsign_hash_interface_t hash_if = {
     .save_hash = hashtable_add
 };
 
+bool is_token_char(char ch) {
+	switch(ch) {
+		case 0: // quick check for terminator: faster than isalnum(), perhaps
+			return false;
+		case '+':
+		case '-':
+		case '/':
+			return true;
+		default:
+			return isalnum(ch);
+	}
+}
+
+// like strncpy, but skips <> brackets (as found in hashed callsigns),
+// stops at the end of alphanumeric characters plus -+/, and returns count copied
+int tokncpy(char *dst, const char *src, size_t dsize){
+	if (*src == '<')
+		++src;
+	int c = 0;
+	for (; c < dsize - 1 && is_token_char(*src); ++c)
+		*dst++ = *src++;
+	*dst = 0;
+	return c;
+}
+
 /// Computes a GFSK smoothing pulse.
 /// The pulse is theoretically infinitely long, however, here it's truncated at 3 times the symbol length.
 /// This means the pulse array has to have space for 3*n_spsym elements.
@@ -578,6 +603,15 @@ static int message_callsign_count(const ftx_message_offsets_t *spans)
 	return ret;
 }
 
+static int message_last_span_offset(const ftx_message_offsets_t *spans, ftx_field_t type)
+{
+	int ret = -1;
+	for (int i = 0; i < FTX_MAX_MESSAGE_FIELDS; ++i)
+		if (spans->types[i] == type)
+			ret = spans->offsets[i];
+	return ret;
+}
+
 static int sbitx_ft8_decode(float *signal, int num_samples)
 {
     int sample_rate = 12000;
@@ -626,9 +660,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     // Hash table for decoded messages (to check for duplicates)
 	typedef struct
 	{
+		int time_sec; // second within the minute
+		int snr;
+		int pitch;
 		char text[FTX_MAX_MESSAGE_LENGTH]; // message text as decoded
 		ftx_message_offsets_t spans; // locations/lengths of fields in text
-		char displaytext[64]; // text as written to the console
 		ftx_message_t message; // encoded form
 	} decoded_message_t;
 
@@ -689,10 +725,10 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
         } while (!found_empty_slot && !found_duplicate);
 
         if (found_empty_slot) {
-           // Fill the empty hashtable slot
-           memcpy(&decoded[idx_hash].message, &message, sizeof(message));
-           decoded_hashtable[idx_hash] = &decoded[idx_hash];
-           ++num_decoded;
+			// Fill the empty hashtable slot
+			memcpy(&decoded[idx_hash].message, &message, sizeof(message));
+			decoded_hashtable[idx_hash] = &decoded[idx_hash];
+			++num_decoded;
 
 			char text[FTX_MAX_MESSAGE_LENGTH];
 			ftx_message_offsets_t spans;
@@ -700,6 +736,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
             if (unpack_status != FTX_MESSAGE_RC_OK)
                 LOG(LOG_DEBUG, "Error [%d] while unpacking!", (int)unpack_status);
 			strncpy(decoded[idx_hash].text, text, FTX_MAX_MESSAGE_LENGTH);
+			decoded[idx_hash].time_sec = (raw_ms % 60000) / 1000;
+			decoded[idx_hash].snr = cand->snr;
+			decoded[idx_hash].pitch = freq_hz;
 			decoded[idx_hash].spans = spans;
 
 			char buf[64];
@@ -778,12 +817,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				sem[sem_i - 1].length = strlen(text + spans.offsets[span_i - 1]);
 			write_console_semantic(buf, sem, sem_i);
 
-			// Store a string that may need to be parsed again in the future
-			// For compatibility with other parts of the software, this historically
-			// has to be the same that is shown in the GUI (and is clickable)
-			strncpy(decoded[idx_hash].displaytext, buf, FTX_MAX_MESSAGE_LENGTH);
-			decoded[idx_hash].displaytext[line_len] = 0;
-
 			if (my_call_found)
 				ft8_process(buf, FTX_CONTINUE_QSO);
 			n_decodes++;
@@ -807,65 +840,90 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     // is shown in the GUI. We may consider this option in the future,
     //  and make it behave more like FT8CN (i.e. a sort of
     // completely autonomous ft8 bot), according to the preferences of the user
-    if (!strcmp(field_str("FT8_AUTO"), "ON") && !strlen(field_str("CALL")) && !processingqso) {
-       char *candmsg = NULL;
-       char *candtext = NULL;
-       printf("Looking for a CQ to answer to\n");
+	// If that gets done, we can add ROBOT to the list of modes for FTX_AUTO (see sbitx_gtk.c:1094)
+	if (!strcmp(field_str("FTX_AUTO"), "CQRESP") && !strlen(field_str("CALL")) && !processingqso) {
+		int cand_time_sec = -1;
+		int cand_snr = -100;
+		int cand_pitch = -1;
+		bool prioritized = false;
+		char *cand_text = NULL;
+		char cand_callsign[12];
+		char cand_exch[12];
+		memset(cand_callsign, 0, sizeof(cand_callsign));
+		memset(cand_exch, 0, sizeof(cand_exch));
 
-       for (int idx = 0; idx < kMax_decoded_messages; idx++) {
-           // We prioritize POTA and SOTA and /QRP and /P
-           if ( decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
+		for (int idx = 0; idx < kMax_decoded_messages; idx++) {
+			if (decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
+				int de_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_CALL);
+				if (de_offset < 0)
+					continue; // no callsign found
+				if (strncmp(decoded_hashtable[idx]->text, "CQ ", 3))
+					continue; // ignore it if it's not a CQ
+				char callsign[12];
+				tokncpy(callsign, decoded_hashtable[idx]->text + de_offset, sizeof(callsign));
 
-              if ( !strncmp(decoded_hashtable[idx]->text, "CQ POTA ", 8) ||
-                  !strncmp(decoded_hashtable[idx]->text, "CQ SOTA ", 8) ||
-                  ( !strncmp(decoded_hashtable[idx]->text, "CQ ", 3) &&
-                    (strstr(decoded_hashtable[idx]->text, "/QRP") ||
-                     strstr(decoded_hashtable[idx]->text, "/P")) ) ) {
+				// Prioritize xOTA, /QRP and /P
+				if (!strncmp(decoded_hashtable[idx]->text + 4, "OTA ", 4) ||
+					 strstr(callsign, "/QRP") || strstr(callsign, "/P") ) {
 
-                 // We try to avoid calling automatically the same stations again and again, at least in this session
-                 bool found = false;
-                 for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
-                     if (!strcmp(decoded_hashtable[idx]->text, ftx_already_called[ii]))
-                        found = true;
-                 }
+					// We try to avoid calling automatically the same stations again and again, at least in this session
+					bool found = false;
+					for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+						if (!strcmp(callsign, ftx_already_called[ii]))
+							found = true;
+					}
 
-                 if (!found) {
-                    candmsg = decoded_hashtable[idx]->displaytext;
-                    candtext = decoded_hashtable[idx]->text;
-                 }
-                 break;
-              }
+					if (!found) {
+						cand_time_sec = decoded_hashtable[idx]->time_sec;
+						cand_snr = decoded_hashtable[idx]->snr;
+						cand_pitch = decoded_hashtable[idx]->pitch;
+						cand_text = decoded_hashtable[idx]->text;
+						strncpy(cand_callsign, callsign, sizeof(cand_callsign));
+						int grid_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_GRID);
+						if (grid_offset > 0)
+							tokncpy(cand_exch, decoded_hashtable[idx]->text + grid_offset, sizeof(cand_exch));
+						prioritized = true;
+					}
+					break;
+				}
 
-              if ( !strncmp(decoded_hashtable[idx]->text, "CQ ", 3) ) {
+				// Otherwise, answer a plain CQ
+				if (!cand_text) {
+					// We try to avoid calling automatically the same stations again and again, at least in this session
+					bool found = false;
+					for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+						if (!strcmp(callsign, ftx_already_called[ii]))
+							found = true;
+					}
 
-                 // We try to avoid calling automatically the same stations again and again, at least in this session
-                 bool found = false;
-                 for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
-                     if (!strcmp(decoded_hashtable[idx]->text, ftx_already_called[ii]))
-                        found = true;
-                 }
+					if (!found) {
+						cand_time_sec = decoded_hashtable[idx]->time_sec;
+						cand_snr = decoded_hashtable[idx]->snr;
+						cand_pitch = decoded_hashtable[idx]->pitch;
+						cand_text = decoded_hashtable[idx]->text;
+						strncpy(cand_callsign, callsign, sizeof(cand_callsign));
+						int grid_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_GRID);
+						if (grid_offset > 0)
+							tokncpy(cand_exch, decoded_hashtable[idx]->text + grid_offset, sizeof(cand_exch));
+						prioritized = false;
+					}
+				}
+			}
+		}
 
-                 if (!found) {
-                    candmsg = decoded_hashtable[idx]->displaytext;
-                    candtext = decoded_hashtable[idx]->text;
-                 }
-
-              }
-
-           }
-       }
-
-       if (candmsg) {
-          printf("Maybe we should respond to '%s' ... ", candmsg);
-          if (ft8_process(candmsg, FTX_START_QSO)) {
-             strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], candtext);
-             ftx_already_called_n++;
-             printf("yes, doing it\n");
-          }
-          else
-             printf("no\n");
-       }
-    }
+		if (cand_text) {
+			field_set("CALL", cand_callsign);
+			field_set("EXCH", cand_exch);
+			set_field_int("#rst_sent", cand_snr);
+			set_field_int("rx_pitch", cand_pitch);
+			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
+			printf("Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
+				ftx_tx1st ? "even" : "odd", prioritized ? "prioritized " : "", cand_callsign,
+				cand_exch, cand_time_sec, cand_snr, cand_pitch, cand_text);
+			strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], cand_callsign);
+			ftx_already_called_n++;
+		}
+	}
 
     monitor_free(&mon);
     hashtable_cleanup(10);
@@ -889,13 +947,16 @@ static bool encode_xota() {
 }
 
 /*!
-	Returns \c true if we have anything to send at this moment (is it the right time to start?)
-	and updates ftx_pitch and is_cq.
+	Returns \c true if we have anything to send at this moment:
+	is ftx_tx_text set and is it the right time to start?
+	If so, it updates ftx_pitch and is_cq.
 	If ftx_tx_text is a CQ, then it also updates ftx_tx1st, ftx_cq_alt, ftx_xota and ftx_xota_msg
 	according to current settings.
 */
 static bool ftx_would_send() {
 	ftx_update_clock();
+	if (!ftx_tx_text[0])
+		return false; // nothing to send
 	bool start = false;
 	is_cq = !strncmp(ftx_tx_text, "CQ ", 3);
 	bool is_ft4 = !strcmp(field_str("MODE"), "FT4");
@@ -1137,6 +1198,8 @@ void ft8_poll(int tx_is_on){
 		if (ftx_tx_nsamples == 0){
 			tx_off();
 			ftx_repeat = ftx_repeat_save;
+			if (!ftx_repeat)
+				call_wipe();
 		}
 		return;
 	}
@@ -1158,45 +1221,18 @@ void ft8_poll(int tx_is_on){
 		if (ftx_tx_nsamples)
 			tx_on(TX_SOFT);
 		ftx_repeat--;
-		if (!ftx_repeat)
-                   call_wipe();
 	}
 }
 
 float ft8_next_sample(){
-		float sample = 0;
-		if (ftx_tx_buff_index/8 < ftx_tx_nsamples){
-			sample = ftx_tx_buffer[ftx_tx_buff_index/8]/7;
-			ftx_tx_buff_index++;
-		}
-		else //stop transmitting ft8
-			ftx_tx_nsamples = 0;
-		return sample;
-}
-
-bool is_token_char(char ch) {
-	switch(ch) {
-		case 0: // quick check for terminator: faster than isalnum(), perhaps
-			return false;
-		case '+':
-		case '-':
-		case '/':
-			return true;
-		default:
-			return isalnum(ch);
+	float sample = 0;
+	if (ftx_tx_buff_index/8 < ftx_tx_nsamples){
+		sample = ftx_tx_buffer[ftx_tx_buff_index/8]/7;
+		ftx_tx_buff_index++;
 	}
-}
-
-// like strncpy, but skips <> brackets (as found in hashed callsigns),
-// stops at the end of alphanumeric characters plus -+/, and returns count copied
-int tokncpy(char *dst, const char *src, size_t dsize){
-	if (*src == '<')
-		++src;
-	int c = 0;
-	for (; c < dsize && is_token_char(*src); ++c)
-		*dst++ = *src++;
-	*dst = 0;
-	return c;
+	else //stop transmitting ft8
+		ftx_tx_nsamples = 0;
+	return sample;
 }
 
 /* these are used to process the current message */
@@ -1368,7 +1404,6 @@ void ft8_call(int sel_time)
 		return;
 	}
 
-	modem_abort();
 	tx_off();
 
 	exchange = field_str("EXCH");
@@ -1382,6 +1417,7 @@ void ft8_call(int sel_time)
 	mygrid[4] = 0;
 	field_set("NR", mygrid);
 	set_reply_tx1st(sel_time % 100);
+	ftx_repeat = field_int("FT8_REPEAT");
 	ft8_tx_3f(call, mycall, mygrid);
 }
 
@@ -1409,7 +1445,8 @@ int ft8_process(char *message, ftx_operation operation)
 	report_received = field_str("RECV");
 	mycall = field_str("MYCALLSIGN");
 	ftx_pitch = field_int("TX_PITCH");
-	if (!strcmp(field_str("FT8_AUTO"), "ON"))
+	// if AUTO is not completely turned off, answer incoming messages directed to me
+	if (strcmp(field_str("FTX_AUTO"), "OFF"))
 		auto_respond = 1;
 
 	//use only the first 4 letters of the grid
