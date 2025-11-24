@@ -1087,7 +1087,7 @@ void ft8_tx(char *message, int freq){
 	//also set the times of transmission
 	char str_tx1st[10], str_repeat[10];
 	get_field_value_by_label("FTX_CQ", str_tx1st);
-	get_field_value_by_label("FT8_REPEAT", str_repeat);
+	get_field_value_by_label("FTX_REPEAT", str_repeat);
 	int slot_second = time_sbitx() % 15;
 
 	//no repeat for '73'
@@ -1095,7 +1095,7 @@ void ft8_tx(char *message, int freq){
 	if (msg_length > 3 && !strcmp(message + msg_length - 3, " 73"))
 		ftx_repeat = 1;
 	else
-		ftx_repeat = field_int("FT8_REPEAT");
+		ftx_repeat = field_int("FTX_REPEAT");
 
 	//~ printf("%05d ft8_tx '%s' even? %d ftx_cq_alt %d ftx_xota %d '%s' rpt %d\n",
 		//~ wallclock_day_ms % 60000, ftx_tx_text, ftx_tx1st, ftx_cq_alt, ftx_xota, ftx_xota_text, ftx_repeat);
@@ -1128,7 +1128,7 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	if (!strcmp(extra, " 73"))
 		ftx_repeat = 1;
 	else
-		ftx_repeat = field_int("FT8_REPEAT");
+		ftx_repeat = field_int("FTX_REPEAT");
 }
 
 void *ftx_thread_function(void *ptr){
@@ -1417,7 +1417,7 @@ void ft8_call(int sel_time)
 	mygrid[4] = 0;
 	field_set("NR", mygrid);
 	set_reply_tx1st(sel_time % 100);
-	ftx_repeat = field_int("FT8_REPEAT");
+	ftx_repeat = field_int("FTX_REPEAT");
 	ft8_tx_3f(call, mycall, mygrid);
 }
 
