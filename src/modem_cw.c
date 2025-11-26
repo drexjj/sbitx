@@ -1166,5 +1166,15 @@ void cw_poll(int bytes_available, int tx_is_on){
 }
 
 void cw_abort(){
-	// currently does nothing
+	// If we were in a TX session, write newline to end it
+	if (tx_session_active) {
+		write_console(STYLE_CW_TX, "\n");
+		tx_session_active = false;
+	}
+
+	// Reset TX state
+	keydown_count = 0;
+	keyup_count = 0;
+	cw_tx_until = 0;
+	symbol_next = NULL;
 }
