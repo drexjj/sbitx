@@ -49,6 +49,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "webserver.h"
 #include "logbook.h"
 #include "hist_disp.h"
+#include "quick_options.h"
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
@@ -333,7 +334,7 @@ GtkWidget *window;
 GtkWidget *display_area = NULL;
 GtkWidget *waterfall_gain_slider;
 GtkWidget *text_area = NULL;
-static int is_fullscreen = 0;
+int is_fullscreen = 0;
 
 extern void settings_ui(GtkWidget *p);
 extern void eq_ui(GtkWidget *p);
@@ -2156,7 +2157,7 @@ static int user_settings_handler(void *user, const char *section,
 }
 
 // Function to shut down with PWR-DWN button on Menu 2
-static void on_power_down_button_click(GtkWidget *widget, gpointer data)
+void on_power_down_button_click(GtkWidget *widget, gpointer data)
 {
 	GtkWidget *parent_window = (GtkWidget *)data;
 
@@ -2213,7 +2214,7 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 }
 
 // Function to toggle fullscreen mode
-static void on_fullscreen_toggle(const int requested_state)
+void on_fullscreen_toggle(const int requested_state)
 {
 	if( requested_state != is_fullscreen){
 		if (requested_state == 1)
@@ -7433,6 +7434,12 @@ void handleButton1Press()
 	static time_t buttonPressTime = 0;
 	static int buttonPressed = 0;
 
+	// Skip if both buttons are pressed (dual button press handler will deal with it)
+	if (digitalRead(ENC1_SW) == 0 && digitalRead(ENC2_SW) == 0) {
+		buttonPressed = 0;
+		return;
+	}
+
 	if (digitalRead(ENC1_SW) == 0)
 	{
 		if (!buttonPressed)
@@ -7488,6 +7495,12 @@ void handleButton2Press()
 	static int vfoLock = 0;
 	static time_t buttonPressTimeSW2 = 0;
 	static int buttonPressedSW2 = 0;
+
+	// Skip if both buttons are pressed (dual button press handler will deal with it)
+	if (digitalRead(ENC1_SW) == 0 && digitalRead(ENC2_SW) == 0) {
+		buttonPressedSW2 = 0;
+		return;
+	}
 
 	if (digitalRead(ENC2_SW) == 0)
 	{
@@ -7683,6 +7696,7 @@ gboolean ui_tick(gpointer gook)
 				update_field(f);
 		*/
 
+		handleDualButtonPress(); // Check for both buttons first
 		handleButton1Press(); // Call the SW1 handler -W2JON
 		handleButton2Press(); // Call the SW2 handler -W2JON
 		// if (digitalRead(ENC2_SW) == 0)
