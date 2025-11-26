@@ -1005,26 +1005,20 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
 
   decoder->next_symbol = 0;  // reset the symbol buffer for the next letter/sequence
 
-  // Build output string with optional leading newline for TX sessions
-  char output[64];
-  output[0] = '\0';
-
-  // If this is TX decoder and first character of session, prepend newline
+  // If this is TX decoder and first character of session, write newline first
   if (decoder->console_font == STYLE_CW_TX && !tx_session_active) {
-    strcpy(output, "\n");
+    write_console(STYLE_CW_RX, "\n");  // Write newline with RX style for clean break
     tx_session_active = true;
   }
 
   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      strcat(output, morse_rx_table[i].c);
-      write_console(decoder->console_font, output);
+      write_console(decoder->console_font, morse_rx_table[i].c);
       decoder->last_char_was_space = 0;
       return;
     }
   }
-  strcat(output, morse_code_string);
-  write_console(decoder->console_font, output);
+  write_console(decoder->console_font, morse_code_string);
   decoder->last_char_was_space = 0;
 }
 
