@@ -7,17 +7,17 @@
 #include "sdr_ui.h"
 #include "sdr.h"
 /*
-define a default max swr of 3
-initialize as enablede but not tripped
+define a default maxvswr of 3
+initialize as enabled but not tripped
 
-If swr is over that the drive is set to TNPWR
+If swr is over maxvswr
+  the drive is set to 1
   a message is sent to the console
   a large red "HIGH VSWR" appears on the spectrum.
-  I thought I needed that because if you are in full display you won't see the console message.
-If the SWR drops below max_vswr
-  a console message tells you,
-  the HIGH SWR disappears
-  BUT the drive is NOT reset. You have to change manually, hopefully with some caution.
+  
+Note - You must set drive up above 3 watts for SWR to be measured
+  SWR messages not deleted until there is a SWR reading below maxvswr
+
 You can set max_vswr from the command line
   \max_vswr value (float)
   setting it to 0 turns SWR protection off, with a console message of Caution. 
@@ -54,17 +54,18 @@ void check_and_handle_vswr(int vswr)
 		// Set tripped flag
 		vswr_tripped = 1;
 		
-		// Get TNPWR value from #tune_power field ID
+/*		// Get TNPWR value from #tune_power field ID
 		if (get_field_value("#tune_power", tnpwr_str) == 0) {
 			int tunepower = atoi(tnpwr_str);
-			
 			// Set tx power to TNPWR via sdr_request
-			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", tunepower);
+*/			
+
+			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", 1);
 			sdr_request(sdr_cmd, response);
 			
 			// Update DRIVE field in GUI to reflect reduced power
 			char drive_buff[32];
-			snprintf(drive_buff, sizeof(drive_buff), "%d", tunepower);
+			snprintf(drive_buff, sizeof(drive_buff), "%d", 1);
 			field_set("DRIVE", drive_buff);
 						
 			// Update UI: set alert flag
@@ -78,10 +79,9 @@ void check_and_handle_vswr(int vswr)
 			char warning_msg[128];
 			snprintf(warning_msg, sizeof(warning_msg), 
 			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f, reducing drive to %d\n",
-			         swr, max_vswr, tunepower);
+			         swr, max_vswr, 1);
 			write_console(STYLE_LOG, warning_msg);
 		}
-	}
 	// Check if VSWR has fallen below threshold and was previously tripped
 	else if (swr <= max_vswr && vswr_tripped == 1) {
 		// Clear tripped flag
@@ -95,7 +95,7 @@ void check_and_handle_vswr(int vswr)
 		// Write info to console
 		char info_msg[128];
 		snprintf(info_msg, sizeof(info_msg), 
-			 "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared (drive NOT restored)\n",
+			 "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared\n",
 			 swr, max_vswr);
 		write_console(STYLE_LOG, info_msg);
 		
