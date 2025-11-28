@@ -348,13 +348,13 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
 static void tab_focus_advance(int forward);
 static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event,
 							   gpointer data);
-static gboolean on_mouse_move(GtkWidget *widget, GdkEventButton *event,
+static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event,
 							  gpointer data);
 static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event,
 								 gpointer data);
 static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event,
 						  gpointer data);
-static gboolean on_window_state(GtkWidget *widget, GdkEventKey *event,
+static gboolean on_window_state(GtkWidget *widget, GdkEventWindowState *event,
 								gpointer user_data);
 static gboolean on_resize(GtkWidget *widget, GdkEventConfigure *event,
 						  gpointer user_data);
@@ -6730,9 +6730,8 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 	}
 }
 
-static gboolean on_window_state(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
+static gboolean on_window_state(GtkWidget *widget, GdkEventWindowState *event, gpointer user_data)
 {
-	mouse_down = 0;
 }
 
 static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event, gpointer data)
@@ -6751,10 +6750,9 @@ static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event, gpoin
 	return TRUE;
 }
 // This function is for drag tracking
-static gboolean on_mouse_move(GtkWidget *widget, GdkEventButton *event, gpointer data)
+static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
-	char buff[100];
-	// Call the new function to handle mouse movement events
+	mouse_down = event->state & GDK_BUTTON1_MASK;
 	if (!mouse_down)
 		return false;
 
