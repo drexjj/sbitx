@@ -2083,6 +2083,8 @@ static int user_settings_handler(void *user, const char *section,
 		{
 			if (f->value_type != FIELD_BUTTON)
 			{
+				if (!new_value[0] && !strncmp(cmd, "#xota", 5))
+					strncpy(new_value, "NONE", 4);
 				set_field(cmd, new_value);
 			}
 			char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
