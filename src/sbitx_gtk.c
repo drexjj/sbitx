@@ -1990,8 +1990,10 @@ void enter_qso()
 	const char *exch_sent = get_field("#exchange_sent")->value;
 	const char *exch_received = get_field("#exchange_received")->value;
 	const char *xota = get_field("#xota")->value;
+	const char *xota_loc = get_field("#xota_loc")->value;
 	const char *comment = get_field("#text_in")->value;
-	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4);
+	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4) &&
+			xota_loc[0] && strncmp(xota_loc, "PEAK/PARK/ISLE", 14);
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -2008,7 +2010,7 @@ void enter_qso()
 
 	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received,
 				last_fwdpower, last_vswr,
-				has_xota ? xota : "", has_xota ? get_field("#xota_loc")->value : "",
+				has_xota ? xota : "", has_xota ? xota_loc : "",
 				comment);
 
 	char buff[100];
