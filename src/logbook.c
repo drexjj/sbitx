@@ -427,10 +427,7 @@ void import_logs(char *filename){
 }
 */
 
-// ADIF field headers, see note above
-// MY_SIG_INFO for POTA
-// MY_SOTA_REF for SOTA
-// IOTA for IOTA
+// ADIF field headers in the order requested in prepare_query_by_date()
 const static char* adif_names[] = { "ID", "MODE", "FREQ", "QSO_DATE", "TIME_ON", "OPERATOR",
 		"RST_SENT", "STX_String", "CALL", "RST_RCVD", "SRX_String", "STX", "COMMENTS",
 		"TX_PWR", "MY_SIG", "MY_SOTA_REF"};
@@ -503,10 +500,17 @@ int write_adif_header(char *buf, int len, const char *source) {
 		"<EOH>\n", source);
 }
 
+/*!
+	Write out a single record from results returned from prepare_query_by_date().
+	The ADIF field names come from adif_names, but we make some substitutions:
+	- MY_GRIDSQUARE/GRIDSQUARE instead of STX_String/SRX_String for FTx
+	- MY_SIG_INFO instead of MY_SOTA_REF for POTA
+	- IOTA instead of MY_SOTA_REF for IOTA
+*/
 int write_adif_record(void *stmt, char *buf, int len) {
 	char field_value[2000]; // big enough for a comment, hopefully; the rest are much smaller
 	int num_cols = sqlite3_column_count(stmt);
-	int rec = 0;
+	bool is_ftx = false;
 
 	int buf_offset = 0;
 	char sig[5]; // IOTA/SOTA/POTA
@@ -523,6 +527,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 			snprintf(field_value, sizeof(field_value), "%g", sqlite3_column_double(stmt, i));
 			break;
 		case (SQLITE_NULL):
+			field_value[0] = 0; // field empty, nothing to export
 			break;
 		default:
 			snprintf(field_value, sizeof(field_value), "%d", sqlite3_column_type(stmt, i));
@@ -533,13 +538,12 @@ int write_adif_record(void *stmt, char *buf, int len) {
 
 		const int field_len = strlen(field_value);
 		bool output_done = false;
-		switch (i) { // columns are in the order requested in prepare_query_by_date()
+		// Columns are in the order requested in prepare_query_by_date().
+		// First, take care of special cases for certain columns:
+		switch (i) {
 		case 1: // mode
-			// If mode is FT8, set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
-			if (!strcmp("FT8", field_value))
-				rec = 1;
-			else
-				rec = 0;
+			// If mode is FT8/FT4, remember to use gridsquare instead of stx/srx fields - n1qm & k7ihz
+			is_ftx = (!strncmp("FT", field_value, 2));
 			break;
 		case 2: { // freq
 			long hz = atoi(field_value);
@@ -563,7 +567,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 			strip_chr(field_value, '-');
 			break;
 		case 7: // exch_sent
-			if (rec == 1)
+			if (is_ftx)
 				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
 					"<MY_GRIDSQUARE:%d>%s ", field_len, field_value);
 			else
@@ -572,7 +576,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 			output_done = true;
 			break;
 		case 10: // exch_recv
-			if (rec == 1)
+			if (is_ftx)
 				buf_offset += snprintf(buf + buf_offset, len - buf_offset,
 					"<GRIDSQUARE:%d>%s ", field_len, field_value);
 			else
@@ -598,6 +602,9 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		default:
 			break;
 		}
+		// Special cases above can set output_done = true. Otherwise, assume
+		// output for this field is not yet done, so do it the generic way:
+		// the ADIF field name comes from the adif_names array.
 		if (!output_done && field_len > 0) {
 			//~ printf("    default output @%d\n", buf_offset);
 			buf_offset += snprintf(buf + buf_offset, len - buf_offset,
