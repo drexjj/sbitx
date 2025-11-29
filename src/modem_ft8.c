@@ -30,6 +30,8 @@
 static char ft8_already_called[FT8_CALLED_SIZE][32];
 static int ft8_already_called_n = 0;
 
+extern int tx_peak_power_tenths;  // Used to reset the peak power settings per each communication
+
 static int32_t ft8_rx_buff[FT8_MAX_BUFF];
 static float ft8_rx_buffer[FT8_MAX_BUFF];
 static float ft8_tx_buff[FT8_MAX_BUFF];
@@ -845,6 +847,9 @@ void ft8_on_start_qso(char *message){
 	modem_abort();
 	tx_off();
 	call_wipe();
+	
+    // reset the FT8 peak power at the *start* of a new QSO
+    tx_peak_power_tenths = 0;	
 
 	//for cq message that started on 0 or 30th second, use the 15 or 45 and
 	//vice versa

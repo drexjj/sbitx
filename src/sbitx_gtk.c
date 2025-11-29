@@ -132,6 +132,9 @@ int zero_beat_min_magnitude = 0;
 #define CONFIG_DEFAULT 0x6127 // Default INA260 configuration: Continuous mode, averages, etc.
 float voltage = 0.0f, current = 0.0f;
 
+// Hold Peak TX Power Here
+int tx_peak_power_tenths = 0;
+
 // mouse/touch screen state
 static int mouse_down = 0;
 static int last_mouse_x = -1;
@@ -1805,7 +1808,9 @@ void enter_qso()
 	const char *callsign = field_str("CALL");
 	const char *rst_sent = field_str("SENT");
 	const char *rst_received = field_str("RECV");
-
+	extern int tx_peak_power_tenths;
+	unsigned int tx_freq_hz = field_int("FREQ");
+	
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
 	{
@@ -1825,10 +1830,24 @@ void enter_qso()
 				get_field("#exchange_received")->value,
 				get_field("#text_in")->value);
 
-	char buff[100];
-	sprintf(buff, "Logged: %s %s-%s %s-%s\n",
-			field_str("CALL"), field_str("SENT"), field_str("NR"),
-			field_str("RECV"), field_str("EXCH"));
+    // Get UTC time used for logging (close enough to the internal log time)
+    time_t now = time(NULL);
+    struct tm *utc = gmtime(&now);   // use localtime(&now) if you prefer local time
+
+    char timestr[32];
+    // Format: YYYYMMDD HHMM  (easy to parse)
+    strftime(timestr, sizeof(timestr), "%Y%m%d %H%M", utc);
+
+    char buff[160];
+    sprintf(buff,
+            "Logged: %s %s-%s %s-%s %s %dW %uHz\n",
+            field_str("CALL"),
+            field_str("SENT"), field_str("NR"),
+            field_str("RECV"), field_str("EXCH"),
+            timestr,
+            tx_peak_power_tenths / 10,
+			tx_freq_hz);
+			
 	write_console(FONT_LOG, buff);
 }
 
@@ -2402,6 +2421,13 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	int vswr = field_int("REF");
 	int power = field_int("POWER");
 
+	// --- Capture peak TX power -------------------------
+    // ONLY while power is being produced (filters noise)
+    if (power > tx_peak_power_tenths) {
+        tx_peak_power_tenths = power;
+    }
+    // ---------------------------------------------------
+	
 	// power is in 1/10th of watts and vswr is also 1/10th
 	if (power < 30)
 		vswr = 10;
