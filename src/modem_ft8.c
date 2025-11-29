@@ -1333,9 +1333,11 @@ void ft8_on_start_qso(char *message){
 	}
 	//whoa, someone cold called us
 	else if (!strcmp(m1, mycall)){
+		LOG(LOG_DEBUG, "ft8_on_start_qso cold call from %s / %s: rst s %s\n", call, m2, signal_strength);
+		if (!call || !call[0])
+			return; // unknown hash or empty callsign: can't answer
 		field_set("CALL", m2);
 		field_set("SENT", signal_strength);
-		LOG(LOG_DEBUG, "ft8_on_start_qso cold call: rst s %s\n", signal_strength);
 		//they might have directly sent us a signal report
 		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
 			field_set("EXCH", m3);
