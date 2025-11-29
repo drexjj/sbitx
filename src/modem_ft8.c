@@ -16,6 +16,8 @@
 #include "sdr_ui.h"
 #include "modem_ft8.h"
 
+#define LOG_LEVEL LOG_INFO
+
 #include "ft8_lib/common/common.h"
 #include "ft8_lib/common/wave.h"
 #include "ft8_lib/ft8/debug.h"
@@ -69,8 +71,6 @@ static const int kFieldType_style_map[] = {
 	STYLE_GRID,		// FTX_FIELD_GRID
 	STYLE_LOG		// FTX_FIELD_RST
 };
-
-#define LOG_LEVEL LOG_INFO
 
 #define SECS_IN_DAY (24 * 60 * 60)
 static int wallclock_day_ms = 0; // starts from 0 each day
@@ -746,7 +746,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s\n", text);
 			const int message_type = ftx_message_get_i3(&message);
 			//~ char type_utf8[4] = {0xE2, message_type ? 0x91 : 0x93, message_type ? 0xA0 + message_type - 1 : 0xAA, 0 };
-			LOG(LOG_INFO, ">> %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
+			LOG(LOG_INFO, "<< %d.%c       %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -822,9 +822,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			n_decodes++;
         }
     }
-    //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
 	if (crc_mismatches)
-		LOG(LOG_DEBUG, "%d CRC mismatches\n", crc_mismatches);
+		LOG(LOG_DEBUG, "Decoded %d messages; %d CRC mismatches\n", num_decoded, crc_mismatches);
 
     // Here we have a populated hash table with the decoded messages
     // If we are in autorespond mode and in idle state (i.e. no QSO ongoing),
@@ -1045,7 +1044,8 @@ static void ftx_start_tx(int offset_ms){
 	write_console(STYLE_FT8_TX, buf);
 
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
-	LOG(LOG_INFO, "<< %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), buf);
+	LOG(LOG_INFO, ">> %d.%c rpt %d %s", message_type,
+		message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), ftx_repeat, buf);
 
 	// start at the beginning if at all reasonable
 	if (offset_ms < 1000)
@@ -1082,21 +1082,15 @@ void ft8_tx(char *message, int freq){
 		"  TX     %4d ~ %s\n", freq, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	if (!send_now)
 		write_console(STYLE_FT8_QUEUED, buf);
-	LOG(LOG_INFO, "<- %d.%c %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), buf);
 
-	//also set the times of transmission
-	char str_tx1st[10], str_repeat[10];
-	get_field_value_by_label("FTX_CQ", str_tx1st);
-	get_field_value_by_label("FTX_REPEAT", str_repeat);
-	int slot_second = time_sbitx() % 15;
-
-	//no repeat for '73'
 	int msg_length = strlen(message);
 	if (msg_length > 3 && !strcmp(message + msg_length - 3, " 73"))
-		ftx_repeat = 1;
+		ftx_repeat = 1; // no repeat for '73'
 	else
 		ftx_repeat = field_int("FTX_REPEAT");
 
+	LOG(LOG_INFO, "-> %d.%c rpt %d %s",
+		message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), ftx_repeat, buf);
 	//~ printf("%05d ft8_tx '%s' even? %d ftx_cq_alt %d ftx_xota %d '%s' rpt %d\n",
 		//~ wallclock_day_ms % 60000, ftx_tx_text, ftx_tx1st, ftx_cq_alt, ftx_xota, ftx_xota_text, ftx_repeat);
 }
@@ -1121,14 +1115,14 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	ftx_would_send(); // update ftx_pitch, is_cq, ftx_tx1st, ftx_cq_alt, ftx_xota, ftx_xota_text
 	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ftx_pitch, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
-	LOG(LOG_INFO, "<- %d.%c '%s' '%s' '%s'",
-		message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), call_to, call_de, extra);
 
-	// no repeat for '73'
 	if (!strcmp(extra, " 73"))
-		ftx_repeat = 1;
+		ftx_repeat = 1; // no repeat for '73'
 	else
 		ftx_repeat = field_int("FTX_REPEAT");
+
+	LOG(LOG_INFO, "-> %d.%c rpt %d '%s' '%s' '%s'\n",
+		message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&ftx_tx_msg), ftx_repeat, call_to, call_de, extra);
 }
 
 void *ftx_thread_function(void *ptr){
