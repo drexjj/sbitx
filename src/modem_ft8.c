@@ -678,7 +678,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 	int n_decodes = 0;
 	int crc_mismatches = 0;
-	bool processingqso = false;
 
     // Go over candidates and attempt to decode messages
     for (int idx = 0; idx < num_candidates; ++idx)
@@ -826,7 +825,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 		LOG(LOG_DEBUG, "Decoded %d messages; %d CRC mismatches\n", num_decoded, crc_mismatches);
 
     // Here we have a populated hash table with the decoded messages
-    // If we are in autorespond mode and in idle state (i.e. no QSO ongoing),
+    // If we are in autorespond mode and in idle state (i.e. no message planned to transmit),
     //  we would like to answer to a CQ call
     // This simple implementation just answers to a random CQ call (if any)
     //  by scanning sequentially the hash table until one is found that
@@ -840,7 +839,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     //  and make it behave more like FT8CN (i.e. a sort of
     // completely autonomous ft8 bot), according to the preferences of the user
 	// If that gets done, we can add ROBOT to the list of modes for FTX_AUTO (see sbitx_gtk.c:1094)
-	if (!strcmp(field_str("FTX_AUTO"), "CQRESP") && !strlen(field_str("CALL")) && !processingqso) {
+	if (!strcmp(field_str("FTX_AUTO"), "CQRESP") && !strlen(field_str("CALL")) && !ftx_tx_text[0]) {
 		int cand_time_sec = -1;
 		int cand_snr = -100;
 		int cand_pitch = -1;
@@ -1192,8 +1191,11 @@ void ft8_poll(int tx_is_on){
 		if (ftx_tx_nsamples == 0){
 			tx_off();
 			ftx_repeat = ftx_repeat_save;
-			if (!ftx_repeat)
+			if (!ftx_repeat) {
 				call_wipe();
+				ft8_abort();
+				ftx_tx_text[0] = 0;
+			}
 		}
 		return;
 	}
@@ -1472,6 +1474,7 @@ int ft8_process(char *message, ftx_operation operation)
 		ft8_abort();
 		enter_qso(); // W9JES
 		ftx_repeat = 0;
+		ftx_tx_text[0] = 0;
 		return 1;
 	}
 
