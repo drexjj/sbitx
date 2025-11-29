@@ -912,7 +912,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 		if (cand_text) {
 			field_set("CALL", cand_callsign);
 			field_set("EXCH", cand_exch);
-			set_field_int("#rst_sent", cand_snr);
+			{
+				// don't use set_field_int for RST: we need a custom format with explicit sign and 2 digits
+				char buf[8];
+				snprintf(buf, sizeof(buf), "%+03d", cand_snr);
+				field_set("SENT", buf);
+			}
 			set_field_int("rx_pitch", cand_pitch);
 			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
 			printf("Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
