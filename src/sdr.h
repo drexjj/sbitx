@@ -60,6 +60,8 @@ have continuos waveform.
 
 */
 
+#include <stdbool.h>
+
 struct Queue
 {
   int id;
@@ -207,7 +209,7 @@ int get_tx_data_byte(char *c);
 int	get_tx_data_length();
 void modem_poll(int mode);
 float modem_next_sample(int mode);
-void modem_abort();
+void modem_abort(bool terminate_qso);
 
 int is_in_tx();
 

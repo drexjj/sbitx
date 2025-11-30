@@ -4927,7 +4927,7 @@ void set_operating_freq(int dial_freq, char *response)
 void abort_tx()
 {
 	set_field("#text_in", "");
-	modem_abort();
+	modem_abort(false);
 	tx_off();
 }
 
@@ -7471,7 +7471,7 @@ void tx_off()
 {
 	char response[100];
 
-	modem_abort();
+	modem_abort(false);
 
 	if (in_tx)
 	{
@@ -7762,7 +7762,8 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 	switch (event->keyval)
 	{
 	case MIN_KEY_ESC:
-		modem_abort();
+		// TODO we could do a 2-stage esc: call it with false the first time, true the second
+		modem_abort(true);
 		tx_off();
 		call_wipe();
 		break;
@@ -9634,11 +9635,11 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "ESC"))
 	{
-		modem_abort();
+		modem_abort(true);
 		tx_off();
 		call_wipe();
 		field_set("TEXT", "");
-		modem_abort();
+		modem_abort(true);
 		tx_off();
 	}
 	else if (!strcmp(request, "TX"))

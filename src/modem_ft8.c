@@ -1277,7 +1277,7 @@ void ft8_poll(int tx_is_on){
 			ftx_repeat = ftx_repeat_save;
 			if (!ftx_repeat) {
 				call_wipe();
-				ft8_abort();
+				ft8_abort(true);
 				ftx_tx_text[0] = 0;
 			}
 		}
@@ -1520,7 +1520,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		LOG(LOG_DEBUG, "received 73\n");
 		enter_qso();
 		call_wipe();
-		ft8_abort();
+		ft8_abort(true);
 		ftx_tx_text[0] = 0;
 		return;
 	}
@@ -1559,7 +1559,9 @@ void ft8_init(){
 	memset(ftx_xota_text, 0, sizeof(ftx_xota_text));
 }
 
-void ft8_abort(){
+void ft8_abort(bool terminate_qso){
 	ftx_tx_nsamples = 0;
 	ftx_repeat = 0;
+	if (terminate_qso)
+		ftx_tx_text[0] = 0; // ftx_would_send() will now return false: nothing left to send
 }

@@ -522,7 +522,7 @@ float modem_next_sample(int mode){
 }
 
 
-void modem_abort(){
+void modem_abort(bool terminate_qso){
 	char c;
 
 	//flush the buffer
@@ -532,7 +532,7 @@ void modem_abort(){
 	switch(current_mode){
 	case MODE_FT4:
 	case MODE_FT8:
-		ft8_abort();
+		ft8_abort(terminate_qso);
 		break;
 	case MODE_RTTY:
 	case MODE_PSK31:
