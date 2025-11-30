@@ -1575,7 +1575,7 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 	{
 		char decorated[1000];
 		assert(sem);
-		hd_decorate(sem[0].semantic, text, decorated);
+		hd_decorate(sem[0].semantic, text, sem, sem_count, decorated);
 		web_write(console_last_row, sem[0].semantic, decorated);
 		write_to_remote_app(sem[0].semantic, text);
 	}

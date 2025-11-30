@@ -44,76 +44,6 @@ void hd_createGridList() {
 	}
 }
 
-struct hd_message_struct {
-	char signal_info[32];
-	char m1[32], m2[32], m3[32], m4[32];
-};
-
-int hd_next_token(const char* src, int start, char* tok, int tok_max, char * sep) {
-	tok[0] = 0;
-	if (src == NULL || src[start] == 0)
-		return -1;
-	int len = strlen(src);
-	if (start >= len)
-		return -2;
-	const char * p_sep;
-	int n = 0, p = 0;
-	if (len > 0 && src[len-1] == '\n') {
-		len--; // strip trailing newline
-	}
-	do {
-		p_sep = strstr(src + start, sep);
-		if (p_sep == NULL) {
-			p_sep = src+len;
-		}
-		n = p_sep - (src + start);
-		p = start;
-		start = start + n + strlen(sep);
-	} while (n == 0 && start < len);
-	if (n > tok_max) return -2;
-	memcpy(tok, src + p, n);
-	tok[n] = 0;
-	return p + n + strlen(sep);
-}
-
-int hd_message_parse(struct hd_message_struct* p_message, const char* raw_message) {
-	memset(p_message, 0, sizeof(struct hd_message_struct));
-	int r = hd_next_token(raw_message, 0, p_message->signal_info, 32, "~ ");
-	if (r < 0 ) return r;
-	r = hd_next_token(raw_message, r, p_message->m1, 32, " ");
-	if (r < 0) return r;
-	r = hd_next_token(raw_message, r, p_message->m2, 32, " ");
-	if (r < -1) return r;
-	if (r < 0) return 0;
-	r = hd_next_token(raw_message, r, p_message->m3, 32, " ");
-	if (r < -1) return r;
-	if (r < 0) return 0;
-	r = hd_next_token(raw_message, r, p_message->m4, 32, " ");
-	if (r < -1) return r;
-	return 0;
-}
-
-int ff_lookup_style(char* id, int style, int style_default) {
-	switch (style)
-	{
-	case STYLE_GRID: {
-		const int len = strlen(id);
-		bool id_ok =
-			(len == 4 && strcmp(id,"RR73") &&
-			isLetter(id[0]) && isLetter(id[1]) &&
-        	isDigit(id[2]) && isDigit(id[3]));
-
-			return (!id_ok || logbook_grid_last_qso(id, len)) ? style_default : style;
-			//return (!id_ok) ? style_default : style; // test skipping log lookup
-		}
-		break;
-
-	default:
-		break;
-	}
-	return style;
-}
-
 char ff_char(int style) {
 
 	/* used to be 'A' + style, where style came from these:
@@ -198,101 +128,61 @@ char ff_char(int style) {
 	}
 }
 
-char *ff_cs(char * markup, int style) {
-	markup[0] = HD_MARKUP_CHAR;
-	markup[1] = ff_char(style);
-	markup[2] = 0;
-	return markup;
-}
+int hd_decorate(int style, const char * message, const text_span_semantic *sem, int sem_count, char * decorated) {
 
-char* ff_style(char* decorated, struct hd_message_struct *pms, int style_default, int style1, int style2, int style3, int style4) {
-	char markup[3];
-	*decorated = 0;
-
-	strcat(decorated, ff_cs(markup, style_default));
-	strcat(decorated, pms->signal_info);
-	strcat(decorated, "~ ");
-
-	strcat(decorated, ff_cs(markup, ff_lookup_style(pms->m1, style1, style_default)));
-	strcat(decorated, pms->m1);
-	strcat(decorated, " ");
-
-	strcat(decorated, ff_cs(markup, ff_lookup_style(pms->m2, style2, style_default)));
-	strcat(decorated, pms->m2);
-	strcat(decorated, " ");
-
-	strcat(decorated, ff_cs(markup, ff_lookup_style(pms->m3, style3, style_default)));
-	strcat(decorated, pms->m3);
-
-	if (style4) {
-		strcat(decorated, " ");
-		strcat(decorated, ff_cs(markup, ff_lookup_style(pms->m4, style4, style_default)));
-		strcat(decorated, pms->m4);
-	}
-	strcat(decorated, "\n");
-
-}
-
-int hd_length_no_decoration( char * decorated) {
-	int len = 0;
-	while(*decorated)
-		if (*decorated++ == HD_MARKUP_CHAR)
-			len--;
-		else
-			len++;
-	return len < 0 ? 0 : len;
-}
-
-
-void hd_strip_decoration(char * ft8_message, char * decorated) {
-	while(*decorated) {
-		if (*decorated == HD_MARKUP_CHAR && *(decorated+1) != 0) {
-			decorated += 2;
-		} else if (*decorated == '<' || *decorated == '>') {
-			decorated += 1;
-		} else {
-			*ft8_message++ = *decorated++;
-		}
-	}
-	*ft8_message = 0;
-}
-
-int hd_decorate(int style, const char * message, char * decorated) {
-
-	switch (style) {
-	case STYLE_FT8_RX:
-	case STYLE_FT8_TX:
-	case STYLE_FT8_QUEUED:
-	case STYLE_FT8_REPLY:
-		{
-		decorated[0] = 0;
-			struct hd_message_struct fms;
-			const char* my_callsign = field_str("MYCALLSIGN");
-			int res = hd_message_parse(&fms, message);
-			if (res == 0) {
-				if (!strcmp(fms.m1, "CQ")) {
-					if (fms.m4[0] == 0) { // CQ caller grid
-						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_CALLER, STYLE_GRID, 0);
-					}
-					else { // CQ DX caller grid
-						ff_style(decorated, &fms, style, STYLE_LOG, STYLE_LOG, STYLE_CALLER, STYLE_GRID);
-					}
-				} else if (!strcmp(fms.m1, my_callsign))
-				{ // mycall caller grid|report
-					ff_style(decorated, &fms, style, STYLE_MYCALL, STYLE_CALLER, STYLE_GRID, 0);
-				} else if (!strcmp(fms.m2, my_callsign))
-				{ // caller mycall grid|report
-					ff_style(decorated, &fms, style, STYLE_CALLER, STYLE_MYCALL, STYLE_GRID, 0);
-				} else
-				{ // other caller grid|report
-					ff_style(decorated, &fms, style, style, STYLE_CALLER, STYLE_GRID, 0);
-				}
-			}
-			return res;
-		}
-		break;
-	default:
+	if (!sem_count) {
 		strcpy(decorated, message);
+		return 0;
 	}
-	return 0;
+
+	// similar algorithm as in draw_console() in sbitx_gtk.c
+	char *d = decorated;
+	char default_style = ff_char(STYLE_LOG);
+	char cur_style = default_style;
+	int span = 0;
+	int col = 0;
+	// The first span may be a fallback. If the second span is valid and overlaps it, start with that one.
+	if (sem_count >= 2 && sem[1].start_column == 0 && sem[1].length) {
+		span = 1;
+		default_style = ff_char(sem[0].semantic);
+		//~ printf("-  first span had length %d; starting with span 1: col %d len %d: '%s'\n",
+				//~ sem[0].length, sem[1].start_column, sem[1].length, message);
+	}
+	for (; span < MAX_CONSOLE_LINE_STYLES && span < sem_count && sem[span].length; ++span) {
+		//~ printf("-  span %d col %d len %d style %d @ col %d\n",
+			//~ span, sem[span].start_column, sem[span].length, sem[span].semantic, col);
+		if (sem[span].start_column > col) {
+			// output the default-styled text to the left of this span
+			const int len = sem[span].start_column - col;
+			if (len > 1 && cur_style != default_style) {
+				*d++ = '#'; *d++ = default_style; cur_style = default_style;
+			}
+			d = stpncpy(d, message + col, len);
+			col += len;
+			//~ printf("   nabbed text to left of %d,  len %d; end @ col %d\n",
+				//~ sem[span].start_column, len, col);
+		}
+		char style = ff_char(sem[span].semantic);
+		if (cur_style != style) {
+			cur_style = style; *d++ = '#'; *d++ = style;
+		}
+		d = stpncpy(d, message + sem[span].start_column, sem[span].length);
+		//~ printf("   output span %d col %d len %d style %d, output offset %d\n",
+			//~ span, sem[span].start_column, sem[span].length, sem[span].semantic, d - decorated);
+		col += sem[span].length;
+	}
+	if (message[col] && message[col] != '\n') {
+		// draw the default-styled text to the right of the last span
+		int remainder = strlen(message + col);
+		if (remainder > 1 && cur_style != default_style) {
+			*d++ = '#'; *d++ = default_style;
+		}
+		d = stpncpy(d, message + col, remainder);
+		//~ printf("   nabbed text to right of %d,  len %d\n", col, remainder);
+		col += remainder;
+	}
+	*d = 0;
+
+	//~ printf("hd_decorate ends with '%s' len %d %d\n", decorated, col, d - decorated);
+	return d - decorated;
 }
