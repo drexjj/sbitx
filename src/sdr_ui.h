@@ -22,8 +22,10 @@ typedef enum {
 	STYLE_LOG = 0,
 	STYLE_MYCALL,
 	STYLE_CALLER,
+	STYLE_RECENT_CALLER, // callsign that was logged within recent_qso_age hours
 	STYLE_CALLEE,
 	STYLE_GRID,
+	STYLE_EXISTING_GRID, // grid that is found in the logbook already
 	STYLE_TIME,
 	STYLE_SNR,
 	STYLE_FREQ,

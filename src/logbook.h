@@ -10,8 +10,8 @@ int logbook_prev_log(const char *callsign, char *result);
 int logbook_get_grids(void (*f)(char *,int));
 void logbook_list_open();
 void logbook_open();
-bool logbook_grid_exists(char *id);
-bool logbook_caller_exists(char * id);
+time_t logbook_grid_last_qso(const char *id, int len);
+time_t logbook_last_qso(const char * callsign, int len);
 
 // ADIF export
 // start_date can be null or empty if you want all records, unrestricted

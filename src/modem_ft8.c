@@ -15,6 +15,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "modem_ft8.h"
+#include "logbook.h"
 
 #define LOG_LEVEL LOG_INFO
 
@@ -31,6 +32,7 @@
 #define FTX_CALLED_SIZE 64
 static char ftx_already_called[FTX_CALLED_SIZE][32];
 static int ftx_already_called_n = 0;
+static int recent_qso_age = 24; // hours
 
 static float ftx_rx_buffer[FT8_MAX_BUFF];
 static float ftx_tx_buffer[FT8_MAX_BUFF];
@@ -616,6 +618,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 {
     int sample_rate = 12000;
 	bool is_ft8 = !strcmp(field_str("MODE"), "FT8");
+	recent_qso_age = field_int("RCT_QSO_AGE");
 
     LOG(LOG_DEBUG, "sbitx_ftx_decode: %s sample rate %d Hz, %d samples, %.3f seconds\n",
 		(is_ft8 ? "FT8" : "FT4"), sample_rate, num_samples, (double)num_samples / sample_rate);
@@ -635,6 +638,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	// the time is shifted back by the time it took to capture these samples
 	const int packet_time_ms = is_ft8 ? 15000 : 7500;
 	const int raw_ms = (wallclock_day_ms / packet_time_ms) * packet_time_ms;
+	time_t now = time(NULL);
 
 	int i;
 	char mycallsign_upper[20];
@@ -663,6 +667,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 		int time_sec; // second within the minute
 		int snr;
 		int pitch;
+		int last_qso_age;
+		int grid_last_qso_age;
 		char text[FTX_MAX_MESSAGE_LENGTH]; // message text as decoded
 		ftx_message_offsets_t spans; // locations/lengths of fields in text
 		ftx_message_t message; // encoded form
@@ -739,13 +745,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			decoded[idx_hash].snr = cand->snr;
 			decoded[idx_hash].pitch = freq_hz;
 			decoded[idx_hash].spans = spans;
+			decoded[idx_hash].last_qso_age = -1;
+			decoded[idx_hash].grid_last_qso_age = -1;
 
 			char buf[64];
 			int prefix_len = 8 + snprintf(hmst_time_sprint(buf, raw_ms), sizeof(buf) - 8, " %3d %+03d %4d ~ ", cand->score, cand->snr, freq_hz);
-			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s\n", text);
-			const int message_type = ftx_message_get_i3(&message);
-			//~ char type_utf8[4] = {0xE2, message_type ? 0x91 : 0x93, message_type ? 0xA0 + message_type - 1 : 0xAA, 0 };
-			LOG(LOG_INFO, "<< %d.%c       %s", message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
+			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s", text);
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -753,6 +758,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 			text_span_semantic sem[FTX_MAX_MESSAGE_FIELDS + 4];
 			memset(sem, 0, sizeof(sem));
+			char callsign[20];
+			memset(callsign, 0, sizeof(callsign));
 			bool my_call_found = false;
 			int calls_found = 0;
 			int total_calls = message_callsign_count(&spans);
@@ -778,6 +785,27 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				// each span ends where the next starts (ftx_message_offsets_t does not have lengths, so far)
 				if (sem_i > 4) {
 					sem[sem_i - 1].length = sem[sem_i].start_column - sem[sem_i - 1].start_column;
+					// Now that we know the length of the previous field, check for special cases to change style
+					switch (sem[sem_i - 1].semantic) {
+						case STYLE_CALLER: {
+							// Have we had a recent QSO with this caller?
+							int start = sem[sem_i - 1].start_column;
+							int len = sem[sem_i - 1].length;
+							if (buf[start] == ' ')
+								++start;
+							while (!buf[start + len - 1] || buf[start + len - 1] == ' ')
+								--len;
+							strncpy(callsign, buf + start, len);
+							callsign[len] = 0;
+							time_t recent_qso = len > 0 ? logbook_last_qso(callsign, len) : 0ll;
+							//~ printf("checking for recent QSO: callsign is at text range %d len %d from '%s': '%s'; last qso @ %lld, %lld secs ago; limit is %d hours\n",
+								//~ start, len, buf, callsign, recent_qso, now - recent_qso, recent_qso_age);
+							decoded[idx_hash].last_qso_age = recent_qso ? (now - recent_qso) / 60 / 60 : -1; // convert seconds to hours
+							if (recent_qso && decoded[idx_hash].last_qso_age < recent_qso_age)
+								sem[sem_i - 1].semantic = STYLE_RECENT_CALLER;
+							break;
+						}
+					}
 					//~ printf("span %d: start %d len %d - %d = %d; style %d\n", sem_i - 1,
 						//~ sem[sem_i].start_column, sem[sem_i].start_column, sem[sem_i - 1].start_column,
 						//~ sem[sem_i - 1].length, sem[sem_i - 1].semantic);
@@ -812,8 +840,50 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				sem[sem_i].semantic = kFieldType_style_map[spans.types[span_i]];
 			}
 			// set length of the last span (no next span, but null terminator in text)
-			if (span_i > 0)
+			if (span_i > 0) {
 				sem[sem_i - 1].length = strlen(text + spans.offsets[span_i - 1]);
+				//~ printf("final span has len %d sem %d\n", sem[sem_i - 1].length, sem[sem_i - 1].semantic);
+				switch (sem[sem_i - 1].semantic) {
+					case STYLE_GRID: {
+						// When was the last QSO with someone in this grid?
+						time_t recent_grid_qso = sem[sem_i - 1].length > 0 ? logbook_grid_last_qso(buf + sem[sem_i - 1].start_column, sem[sem_i - 1].length) : 0ll;
+						//~ printf("checking for QSO: grid is at text range %d len %d from '%s'; exists? %d\n",
+							//~ sem[sem_i - 1].start_column, sem[sem_i - 1].length, buf, exists);
+						decoded[idx_hash].grid_last_qso_age = recent_grid_qso ? (now - recent_grid_qso) / 60 / 60 : -1; // convert seconds to hours
+						if (recent_grid_qso)
+							sem[sem_i - 1].semantic = STYLE_EXISTING_GRID;
+						break;
+					}
+					case STYLE_CALLER: {
+						// The line could end with the callsign if it's a non-standard call (no grid then).
+						// Have we had a recent QSO with this caller?
+						int start = sem[sem_i - 1].start_column;
+						int len = sem[sem_i - 1].length;
+						if (buf[start] == ' ')
+							++start;
+						while (!buf[start + len - 1] || buf[start + len - 1] == ' ')
+							--len;
+						strncpy(callsign, buf + start, len);
+						callsign[len] = 0;
+						time_t recent_qso = len > 0 ? logbook_last_qso(callsign, len) : 0ll;
+						decoded[idx_hash].last_qso_age = recent_qso ? (now - recent_qso) / 60 / 60 : -1; // convert seconds to hours
+						if (recent_qso && decoded[idx_hash].last_qso_age < recent_qso_age)
+							sem[sem_i - 1].semantic = STYLE_RECENT_CALLER;
+						break;
+					}
+				}
+			}
+			const int message_type = ftx_message_get_i3(&message);
+			if (decoded[idx_hash].last_qso_age < 0 && decoded[idx_hash].grid_last_qso_age < 0) {
+				LOG(LOG_INFO, "<< %d.%c       %s\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
+			} else {
+				LOG(LOG_INFO, "<< %d.%c       %s; last QSO with %s was %d hours ago, with grid %d hours ago\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message),
+					buf, callsign, decoded[idx_hash].last_qso_age, decoded[idx_hash].grid_last_qso_age);
+			}
+			buf[line_len++] = '\n';
+			buf[line_len] = 0;
 			write_console_semantic(buf, sem, sem_i);
 
 			if (my_call_found)
@@ -839,7 +909,10 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     //  and make it behave more like FT8CN (i.e. a sort of
     // completely autonomous ft8 bot), according to the preferences of the user
 	// If that gets done, we can add ROBOT to the list of modes for FTX_AUTO (see sbitx_gtk.c:1094)
-	if (!strcmp(field_str("FTX_AUTO"), "CQRESP") && !strlen(field_str("CALL")) && !ftx_tx_text[0]) {
+	const bool cq_auto_respond = !strcmp(field_str("FTX_AUTO"), "CQRESP");
+	if (cq_auto_respond && ftx_tx_text[0])
+		LOG(LOG_DEBUG, "skipping auto-responder because of queued message '%s'\n", ftx_tx_text);
+	if (cq_auto_respond && !ftx_tx_text[0]) {
 		int cand_time_sec = -1;
 		int cand_snr = -100;
 		int cand_pitch = -1;
@@ -854,11 +927,17 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			if (decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
 				int de_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_CALL);
 				if (de_offset < 0)
-					continue; // no callsign found
+					continue;
 				if (strncmp(decoded_hashtable[idx]->text, "CQ ", 3))
 					continue; // ignore it if it's not a CQ
 				char callsign[12];
 				tokncpy(callsign, decoded_hashtable[idx]->text + de_offset, sizeof(callsign));
+				// if our last QSO with this callsign was too recent, don't call again
+				if (decoded_hashtable[idx]->last_qso_age >= 0 && decoded_hashtable[idx]->last_qso_age < recent_qso_age) {
+					LOG(LOG_DEBUG, "Skipping %s: age %d hours is too recent\n",
+						callsign, decoded_hashtable[idx]->last_qso_age);
+					continue;
+				}
 
 				// Prioritize xOTA, /QRP and /P
 				if (!strncmp(decoded_hashtable[idx]->text + 4, "OTA ", 4) ||
@@ -920,7 +999,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			}
 			set_field_int("rx_pitch", cand_pitch);
 			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
-			printf("Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
+			LOG(LOG_INFO, "Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
 				ftx_tx1st ? "even" : "odd", prioritized ? "prioritized " : "", cand_callsign,
 				cand_exch, cand_time_sec, cand_snr, cand_pitch, cand_text);
 			strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], cand_callsign);

@@ -191,40 +191,64 @@ int logbook_get_grids(void (*f)(char*, int))
 	return cnt;
 }
 
-bool logbook_caller_exists(char* id)
+static sqlite3_stmt* logbook_last_qso_stmt = NULL;
+
+/*!
+	If the \a callsign is found in the logbook, return the timestamp of the most recent QSO.
+	If not, return \c 0.
+	\note callsign may end with a space character, null, etc.; \a len tells where
+*/
+time_t logbook_last_qso(const char* callsign, int len)
 {
-	sqlite3_stmt* stmt;
-	char* statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE callsign_recv=?)";
-	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
-	if (res != SQLITE_OK)
-		return false;
-	bool exists = false;
-	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
-	if (res == SQLITE_OK) {
-		res = sqlite3_step(stmt);
-		int i = sqlite3_column_int(stmt, 0);
-		exists = (res == SQLITE_ROW && i != 0);
+	time_t ret = 0;
+	if (!logbook_last_qso_stmt) {
+		const char* statement = "SELECT unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) FROM logbook WHERE callsign_recv=?"
+			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
+		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_last_qso_stmt, NULL);
+		if (zErrMsg != SQLITE_OK) {
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %s\n", zErrMsg);
+			return ret;
+		}
 	}
-	sqlite3_finalize(stmt);
-	return exists;
+	int zErrMsg = sqlite3_bind_text(logbook_last_qso_stmt, 1, callsign, len, SQLITE_STATIC);
+	if (zErrMsg == SQLITE_OK && sqlite3_step(logbook_last_qso_stmt) == SQLITE_ROW) {
+		ret = sqlite3_column_int64(logbook_last_qso_stmt, 0);
+		//~ printf("last QSO with %s was at timestamp %lld\n", callsign, ret);
+	}
+	// release binding of \a callsign, and be ready to reuse logbook_last_qso_stmt next time
+	sqlite3_reset(logbook_last_qso_stmt);
+	return ret;
 }
 
-bool logbook_grid_exists(char* id)
+static sqlite3_stmt* logbook_grid_last_qso_stmt = NULL;
+
+/*!
+	If the grid \a id is found in the logbook, return the timestamp of the most recent QSO.
+	If not, return \c 0.
+	\note \a id may end with a space character, null, etc.; \a len tells where
+*/
+time_t logbook_grid_last_qso(const char *id, int len)
 {
-	sqlite3_stmt* stmt;
-	char* statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE exch_recv=?)";
-	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
-	if (res != SQLITE_OK)
-		return false;
-	bool exists = false;
-	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
-	if (res == SQLITE_OK) {
-		res = sqlite3_step(stmt);
-		int i = sqlite3_column_int(stmt, 0);
-		exists = (res == SQLITE_ROW && i != 0);
+	time_t ret = 0;
+	if (len < 4 || !strncmp(id, "RR73", 4) || !strncmp(id, "R+", 2) || !strncmp(id, "R-", 2) || !(isalpha(id[0]) && isalpha(id[1])))
+		return ret; // that's not a grid
+	if (!logbook_grid_last_qso_stmt) {
+		const char* statement = "SELECT unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) FROM logbook WHERE exch_recv=?"
+			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
+		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_grid_last_qso_stmt, NULL);
+		if (zErrMsg != SQLITE_OK) {
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %s\n", zErrMsg);
+			return ret;
+		}
 	}
-	sqlite3_finalize(stmt);
-	return exists;
+	int zErrMsg = sqlite3_bind_text(logbook_grid_last_qso_stmt, 1, id, len, SQLITE_STATIC);
+	if (zErrMsg == SQLITE_OK && sqlite3_step(logbook_grid_last_qso_stmt) == SQLITE_ROW) {
+		ret = sqlite3_column_int64(logbook_grid_last_qso_stmt, 0);
+		//~ printf("last QSO with %s was at timestamp %lld\n", id, ret);
+	}
+	// release binding of \a callsign, and be ready to reuse logbook_grid_last_qso_stmt next time
+	sqlite3_reset(logbook_grid_last_qso_stmt);
+	return ret;
 }
 
 // TODO unsafe API: result_len must be given

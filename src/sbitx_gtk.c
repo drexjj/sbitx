@@ -220,8 +220,10 @@ struct font_style font_table[] = {
 	{STYLE_LOG, 0.7, 0.7, 0.7, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_MYCALL, 1, 0, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CALLER, 0.8, 0.4, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_RECENT_CALLER, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CALLEE, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_EXISTING_GRID, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_TIME, 0, 0.8, 0.8, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_SNR, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FREQ, 0, 0.7, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -833,6 +835,8 @@ struct field main_controls[] = {
 	 "", 100, 99999, 100, 0},
 	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "BLANK/LEFT/RIGHT/CROSSHAIR", 0, 0, 0, 0},
+	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RCT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 99999, 1, 0}, // age in hours that we consider "recent" enough to avoid calling again
 
 	// parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
 	{"#eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1686,8 +1690,19 @@ void draw_console(cairo_t *gfx, struct field *f)
 */
 int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 	int _start = -1, _len = -1;
-	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i)
-		if (console_stream[line].spans[i].semantic == sem) {
+	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i) {
+		// if we are looking for STYLE_CALLER, it could also be STYLE_RECENT_CALLER
+		// if we are looking for STYLE_GRID, it could also be STYLE_EXISTING_GRID
+		sbitx_style sem_alt1 = sem;
+		switch (sem) {
+			case STYLE_CALLER:
+				sem_alt1 = STYLE_RECENT_CALLER;
+				break;
+			case STYLE_GRID:
+				sem_alt1 = STYLE_EXISTING_GRID;
+				break;
+		}
+		if (console_stream[line].spans[i].semantic == sem || console_stream[line].spans[i].semantic == sem_alt1) {
 			_start = console_stream[line].spans[i].start_column;
 			_len = console_stream[line].spans[i].length;
 			--_len; // point to the last char
@@ -1705,6 +1720,7 @@ int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 			++_len; // point to the null terminator
 			break;
 		}
+	}
 	if (_start < 0 || _len < 0)
 		return -1;
 	char *end = stpncpy(out, console_stream[line].text + _start, MIN(_len, outlen - 1));

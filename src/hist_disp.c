@@ -96,11 +96,6 @@ int hd_message_parse(struct hd_message_struct* p_message, const char* raw_messag
 int ff_lookup_style(char* id, int style, int style_default) {
 	switch (style)
 	{
-	case STYLE_CALLER:
-		return logbook_caller_exists(id) ? style_default : style;
-		// return style; // test skipping log lookup
-		break;
-
 	case STYLE_GRID: {
 		bool id_ok =
 			(strlen(id) == 4 && strcmp(id,"RR73") &&
@@ -153,6 +148,8 @@ char ff_char(int style) {
 		case STYLE_CALLER:
 			return 'A' + 17;
 		case STYLE_CALLEE:
+		case STYLE_RECENT_CALLER:
+		case STYLE_EXISTING_GRID:
 			return 'A' + 5;
 		case STYLE_GRID:
 			return 'A' + 18;
