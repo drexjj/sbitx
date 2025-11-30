@@ -340,7 +340,7 @@ void logbook_add(const char* contact_callsign, const char* rst_sent, const char*
 	time_t log_time = time_sbitx();
 	struct tm* tmp = gmtime(&log_time);
 	get_field_value("r1:mode", mode);
-	const bool ftx = !strcmp(mode, "FT8");
+	const bool ftx = !strncmp(mode, "FT", 2);
 	int freq = field_int("FREQ");
 	// For FT8/FT4 we log dial frequency + audio frequency
 	if (ftx) {
