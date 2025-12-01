@@ -54,7 +54,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 #include "calibration_ui.h"
-#include "swr_monitor.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
@@ -1198,7 +1197,6 @@ struct field main_controls[] = {
 
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
-	
 };
 
 struct field *get_field(const char *cmd);
@@ -3226,23 +3224,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 	bool is_s_meter_on = strcmp(field_str("SMETEROPT"), "ON") == 0;
-
-	// --- HIGH SWR indicator (left side, red message)
-
-//		printf("vswr_tripped %d %d\n", vswr_tripped, strlen(swr_msg));	
-	if ( vswr_tripped ==1) { 
-//		printf("vswr high set\n");
-		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
-		
-		// Position on left side of spectrum
-		int swr_text_x = f_spectrum->x + 120; // 9
-		int swr_text_y = f_spectrum->y + 25; // 50
-		
-		cairo_move_to(gfx, swr_text_x, swr_text_y);
-		char *s = "HIGH VSWR";
-		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
-		cairo_show_text(gfx, s);  //swr_msg
-	}
 
 	if (zero_beat_enabled) {
 		// --- Zero Beat indicator
@@ -7175,7 +7156,7 @@ void tuning_isr(void)
 			tuning_ticks--;
 	}
 }
-/*
+
 void query_swr()
 {
 	uint8_t response[4];
@@ -7200,12 +7181,7 @@ void query_swr()
 	set_field("#fwdpower", buff);
 	sprintf(buff, "%d", vswr);
 	set_field("#vswr", buff);
-
-	// Check and handle VSWR
-	printf("calling handle\n");
-	check_and_handle_vswr(vswr);
 }
-*/
 void oled_toggle_band()
 {
 	unsigned int freq_now = field_int("FREQ");
@@ -7726,7 +7702,6 @@ gboolean ui_tick(gpointer gook)
 			set_field("#fwdpower", buff);
 			sprintf(buff, "%d", vswr);
 			set_field("#vswr", buff);
-			check_and_handle_vswr(vswr);			
 		}
 		if (layout_needs_refresh)
 		{
@@ -8743,43 +8718,6 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
-	
-		else if (!strcasecmp(exec, "maxvswr"))
-	{
-		char msg[128];
-		if (strlen(args) > 0)
-		{
-			float new_max_vswr = atof(args);			
-			printf(" vswr %.1f \n",new_max_vswr);
-			if (new_max_vswr < .1f) 
-				{
-					vswr_on = 0;  // turn off protection
-					snprintf(msg, sizeof(msg), "\n CAUTION SWR protection disabled\n"); 
-					write_console(STYLE_LOG, msg);
-				}
-			else 
-			if (new_max_vswr >= 1.0f && new_max_vswr <= 10.0f)
-				{
-					vswr_on = 1;  // turn on protection
-					max_vswr = new_max_vswr;					
-					snprintf(msg, sizeof(msg), "\n maxvswr changed to %.1f\n", max_vswr);
-					write_console(STYLE_LOG, msg);
-				}
-				else
-				{
-					snprintf(msg, sizeof(msg), "\n maxvswr must be between 1.0 and 10.0\n");
-					write_console(STYLE_LOG, msg);
-				}
-		}
-		
-		else
-		{
-			snprintf(msg, sizeof(msg), "maxvswr takes value between 1.0 and 10.0\n");
-			write_console(STYLE_LOG, msg);
-		}
-
-	}
-	
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))
