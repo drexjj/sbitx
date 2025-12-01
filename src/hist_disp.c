@@ -97,12 +97,13 @@ int ff_lookup_style(char* id, int style, int style_default) {
 	switch (style)
 	{
 	case STYLE_GRID: {
+		const int len = strlen(id);
 		bool id_ok =
-			(strlen(id) == 4 && strcmp(id,"RR73") &&
+			(len == 4 && strcmp(id,"RR73") &&
 			isLetter(id[0]) && isLetter(id[1]) &&
         	isDigit(id[2]) && isDigit(id[3]));
 
-			return (!id_ok || logbook_grid_exists(id)) ? style_default : style;
+			return (!id_ok || logbook_grid_last_qso(id, len)) ? style_default : style;
 			//return (!id_ok) ? style_default : style; // test skipping log lookup
 		}
 		break;
