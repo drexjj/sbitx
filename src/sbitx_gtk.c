@@ -718,18 +718,18 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 
 	/* band stack registers - replaced with #band dropdown */
-	{"#band", do_band_dropdown, 50, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"#band", do_band_dropdown, 50, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "80M/60M/40M/30M/20M/17M/15M/12M/10M", 0, 0, 0, COMMON_CONTROL},
-	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-  {"#snap", NULL, 1000, -1000, 40, 40, "SNAP", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
-   "", 0, 0, 0, COMMON_CONTROL},
+  	{"#snap", NULL, 1000, -1000, 40, 40, "SNAP", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+   	"", 0, 0, 0, COMMON_CONTROL},
 	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
+	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"r1:agc", do_dropdown, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"r1:agc", do_dropdown, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "OFF/SLOW/MED/FAST", 0, 1024, 1, COMMON_CONTROL},
 	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, COMMON_CONTROL},
@@ -739,9 +739,9 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
-	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
 	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
@@ -751,7 +751,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
-	{"r1:mode", do_dropdown, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"r1:mode", do_dropdown, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "USB/LSB/AM/CW/CWR/FT8/FT4/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 
 	/* logger controls */
@@ -977,10 +977,10 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
-	// {"#menu", do_toggle_option, 459, 50, 40, 40, "MENU", 40, "OFF", 3, FONT_FIELD_VALUE,
+	// {"#menu", do_toggle_option, 459, 50, 40, 40, "MENU", 40, "OFF", 3, STYLE_FIELD_VALUE,
 	//  "2/1/OFF", 0, 0, 0, COMMON_CONTROL},
 
-	{"#menu", do_dropdown, 459, 50, 40, 40, "MENU", 1, "OFF", FIELD_DROPDOWN, FONT_FIELD_VALUE,
+	{"#menu", do_dropdown, 459, 50, 40, 40, "MENU", 1, "OFF", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "OFF/1/2", 0, 0, 0, COMMON_CONTROL},
 
 	// Notch Filter Controls
@@ -1089,9 +1089,9 @@ struct field main_controls[] = {
 	 "", 300, 6000, 50, 0},
 
 	// FTx controls
-	{"#ftx_auto", NULL, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	{"#ftx_auto", do_dropdown, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "OFF/ANS/CQRESP", 0, 0, 0, FT8_CONTROL},
-	{"#ftx_cq", NULL, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	{"#ftx_cq", do_dropdown, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ftx_repeat", NULL, 1000, -1000, 50, 50, "FTX_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
@@ -5484,15 +5484,15 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
 		// Draw label
-		int label_width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+		int label_width = measure_text(gfx, f->label, STYLE_FIELD_LABEL);
 		int label_x = f->x + (f->width - label_width) / 2;
-		int label_y = f->y + ((f->height - font_table[FONT_FIELD_LABEL].height - font_table[f->font_index].height) / 2);
-		draw_text(gfx, label_x, label_y, f->label, FONT_FIELD_LABEL);
+		int label_y = f->y + ((f->height - font_table[STYLE_FIELD_LABEL].height - font_table[f->font_index].height) / 2);
+		draw_text(gfx, label_x, label_y, f->label, STYLE_FIELD_LABEL);
 
 		// Draw current value
 		int value_width = measure_text(gfx, f->value, f->font_index);
 		int value_x = f->x + (f->width - value_width) / 2;
-		int value_y = label_y + font_table[FONT_FIELD_LABEL].height;
+		int value_y = label_y + font_table[STYLE_FIELD_LABEL].height;
 		draw_text(gfx, value_x, value_y, f->value, f->font_index);
 
 		// If expanded, draw the dropdown options BELOW the main button
