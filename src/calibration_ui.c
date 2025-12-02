@@ -303,6 +303,20 @@ void calibration_ui(GtkWidget *parent) {
     GtkWidget *dialog, *grid, *label, *button;
     int row = 0;
 
+    // Check if we're in USB mode
+    const char *current_mode = field_str("MODE");
+    if (!current_mode || strcmp(current_mode, "USB") != 0) {
+        GtkWidget *msg_dialog = gtk_message_dialog_new(
+            GTK_WINDOW(parent),
+            GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+            GTK_MESSAGE_WARNING,
+            GTK_BUTTONS_OK,
+            "Switch to USB mode and then reopen this dialog.");
+        gtk_dialog_run(GTK_DIALOG(msg_dialog));
+        gtk_widget_destroy(msg_dialog);
+        return;
+    }
+
     // Initialize calibration state
     memset(&cal_state, 0, sizeof(cal_state));
     cal_state.selected_band = 0;  // Default to 80M

@@ -3,11 +3,10 @@ BasedOnStyle: WebKit
 # ColumnLimit: 120
 IndentCaseLabels: false
 IndentWidth: 4
-TabWidth: 8
-UseTab: Never
+TabWidth: 4
+UseTab: ForIndentation
 PointerAlignment: Left
 SortIncludes: false
-AlignConsecutiveMacros: true
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: false
@@ -17,8 +16,7 @@ AlignTrailingComments: true
 BreakConstructorInitializers: BeforeColon
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ConstructorInitializerIndentWidth: 0
-BreakBeforeBraces: Custom
-BreakBeforeBinaryOperators: All
+BreakBeforeBraces: Linux
 BraceWrapping:
     AfterControlStatement: true
     AfterClass: true

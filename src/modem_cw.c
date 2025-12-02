@@ -82,10 +82,12 @@ struct cw_decoder {
   int wpm;
   int next_symbol;
   int last_char_was_space;
+  int console_font;  // STYLE_CW_RX or STYLE_CW_TX
   struct symbol symbol_str[MAX_SYMBOLS];
 };
 
 static struct cw_decoder decoder;
+static struct cw_decoder tx_decoder;
 
 // Morse code tables
 static const struct morse_tx morse_tx_table[] = {
@@ -368,8 +370,9 @@ static int cw_read_key(){
     symbol_next = morse_lut[uc];
 
     if (symbol_next) {
-        char buff[2] = { (char)toupper(uc), 0 };  // safe ctype: uc is unsigned char
-        write_console(FONT_CW_TX, buff);
+        // TX decoder will write to console when character is actually decoded
+        // char buff[2] = { (char)toupper(uc), 0 };
+        // write_console(STYLE_CW_TX, buff);
         return cw_get_next_symbol();
     } else {
         // unknown character: ignore
@@ -379,6 +382,14 @@ static int cw_read_key(){
 
 // Function prototype for the state machine handler
 void handle_cw_state_machine(uint8_t, uint8_t);
+
+// TX decoder buffer
+static int32_t tx_sample_buffer[1024];
+static int tx_buffer_pos = 0;
+static bool tx_session_active = false;  // Track if we're in a TX session
+
+// Forward declaration for TX decode helper
+static void cw_tx_decode_samples(void);
 
 // use input from macro playback, keyboard or key/paddle to key the transmitter
 // keydown and keyup times
@@ -434,7 +445,14 @@ float cw_tx_get_sample() {
     keyup_count--;
   }
   sample = ((vfo_read(&cw_tone) / FLOAT_SCALE) * cw_envelope) / 8;
-  
+
+  // TX decoding: accumulate samples and decode when buffer is full
+  tx_sample_buffer[tx_buffer_pos++] = (int32_t)(sample * 32768.0f);
+  if (tx_buffer_pos >= 1024) {
+    cw_tx_decode_samples();
+    tx_buffer_pos = 0;
+  }
+
   // keep extending 'cw_tx_until' while we're sending
   if ((symbol_now == CW_DOWN) || (symbol_now == CW_DOT) ||
       (symbol_now == CW_DASH) || (symbol_now == CW_SQUEEZE) ||
@@ -887,7 +905,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
       // no symbol being built, check for word gap (long space)
       if (p->ticker >= word_gap) {
         if (!p->last_char_was_space) {
-          write_console(FONT_CW_RX, " ");  // output a space to the console (word separator)
+          write_console(p->console_font, " ");  // output a space to the console (word separator)
           p->last_char_was_space = 1;
         }
         p->ticker = 0;   // reset ticker after outputting space
@@ -908,7 +926,7 @@ static void cw_rx_detect_symbol(struct cw_decoder *p) {
         // if this also looks like a word gap, print a space
         if (p->ticker >= word_gap) {
           if (!p->last_char_was_space) {
-            write_console(FONT_CW_RX, " ");
+            write_console(p->console_font, " ");
             p->last_char_was_space = 1;
           }
           p->ticker = 0;
@@ -986,15 +1004,43 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   }
 
   decoder->next_symbol = 0;  // reset the symbol buffer for the next letter/sequence
+
+  // If this is TX decoder and first character of session, write newline first
+  if (decoder->console_font == STYLE_CW_TX && !tx_session_active) {
+    write_console(STYLE_CW_RX, "\n");  // Write newline with RX style for clean break
+    tx_session_active = true;
+  }
+
   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      write_console(FONT_CW_RX, morse_rx_table[i].c);
+      write_console(decoder->console_font, morse_rx_table[i].c);
       decoder->last_char_was_space = 0;
       return;
     }
   }
-  write_console(FONT_CW_RX, morse_code_string);
+  write_console(decoder->console_font, morse_code_string);
   decoder->last_char_was_space = 0;
+}
+
+// TX decoder helper function - processes buffered TX samples
+static void cw_tx_decode_samples(void) {
+  int decimation_factor = 8;  // 96 kHz -> 12 kHz
+  int32_t filtered_samples[1024];
+  int32_t s[N_BINS];
+
+  // apply anti-aliasing low pass filter
+  apply_fir_filter(tx_sample_buffer, filtered_samples, fir_coeffs, 1024, 64);
+
+  // use decimation_factor to downsample and eliminate eight LSB
+  for (int i = 0; i < N_BINS; i++) {
+    s[i] = filtered_samples[i * decimation_factor] >> 8;
+  }
+
+  // process through TX decoder
+  cw_rx_bin(&tx_decoder, s);
+  cw_rx_update_levels(&tx_decoder);
+  cw_rx_denoise(&tx_decoder);
+  cw_rx_detect_symbol(&tx_decoder);
 }
 
 // initialize a struct bin for use with Goertzel algorithm
@@ -1008,7 +1054,7 @@ static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq
   p->scalingFactor = n / 2.0;
 }
 
-void cw_init() {	
+void cw_init() {
 	decoder.ticker = 0;
 	decoder.n_bins = N_BINS;
 	decoder.next_symbol = 0;
@@ -1020,7 +1066,8 @@ void cw_init() {
   decoder.last_char_was_space = 0;
   decoder.max_bin_idx = -1;    // no previous winning bin
   decoder.max_bin_streak = 0;  // no streak yet
-	decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM); 
+	decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM);
+  decoder.console_font = STYLE_CW_RX;  // RX decoder uses green font
 
   // initialize five signal bins
   int cw_rx_pitch = field_int("PITCH");
@@ -1029,9 +1076,32 @@ void cw_init() {
   cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
   cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
-  
+
+  // initialize TX decoder (mirrors RX decoder, but uses TX pitch)
+  tx_decoder.ticker = 0;
+  tx_decoder.n_bins = N_BINS;
+  tx_decoder.next_symbol = 0;
+  tx_decoder.sig_state = false;
+  tx_decoder.prev_mark = false;
+  tx_decoder.magnitude = 0;
+  tx_decoder.history_sig = 0;
+  tx_decoder.wpm = 20;
+  tx_decoder.last_char_was_space = 0;
+  tx_decoder.max_bin_idx = -1;
+  tx_decoder.max_bin_streak = 0;
+  tx_decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM);
+  tx_decoder.console_font = STYLE_CW_TX;  // TX decoder uses amber/yellow font
+
+  // initialize TX decoder bins at TX pitch
+  int cw_tx_pitch = get_pitch();
+  cw_rx_bin_init(&tx_decoder.signal_minus2, cw_tx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_minus1, cw_tx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_plus1,  cw_tx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_plus2,  cw_tx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
+
   // cw tx initialization
-  cw_init_morse_lut();    // build TX Morse code look-up table 
+  cw_init_morse_lut();    // build TX Morse code look-up table
   vfo_start(&cw_tone, 700, 0);
 	vfo_start(&cw_env, 200, 49044);  // not used with data driven waveform
 	cw_period = 9600;    // at 96ksps, 0.1sec = 1 dot at 12wpm
@@ -1058,12 +1128,27 @@ void cw_poll(int bytes_available, int tx_is_on){
 	// check if the wpm has changed
   if (wpm != decoder.wpm){
 		decoder.wpm = wpm;
-		decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm); 
-	}	
+		decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
+	}
+
+	// retune the tx decoder pitch if needed
+  int cw_tx_pitch = get_pitch();
+	if (cw_tx_pitch != tx_decoder.signal_center.freq) {
+    cw_rx_bin_init(&tx_decoder.signal_minus2, cw_tx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_minus1, cw_tx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_plus1,  cw_tx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_plus2,  cw_tx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
+  }
+	// check if the wpm has changed for tx decoder
+  if (wpm != tx_decoder.wpm){
+		tx_decoder.wpm = wpm;
+		tx_decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
+	}
 
 	// TX ON if bytes are avaiable (from macro/keyboard) or key is pressed
-	// of we are in the middle of symbol (dah/dit) transmission 
-	if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) || 
+	// of we are in the middle of symbol (dah/dit) transmission
+	if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) ||
       cw_key_state || (symbol_next && *symbol_next)) > 0) {
 		tx_on(TX_SOFT);
 		millis_now = millis();
@@ -1071,10 +1156,25 @@ void cw_poll(int bytes_available, int tx_is_on){
 		cw_mode = get_cw_input_method();
 	}
 	else if (tx_is_on && cw_tx_until < millis_now){
+		// If we were in a TX session, write newline to end it
+		if (tx_session_active) {
+			write_console(STYLE_CW_TX, "\n");
+			tx_session_active = false;
+		}
 		tx_off();
 	}
 }
 
 void cw_abort(){
-	// currently does nothing
+	// If we were in a TX session, write newline to end it
+	if (tx_session_active) {
+		write_console(STYLE_CW_TX, "\n");
+		tx_session_active = false;
+	}
+
+	// Reset TX state
+	keydown_count = 0;
+	keyup_count = 0;
+	cw_tx_until = 0;
+	symbol_next = NULL;
 }

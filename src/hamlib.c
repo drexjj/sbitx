@@ -157,7 +157,7 @@ void send_response(int client_socket, char *response) {
 void send_freq(int client_socket){
   //Returns the active VFO's current frequency
   char response[20];
-  sprintf(response, "%d\n", get_freq());
+  snprintf(response, sizeof(response), "%d\n", get_freq());
   send_response(client_socket, response);
 }
 void send_mode(int client_socket){
@@ -166,28 +166,28 @@ char mode[10];
     get_field_value_by_label("MODE",mode);
     if (!strcmp(mode,"DIGI"))
       strcpy(mode,"PKTUSB");
-    sprintf(response,"%s\n%i\n", mode,  get_passband_bw());
+    snprintf(response, sizeof(response), "%s\n%i\n", mode,  get_passband_bw());
     send_response(client_socket, response);
     //printf("[%s]",response);
 }
 void set_mode(int client_socket, char* f) {
     char mode[10];
     char cmd[50];
-    char passband[3];
+    char passband[10];
     char* tok = strtok(f," ");
     if (tok != 0) {
-        strcpy(mode,tok);
+        strncpy(mode, tok, sizeof(mode));
         tok = strtok(0," ");
         //printf("Received mode: [%s] \n", mode);
         if (tok != 0) {
-            strcpy(passband,tok);
+            strncpy(passband, tok, sizeof(passband));
             //printf("Received bw: [%s] \n", passband);
         }
     } else {
         //We didn't receive what was expected
         send_response(client_socket, "RPRT -9\n");
         return;
-    } 
+    }
     if (!strcmp(mode, "PKTUSB"))
         strcpy(mode, "DIGI");
     //printf("Mode? = '%s'\n", mode);
@@ -197,11 +197,11 @@ void set_mode(int client_socket, char* f) {
     for (int i = 0; i < 6; i++) {
         if (!strcmp(mode, supported_hamlib_modes[i])) {
             char bw_str[10];
-            sprintf(cmd, "mode %s", mode);
+            snprintf(cmd, sizeof(cmd), "mode %s", mode);
             cmd_exec(cmd);
             if (!strcmp(passband,"0")) {
                 //passband=0 == use default BW for mode
-                sprintf(bw_str, "%d", get_default_passband_bw());
+                snprintf(bw_str, sizeof(bw_str), "%d", get_default_passband_bw());
 	            field_set("BW", bw_str);
             }
             send_response(client_socket, "RPRT 0\n");
@@ -215,7 +215,7 @@ void set_mode(int client_socket, char* f) {
 void send_rfpower(int client_socket) {
     char resp[3];
     float drive = (float)field_int("DRIVE") / (float)100;
-    sprintf(resp, "%f\n", drive);
+    snprintf(resp, sizeof(resp), "%f\n", drive);
     send_response(client_socket, resp);
 }
 void get_vfo(int client_socket) {
@@ -232,17 +232,15 @@ void get_vfo(int client_socket) {
 }
 void set_vfo(int client_socket, char* f) {
     field_set("VFO", f);
-    char response[5];
-    sprintf(response, "VFO%s\n", f);
+    char response[10];
+    snprintf(response, sizeof(response), "VFO%s\n", f);
     //printf("[VFO%s\n]", f);
     send_response(client_socket, "RPRT 0\n");
-
-
 }
 void get_split(int client_socket) {
     char curr_split[4];
     get_field_value_by_label("SPLIT", curr_split);
-    
+
     if (!strcmp(curr_split,"OFF")) {
         send_response(client_socket, "0\n");
         get_vfo(client_socket);
@@ -264,7 +262,7 @@ void hamlib_set_freq(int client_socket, char *f){
     freq = atoi(f+5);
   else
     freq = atoi(f);
-	sprintf(cmd, "freq %d", freq);
+	snprintf(cmd, sizeof(cmd), "freq %d", freq);
 #if DEBUG > 0
     printf("Send string to cmd_exec: [%s]\n",cmd);
 #endif

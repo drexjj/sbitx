@@ -1,3 +1,14 @@
+v5.3 - Currently In Test/Dev
+**New Features:**
+- CW decoding while sending
+- Mulitple FT8 Enhancements including xOTA (POTA, SOTA, ... etc support)
+- Support for FT4
+- "Quick Options" menu by holding both encoder buttons for 2 seconds. 
+- \cal command for calibrating the scale per band (external Power/SWR meter required).
+- \snap command to take screen shot of sBitx software
+- Voltage and Current added to UI by VFO
+- Added High SWR trigger and auto power reduction to 1 which is configurable by the \maxvswr command, default to 3:1
+
 v5.2 - 
 **New Features:**
 - **RIT tuning** fully implemented (by Jon W2JON) with excellent spectrum visualization of RX/TX offset relationship.
