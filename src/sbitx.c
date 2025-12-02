@@ -23,6 +23,7 @@
 #include "si5351.h"
 #include "ini.h"
 #include "para_eq.h"
+#include "swr_monitor.h"
 
 #define DEBUG 0
 
