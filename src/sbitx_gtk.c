@@ -726,7 +726,7 @@ struct field main_controls[] = {
 	 "USB/LSB/AM/CW/CWR/FT8/FT4/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 	{"#band", do_band_dropdown, 45, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "80M/60M/40M/30M/20M/17M/15M/12M/10M", 0, 0, 0, COMMON_CONTROL},
-	{"#band_stack_pos", do_band_stack_position, 85, 5, 40, 40, "", 1, "USB\n14200", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
+	{"#band_stack_pos", do_band_stack_position, 85, 5, 45, 40, "", 1, "USB\n14200", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "USB 14200/CW 14010/CW 14040/USB 14074", 0, 0, 0, COMMON_CONTROL},
 
 	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -4704,8 +4704,15 @@ struct band *get_band_by_frequency(int frequency)
 	return NULL; // Return NULL if no matching band is found
 }
 
+// Flag to prevent automatic band stack updates during band stack position changes
+static int updating_band_stack_position = 0;
+
 void update_current_band_stack()
 {
+	// Skip if we're in the middle of changing band stack position
+	if (updating_band_stack_position)
+		return;
+
 	// Update the current band stack position with current frequency and mode
 	struct field *freq_field = get_field("r1:freq");
 	struct field *mode_field = get_field("r1:mode");
@@ -6139,6 +6146,9 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 
 				if (clicked_option >= 0 && clicked_option < STACK_DEPTH)
 				{
+					// Set flag to prevent automatic band stack update during position change
+					updating_band_stack_position = 1;
+
 					// Update to the clicked stack position
 					current_band->index = clicked_option;
 
@@ -6160,8 +6170,13 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 							do_control_action(cmd_buff);
 							mode_field->is_dirty = 1;
 							mode_field->update_remote = 1;
+							update_field(mode_field);
 						}
 					}
+
+					// Clear flag and manually update band stack with correct values
+					updating_band_stack_position = 0;
+					update_current_band_stack();
 
 					// Update the band field display
 					highlight_band_field(current_band - band_stack);
@@ -6229,6 +6244,9 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 
 		if (new_pos != current_pos)
 		{
+			// Set flag to prevent automatic band stack update during position change
+			updating_band_stack_position = 1;
+
 			current_band->index = new_pos;
 
 			// Update frequency
@@ -6249,8 +6267,13 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 					do_control_action(cmd_buff);
 					mode_field->is_dirty = 1;
 					mode_field->update_remote = 1;
+					update_field(mode_field);
 				}
 			}
+
+			// Clear flag and manually update band stack with correct values
+			updating_band_stack_position = 0;
+			update_current_band_stack();
 
 			// Update the band field display
 			highlight_band_field(current_band - band_stack);
