@@ -6166,10 +6166,10 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 				strcpy(mode_str, mode_name[mode_idx]);
 				sprintf(freq_str, "%ld", freq_khz);
 
-				// Highlight current selection
-				int is_current = (i == stack_pos);
+				// Highlight based on encoder/keyboard navigation position
+				int is_highlighted = (i == dropdown_highlighted);
 
-				if (is_current)
+				if (is_highlighted)
 					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_FIELD_SELECTED);
 				else
 					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_BACKGROUND);
@@ -6236,22 +6236,30 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 
 				if (clicked_option >= 0 && clicked_option < STACK_DEPTH)
 				{
-					// Only update if clicking a different stack position
-					if (clicked_option != current_band->index)
+					// Update the highlighted option for this click
+					dropdown_highlighted = clicked_option;
+				}
+			}
+
+			// Use the highlighted option (whether from click or encoder navigation)
+			if (dropdown_highlighted >= 0 && dropdown_highlighted < STACK_DEPTH)
+			{
+				// Only update if selecting a different stack position
+				if (dropdown_highlighted != current_band->index)
 					{
 						// Set flag to prevent automatic band stack update during position change
 						updating_band_stack_position = 1;
 
-						// Update to the clicked stack position
-						current_band->index = clicked_option;
+						// Update to the highlighted stack position
+						current_band->index = dropdown_highlighted;
 
 						// Update frequency
 						char freq_str[20];
-						sprintf(freq_str, "%d", current_band->freq[clicked_option]);
+						sprintf(freq_str, "%d", current_band->freq[dropdown_highlighted]);
 						set_field("r1:freq", freq_str);
 
 						// Update mode and send command to radio
-						int mode_idx = current_band->mode[clicked_option];
+						int mode_idx = current_band->mode[dropdown_highlighted];
 						if (mode_idx >= 0 && mode_idx < MAX_MODES)
 						{
 							struct field *mode_field = get_field("r1:mode");
@@ -6282,7 +6290,6 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 						selection_made = 1;
 					}
 				}
-			}
 
 			// Collapse the dropdown
 			f_dropdown_expanded = NULL;
@@ -6302,11 +6309,18 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 			{
 				update_field(f);
 			}
+
+			return 1;
 		}
 		else
 		{
 			// Expand the dropdown
 			f_dropdown_expanded = f;
+
+			// Initialize highlight to current stack position
+			dropdown_highlighted = current_band->index;
+			if (dropdown_highlighted < 0 || dropdown_highlighted >= STACK_DEPTH)
+				dropdown_highlighted = 0;
 
 			// Calculate dropdown position
 			int item_height = 40;
@@ -6322,6 +6336,38 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 			update_field(f);
 		}
 
+		return 1;
+	}
+
+	// Handle keyboard/encoder navigation when dropdown is expanded
+	if (event == FIELD_EDIT && f_dropdown_expanded == f)
+	{
+		// Navigate through band stack positions
+		if (a == MIN_KEY_DOWN)
+		{
+			dropdown_highlighted++;
+			if (dropdown_highlighted >= STACK_DEPTH)
+				dropdown_highlighted = 0; // wrap around
+		}
+		else if (a == MIN_KEY_UP)
+		{
+			dropdown_highlighted--;
+			if (dropdown_highlighted < 0)
+				dropdown_highlighted = STACK_DEPTH - 1; // wrap around
+		}
+
+		// Invalidate the expanded area to show the new highlight
+		int item_height = 40;
+		int expanded_height = STACK_DEPTH * item_height;
+		int invalidate_y;
+
+		if (f->y + f->height + expanded_height > screen_height)
+			invalidate_y = f->y - expanded_height;
+		else
+			invalidate_y = f->y + f->height;
+
+		invalidate_rect(f->x, invalidate_y, f->width, expanded_height);
+		update_field(f);
 		return 1;
 	}
 
