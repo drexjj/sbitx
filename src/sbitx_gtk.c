@@ -5679,16 +5679,22 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			for (int i = 0; i < dropdown_highlighted && p; i++)
 				p = strtok(NULL, "/");
 
+			int value_changed = 0;
 			if (p)
 			{
-				strcpy(f->value, p);
-				// Send command to radio
-				char buff[200];
-				sprintf(buff, "%s %s", f->label, f->value);
-				do_control_action(buff);
-				f->is_dirty = 1;
-				f->update_remote = 1;
-				settings_updated++;
+				// Check if the value actually changed
+				if (strcmp(f->value, p) != 0)
+				{
+					strcpy(f->value, p);
+					// Send command to radio
+					char buff[200];
+					sprintf(buff, "%s %s", f->label, f->value);
+					do_control_action(buff);
+					f->is_dirty = 1;
+					f->update_remote = 1;
+					settings_updated++;
+					value_changed = 1;
+				}
 			}
 
 			f_dropdown_expanded = NULL;
@@ -5710,7 +5716,12 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
 			// Also invalidate the button itself to ensure clean redraw
 			invalidate_rect(f->x, f->y, f->width, f->height);
-			update_field(f);
+
+			// Only call update_field if the value actually changed
+			if (value_changed)
+			{
+				update_field(f);
+			}
 		}
 		else
 		{
@@ -5887,55 +5898,83 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 
 		if (selected_band)
 		{
-			// Find the band in the band_stack
-			struct band *band_found = NULL;
-			for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
+			// Check if the selected band is different from the current band
+			if (strcmp(f->label, selected_band) != 0)
 			{
-				if (!strcmp(band_stack[i].name, selected_band))
+				// Find the band in the band_stack
+				struct band *band_found = NULL;
+				for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 				{
-					band_found = &band_stack[i];
-					break;
+					if (!strcmp(band_stack[i].name, selected_band))
+					{
+						band_found = &band_stack[i];
+						break;
+					}
 				}
-			}
 
-			if (band_found)
+				if (band_found)
+				{
+					// Get the current stack position for this band
+					int stack_pos = band_found->index;
+					char freq_str[20];
+					sprintf(freq_str, "%d", band_found->freq[stack_pos]);
+
+					// Set the frequency directly
+					set_field("r1:freq", freq_str);
+
+					// Update the band dropdown label and value
+					strcpy(f->label, selected_band);
+
+					// Create stack position indicator (=---, -=--, --=-, ---=)
+					char stack_indicator[5];
+					for (int i = 0; i < 4; i++)
+					{
+						stack_indicator[i] = (i == stack_pos) ? '=' : '-';
+					}
+					stack_indicator[4] = '\0';
+					strcpy(f->value, stack_indicator);
+				}
+
+				// Collapse the dropdown
+				f_dropdown_expanded = NULL;
+
+				// Invalidate the full screen to redraw everything
+				invalidate_rect(0, 0, screen_width, screen_height);
+
+				update_field(f);
+				return 1; // Event handled
+			}
+			else
 			{
-				// Get the current stack position for this band
-				int stack_pos = band_found->index;
-				char freq_str[20];
-				sprintf(freq_str, "%d", band_found->freq[stack_pos]);
+				// Same band selected - just close the dropdown without updates
+				f_dropdown_expanded = NULL;
 
-				// Set the frequency directly
-				set_field("r1:freq", freq_str);
+				// Calculate where the dropdown was positioned
+				int item_height = 40;
+				int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+				int num_rows = (option_count + num_columns - 1) / num_columns;
+				int item_width = (num_columns > 1) ? f->width : f->width;
+				int expanded_width = item_width * num_columns;
+				int expanded_height = num_rows * item_height;
+				int invalidate_y;
 
-				// Update the band dropdown label and value
-				strcpy(f->label, selected_band);
+				if (f->y + f->height + expanded_height > screen_height)
+					invalidate_y = f->y - expanded_height;
+				else
+					invalidate_y = f->y + f->height;
 
-				// Create stack position indicator (=---, -=--, --=-, ---=)
-				char stack_indicator[5];
-				for (int i = 0; i < 4; i++)
-				{
-					stack_indicator[i] = (i == stack_pos) ? '=' : '-';
-				}
-				stack_indicator[4] = '\0';
-				strcpy(f->value, stack_indicator);
+				invalidate_rect(f->x, invalidate_y, expanded_width, expanded_height);
+				invalidate_rect(f->x, f->y, f->width, f->height);
+				return 1;
 			}
-
-			// Collapse the dropdown
-			f_dropdown_expanded = NULL;
-
-			// Invalidate the full screen to redraw everything
-			invalidate_rect(0, 0, screen_width, screen_height);
-
-			update_field(f);
-			return 1; // Event handled
 		}
 		else
 		{
-			// Click was outside the dropdown - collapse it
+			// Click was outside the dropdown - collapse it without selection
+			// Since no band selection was made, just close the dropdown
 			f_dropdown_expanded = NULL;
 
-			// Invalidate the dropdown area
+			// Invalidate the dropdown area - no need to call update_field since nothing changed
 			int invalidate_y;
 			if (f->y + f->height + expanded_height > screen_height)
 				invalidate_y = f->y - expanded_height;
@@ -5944,7 +5983,6 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 
 			invalidate_rect(f->x, invalidate_y, expanded_width, expanded_height);
 			invalidate_rect(f->x, f->y, f->width, f->height);
-			update_field(f);
 			return 1;
 		}
 	}
@@ -6190,6 +6228,7 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 			}
 
 			// Check if click is within expanded dropdown area
+			int selection_made = 0;
 			if (click_y >= dropdown_start_y && click_y < dropdown_start_y + expanded_height)
 			{
 				// Determine which option was clicked
@@ -6197,46 +6236,51 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 
 				if (clicked_option >= 0 && clicked_option < STACK_DEPTH)
 				{
-					// Set flag to prevent automatic band stack update during position change
-					updating_band_stack_position = 1;
-
-					// Update to the clicked stack position
-					current_band->index = clicked_option;
-
-					// Update frequency
-					char freq_str[20];
-					sprintf(freq_str, "%d", current_band->freq[clicked_option]);
-					set_field("r1:freq", freq_str);
-
-					// Update mode and send command to radio
-					int mode_idx = current_band->mode[clicked_option];
-					if (mode_idx >= 0 && mode_idx < MAX_MODES)
+					// Only update if clicking a different stack position
+					if (clicked_option != current_band->index)
 					{
-						struct field *mode_field = get_field("r1:mode");
-						if (mode_field)
+						// Set flag to prevent automatic band stack update during position change
+						updating_band_stack_position = 1;
+
+						// Update to the clicked stack position
+						current_band->index = clicked_option;
+
+						// Update frequency
+						char freq_str[20];
+						sprintf(freq_str, "%d", current_band->freq[clicked_option]);
+						set_field("r1:freq", freq_str);
+
+						// Update mode and send command to radio
+						int mode_idx = current_band->mode[clicked_option];
+						if (mode_idx >= 0 && mode_idx < MAX_MODES)
 						{
-							strcpy(mode_field->value, mode_name[mode_idx]);
-							char cmd_buff[200];
-							sprintf(cmd_buff, "%s %s", mode_field->label, mode_field->value);
-							do_control_action(cmd_buff);
-							mode_field->is_dirty = 1;
-							mode_field->update_remote = 1;
-							update_field(mode_field);
+							struct field *mode_field = get_field("r1:mode");
+							if (mode_field)
+							{
+								strcpy(mode_field->value, mode_name[mode_idx]);
+								char cmd_buff[200];
+								sprintf(cmd_buff, "%s %s", mode_field->label, mode_field->value);
+								do_control_action(cmd_buff);
+								mode_field->is_dirty = 1;
+								mode_field->update_remote = 1;
+								update_field(mode_field);
+							}
 						}
+
+						// Clear flag and manually update band stack with correct values
+						updating_band_stack_position = 0;
+						update_current_band_stack();
+
+						// Update the band field display
+						highlight_band_field(current_band - band_stack);
+
+						// Mark ourselves as dirty to force redraw
+						f->is_dirty = 1;
+						f->update_remote = 1;
+
+						settings_updated++;
+						selection_made = 1;
 					}
-
-					// Clear flag and manually update band stack with correct values
-					updating_band_stack_position = 0;
-					update_current_band_stack();
-
-					// Update the band field display
-					highlight_band_field(current_band - band_stack);
-
-					// Mark ourselves as dirty to force redraw
-					f->is_dirty = 1;
-					f->update_remote = 1;
-
-					settings_updated++;
 				}
 			}
 
@@ -6252,7 +6296,12 @@ int do_band_stack_position(struct field *f, cairo_t *gfx, int event, int a, int 
 
 			invalidate_rect(f->x, invalidate_y, f->width, expanded_height);
 			invalidate_rect(f->x, f->y, f->width, f->height);
-			update_field(f);
+
+			// Only call update_field if a selection was made to avoid clearing console/waterfall
+			if (selection_made)
+			{
+				update_field(f);
+			}
 		}
 		else
 		{
@@ -7869,6 +7918,8 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 			else
 			{
 				// Click is outside both dropdown and button - close dropdown without selection
+				// Since no selection was made, we just need to redraw the button and dropdown area
+				// without triggering updates to other fields (console, waterfall, etc.)
 				int invalidate_y;
 				if (f_dropdown_expanded->y + f_dropdown_expanded->height + expanded_height > screen_height)
 					invalidate_y = f_dropdown_expanded->y - expanded_height;
@@ -7879,9 +7930,10 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 				struct field *closing_dropdown = f_dropdown_expanded;
 				f_dropdown_expanded = NULL;
 
+				// Only invalidate the areas that need redrawing (button and dropdown area)
+				// Don't call update_field since nothing changed - this avoids unnecessary redraws
 				invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
 				invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
-				update_field(closing_dropdown);
 
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
