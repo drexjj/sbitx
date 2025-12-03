@@ -8982,15 +8982,15 @@ gboolean ui_tick(gpointer gook)
 				// Navigate through dropdown options
 				if (scroll < 0)
 				{
-					dropdown_highlighted++;
-					if (dropdown_highlighted >= option_count)
-						dropdown_highlighted = 0; // wrap around
-				}
-				else
-				{
 					dropdown_highlighted--;
 					if (dropdown_highlighted < 0)
 						dropdown_highlighted = option_count - 1; // wrap around
+				}
+				else
+				{
+					dropdown_highlighted++;
+					if (dropdown_highlighted >= option_count)
+						dropdown_highlighted = 0; // wrap around
 				}
 
 				// Invalidate the full expanded dropdown area to show the new highlight
