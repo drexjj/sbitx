@@ -8965,10 +8965,72 @@ gboolean ui_tick(gpointer gook)
 			// Update the last activity timestamp
 			mfk_last_ms = sbitx_millis();
 
-			if (mfk_locked_to_volume)
+			// Check if a dropdown is expanded - if so, navigate through options
+			if (f_dropdown_expanded)
+			{
+				// Count options
+				char temp[1000];
+				strcpy(temp, f_dropdown_expanded->selection);
+				int option_count = 0;
+				char *p = strtok(temp, "/");
+				while (p && option_count < 50)
+				{
+					option_count++;
+					p = strtok(NULL, "/");
+				}
+
+				// Navigate through dropdown options
+				if (scroll < 0)
+				{
+					dropdown_highlighted++;
+					if (dropdown_highlighted >= option_count)
+						dropdown_highlighted = 0; // wrap around
+				}
+				else
+				{
+					dropdown_highlighted--;
+					if (dropdown_highlighted < 0)
+						dropdown_highlighted = option_count - 1; // wrap around
+				}
+
+				// Invalidate the full expanded dropdown area to show the new highlight
+				int item_height = 40;
+				int num_columns = (f_dropdown_expanded->dropdown_columns > 1) ? f_dropdown_expanded->dropdown_columns : 1;
+				int num_rows = (option_count + num_columns - 1) / num_columns;
+				int item_width = (num_columns > 1) ? f_dropdown_expanded->width : f_dropdown_expanded->width;
+				int expanded_width = item_width * num_columns;
+				int expanded_height = num_rows * item_height;
+				int invalidate_y;
+
+				// Calculate where the dropdown is positioned
+				if (f_dropdown_expanded->y + f_dropdown_expanded->height + expanded_height > screen_height)
+				{
+					// Drop up
+					invalidate_y = f_dropdown_expanded->y - expanded_height;
+				}
+				else
+				{
+					// Drop down
+					invalidate_y = f_dropdown_expanded->y + f_dropdown_expanded->height;
+				}
+				invalidate_rect(f_dropdown_expanded->x, invalidate_y, expanded_width, expanded_height);
+				update_field(f_dropdown_expanded);
+			}
+			else if (mfk_locked_to_volume)
 			{
 				// MFK is locked to volume control
 				mfk_adjust_volume(scroll);
+			}
+			else if (f_focus && f_focus->value_type == FIELD_DROPDOWN)
+			{
+				// Focused field is a dropdown but not expanded - open it
+				if (f_focus->fn)
+				{
+					// Simulate a click on the dropdown button to expand it
+					int click_x = f_focus->x + (f_focus->width / 2);
+					int click_y = f_focus->y + (f_focus->height / 2);
+					f_focus->fn(f_focus, NULL, GDK_BUTTON_PRESS, click_x, click_y, 1);
+				}
 			}
 			else if (f_focus)
 			{
@@ -8997,9 +9059,58 @@ gboolean ui_tick(gpointer gook)
 	int enc1_sw_now = digitalRead(ENC1_SW);
 	if (enc1_sw_now == 0 && enc1_sw_prev != 0)
 	{
-		// Falling edge detected - unlock MFK
-		mfk_locked_to_volume = 0;
-		mfk_last_ms = sbitx_millis();
+		// Falling edge detected
+		// Check if a dropdown is expanded - if so, select the highlighted option
+		if (f_dropdown_expanded)
+		{
+			// Calculate the position of the highlighted option in the dropdown
+			// Need to determine dropdown layout to find the correct click position
+
+			// Count options
+			char temp[1000];
+			strcpy(temp, f_dropdown_expanded->selection);
+			int option_count = 0;
+			char *p = strtok(temp, "/");
+			while (p && option_count < 50)
+			{
+				option_count++;
+				p = strtok(NULL, "/");
+			}
+
+			// Calculate dropdown dimensions
+			int item_height = 40;
+			int num_columns = (f_dropdown_expanded->dropdown_columns > 1) ? f_dropdown_expanded->dropdown_columns : 1;
+			int num_rows = (option_count + num_columns - 1) / num_columns;
+			int item_width = f_dropdown_expanded->width;
+			int expanded_height = num_rows * item_height;
+			int dropdown_start_y;
+
+			// Determine if dropdown is above or below button
+			if (f_dropdown_expanded->y + f_dropdown_expanded->height + expanded_height > screen_height)
+				dropdown_start_y = f_dropdown_expanded->y - expanded_height;
+			else
+				dropdown_start_y = f_dropdown_expanded->y + f_dropdown_expanded->height;
+
+			// Calculate position of highlighted option in grid
+			int row = dropdown_highlighted / num_columns;
+			int col = dropdown_highlighted % num_columns;
+
+			// Calculate click coordinates in the center of the highlighted option
+			int click_x = f_dropdown_expanded->x + (col * item_width) + (item_width / 2);
+			int click_y = dropdown_start_y + (row * item_height) + (item_height / 2);
+
+			// Call the field's handler to process the selection
+			if (f_dropdown_expanded->fn)
+			{
+				f_dropdown_expanded->fn(f_dropdown_expanded, NULL, GDK_BUTTON_PRESS, click_x, click_y, 1);
+			}
+		}
+		else
+		{
+			// No dropdown expanded - unlock MFK
+			mfk_locked_to_volume = 0;
+			mfk_last_ms = sbitx_millis();
+		}
 	}
 	enc1_sw_prev = enc1_sw_now;
 
