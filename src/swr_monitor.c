@@ -7,10 +7,11 @@
 #include "sdr_ui.h"
 #include "sdr.h"
 /*
-define a default maxvswr of 3
+define a default maxv_swr of 3
 initialize as enabled but not tripped
+* nore program variable max_vswr - user label maxvswr
 
-If swr is over maxvswr
+If swr is over maxv_swr
   the drive is set to 1
   a message is sent to the console
   a large red "HIGH VSWR" appears on the spectrum.
@@ -19,8 +20,10 @@ Note - You must set drive up above 3 watts for SWR to be measured
   SWR messages not deleted until there is a SWR reading below maxvswr
 
 You can set max_vswr from the command line
-  \max_vswr value (float)
-  setting it to 0 turns SWR protection off, with a console message of Caution. 
+  \maxvswr value (float)
+  setting it to 0 turns SWR protection off, with a console message 
+  maxvswr is saved in user_settings.ini 
+     and read at startup overwriting default
    
 Internally vswr_tripped tracks whether max_vswr was exceeded 
   and vswr_on tracks whether enabled or disabled  
@@ -48,7 +51,7 @@ void check_and_handle_vswr(int vswr)
 
 		char response[100];
 		char drive_str[32];
-		char tnpwr_str[32];
+//		char tnpwr_str[32];
 		char sdr_cmd[64];
 		
 		// Set tripped flag
@@ -66,7 +69,7 @@ void check_and_handle_vswr(int vswr)
 			// Write warning to console
 			char warning_msg[128];
 			snprintf(warning_msg, sizeof(warning_msg), 
-			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f, reducing drive to %d\n",
+			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f",
 			         swr, max_vswr, 1);
 			write_console(STYLE_LOG, warning_msg);
 		}
