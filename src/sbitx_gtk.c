@@ -7791,10 +7791,40 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 			    dropdown_start_y < event->y &&
 			    event->y < dropdown_start_y + expanded_height)
 			{
+				// Click is within the dropdown options - process it
 				if (f_dropdown_expanded->fn)
 				{
 					f_dropdown_expanded->fn(f_dropdown_expanded, NULL, GDK_BUTTON_PRESS, event->x, event->y, event->button);
 				}
+				last_mouse_x = (int)event->x;
+				last_mouse_y = (int)event->y;
+				mouse_down = 1;
+				mfk_locked_to_volume = 0;
+				mfk_last_ms = sbitx_millis();
+				return FALSE;
+			}
+			// Check if click is on the button itself
+			else if (f_dropdown_expanded->x < event->x &&
+			         event->x < f_dropdown_expanded->x + f_dropdown_expanded->width &&
+			         f_dropdown_expanded->y < event->y &&
+			         event->y < f_dropdown_expanded->y + f_dropdown_expanded->height)
+			{
+				// Click is on the button - let it toggle (fall through to normal handling)
+			}
+			else
+			{
+				// Click is outside both dropdown and button - close dropdown without selection
+				int invalidate_y;
+				if (f_dropdown_expanded->y + f_dropdown_expanded->height + expanded_height > screen_height)
+					invalidate_y = f_dropdown_expanded->y - expanded_height;
+				else
+					invalidate_y = f_dropdown_expanded->y + f_dropdown_expanded->height;
+
+				invalidate_rect(f_dropdown_expanded->x, invalidate_y, f_dropdown_expanded->width, expanded_height);
+				invalidate_rect(f_dropdown_expanded->x, f_dropdown_expanded->y, f_dropdown_expanded->width, f_dropdown_expanded->height);
+
+				f_dropdown_expanded = NULL;
+
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
 				mouse_down = 1;
