@@ -529,6 +529,7 @@ struct field
 	int section;
 	char is_dirty;
 	char update_remote;
+	int dropdown_columns; // number of columns for dropdown (0 or 1 = single column)
 	void *data;
 };
 
@@ -1061,7 +1062,7 @@ struct field main_controls[] = {
 	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "10", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, CW_CONTROL},
 
-	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	{"#cwinput", do_dropdown, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
 	{"#cwdelay", NULL, 1000, -1000, 50, 50, "CW_DELAY", 40, "300", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 1000, 50, CW_CONTROL},
@@ -5566,8 +5567,13 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		if (is_expanded)
 		{
 			int item_height = 40;
-			int expanded_height = option_count * item_height;
+			int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+			int num_rows = (option_count + num_columns - 1) / num_columns; // ceiling division
+			int item_width = (num_columns > 1) ? f->width : f->width;
+			int expanded_width = item_width * num_columns;
+			int expanded_height = num_rows * item_height;
 			int dropdown_start_y;
+			int dropdown_start_x = f->x;
 
 			// Check if dropdown would extend below screen, if so drop up instead
 			if (f->y + f->height + expanded_height > screen_height)
@@ -5584,7 +5590,11 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			// Draw each option
 			for (int i = 0; i < option_count; i++)
 			{
-				int y = dropdown_start_y + (i * item_height);
+				// Calculate position in grid
+				int row = i / num_columns;
+				int col = i % num_columns;
+				int x = dropdown_start_x + (col * item_width);
+				int y = dropdown_start_y + (row * item_height);
 
 				// Get the option text by re-parsing (strtok modified the buffer)
 				strcpy(options_copy, f->selection);
@@ -5599,16 +5609,16 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				int is_highlighted = (i == dropdown_highlighted);
 
 				if (is_highlighted)
-					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_FIELD_SELECTED);
+					fill_rect(gfx, x, y, item_width, item_height, COLOR_FIELD_SELECTED);
 				else
-					fill_rect(gfx, f->x, y, f->width, item_height, COLOR_BACKGROUND);
+					fill_rect(gfx, x, y, item_width, item_height, COLOR_BACKGROUND);
 
 				// Draw border
-				rect(gfx, f->x, y, f->width, item_height, COLOR_CONTROL_BOX, 1);
+				rect(gfx, x, y, item_width, item_height, COLOR_CONTROL_BOX, 1);
 
 				// Draw the option text centered
 				int text_width = measure_text(gfx, p, f->font_index);
-				int text_x = f->x + (f->width - text_width) / 2;
+				int text_x = x + (item_width - text_width) / 2;
 				int text_y = y + (item_height - font_table[f->font_index].height) / 2;
 				draw_text(gfx, text_x, text_y, p, f->font_index);
 			}
@@ -5629,8 +5639,13 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		{
 			// Check if click is within the expanded dropdown area
 			int clicked_option = -1;
-			int expanded_height = option_count * item_height;
+			int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+			int num_rows = (option_count + num_columns - 1) / num_columns;
+			int item_width = (num_columns > 1) ? f->width : f->width;
+			int expanded_width = item_width * num_columns;
+			int expanded_height = num_rows * item_height;
 			int dropdown_start_y;
+			int dropdown_start_x = f->x;
 
 			// Calculate dropdown position (same logic as drawing)
 			if (f->y + f->height + expanded_height > screen_height)
@@ -5644,10 +5659,14 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				dropdown_start_y = f->y + f->height;
 			}
 
-			// Determine which option was clicked based on y coordinate
-			if (click_y >= dropdown_start_y && click_y < dropdown_start_y + expanded_height)
+			// Determine which option was clicked based on x and y coordinates
+			if (click_y >= dropdown_start_y && click_y < dropdown_start_y + expanded_height &&
+				click_x >= dropdown_start_x && click_x < dropdown_start_x + expanded_width)
 			{
-				clicked_option = (click_y - dropdown_start_y) / item_height;
+				int row = (click_y - dropdown_start_y) / item_height;
+				int col = (click_x - dropdown_start_x) / item_width;
+				clicked_option = row * num_columns + col;
+
 				if (clicked_option >= 0 && clicked_option < option_count)
 				{
 					dropdown_highlighted = clicked_option;
@@ -5675,6 +5694,7 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			f_dropdown_expanded = NULL;
 			// Invalidate the area that was expanded
 			int invalidate_y;
+			int invalidate_width = expanded_width;
 
 			// Calculate where the dropdown was positioned
 			if (f->y + f->height + expanded_height > screen_height)
@@ -5687,7 +5707,7 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Was dropped down
 				invalidate_y = f->y + f->height;
 			}
-			invalidate_rect(f->x, invalidate_y, f->width, expanded_height);
+			invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
 			// Also invalidate the button itself to ensure clean redraw
 			invalidate_rect(f->x, f->y, f->width, f->height);
 			update_field(f);
@@ -5714,7 +5734,11 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 			// Invalidate the expanded area to force redraw
 			int item_height = 40;
-			int expanded_height = option_count * item_height;
+			int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+			int num_rows = (option_count + num_columns - 1) / num_columns;
+			int item_width = (num_columns > 1) ? f->width : f->width;
+			int expanded_width = item_width * num_columns;
+			int expanded_height = num_rows * item_height;
 			int invalidate_y;
 
 			// Calculate where the dropdown will be positioned
@@ -5728,7 +5752,7 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Drop down
 				invalidate_y = f->y + f->height;
 			}
-			invalidate_rect(f->x, invalidate_y, f->width, expanded_height);
+			invalidate_rect(f->x, invalidate_y, expanded_width, expanded_height);
 			update_field(f);
 		}
 		return 1;
@@ -5752,7 +5776,11 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			}
 			// Invalidate the expanded area to show the new highlight
 			int item_height = 40;
-			int expanded_height = option_count * item_height;
+			int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+			int num_rows = (option_count + num_columns - 1) / num_columns;
+			int item_width = (num_columns > 1) ? f->width : f->width;
+			int expanded_width = item_width * num_columns;
+			int expanded_height = num_rows * item_height;
 			int invalidate_y;
 
 			// Calculate where the dropdown is positioned
@@ -5766,7 +5794,7 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Drop down
 				invalidate_y = f->y + f->height;
 			}
-			invalidate_rect(f->x, invalidate_y, f->width, expanded_height);
+			invalidate_rect(f->x, invalidate_y, expanded_width, expanded_height);
 			update_field(f);
 			return 1;
 		}
@@ -5798,7 +5826,7 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		char temp[1000];
 		strcpy(temp, f->selection);
 
-		// Count options to determine dropdown height
+		// Count options to determine dropdown dimensions
 		int option_count = 0;
 		char temp2[1000];
 		strcpy(temp2, f->selection);
@@ -5809,10 +5837,15 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 			p2 = strtok(NULL, "/");
 		}
 
-		// Calculate dropdown position (same logic as do_dropdown)
+		// Calculate dropdown position with multi-column support (same logic as do_dropdown)
 		int item_height = 40;
-		int expanded_height = option_count * item_height;
+		int num_columns = (f->dropdown_columns > 1) ? f->dropdown_columns : 1;
+		int num_rows = (option_count + num_columns - 1) / num_columns;
+		int item_width = (num_columns > 1) ? f->width : f->width;
+		int expanded_width = item_width * num_columns;
+		int expanded_height = num_rows * item_height;
 		int dropdown_start_y;
+		int dropdown_start_x = f->x;
 
 		if (f->y + f->height + expanded_height > screen_height)
 		{
@@ -5825,22 +5858,31 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 			dropdown_start_y = f->y + f->height;
 		}
 
-		int option_y = dropdown_start_y;
-		char *p = strtok(temp, "/");
-		int option_index = 0;
+		// Check if click is within the dropdown grid
 		char *selected_band = NULL;
+		int clicked_option = -1;
 
-		while (p)
+		if (a >= dropdown_start_x && a < dropdown_start_x + expanded_width &&
+		    b >= dropdown_start_y && b < dropdown_start_y + expanded_height)
 		{
-			// Check if this option was clicked
-			if (a >= f->x && a <= f->x + f->width && b >= option_y && b <= option_y + item_height)
+			// Calculate which grid cell was clicked
+			int row = (b - dropdown_start_y) / item_height;
+			int col = (a - dropdown_start_x) / item_width;
+			clicked_option = row * num_columns + col;
+
+			if (clicked_option >= 0 && clicked_option < option_count)
 			{
-				selected_band = p;
-				break;
+				// Find the band name at this index
+				char *p = strtok(temp, "/");
+				for (int i = 0; i < clicked_option && p; i++)
+				{
+					p = strtok(NULL, "/");
+				}
+				if (p)
+				{
+					selected_band = p;
+				}
 			}
-			option_y += item_height;
-			option_index++;
-			p = strtok(NULL, "/");
 		}
 
 		if (selected_band)
@@ -5890,9 +5932,18 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		}
 		else
 		{
-			// Click was on the main button area - collapse dropdown
+			// Click was outside the dropdown - collapse it
 			f_dropdown_expanded = NULL;
-			invalidate_rect(f->x, f->y, f->width, 40 + (option_index + 1) * 40);
+
+			// Invalidate the dropdown area
+			int invalidate_y;
+			if (f->y + f->height + expanded_height > screen_height)
+				invalidate_y = f->y - expanded_height;
+			else
+				invalidate_y = f->y + f->height;
+
+			invalidate_rect(f->x, invalidate_y, expanded_width, expanded_height);
+			invalidate_rect(f->x, f->y, f->width, f->height);
 			update_field(f);
 			return 1;
 		}
@@ -7757,7 +7808,7 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 		// Check if we have an expanded dropdown first
 		if (f_dropdown_expanded)
 		{
-			// Count options to calculate expanded height
+			// Count options to calculate expanded dimensions
 			char temp[1000];
 			strcpy(temp, f_dropdown_expanded->selection);
 			int num_options = 0;
@@ -7770,7 +7821,11 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 
 			// Calculate dropdown position (same logic as do_dropdown)
 			int item_height = 40;
-			int expanded_height = num_options * item_height;
+			int num_columns = (f_dropdown_expanded->dropdown_columns > 1) ? f_dropdown_expanded->dropdown_columns : 1;
+			int num_rows = (num_options + num_columns - 1) / num_columns;
+			int item_width = (num_columns > 1) ? f_dropdown_expanded->width : f_dropdown_expanded->width;
+			int expanded_width = item_width * num_columns;
+			int expanded_height = num_rows * item_height;
 			int dropdown_start_y;
 
 			// Check if dropdown extends below screen - if so, it drops up
@@ -7787,7 +7842,7 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 
 			// Check if click is within expanded dropdown area
 			if (f_dropdown_expanded->x < event->x &&
-			    event->x < f_dropdown_expanded->x + f_dropdown_expanded->width &&
+			    event->x < f_dropdown_expanded->x + expanded_width &&
 			    dropdown_start_y < event->y &&
 			    event->y < dropdown_start_y + expanded_height)
 			{
@@ -7820,10 +7875,13 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 				else
 					invalidate_y = f_dropdown_expanded->y + f_dropdown_expanded->height;
 
-				invalidate_rect(f_dropdown_expanded->x, invalidate_y, f_dropdown_expanded->width, expanded_height);
-				invalidate_rect(f_dropdown_expanded->x, f_dropdown_expanded->y, f_dropdown_expanded->width, f_dropdown_expanded->height);
-
+				// Save the field pointer before clearing f_dropdown_expanded
+				struct field *closing_dropdown = f_dropdown_expanded;
 				f_dropdown_expanded = NULL;
+
+				invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+				invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				update_field(closing_dropdown);
 
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
@@ -8945,6 +9003,11 @@ void ui_init(int argc, char *argv[])
 	focus_field(get_field("r1:volume"));
 	webserver_start();
 	f_last_text = get_field_by_label("TEXT");
+
+	// Configure multi-column dropdowns
+	get_field("r1:mode")->dropdown_columns = 3;
+	get_field("#current_macro")->dropdown_columns = 2;
+	get_field("#band")->dropdown_columns = 3;
 }
 
 /* handle modem callbacks for more data */
