@@ -1,5 +1,6 @@
 v5.3 - Currently In Test/Dev
 **New Features:**
+- Refractored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen.
 - CW decoding while sending
 - Mulitple FT8 Enhancements including xOTA (POTA, SOTA, ... etc support)
 - Support for FT4
