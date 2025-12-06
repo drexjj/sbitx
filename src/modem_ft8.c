@@ -590,12 +590,6 @@ static void monitor_process(monitor_t* me, const float* frame)
     ++me->wf.num_blocks;
 }
 
-static void monitor_reset(monitor_t* me)
-{
-    me->wf.num_blocks = 0;
-    me->max_mag = 0;
-}
-
 static int message_callsign_count(const ftx_message_offsets_t *spans)
 {
 	int ret = 0;
@@ -1316,66 +1310,6 @@ float ft8_next_sample(){
 	return sample;
 }
 
-/* these are used to process the current message */
-// TODO get rid of these along with obsolete code. ft8_call_or_continue() has its own local variables,
-// whereas these global ones have unclear lifetime.
-static char m1[32], m2[32], m3[32], m4[32], signal_strength[10], mygrid[10],
-	reply_message[100];
-static int rx_pitch, confidence_score, msg_time;
-static const char *call = NULL, *exchange = NULL,
-	*report_send = NULL, *report_received = NULL, *mycall = NULL;
-
-int ft8_message_tokenize(char *message){
-	char *p;
-
-	//tokenize the message
-	p = strtok(message, " \r\n");
-	if (!p) return -1;
-	msg_time = atoi(p);
-
-	p = strtok(NULL, " \r\n");
-	if (!p) return -1;
-	confidence_score = atoi(p);
-
-	p = strtok(NULL, " \r\n");
-	if (!p) return -1;
-	strcpy(signal_strength, p);
-
-	p = strtok(NULL, " \r\n");
-	if (!p) return -1;
-	rx_pitch = atoi(p);
-
-	//santiy check, we should get a tilde '~' now
-	p = strtok(NULL, " \r\n");
-	if (!p)
-		return -1;
-	if (strcmp(p, "~"))
-		return -1;
-
-	p = strtok(NULL, " \r\n");
-	if (!p) return -1;
-	tokncpy(m1, p, sizeof(m1));
-
-	p = strtok(NULL, " \r\n");
-	if (!p) return -1;
-	tokncpy(m2, p, sizeof(m2));
-
-	p = strtok(NULL, " \r\n");
-	if (p){
-		tokncpy(m3, p, sizeof(m3));
-
-		p = strtok(NULL, " \r\n");
-		if (p)
-			tokncpy(m4, p, sizeof(m4));
-		else
-			m4[0] = 0;
-	}
-	else
-		m3[0] = 0;
-
-	return 0;
-}
-
 /*!
 	Decide whether to reply on the even or odd timeslot, based on
 	the received second \a msg_second within the minute.
@@ -1395,84 +1329,6 @@ static void set_reply_tx1st(int msg_second)
 	// FT8 22.5 secs is slot 3: that's odd, set ftx_tx1st = 1 to reply in even slot (e.g. 30 or 45 secs)
 	ftx_tx1st = slot_in_minute % 2;
 	LOG(LOG_DEBUG, "msg_second %d slot_in_minute %d odd? %d reply tx1st? %d\n", msg_second, slot_in_minute, slot_in_minute % 2, ftx_tx1st);
-}
-
-// this kicks stars a new qso either as a CQ message or
-// as a reply to someone's cq or as a 'break' with signal report to
-// a concluding qso
-void ft8_on_start_qso(char *message){
-	modem_abort();
-	tx_off();
-	call_wipe();
-	set_reply_tx1st(msg_time % 100);
-
-	if (!strcmp(m1, "CQ")){
-		if (m4[0]){
-			field_set("CALL", m3);
-			field_set("EXCH", m4);
-			field_set("SENT", signal_strength);
-		}
-		else {
-			field_set("CALL", m2);
-			field_set("EXCH", m3);
-			field_set("SENT", signal_strength);
-		}
-		LOG(LOG_DEBUG, "ft8_on_start_qso CQ: rst s %s\n", signal_strength);
-		sprintf(reply_message, "%s %s %s", call, mycall, mygrid);
-	}
-	//whoa, someone cold called us
-	else if (!strcmp(m1, mycall)){
-		LOG(LOG_DEBUG, "ft8_on_start_qso cold call from %s / %s: rst s %s\n", call, m2, signal_strength);
-		if (!call || !call[0])
-			return; // unknown hash or empty callsign: can't answer
-		field_set("CALL", m2);
-		field_set("SENT", signal_strength);
-		//they might have directly sent us a signal report
-		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
-			field_set("EXCH", m3);
-			sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
-		}
-		else {
-			field_set("RECV", m3);
-			sprintf(reply_message, "%s %s R%s", call, mycall, signal_strength);
-		}
-	}
-	else { //we are breaking into someone else's qso
-		field_set("CALL", m2);
-		if (isalpha(m3[0]) && isalpha(m3[1]) && strncmp(m3,"RR",2)!=0){ // R- RR are not EXCH
-			field_set("EXCH", m3); // the gridId is valid - use it
-		} else {
-			field_set("EXCH", "");
-		}
-		field_set("SENT", signal_strength);
-		LOG(LOG_DEBUG, "ft8_on_start_qso break-in: rst s %s\n", signal_strength);
-		sprintf(reply_message, "%s %s %s", call, mycall, signal_strength);
-	}
-	field_set("NR", mygrid);
-	ft8_tx(reply_message, ftx_pitch);
-}
-
-void ft8_on_signal_report(){
-	field_set("CALL", m2);
-	if (m3[0] == 'R'){
-		//skip the 'R'
-		field_set("RECV", m3+1);
-		ft8_tx_3f(call, mycall, "RR73");
-	}
-	else{
-		field_set("RECV", m3);
-		// in case ft8_on_start_qso() was not called: ensure that we send some numeric signal report
-		if (!field_str("SENT")[0]) {
-			field_set("SENT", signal_strength);
-			report_send = field_str("SENT");
-		}
-		char report[5];
-		snprintf(report, sizeof(report), "R%s", report_send);
-		ft8_tx_3f(call, mycall, report);
-	}
-
-	//Disabled this because of early logging - W9JES
-	//enter_qso();
 }
 
 /*!
@@ -1672,94 +1528,6 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 
 	// It wasn't a reply situation: start a new QSO then.
 	ft8_tx_3f(caller, mycall, mygrid);
-}
-
-/*!
-	Start or continue a QSO as appropriate for the \a message:
-	\a operation may be FTX_START_QSO or FTX_CONTINUE_QSO
-	This should mostly not be used, because it throws away information that we already have:
-	if \a message came from ft8_lib, we also have spans to identify the fields;
-	or if we want to start a QSO, call ft8_call() above (which depends
-	on fields containing information that we already have).
-	The remaining legitimate usecase is only when the user types the message in the "TEXT" field.
-*/
-int ft8_process(char *message, ftx_operation operation)
-{
-	char buff[100], reply_message[100], *p;
-	int auto_respond = 0;
-
-
-	if (ft8_message_tokenize(message) == -1)
-		return 0;
-
-	call = field_str("CALL");
-	exchange = field_str("EXCH");
-	report_send = field_str("SENT");
-	report_received = field_str("RECV");
-	mycall = field_str("MYCALLSIGN");
-	ftx_pitch = field_int("TX_PITCH");
-	// if AUTO is not completely turned off, answer incoming messages directed to me
-	if (strcmp(field_str("FTX_AUTO"), "OFF"))
-		auto_respond = 1;
-
-	//use only the first 4 letters of the grid
-	strcpy(mygrid, field_str("MYGRID"));
-	mygrid[4] = 0;
-
-	//we can start call in reply to a cq, cq dx or anyone else ending the call
-	if (operation == FTX_START_QSO){
-		ft8_on_start_qso(message);
-		return 1;
-	}
-
-	// see if you are on auto responder, the logger is empty and we are the called party
-	if (auto_respond && !strlen(call) && !strcmp(m1, mycall)){
-		ft8_on_start_qso(message);
-		return 2;
-	}
-
-	//by now, any message that comes to us should have our callsign as m1
-	if (strcmp(m1, mycall)){
-		printf("FT8: Not a message for %s\n", mycall);
-		return 0;
-	}
-
-
-	if (!strcmp(m3, "73")){
-		ft8_abort();
-		enter_qso(); // W9JES
-		ftx_repeat = 0;
-		ftx_tx_text[0] = 0;
-		return 1;
-	}
-
-	//the other station has sent either an RRR or an RR73
-	//this maybe arriving after we have cleared the log
-	//we don't check it against any fields of the logger
-	if (!strcmp(m3, "RR73") || !strcmp(m3, "RRR")){
-		ft8_tx_3f(m2, mycall, "73");
-		enter_qso();
-		call_wipe();
-		ftx_repeat = 1;
-        return 1;
-	}
-
-	//beyond this point, we need to have a call filled up in the logger
-	if (!strlen(call))
-		return 0;
-
-	//this is a signal report, at times, some other call can just send their sig report, even if we are in the
-        // middle of a different qso. We shall not overwrite the fields relative to the current qso, mixing things up,
-	// hence we stick to the already ongoing one
-	if (!strcmp(call, m2)) {
-		if (m3[0] == '-' || (m3[0] == 'R' && m3[1] == '-') || m3[0] == '+' || (m3[0] == 'R' && m3[1] == '+')) {
-			printf("FT8: Got a signal report '%s' '%s' '%s'\n", m1, m2, m3);
-			ft8_on_signal_report();
-		}
-	} else {
-		printf("FT8: Ignoring an unsolicited signal report '%s' '%s' '%s'. Current call was '%s'\n", m1, m2, m3, call);
-	}
-	return 0;
 }
 
 void ft8_init(){
