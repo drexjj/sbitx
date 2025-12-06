@@ -225,6 +225,7 @@ struct font_style font_table[] = {
 	{STYLE_CALLEE, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_EXISTING_GRID, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_RST, 0.7, 0.7, 0.7, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_TIME, 0, 0.8, 0.8, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_SNR, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FREQ, 0, 0.7, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -277,8 +278,6 @@ struct console_line
 static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
-char console_selected_callsign[12];
-int console_selected_time = -1;
 time_t console_current_time = 0;
 
 // max power and swr from most recent transmission, for the log
@@ -722,7 +721,7 @@ struct field main_controls[] = {
 	{"#snap", NULL, 1000, -1000, 40, 40, "SNAP", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
    	"", 0, 0, 0, COMMON_CONTROL},
 
-	// Band Stuff. 
+	// Band Stuff.
 	{"r1:mode", do_mode_dropdown, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "USB/LSB/AM/CW/CWR/FT8/FT4/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 	{"#band", do_band_dropdown, 45, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -1202,7 +1201,7 @@ struct field main_controls[] = {
 
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
-	
+
 };
 
 struct field *get_field(const char *cmd);
@@ -1684,13 +1683,43 @@ void draw_console(cairo_t *gfx, struct field *f)
 }
 
 /*!
-	From the console line at the given \a line number, see if the semantic \a sem
-	can be found.  If so, copy the substring to \a out (which has a max length \a len),
+	Given a string \a text with length \a text_len (bytes) and \a span within it,
+	copy the substring to \a out (which has a max length \a outlen),
+	and return the start position where it was found.
+
+	Returns -1 if \a span goes out of range.
+*/
+int extract_single_semantic(const char* text, int text_len, text_span_semantic span, char *out, int outlen) {
+	int _start = span.start_column, _len = span.length, sem = span.semantic;
+	--_len; // point to the last char
+	if (text[_start + _len] == ' ')
+		--_len;
+	// remove brackets from hashed callsigns
+	if (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_MYCALL) {
+		if (text[_start + _len] == '>')
+			--_len;
+		if (text[_start ] == '<') {
+			++_start;
+			--_len;
+		}
+	}
+	++_len; // point to the null terminator
+	if (_start < 0 || _len < 0)
+		return -1;
+	char *end = stpncpy(out, text + _start, MIN(_len, outlen - 1));
+	*end = 0;
+	return _start;
+}
+
+/*!
+	Given a string \a text with length \a text_len (bytes) which has been pre-tokenized into
+	the given \a spans, see if the semantic \a sem can be found in \a spans.
+	If so, copy the substring to \a out (which has a max length \a outlen),
 	and return the start position where it was found.
 
 	Returns -1 if it was not found.
 */
-int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
+int extract_semantic(const char* text, int text_len, const text_span_semantic* spans, sbitx_style sem, char *out, int outlen) {
 	int _start = -1, _len = -1;
 	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i) {
 		// if we are looking for STYLE_CALLER, it could also be STYLE_RECENT_CALLER
@@ -1704,17 +1733,17 @@ int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 				sem_alt1 = STYLE_EXISTING_GRID;
 				break;
 		}
-		if (console_stream[line].spans[i].semantic == sem || console_stream[line].spans[i].semantic == sem_alt1) {
-			_start = console_stream[line].spans[i].start_column;
-			_len = console_stream[line].spans[i].length;
+		if (spans[i].semantic == sem || spans[i].semantic == sem_alt1) {
+			_start = spans[i].start_column;
+			_len = spans[i].length;
 			--_len; // point to the last char
-			if (console_stream[line].text[_start + _len] == ' ')
+			if (text[_start + _len] == ' ')
 				--_len;
-			// remote brackets from hashed callsigns
+			// remove brackets from hashed callsigns
 			if (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_MYCALL) {
-				if (console_stream[line].text[_start + _len] == '>')
+				if (text[_start + _len] == '>')
 					--_len;
-				if (console_stream[line].text[_start ] == '<') {
+				if (text[_start ] == '<') {
 					++_start;
 					--_len;
 				}
@@ -1725,9 +1754,21 @@ int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 	}
 	if (_start < 0 || _len < 0)
 		return -1;
-	char *end = stpncpy(out, console_stream[line].text + _start, MIN(_len, outlen - 1));
+	char *end = stpncpy(out, text + _start, MIN(_len, outlen - 1));
 	*end = 0;
 	return _start;
+}
+
+/*!
+	From the console line at the given \a line number, see if the semantic \a sem
+	can be found.  If so, copy the substring to \a out (which has a max length \a len),
+	and return the start position where it was found.
+
+	Returns -1 if it was not found.
+*/
+int console_extract_semantic(int line, sbitx_style sem, char *out, int outlen) {
+	return extract_semantic(console_stream[line].text, strlen(console_stream[console_selected_line].text),
+		console_stream[line].spans, sem, out, outlen);
 }
 
 int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -1755,43 +1796,18 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		return 1;
 		break;
 	case GDK_BUTTON_RELEASE: {
-		char console_line[64];
-		hd_strip_decoration(console_line, console_stream[console_selected_line].text);
 		// copy console line to X11 selection
 		GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
-		gtk_clipboard_set_text(clipboard, console_line, -1);
+		gtk_clipboard_set_text(clipboard, console_stream[console_selected_line].text, -1);
 
-		// FTx-specific functionality
+		// FTx-specific functionality: handle click on a console line
+		// TODO should we call a generic modem_handle_selection() instead?
+		// But FTx modes are perhaps unique in that clicking is all it takes.
+		// Keyboard-chat modes need to handle interactive typing instead.
 		if (!strncmp(get_field("r1:mode")->value, "FT", 2)) {
-			struct field *console = get_field("#console");
-			const int line_height = font_table[console->font_index].height;
-			int call_start = console_extract_semantic(console_selected_callsign,
-				sizeof(console_selected_callsign), console_selected_line, STYLE_CALLER);
-			if (call_start >= 0 && !strstr(console_selected_callsign, get_field("#mycallsign")->value)) {
-				field_set("CALL", console_selected_callsign);
-				int call_len = strlen(console_selected_callsign);
-
-				char grid[7];
-				if (console_extract_semantic(grid, sizeof(grid), console_selected_line, STYLE_GRID) >= 0)
-					field_set("EXCH", grid);
-
-				char rst[7];
-				if (console_extract_semantic(rst, sizeof(rst), console_selected_line, STYLE_SNR) >= 0)
-					field_set("SENT", rst);
-
-				char time[10];
-				if (console_extract_semantic(time, sizeof(time), console_selected_line, STYLE_TIME) >= 0)
-					console_selected_time = atoi(time); // skip tenths of seconds
-
-				char pitch[7];
-				if (console_extract_semantic(pitch, sizeof(pitch), console_selected_line, STYLE_FREQ) >= 0)
-					field_set("PITCH", pitch);
-
-				printf("console press: sel %d cur %d %d '%s' from '%s'\n",
-					console_selected_line, console_current_line, console_selected_time, console_selected_callsign, console_line);
-
-				ft8_call(console_selected_time);
-			}
+			ftx_call_or_continue(console_stream[console_selected_line].text,
+				strlen(console_stream[console_selected_line].text),
+				console_stream[console_selected_line].spans);
 		}
 		f->is_dirty = 1;
 		return 1;
@@ -1985,7 +2001,7 @@ void save_user_settings(int forced)
 
   // write "audiofocus" so it will be saved to usersettings.ini
   fprintf(f, "audiofocus=%lu\n", (unsigned long)(mfk_timeout_ms / 1000UL));
-  
+
   // write "max_vswr" so it will be saved to usersettings.ini
   fprintf(f, "max_vswr=%g\n", max_vswr);
 
@@ -2099,15 +2115,15 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 		sprintf(cmd, "%s", name);
-	    
-        // Load max_vswr if present 	
+
+        // Load max_vswr if present
 		if (!strcmp(name, "max_vswr"))
 		{
 			/* allow float values; 0 or negative => disabled */
 			max_vswr = atof(value);
-			return 1; 
+			return 1;
 		}
-		
+
 		// skip the button actions
 
 		// Check if this is a band button setting (e.g., #80m, #60m, etc.)
@@ -3258,15 +3274,15 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// --- HIGH SWR indicator (left side, red message)
 
-//		printf("vswr_tripped %d %d\n", vswr_tripped, strlen(swr_msg));	
-	if ( vswr_tripped ==1) { 
+//		printf("vswr_tripped %d %d\n", vswr_tripped, strlen(swr_msg));
+	if ( vswr_tripped ==1) {
 //		printf("vswr high set\n");
 		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
-		
+
 		// Position on left side of spectrum
 		int swr_text_x = f_spectrum->x + 120; // 9
 		int swr_text_y = f_spectrum->y + 25; // 50
-		
+
 		cairo_move_to(gfx, swr_text_x, swr_text_y);
 		char *s = "HIGH VSWR";
 		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
@@ -8919,7 +8935,7 @@ gboolean ui_tick(gpointer gook)
 			set_field("#fwdpower", buff);
 			sprintf(buff, "%d", vswr);
 			set_field("#vswr", buff);
-			check_and_handle_vswr(vswr);			
+			check_and_handle_vswr(vswr);
 		}
 		if (layout_needs_refresh)
 		{
@@ -10056,25 +10072,25 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
-	
+
 		else if (!strcasecmp(exec, "maxvswr"))
 	{
 		char msg[128];
 		if (strlen(args) > 0)
 		{
-			float new_max_vswr = atof(args);			
+			float new_max_vswr = atof(args);
 			printf(" maxvswr %.1f \n",new_max_vswr);
-			if (new_max_vswr < .1f) 
+			if (new_max_vswr < .1f)
 				{
 					vswr_on = 0;  // turn off protection
-					snprintf(msg, sizeof(msg), "\n CAUTION SWR protection disabled\n"); 
+					snprintf(msg, sizeof(msg), "\n CAUTION SWR protection disabled\n");
 					write_console(STYLE_LOG, msg);
 				}
-			else 
+			else
 			if (new_max_vswr >= 1.0f && new_max_vswr <= 10.0f)
 				{
 					vswr_on = 1;  // turn on protection
-					max_vswr = new_max_vswr;					
+					max_vswr = new_max_vswr;
 					snprintf(msg, sizeof(msg), "\n maxvswr changed to %.1f\n", max_vswr);
 					write_console(STYLE_LOG, msg);
 				}
@@ -10084,7 +10100,7 @@ void cmd_exec(char *cmd)
 					write_console(STYLE_LOG, msg);
 				}
 		}
-		
+
 		else
 		{
 			snprintf(msg, sizeof(msg), "maxvswr takes value between 1.0 and 10.0\n");
@@ -10092,7 +10108,7 @@ void cmd_exec(char *cmd)
 		}
 
 	}
-	
+
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))

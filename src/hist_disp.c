@@ -143,6 +143,7 @@ char ff_char(int style) {
 	switch (style) {
 		// console styles
 		case STYLE_LOG:
+		case STYLE_RST:
 			return 'A' + 5;
 		case STYLE_MYCALL:
 			return 'A' + 16;

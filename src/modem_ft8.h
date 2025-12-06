@@ -13,4 +13,5 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra);
 void ft8_poll(int tx_is_on);
 float ft8_next_sample();
 void ft8_call(int sel_time);
+void ftx_call_or_continue(const char* line, int line_len, const text_span_semantic* spans);
 int ft8_process(char *message, ftx_operation operation);

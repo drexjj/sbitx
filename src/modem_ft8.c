@@ -28,7 +28,7 @@
 #include "ft8_lib/fft/kiss_fftr.h"
 
 // We try to avoid calling automatically the same stations again and again, at least in this session
-#define min(x, y) (((x) < (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define FTX_CALLED_SIZE 64
 static char ftx_already_called[FTX_CALLED_SIZE][32];
 static int ftx_already_called_n = 0;
@@ -71,7 +71,7 @@ static const int kFieldType_style_map[] = {
 	STYLE_FT8_RX,	// FTX_FIELD_TOKEN_WITH_ARG
 	STYLE_CALLER,	// FTX_FIELD_CALL
 	STYLE_GRID,		// FTX_FIELD_GRID
-	STYLE_LOG		// FTX_FIELD_RST
+	STYLE_RST		// FTX_FIELD_RST
 };
 
 #define SECS_IN_DAY (24 * 60 * 60)
@@ -756,7 +756,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
 			//  cand->snr, freq_hz, message.payload);
 
-			text_span_semantic sem[FTX_MAX_MESSAGE_FIELDS + 4];
+			text_span_semantic sem[MAX_CONSOLE_LINE_STYLES];
 			memset(sem, 0, sizeof(sem));
 			char callsign[20];
 			memset(callsign, 0, sizeof(callsign));
@@ -887,7 +887,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			write_console_semantic(buf, sem, sem_i);
 
 			if (my_call_found)
-				ft8_process(buf, FTX_CONTINUE_QSO);
+				ftx_call_or_continue(buf, line_len, sem);
 			n_decodes++;
         }
     }
@@ -945,7 +945,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 					// We try to avoid calling automatically the same stations again and again, at least in this session
 					bool found = false;
-					for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+					for (int ii = 0; ii < MIN(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
 						if (!strcmp(callsign, ftx_already_called[ii]))
 							found = true;
 					}
@@ -968,7 +968,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				if (!cand_text) {
 					// We try to avoid calling automatically the same stations again and again, at least in this session
 					bool found = false;
-					for (int ii = 0; ii < min(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
+					for (int ii = 0; ii < MIN(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
 						if (!strcmp(callsign, ftx_already_called[ii]))
 							found = true;
 					}
@@ -1048,7 +1048,7 @@ static bool ftx_would_send() {
 	ftx_pitch = field_int("TX_PITCH");
 
 	// the FTX_CQ setting applies only to initiating a CQ call;
-	// otherwise, leave ftx_tx1st as set earlier, e.g. in ft8_process()
+	// otherwise, leave ftx_tx1st as set earlier, e.g. in ftx_call_or_continue()
 	if (is_cq) {
 		// if it's not odd, it's even (slot 0/2)
 		ftx_tx1st = strcmp(ftx_cq, "ODD");
@@ -1199,7 +1199,8 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ftx_pitch, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
 
-	if (!strcmp(extra, " 73"))
+	const char *str_73 = strstr(extra, "73");
+	if (str_73 && str_73 < extra + 2) // extra could be ' 73' or '73' but not 'RR73'
 		ftx_repeat = 1; // no repeat for '73'
 	else
 		ftx_repeat = field_int("FTX_REPEAT");
@@ -1316,6 +1317,8 @@ float ft8_next_sample(){
 }
 
 /* these are used to process the current message */
+// TODO get rid of these along with obsolete code. ft8_call_or_continue() has its own local variables,
+// whereas these global ones have unclear lifetime.
 static char m1[32], m2[32], m3[32], m4[32], signal_strength[10], mygrid[10],
 	reply_message[100];
 static int rx_pitch, confidence_score, msg_time;
@@ -1480,27 +1483,184 @@ void ft8_on_signal_report(){
 */
 void ft8_call(int sel_time)
 {
-	call = field_str("CALL");
+	const char *call = field_str("CALL");
 	if (!call[0]) {
 		printf("CALL field empty: nobody to call\n");
 		return;
 	}
 
-	tx_off();
-
-	exchange = field_str("EXCH");
-	report_send = field_str("SENT");
-	mycall = field_str("MYCALLSIGN");
-	// initial pitch; but it can also be adjusted between timeslots
-	// (audio is re-generated in ftx_start_tx())
-	ftx_pitch = field_int("TX_PITCH");
-	//use only the first 4 letters of the grid
-	strcpy(mygrid, field_str("MYGRID"));
-	mygrid[4] = 0;
+	const char *mycall = field_str("MYCALLSIGN");
+	char mygrid[8];
+	strncpy(mygrid, field_str("MYGRID"), 8);
+	mygrid[4] = 0; // use only the first 4 letters of the grid
 	field_set("NR", mygrid);
+
+	tx_off();
 	set_reply_tx1st(sel_time % 100);
-	ftx_repeat = field_int("FTX_REPEAT");
 	ft8_tx_3f(call, mycall, mygrid);
+}
+
+/*!
+	Handle clicking a line from the messages list, or auto-responding to such a message:
+	first populate all relevant fields, then if FTX_AUTO != "OFF", start or continue a QSO
+	as appropriate for the given console \a line with length \a line_len in bytes.
+	Assume it's already been parsed, with all tokens identified by the array of
+	\a spans (max MAX_CONSOLE_LINE_STYLES).
+	Timing is based on the time from the STYLE_TIME span.
+
+	But if FTX_AUTO == "OFF", this function only populates fields.
+
+	You can even click multiple messages in case the QSO was aborted and you
+	want to resume it: first click a line that contains the caller's grid,
+	then one that has the received signal report.  All 4 fields get re-populated,
+	and then you can continue the QSO.
+*/
+void ftx_call_or_continue(const char* line, int line_len, const text_span_semantic* spans)
+{
+	if (spans[0].semantic != STYLE_FT8_RX) {
+		LOG(LOG_DEBUG, "semantic %d != %d STYLE_FT8_RX: can't reply\n", spans[0].semantic, STYLE_FT8_RX);
+		return;
+	}
+	char caller[16];
+	int call_start = extract_semantic(line, line_len,  spans, STYLE_CALLER, caller, sizeof(caller));
+	const char *mycall = field_str("MYCALLSIGN");
+	// If no caller callsign has been identified, or the caller is me, do nothing here.
+	// (Maybe the user clicked on that line by mistake; it's easy to do)
+	if (call_start < 0 && strstr(caller, mycall))
+		return;
+
+	// Otherwise, we can see that the user clicked on a received line (not an outgoing line).
+	// Populate fields appropriately.
+	tx_off();
+	field_set("CALL", caller);
+
+	LOG(LOG_DEBUG, "ft8_call_or_continue: '%s'\n", line);
+
+	char snr[8], pitch[8], grid[8], rst[8], extra[16], callee[16], time_str[10];
+	int snr_start = 0, pitch_start = 0, grid_start = 0, rst_start = 0, callee_start = 0, extra_start = 0;
+	int time = -1;
+	bool rrst = false;
+	// expect spans[0] to apply to the whole line; start with spans[1] to look at individual "words"
+	for (int s = 1; s < MAX_CONSOLE_LINE_STYLES; ++s) {
+		char *dbg_label = NULL;
+		char *dbg_val = NULL;
+		if (!spans[s].length)
+			break; // a zero-length span marks the end of the spans array
+		switch (spans[s].semantic) {
+			case STYLE_TIME:
+				extract_single_semantic(line, line_len, spans[s], time_str, sizeof(time_str));
+				time = atoi(time_str); // skip tenths of seconds
+				dbg_label = "time"; dbg_val = time_str;
+				break;
+			case STYLE_SNR:
+				snr_start = extract_single_semantic(line, line_len, spans[s], snr, sizeof(snr));
+				field_set("SENT", snr);
+				dbg_label = "SNR"; dbg_val = snr;
+				break;
+			case STYLE_GRID:
+			case STYLE_EXISTING_GRID:
+				grid_start = extract_single_semantic(line, line_len, spans[s], grid, sizeof(grid));
+				field_set("EXCH", grid);
+				dbg_label = "grid"; dbg_val = grid;
+				break;
+			case STYLE_RST:
+				rst_start = extract_single_semantic(line, line_len, spans[s], rst, sizeof(rst));
+				// If the received line contained e.g. "R-07" it means we received a reply with
+				// a signal report of -07. That's how we want to log it, so remove the leading R.
+				if (rst[0] == 'R') {
+					memmove(rst, rst + 1, 6);
+					rrst = true;
+				}
+				field_set("RECV", rst);
+				dbg_label = "RST"; dbg_val = rst;
+				break;
+			case STYLE_FREQ:
+				pitch_start = extract_single_semantic(line, line_len, spans[s], pitch, sizeof(pitch));
+				field_set("PITCH", pitch);
+				dbg_label = "pitch"; dbg_val = pitch;
+				break;
+			case STYLE_FT8_RX:
+				// "CQ" "73" and "RR73" currently show up here.
+				// But a plain-text message could show up this way too;
+				// extra is big enough to hold it, but there is not much point in clicking on it.
+				extra_start = extract_single_semantic(line, line_len, spans[s], extra, sizeof(extra));
+				dbg_label = "extra"; dbg_val = extra;
+				break;
+			case STYLE_MYCALL:
+			case STYLE_CALLEE:
+				callee_start = extract_single_semantic(line, line_len, spans[s], callee, sizeof(callee));
+				break;
+			case STYLE_CALLER:
+			case STYLE_RECENT_CALLER:
+				// skip it; we know the user's callsign, and we already extracted the caller's callsign above
+				break;
+		}
+		if (dbg_label)
+			LOG(LOG_DEBUG, "   span @ %d len %d: %d %s '%s'\n", spans[s].start_column, spans[s].length, spans[s].semantic, dbg_label, dbg_val);
+	}
+
+	if (time < 0) {
+		LOG(LOG_ERROR, "failed to get time from '%s'\n", line);
+		return;
+	}
+	char mygrid[8];
+	set_reply_tx1st(time % 100);
+	strncpy(mygrid, field_str("MYGRID"), sizeof(mygrid));
+	mygrid[4] = 0; // use only the first 4 letters of the grid
+	field_set("NR", mygrid);
+
+	// We populated the fields above.
+	// If FTX_AUTO == "OFF", the user gets to decide what to do next
+	// and operate the macro buttons manually.
+	const char *ftx_auto_str = field_str("FTX_AUTO");
+	if (!strcmp(ftx_auto_str, "OFF"))
+		return;
+
+	// Otherwise, decide how to respond.
+
+	if (callee_start && strncmp(callee, mycall, sizeof(callee))) {
+		// The callee is not me, so this is not a continuation of a QSO.
+		// Clear the received RST (if populated, it was for someone else) and start a new QSO.
+		field_set("RECV", "");
+		ft8_tx_3f(caller, mycall, mygrid);
+		return;
+	}
+	if (extra_start && !strncmp(extra, "RR73", 4)) {
+		LOG(LOG_DEBUG, "received RR73, send 73\n");
+		ftx_repeat = 1;
+		ft8_tx_3f(caller, mycall, "73");
+		enter_qso();
+		return;
+	}
+	if (extra_start && !strncmp(extra, "73", 2)) {
+		LOG(LOG_DEBUG, "received 73\n");
+		enter_qso();
+		call_wipe();
+		ft8_abort();
+		ftx_tx_text[0] = 0;
+		return;
+	}
+	if (rrst) {
+		LOG(LOG_DEBUG, "received roger-report; send RR73\n");
+		ft8_tx_3f(caller, mycall, "RR73");
+		return;
+	}
+	if (rst_start && !grid_start) {
+		LOG(LOG_DEBUG, "received report; send roger-report\n");
+		char report[5];
+		snprintf(report, sizeof(report), "R%s", snr);
+		ft8_tx_3f(caller, mycall, report);
+		return;
+	}
+	// If it's just an incoming call, with no CQ, send a signal report.
+	if (strncmp(extra, "CQ", 2)) {
+		LOG(LOG_DEBUG, "not a CQ, no other cases: send a signal report\n");
+		ft8_tx_3f(caller, mycall, snr);
+		return;
+	}
+
+	// It wasn't a reply situation: start a new QSO then.
+	ft8_tx_3f(caller, mycall, mygrid);
 }
 
 /*!
