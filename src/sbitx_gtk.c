@@ -1098,7 +1098,7 @@ struct field main_controls[] = {
 	// FTx controls
 	{"#ftx_auto", do_dropdown, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "OFF/ANS/CQRESP", 0, 0, 0, FT8_CONTROL},
-	{"#ftx_cq", do_dropdown, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
+	{"#ftx_cq", do_dropdown, 1000, -1000, 50, 50, "FTX_CQ", 40, "EVEN", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ftx_repeat", NULL, 1000, -1000, 50, 50, "FTX_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
@@ -4602,8 +4602,9 @@ static void edit_field(struct field *f, int action)
 			v -= f->step;
 		sprintf(f->value, "%d", v);
 	}
-	else if (f->value_type == FIELD_SELECTION)
+	else if (f->value_type == FIELD_SELECTION || f->value_type == FIELD_DROPDOWN)
 	{
+		const bool is_band = !strncmp(f->cmd, "#band", 6);
 		char *p, *prev, *next, b[100], *first, *last;
 		// get the first and last selections
 		strcpy(b, f->selection);
@@ -4618,9 +4619,11 @@ static void edit_field(struct field *f, int action)
 		prev = NULL;
 		strcpy(b, f->selection);
 		p = strtok(b, "/");
+		// the #band field puts its value into its label, so search for that instead
+		const char *current_sel = is_band ? f->label : f->value;
 		while (p)
 		{
-			if (!strcmp(p, f->value))
+			if (!strcmp(p, current_sel))
 				break;
 			else
 				prev = p;
@@ -4651,6 +4654,14 @@ static void edit_field(struct field *f, int action)
 				strcpy(f->value, last); // roll over
 										// return;
 		}
+		// do_band_dropdown was called in `if (f->fn) { ... }` above,
+		// but didn't do anything because the dropdown wasn't expanded.
+		// At this point, f->value has become something like "40m" instead of "-=--".
+		// So if it's the #band field, do what do_band_dropdown would have done
+		// if the user had chosen it from an open dropdown: call change_band to
+		// actually change bands and get this band's preset back again.
+		if (is_band)
+			change_band(f->value);
 	}
 	else if (f->value_type == FIELD_TOGGLE)
 	{
@@ -7838,7 +7849,7 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 	if (hoverField)
 	{
 		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
-		//~ printf("scroll @%lf, %lf; reverse? %d field %s\n", event->x, event->y, reverse, hoverField->label);
+		//~ printf("scroll @%lf, %lf; direction %d reverse? %d field %s\n", event->x, event->y, event->direction, reverse, hoverField->label);
 		if (event->direction == 0)
 		{
 			if (reverse)
