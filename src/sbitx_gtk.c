@@ -1249,9 +1249,9 @@ int set_field(const char *id, const char *value)
 		}
 		sprintf(f->value, "%d", v);
 	}
-	else if (f->value_type == FIELD_SELECTION || f->value_type == FIELD_TOGGLE)
+	else if (f->value_type == FIELD_SELECTION || f->value_type == FIELD_TOGGLE || f->value_type == FIELD_DROPDOWN)
 	{
-		// toggle and selection are the same type: toggle has just two values instead of many more
+		// toggle, selection, and dropdown are the same type: toggle has just two values instead of many more
 		char *p, *prev, *next, b[100];
 		// search the current text in the selection
 		prev = NULL;
@@ -4816,19 +4816,8 @@ void apply_band_settings(long frequency)
 			return;
 		}
 
-		// Focus the band dropdown if appropriate
-		struct field *current_focus = get_focused_field(); // Get the currently focused field
-		struct field *band_field = get_field("#band");
-
-		if (band_field && current_focus)
-		{
-			// Only focus the band dropdown if the frequency adjustment field is not focused
-			if (strcmp(current_focus->label, "FREQ") != 0 &&
-			    strcmp(current_focus->label, "SPECTRUM") != 0)
-			{
-				focus_field_without_toggle(band_field);
-			}
-		}
+		// Removed auto-focus of band dropdown when frequency changes
+		// This was causing unwanted focus changes when using the encoder
 
 		// Set additional fields to reflect the current band
 		char buff[20];
@@ -10531,13 +10520,6 @@ int main(int argc, char *argv[])
 	f = get_field("spectrum");
 	update_field(f);
 	set_volume(20000000);
-
-	set_field("r1:freq", "7000000");
-	set_field("r1:mode", "USB");
-	set_field("tx_gain", "24");
-	set_field("tx_power", "40");
-	set_field("r1:gain", "41");
-	set_field("r1:volume", "85");
 
 	// read available macros before reading user_settings.ini: #current_macro is one of the settings
 	initialize_macro_selection();
