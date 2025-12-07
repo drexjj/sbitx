@@ -1996,6 +1996,10 @@ void save_user_settings(int forced)
 	int i;
 	for (i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
+		// Skip #band and #band_stack_pos - these are computed fields, not saved
+		// The band stack index is saved per-band in the [80M], [40M], etc. sections
+		if (!strcmp(active_layout[i].cmd, "#band") || !strcmp(active_layout[i].cmd, "#band_stack_pos"))
+			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
 
@@ -2008,7 +2012,7 @@ void save_user_settings(int forced)
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
-		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\nstack_index=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr, band_stack[i].index);
 
 		// fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
@@ -2151,6 +2155,13 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 
+		// Skip #band and #band_stack_pos - these are computed fields from the old implementation
+		// They should not be loaded from settings
+		if (!strcmp(cmd, "#band") || !strcmp(cmd, "#band_stack_pos"))
+		{
+			return 1;
+		}
+
 		// For other fields, set the value if the field exists and is not a button
 		struct field *f = get_field(cmd);
 		if (f)
@@ -2216,6 +2227,8 @@ static int user_settings_handler(void *user, const char *section,
 			band_stack[band].drive = atoi(value);
 		else if (!strcmp(name, "tnpwr"))
 			band_stack[band].tnpwr = atoi(value);
+		else if (!strcmp(name, "stack_index"))
+			band_stack[band].index = atoi(value);
 	}
 	return 1;
 }
@@ -10626,7 +10639,8 @@ int main(int argc, char *argv[])
 	}
 
 	gtk_main();
-
+	
+	save_user_settings(1);
 	return 0;
 }
 
