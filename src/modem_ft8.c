@@ -1540,6 +1540,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 	int snr_start = 0, pitch_start = 0, grid_start = 0, rst_start = 0, callee_start = 0, extra_start = 0;
 	int time = -1;
 	bool rrst = false;
+	bool rr73 = false;
 	// expect spans[0] to apply to the whole line; start with spans[1] to look at individual "words"
 	for (int s = 1; s < MAX_CONSOLE_LINE_STYLES; ++s) {
 		char *dbg_label = NULL;
@@ -1560,8 +1561,18 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 			case STYLE_GRID:
 			case STYLE_EXISTING_GRID:
 				grid_start = extract_single_semantic(line, line_len, spans[s], grid, sizeof(grid));
-				field_set("EXCH", grid);
-				dbg_label = "grid"; dbg_val = grid;
+				// If "RR73" shows up here, it's not a grid.
+				if (!strncmp(grid, "RR73", 4)) {
+					rr73 = true;
+					extra_start = grid_start;
+					grid_start = 0;
+					strncpy(extra, grid, sizeof(extra));
+					grid[0] = 0;
+					dbg_label = "not-a-grid"; dbg_val = extra;
+				} else {
+					field_set("EXCH", grid);
+					dbg_label = "grid"; dbg_val = grid;
+				}
 				break;
 			case STYLE_RST:
 				rst_start = extract_single_semantic(line, line_len, spans[s], rst, sizeof(rst));
@@ -1580,7 +1591,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				dbg_label = "pitch"; dbg_val = pitch;
 				break;
 			case STYLE_FT8_RX:
-				// "CQ" "73" and "RR73" currently show up here.
+				// "CQ" "73" and maybe "RR73" currently show up here.
 				// But a plain-text message could show up this way too;
 				// extra is big enough to hold it, but there is not much point in clicking on it.
 				extra_start = extract_single_semantic(line, line_len, spans[s], extra, sizeof(extra));
@@ -1625,7 +1636,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		ft8_tx_3f(caller, mycall, mygrid);
 		return;
 	}
-	if (extra_start && !strncmp(extra, "RR73", 4)) {
+	if (rr73 || (extra_start && !strncmp(extra, "RR73", 4))) {
 		LOG(LOG_DEBUG, "received RR73, send 73\n");
 		ftx_repeat = 1;
 		ft8_tx_3f(caller, mycall, "73");
