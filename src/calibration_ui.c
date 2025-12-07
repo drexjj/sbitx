@@ -258,6 +258,15 @@ static void on_save_clicked(GtkWidget *widget, gpointer data) {
     // Save settings to hw_settings.ini
     save_hw_settings();
 
+    // Update original_scales to match the saved values
+    // This removes the "modified" (yellow) highlighting from bands after saving
+    for (int i = 0; i < 9; i++) {
+        cal_state.original_scales[i] = band_power[i].scale;
+    }
+
+    // Update the display to refresh band button styles
+    update_display();
+
     // Show confirmation
     GtkWidget *msg_dialog = gtk_message_dialog_new(
         GTK_WINDOW(cal_state.dialog),
