@@ -3186,6 +3186,7 @@ function deco_to_span(text) {
 	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
 }
 function FT8_stylize_message_item(item, text, style) {
+	// TODO most of this is not necessary; just find the #<letter> tags and make spans
 	//tokenize the message
 	var token_list = text.match(/\S+/g);
 	if (token_list.length < 6 || token_list.length > 9){
@@ -3248,11 +3249,10 @@ function FT8_stylize_message_item(item, text, style) {
 	}
 	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
 }
-function FT8_list_append(list_id, text, style){
+    function FT8_list_append(list_id, line, text, style){
         var item = document.createElement("li");
         FT8_stylize_message_item(item, text, style);
-        item.id = deco_strip(text).replace(/[^\w\-\/\~\.]+/g, "_");
-        item.addEventListener("click", FT8_message_chosen);
+        item.id = line >= 0 ? (line).toString() : deco_strip(text).replace(/[^\w\-\/\~\.]+/g, "_");
         el(list_id).children[0].appendChild(item);
         item.scrollIntoView({ behaviour: 'smooth', block: 'nearest' });
     }
@@ -3271,71 +3271,41 @@ function FT8_list_append(list_id, text, style){
             + " " + el("MYGRID").value.substring(0, 4).toUpperCase());
     }
 
-    //you can choose messages that are:
-    // 1. reply to your cq
-    // 2. someone calling cq
-    // 3. a message of your own that you want to resend
+	// You can choose any message that has a positive ID: the console line number.
+	// TX messages do not have them.
+	function FT8_message_chosen(event) {
+		var li = event.target.closest('.sbitx-list-item');
+		log(li)
+		var id = parseInt(li.id);
+		console.log("chose message with ID", li.id, id);
+		if (isNaN(id) || id < 0)
+			return;
 
-    function FT8_message_chosen(event) {
-        var message_text = event.currentTarget.id;
-        var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-
-        if (message_text.length == 0)
-            return;
-        //tokenize the message
-        var normalized_text = message_text.replace(/_/g, ' ');
-        var token_list = normalized_text.match(/\S+/g);
-        if (token_list.length < 7 || token_list[4] != '~' || token_list.length > 9) {
-            log("FT8_message_chosen: error parsing [" + message_text + "]" + JSON.stringify(token_list));
-            return;
-        }
-
-        var index = 1;
-        var confidence_score = token_list[1];
-        var signal_strength = token_list[2];
-        var rx_frequency = token_list[3];
-        var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-
-        var contact_callsign = "";
-        var sender_callsign = ""
-
-        if (event.altKey) { // shift click
-            if (token_list.length == 9) { // cq dx call grid
-                show_in_qrz_window(token_list[7]);
-            } else { // cq call grid || to call grid
-                show_in_qrz_window(token_list[6]);
-            }
-            //event.stopPropagation();
-            return false;
-        } else {
-            if (token_list[6] == mycallsign) {
-                //a message that I sent out, retransmit this
-                contact_callsign = token_list[5];
-                FT8_transmit(normalized_text);
-                return;
-            } else {
-
-                //this is the start of a new call
-                logger_wipe();
-                logger_abort();
-                FT8_list_append("wsjtx-rx", normalized_text);
-                websocket_send("FT8 " + normalized_text);
-            }
-        }
-    }
+		if (event.altKey) { // shift click
+			// TODO pull out the grid by its #S tag
+			/*
+			if (token_list.length == 9) { // cq dx call grid
+				show_in_qrz_window(token_list[7]);
+			} else { // cq call grid || to call grid
+				show_in_qrz_window(token_list[6]);
+			}
+			*/
+		} else {
+			websocket_send("selectline " + li.id);
+		}
+	}
 
     function FT8_lists_clear() {
         document.querySelector('#wsjtx-activity ol').innerHTML = "";
         document.querySelector('#wsjtx-rx ol').innerHTML = "";
         console.log("FT8 lists cleared");
     }
-    function FT8_new_message(text, style) {
-        //log("ft8:" + text + ":" + style);
-        var words = text.split(' ');
-        FT8_list_append("wsjtx-activity", text, style);
+    function FT8_new_message(line, text, style) {
+        // log("ft8: line " + line + ": " + text + ":" + style);
+        FT8_list_append("wsjtx-activity", line, text, style);
         var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-        if (words[4] == $("#FT8-rx-freq").val() || text.search(mycallsign) >= 0)
-            FT8_list_append("wsjtx-rx", text, style);
+        if (text.search(mycallsign) >= 0)
+            FT8_list_append("wsjtx-rx", line, text, style);
     }
 
     // setup the html for wsjtx
@@ -3804,23 +3774,25 @@ function FT8_list_append(list_id, text, style){
         if (xml != null) {
             var wsjtx = xml.getElementsByTagName("WSJTX-RX");
             if (wsjtx)
-                for (var i = 0; i < wsjtx.length; i++)
+                for (var i = 0; i < wsjtx.length; i++) {
+                    var line_n = wsjtx[i].getAttribute("l");
                     if (wsjtx[i].innerHTML.length > 30)
-                        FT8_new_message(wsjtx[i].innerHTML, "RX");
+                        FT8_new_message(line_n, wsjtx[i].innerHTML, "RX");
+                }
 
             //read the QSO specific ones too
             wsjtx = xml.getElementsByTagName("WSJTX-TX");
             if (wsjtx)
                 for (var i = 0; i < wsjtx.length; i++)
                     if (wsjtx[i].innerHTML.length > 30)
-                        FT8_new_message(wsjtx[i].innerHTML, "TX");
+                        FT8_new_message(-1, wsjtx[i].innerHTML, "TX");
 
             //read tx message in the Q
             wsjtx = xml.getElementsByTagName("WSJTX-Q");
             if (wsjtx)
                 for (var i = 0; i < wsjtx.length; i++)
                     if (wsjtx[i].innerHTML.length > 30)
-                        FT8_new_message(wsjtx[i].innerHTML, "Q");
+                        FT8_new_message(-1, wsjtx[i].innerHTML, "Q");
 
             var data = xml.getElementsByTagName("TELNET");
             if (data && in_tx == false)
@@ -4291,7 +4263,8 @@ function FT8_list_append(list_id, text, style){
     $(".macro-btn").on("click", logger_trigger_macro);
 
     //ft8 specific handlers
-    //$(".ft8-clickable").on("click", FT8_message_chosen);
+    $("#wsjtx-activity").on("click", FT8_message_chosen);
+    $("#wsjtx-rx").on("click", FT8_message_chosen);
 
     //specific control handler
     //$("#knob_on").on("click", toggle_dial);

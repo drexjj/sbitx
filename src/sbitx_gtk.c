@@ -276,8 +276,9 @@ struct console_line
 	text_span_semantic spans[MAX_CONSOLE_LINE_STYLES];
 };
 static struct console_line console_stream[MAX_CONSOLE_LINES];
-int console_current_line = 0;
-int console_selected_line = -1;
+uint32_t console_last_row = 0; // increments indefinitely; goes into spans[s].start_row
+int console_current_line = 0; // index in console_stream
+int console_selected_line = -1; // index
 time_t console_current_time = 0;
 
 // max power and swr from most recent transmission, for the log
@@ -1428,7 +1429,7 @@ void web_add_string(char *string)
 	}
 }
 
-void web_write(int style, char *data)
+void web_write(int line_n, int style, char *data)
 {
 	char tag[20];
 
@@ -1465,6 +1466,11 @@ void web_write(int style, char *data)
 
 	web_add_string("<");
 	web_add_string(tag);
+	{
+		char buf[16];
+		snprintf(buf, sizeof(buf), " l=\"%d\"", line_n);
+		web_add_string(buf);
+	}
 	web_add_string(">");
 	while (*data)
 	{
@@ -1518,10 +1524,19 @@ void web_write(int style, char *data)
 int console_init_next_line()
 {
 	console_current_line++;
+	console_last_row++;
 	if (console_current_line == MAX_CONSOLE_LINES)
 		console_current_line = 0;
 	memset(&console_stream[console_current_line], 0, sizeof(struct console_line));
 	return console_current_line;
+}
+
+struct console_line *console_get_line(int line)
+{
+	for (int i = 0; i < MAX_CONSOLE_LINES; ++i)
+		if (console_stream[i].spans[0].start_row == line)
+			return &console_stream[i];
+	return NULL;
 }
 
 void write_to_remote_app(int style, const char *text)
@@ -1561,7 +1576,7 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 		char decorated[1000];
 		assert(sem);
 		hd_decorate(sem[0].semantic, text, decorated);
-		web_write(sem[0].semantic, decorated);
+		web_write(console_last_row, sem[0].semantic, decorated);
 		write_to_remote_app(sem[0].semantic, text);
 	}
 
@@ -1582,7 +1597,7 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 				out_sem->length += next_sem->length;
 			else // different than last semantic: copy the whole struct
 				*out_sem = *next_sem;
-			out_sem->start_row = console_current_line; // only useful for output to spans file, and should increment forever (TODO)
+			out_sem->start_row = console_last_row; // long-term ID of this row for web UI, zbitx (?) and 9p
 			//~ printf("write '%s': span %d col %d len %d: style %d\n",
 				//~ text, output_span_i, out_sem->start_column, out_sem->length, out_sem->semantic); // debug
 			++output_span_i;
@@ -10017,9 +10032,12 @@ void cmd_exec(char *cmd)
 
 	char response[100];
 
-	if (!strcasecmp(exec, "FT8") || !strcasecmp(exec, "FT4"))
+	if (!strcasecmp(exec, "selectline")) // for the web UI mainly, so far
 	{
-		ft8_process(args, FTX_START_QSO);
+		struct console_line *line = console_get_line(atoi(args));
+		printf("selectline %s %s\n", args, line ? line->text : "");
+		if (line)
+			ftx_call_or_continue(line->text, line->spans[0].length, line->spans);
 	}
 	else if (!strcasecmp(exec, "callsign"))
 	{
