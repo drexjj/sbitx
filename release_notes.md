@@ -1,20 +1,53 @@
-v5.3 - Currently In Test/Dev
+# v5.3 - Currently In Test/Dev
 **New Features:**
-- Refractored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen.
+- Refactored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen.
 - CW decoding while sending
-- Mulitple FT8 Enhancements including xOTA (POTA, SOTA, ... etc support)
-- Support for FT4
-- "Quick Options" menu by holding both encoder buttons for 2 seconds. 
-- \cal command for calibrating the scale per band (external Power/SWR meter required).
-- \snap command to take screen shot of sBitx software
+- "Quick Options" menu by holding both encoder buttons for 2 seconds.
+- `\cal` command for calibrating the scale per band (external Power/SWR meter required).
+- `\snap` command to take screen shot of sBitx software
 - Voltage and Current added to UI by VFO
+- Power and SWR shown with a decimal place
 - Added High SWR trigger and auto power reduction to 1 which is configurable by the \maxvswr command, default to 3:1
+- **FTx features** (Shawn K7IHZ / LB2JK):
+  + Updated to latest ft8_lib. It now labels spans in the message text so we get them identified correctly.
+  + Support for non-standard calls (special stations, prefixes used while travelling, etc.)
+  + Support for CQ tokens (such as CQ POTA or CQ 123)
+  + Transmit pitch can be changed between transmitted messages
+  + Incoming/outgoing messages are logged to the terminal
+  + Send RR73 in response to an R-report instead of RRR
+  + **FT4** support: same features as FT8, twice as fast (and less robust)
+  + More timestamp precision for both FT4 and FT8
+  + FTX_CQ ALT_EVEN setting: CQ every 4th slot (listen more)
+  + FTX_AUTO modes:
+    * OFF is fully manual: click messages only to populate logger fields, then use macro buttons
+    * ANS auto-answers and finishes QSOs; click a previous incoming message if you need to repond again to it
+    * CQRESP additionally chooses a CQ to respond to, when no QSO is in progress, prioritizing /P /QRP and xOTA
+  + colors:
+    * different colors on different fields; interesting stuff stands out
+    * my callsign: red
+    * callsigns and grids found in recent QSOs from the logbook: dim green to avoid standing out
+    * otherwise, a caller that has not had a recent QSO with me is orange, and a grid is amber
+    * new setting `recent_qso_age`, in hours (24 by default)
+- **xOTA** for activators (Shawn K7IHZ / LB2JK):
+  + Before your activation, choose IOTA/SOTA/POTA in settings, and add the island/peak/park location reference
+  + Choose IOTA/SOTA/POTA macros to get a special CQ button
+  + Choose FTX_CQ XOTA to send alternating "CQ SOTA" (POTA/IOTA) and "SO &lt;location&gt;" (PO/IO) to tell chasers where you are
+  + xota and location are logged to the database, and can be exported to ADIF, ready for upload afterwards
+- **Logbook** (Shawn K7IHZ / LB2JK):
+  + the Freq field is Hz-accurate in FTx modes (dial frequency + pitch)
+  + Editing comments afterwards from the logbook window works better
+  + Power and SWR are logged to the database
+  + ADIF export includes TX_PWR
+- **Remote-X11 features** (e.g. via ssh forwarding from your Linux desktop):
+  + Clicking a message (in addition to responding if it's FT8/FT4) copies the text to the X11 selection
+    so that you can paste it anywhere with the middle mouse button
+  + Any field can be adjusted with the mouse wheel while hovering: no need to click first
 
-v5.2 - 
+# v5.2
 **New Features:**
 - **RIT tuning** fully implemented (by Jon W2JON) with excellent spectrum visualization of RX/TX offset relationship.
 - **Paddle reverse** for left-handed operators: `cwreverse on/off`.
-- **Audio Peaking Filter (APF)** added (CW mode only). Boosts weak signals with Gaussian curve, no sharp skirts.  
+- **Audio Peaking Filter (APF)** added (CW mode only). Boosts weak signals with Gaussian curve, no sharp skirts.
   Command: `apf <gain> <width>` (e.g., `apf 6 100`); `apf` alone = off.
 - Fullscreen mode for the radio GUI
 
@@ -36,9 +69,9 @@ v5.2 -
 - Multi-function knob auto-reverts to volume control after 15 seconds of inactivity (or instant push-to-toggle).
 - Fixed RX/TX EQ frequency controls and filter-width/pitch interaction bug.
 - Improved VFO/spectrum alignment.
-- Smoothed VFO tuning code: eliminated jumps.  
-  - `\TA ON` still enables acceleration.  
-  - TAT1/TAT2 commands removed.  
+- Smoothed VFO tuning code: eliminated jumps.
+  - `\TA ON` still enables acceleration.
+  - TAT1/TAT2 commands removed.
   - Slow → normal rate; moderate → 5× rate; very fast → higher rate (temporary, auto-resets).
 
 **Morse Tables:**
@@ -48,11 +81,11 @@ v5.2 -
 - Auto-mode now tracks calls already worked in current session.
 - Old QSO data cleared when calling CQ.
 
-v5.01 - 
+# v5.01
 - Fixed logbook open command for web interface
 - Fixed the tune toggle function in the web interface
 
-v5.0 - 
+# v5.0
 - Modernized the web browser interface for a cleaner and more user friendly experience. Added drag tuning, DX Spot indicators, updated gridmap, and more!
 - Added remote TX capability from the web browser (use your ssmartphone, tablet, or laptop microphone for voice modes)
 - Added a web interface to view and control 3rd party apps such as WSJTX, JS8Call, FlDigi, etc from the web browser
@@ -63,7 +96,7 @@ v5.0 -
 - Fixed Split mode functionality
 - Added direct frequency input option to web and local interfaces
 
-v4.4 -
+# v4.4
 - Added	power down button from sbitx menu 2
 - Added Macro chooser button in the main GUI for FT8/CW modes
 - Fixed the Macro change screen refresh when changing macros
@@ -74,7 +107,7 @@ v4.4 -
 - Added max-hold visualization for POWER and corrected SWR calculation in the case of little or no FWD POWER
 - Added AUTOSCOPE in MENU 2 which adjusts the vertical offset of the scope and the base value for the waterfall automatically, making it easier to see signals clearly.
 
-v4.3 - 
+# v4.3
 - Added Menus for additional functions
 - Added Waterfall Speed Control (WFSPD)
 - Added Adjustable bandscope controls: ScopeGain, ScopeAvg, ScopeSize, & Intensity
@@ -85,7 +118,7 @@ v4.3 -
 - Arranged buttons on the main screen and menu screens
 - Improved CW mode polling for internal keyer and external keyers (Thanks KB2ML)
 
-v4.2 - 
+# v4.2
 - Added support for multiple hamlib connections
 - Added Independent Waterfall gain intensity adjustment control (WFMIN, WFMAX)
 - Added RX EQ Functionality
@@ -93,15 +126,15 @@ v4.2 -
 - Changed QRO button indicator to ePTT (external PTT trigger) and command to \epttopt on|off
 - Rewrote DSP & ANR Audio Filters
 
-v4.12 - 
+# v4.12
 - Re-added sidetone volume adjustment for digi mode
 - Fixed onfFout initialization error
 - Removed unneeded "b" flag to fopen()
 
-v4.11 - 
+# v4.11
 - Fixed QRO function delay
 
-v4.1 -
+# v4.1
 - Added a graphical bandstack position indicator beneath the selected band.
   - Eg -=-- meaning #2 bandstack position.
   - This option is off by default, but can be set to ON by the user with \bstackposopt on in the text box.
@@ -113,21 +146,21 @@ v4.1 -
   - Saves IF and drive level in user_settings per band to recall them when switching bands.
   - Useful for ext PTT interface (external amp, transverter, etc)
 
-v4.02 -
+# v4.02
 - Fixes the LPF filter switching in CW modes on DE hardware.
 - Fixes the "no audio" issue after a PTT or key event on DE hardware.
 
-v4.01 - 
+# v4.01
 - Realigned the buttons to match the native resolution for the 7 inch screen in web gui.
 - Updated notch filter to activate in CW/CWR m0de, also remove the indicator from modes where it's inactive
 
-v4.0 - 
+# v4.0
 FT8 Mode Improvements:
   - Both the local and web apps now display decorated messages in FT8 mode.
-  - Callsigns: 
+  - Callsigns:
     - Callsigns logged are displayed in green.
     - Unlogged callsigns are displayed in red.
-  - Grids: 
+  - Grids:
    - Logged grids are displayed in green.
    - Unlogged grids are displayed in yellow.
  - Band change: The console and web FT8 lists are cleared when changing bands.
@@ -165,7 +198,7 @@ UI and Other Improvements:
   - Added fullscreen waterfall mode and the option to hide the text box for voice modes.
   - Changed the waterfall refresh speed for smoother operation in SSB.
 - VFO Enhancements:
-  - Added a VFO lock button in the menu and a corresponding indicator on the main screen. it can be toggled by the menu or a 
+  - Added a VFO lock button in the menu and a corresponding indicator on the main screen. it can be toggled by the menu or a
   long press of the VFO tuning knob
 - UI Adjustments:
   - Shortened "digital mode" text to DIGI.
@@ -189,13 +222,13 @@ UI and Other Improvements:
   - Added workaround for FT8 and external digi modes for time sync decoding process.
   - Update build script to support profile guided optimizations.
   - Added renice script to increase priority of sbitx application if desired.
-  - TX Monitor function that allows monitoring of the transmitted signal through headphones, enabling users to hear 
+  - TX Monitor function that allows monitoring of the transmitted signal through headphones, enabling users to hear
     adjustments to the TX EQ. The perceived noise in the headphones seems to be local and is not transmitted over the air.
   - Added 60 meter band.
 
 
 
-v3.1 -
+# v3.1
 - Added Tune button and power control functions.
 - Added quick access menu button for additional controls.
 - Updated the 5 band TX equalizer with GUI.
