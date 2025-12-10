@@ -957,31 +957,6 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
     }
   }
 
-  //////////////////////////////////////////////////
-  // DEBUG CODE TO LOG VALUES FOR ANALYSIS
-  //////////////////////////////////////////////////
-  // one-time startup logging of the first 3000 calls
-  // this is 30 seconds (there are 100 calls / second)
-  if (!cw_rx_log_done) {
-    if (!cw_rx_log_fp) {
-      cw_rx_log_fp = fopen("cw_rx_bin.log", "w");
-      if (!cw_rx_log_fp) {
-        cw_rx_log_done = true;  // give up if we can’t open the file
-      }
-    }
-    if (cw_rx_log_fp) {
-      fprintf(cw_rx_log_fp, "%d,%d,%d,%d\n", p->magnitude, p->max_bin_streak, p->noise_floor, p->high_level);
-      cw_rx_log_count++;
-      if (cw_rx_log_count >= 2000) {
-        fclose(cw_rx_log_fp);
-        cw_rx_log_fp = NULL;
-        cw_rx_log_done = true;
-      }
-    }
-  }
-  /////////////////////////////////////////////
-  // END OF DEBUG LOGGING CODE
-  /////////////////////////////////////////////
   p->ticker++;
 }
 // gets the bin index that had the strongest magnitude signal
@@ -1543,14 +1518,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
         assignments[i] = 0;
     }
   }
-  //////////////////////////////////////////////
-  // DEBUG CODE  (Viterbi or greedy?)
-  //static int dbg_ctr = 0;
-  //if ((dbg_ctr++ % 5) == 0) {   // print every 5 decisions
-  //  fprintf(stderr, used_viterbi ? "V\n" : "G\n");
-  //}
-  ////////////////////////////////////////////////
-  
+    
   // build morse string from assignments in original symbol order
   char morse_code_string[MAX_SYMBOLS + 1];
   int mpos = 0;
