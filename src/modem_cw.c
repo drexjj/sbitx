@@ -59,7 +59,7 @@ struct cw_decoder {
   // configuration
   int n_bins;
   int wpm;
-  int console_font;  // decoder output FONT_CW_RX or FONT_CW_TX
+  int console_font;  // decoder output STYLE_CW_RX or STYLE_CW_TX
 
   // bins (Goertzel filters at offsets)
   struct bin signal_minus2;
@@ -470,7 +470,7 @@ static int cw_read_key(){
     if (symbol_next) {
         // REMOVED WITH DECODING CW ON TX MOD
         //char buff[2] = { (char)toupper(uc), 0 };  // safe ctype: uc is unsigned char
-        //write_console(FONT_CW_TX, buff);
+        //write_console(STYLE_CW_TX, buff);
         return cw_get_next_symbol();
     } else {
         // unknown character: ignore
@@ -795,7 +795,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 //          ├─ if transition space->mark:
 //          │   └─ cw_rx_add_symbol(p, ' ')
 //          ├─ when measuring gaps (space continuing):
-//              └─ (maybe) write_console(FONT_CW_RX, " ")
+//              └─ (maybe) write_console(STYLE_CW_RX, " ")
 //       └─ cw_rx_match_letter(&decoder) when character gap detected:
 //          ├─ build mark_durs[] / mark_mags[]]
 //          ├─ compute log_mark_durs[]
@@ -810,7 +810,7 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 //              └─ greedy threshold classifier
 //          ├─ build morse_code_string by iterating symbol_str[] + assignments
 //          ├─ (map morse string to table)
-//          │   └─ write_console(FONT_CW_RX, morse or char)
+//          │   └─ write_console(STYLE_CW_RX, morse or char)
 //          └─ update decoder->dot_len (adaptation)
 //
 //////////////////////////////////////////////////////////////////////////
@@ -1435,7 +1435,7 @@ int word_gap = 7 * dot;
 	  if (t >= word_gap) {
       // Suppress consecutive spaces across both RX and TX decoders
       if (!decoder.last_char_was_space && !tx_decoder.last_char_was_space) {
-        write_console(FONT_CW_RX, " ");
+        write_console(STYLE_CW_RX, " ");
         decoder.last_char_was_space = 1;
         tx_decoder.last_char_was_space = 1;
       }
@@ -1547,7 +1547,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   //static int dbg_ctr = 0;
   //if ((dbg_ctr++ % 5) == 0) {   // print every 5 decisions
   //  fprintf(stderr, used_viterbi ? "V\n" : "G\n");
-  }
+  //}
   ////////////////////////////////////////////////
   
   // build morse string from assignments in original symbol order
@@ -1679,7 +1679,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   // Emit decoded character if in table
   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      write_console(FONT_CW_RX, morse_rx_table[i].c);
+      write_console(STYLE_CW_RX, morse_rx_table[i].c);
       decoder->last_char_was_space = 0;
       tx_decoder.last_char_was_space = 0;
       return;
@@ -1716,7 +1716,7 @@ void cw_init(void) {
   // RX decoder: cfg 
   decoder.n_bins = N_BINS;
   decoder.wpm = 20;
-  decoder.console_font = FONT_CW_RX;
+  decoder.console_font = STYLE_CW_RX;
 
   // RX decoder: bins 
   int cw_rx_pitch = field_int("PITCH");
@@ -1964,7 +1964,7 @@ void cw_poll(int bytes_available, int tx_is_on) {
   } else if (tx_is_on && cw_tx_until < millis_now) {
     // If we were in a TX session, write newline to end it
 		if (tx_session_active) {
-			write_console(FONT_CW_TX, "\n");
+			write_console(STYLE_CW_TX, "\n");
 			tx_session_active = false;
 		}
     tx_off();
@@ -1977,7 +1977,7 @@ void cw_poll(int bytes_available, int tx_is_on) {
 void cw_abort() {
   // If we were in a TX session, write newline to end it
 	if (tx_session_active) {
-		write_console(FONT_CW_TX, "\n");
+		write_console(STYLE_CW_TX, "\n");
 		tx_session_active = false;
 	}
 
