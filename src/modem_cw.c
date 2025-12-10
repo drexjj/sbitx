@@ -1237,7 +1237,7 @@ static bool estimate_mark_emissions(struct cw_decoder *p, float *log_mark_durs, 
     }
 
     // require minimal separation in log-domain to be confident
-    const float MIN_SEP_LOG = 0.30f;   // WAS 0.25
+    const float MIN_SEP_LOG = 0.23f;  // WAS .25
     if ( (*dash_mu - *dot_mu) < MIN_SEP_LOG )
       return false;
     else
@@ -1268,7 +1268,7 @@ static void viterbi_decode_marks(float *log_mark_durs, int n, float dot_mu, floa
     }
 
     // transition log-probabilities (favor staying same state slightly)
-    const float P_STAY = 0.60f;   // >>>>> try tweaking this <<<<<
+    const float P_STAY = 0.55f;   // >>>>> try tweaking this <<<<<
     const float P_SWITCH = 1.0f - P_STAY;
     const float log_stay = logf(P_STAY);
     const float log_switch = logf(P_SWITCH);
@@ -1638,7 +1638,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   float dot_ticks_est = expf(dot_mu) - 1.0f;
   float dash_ticks_est = expf(dash_mu) - 1.0f;
   float dd_ratio = (dot_ticks_est > 0.0f) ? (dash_ticks_est / dot_ticks_est) : 0.0f;
-  int ratio_ok = (dd_ratio > 1.5f && dd_ratio < 4.5f) ? 1 : 0;
+  int ratio_ok = (dd_ratio > 1.3f && dd_ratio < 5.0f) ? 1 : 0;  // I have tried to relax timing
 
   // cluster counts
   const int MIN_KCOUNT = 12;
@@ -1669,7 +1669,7 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   float confidence = W_Z * comp_z + W_SEP * comp_sep + W_MARGIN * comp_margin +
                      W_KCNT * comp_kcnt + W_RATIO * comp_ratio;
 
-  const float CONF_THRESHOLD = 0.65f;   // base confidence gate
+  const float CONF_THRESHOLD = 0.55f;   // base confidence gate
 
   // Base confidence gate
   if (confidence < CONF_THRESHOLD) {
