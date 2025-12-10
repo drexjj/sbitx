@@ -13,6 +13,7 @@
 extern int ext_ptt_enable;
 extern int display_freq;
 extern int spectrum_plot[];
+extern int cw_decode_enabled;
 
 // named styles / semantics used in various places in various UIs.
 typedef enum {
