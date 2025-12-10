@@ -1430,18 +1430,18 @@ static bool cw_rx_detect_symbol(struct cw_decoder *p) {
 
     // Word gap check is independent of whether we’re currently building a char
     // TEMP: ignore EMAs, use nominal values only
-int dot = p->dot_len;
-int char_gap = 3 * dot;
-int word_gap = 7 * dot;
+    int dot = p->dot_len;
+    int char_gap = 3 * dot;
+    int word_gap = 7 * dot;
 	  if (t >= word_gap) {
-    // Suppress consecutive spaces across both RX and TX decoders
-    if (cw_decode_enabled &&
-        !decoder.last_char_was_space && !tx_decoder.last_char_was_space) {
-      write_console(STYLE_CW_RX, " ");
+      // Suppress consecutive spaces across both RX and TX decoders
+      if (cw_decode_enabled && !decoder.last_char_was_space && !tx_decoder.last_char_was_space) {
+        write_console(STYLE_CW_RX, " ");
+      }
+      decoder.last_char_was_space = 1;
+      tx_decoder.last_char_was_space = 1;
+      // Do NOT reset ticker; let the next space->mark transition measure the full gap
     }
-  decoder.last_char_was_space = 1;
-  tx_decoder.last_char_was_space = 1;
-  // Do NOT reset ticker; let the next space->mark transition measure the full gap
   }
   // -- Remain in MARK: Avoid runaway marks (long pressed carrier)
   else if (p->mark && p->prev_mark) {
