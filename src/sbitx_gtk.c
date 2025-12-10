@@ -59,6 +59,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
+extern char *cw_get_stats(char *buf, size_t len);
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -3339,6 +3340,29 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
 		cairo_show_text(gfx, zerobeat_text);
 
+    // display a few CW stats under ZBEAT
+		{
+      static int zbeat_stats_update_counter = 0;
+      static char zbeat_cw_stats[64] = "";
+      // throttle updates: refresh cached string only every 10th time
+      if (++zbeat_stats_update_counter >= 10) {
+        zbeat_stats_update_counter = 0;
+        if (!cw_get_stats(zbeat_cw_stats, sizeof(zbeat_cw_stats)))
+            zbeat_cw_stats[0] = '\0';
+      }
+
+      if (zbeat_cw_stats[0] != '\0') {
+        // drop one line below the ZBEAT label
+        // Adjust the +12 to match font line spacing if needed
+        int stats_x = zerobeat_text_x + 15;
+        int stats_y = zerobeat_text_y + 14;
+        cairo_move_to(gfx, stats_x, stats_y);
+        // use white color for text (gray is 0.2)
+        cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
+        cairo_show_text(gfx, zbeat_cw_stats);
+      }
+		}
+      
 		// Draw LED indicators
 		int box_width = 10;
 		int box_height = 5;
