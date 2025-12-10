@@ -221,6 +221,7 @@ static uint8_t cw_mode = CW_STRAIGHT;
 static int cw_bytes_available = 0;
 
 extern int text_ready;  // flag that TEXT buffer in gui is ready to send
+extern int cw_decode_enabled;  // flag that UI has enabled cw decoding
 
 static int cw_envelope_pos = 0; // position within the envelope
 static int cw_envelope_len = 480; // length of the envelope
@@ -1433,14 +1434,14 @@ int dot = p->dot_len;
 int char_gap = 3 * dot;
 int word_gap = 7 * dot;
 	  if (t >= word_gap) {
-      // Suppress consecutive spaces across both RX and TX decoders
-      if (!decoder.last_char_was_space && !tx_decoder.last_char_was_space) {
-        write_console(STYLE_CW_RX, " ");
-        decoder.last_char_was_space = 1;
-        tx_decoder.last_char_was_space = 1;
-      }
-      // Do NOT reset ticker; let the next space->mark transition measure the full gap
+    // Suppress consecutive spaces across both RX and TX decoders
+    if (cw_decode_enabled &&
+        !decoder.last_char_was_space && !tx_decoder.last_char_was_space) {
+      write_console(STYLE_CW_RX, " ");
     }
+  decoder.last_char_was_space = 1;
+  tx_decoder.last_char_was_space = 1;
+  // Do NOT reset ticker; let the next space->mark transition measure the full gap
   }
   // -- Remain in MARK: Avoid runaway marks (long pressed carrier)
   else if (p->mark && p->prev_mark) {
@@ -1677,9 +1678,11 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
   }
 
   // Emit decoded character if in table
-  for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
+   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      write_console(STYLE_CW_RX, morse_rx_table[i].c);
+      if (cw_decode_enabled) {
+        write_console(STYLE_CW_RX, morse_rx_table[i].c);
+      }
       decoder->last_char_was_space = 0;
       tx_decoder.last_char_was_space = 0;
       return;
