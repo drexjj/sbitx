@@ -996,7 +996,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				snprintf(buf, sizeof(buf), "%+03d", cand_snr);
 				field_set("SENT", buf);
 			}
-			set_field_int("rx_pitch", cand_pitch);
+			set_field_int("ftx_rx_pitch", cand_pitch);
 			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
 			LOG(LOG_INFO, "Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
 				ftx_tx1st ? "even" : "odd", prioritized ? "prioritized " : "", cand_callsign,
@@ -1448,7 +1448,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				break;
 			case STYLE_FREQ:
 				pitch_start = extract_single_semantic(line, line_len, spans[s], pitch, sizeof(pitch));
-				field_set("PITCH", pitch);
+				field_set("FTX_RX_PITCH", pitch);
 				dbg_label = "pitch"; dbg_val = pitch;
 				break;
 			case STYLE_FT8_RX:

@@ -796,7 +796,7 @@ struct field main_controls[] = {
 	{"#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 50, 1, CW_CONTROL},
 	{"rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, STYLE_FIELD_VALUE,
-	 "", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL},
+	 "", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL}, // see also ftx_rx_pitch
 
 	{"#tx", NULL, 1000, -1000, 50, 50, "TX", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "RX/TX", 0, 0, 0, VOICE_CONTROL},
@@ -1106,6 +1106,8 @@ struct field main_controls[] = {
 	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ftx_repeat", NULL, 1000, -1000, 50, 50, "FTX_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
+	{"ftx_rx_pitch", NULL, 700, -350, 50, 50, "FTX_RX_PITCH", 40, "600", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL}, // substitute for rx_pitch only in FTx modes
 
 	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 32, 1, 0},
@@ -2958,10 +2960,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// For USB/LSB/AM in TX with tx_panafall_enabled, continue with normal spectrum display
 	}
 
-	pitch = field_int("PITCH");
-	tx_pitch = field_int("TX_PITCH");
 	struct field *mode_f = get_field("r1:mode");
 	const bool mode_ftx = !strncmp(mode_f->value, "FT", 2);
+	pitch = mode_ftx ? field_int("FTX_RX_PITCH") : field_int("PITCH");
+	tx_pitch = field_int("TX_PITCH");
 	freq = atol(get_field("r1:freq")->value);
 
 	span = atof(get_field("#span")->value);
