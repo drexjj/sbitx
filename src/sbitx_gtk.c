@@ -9870,7 +9870,10 @@ void do_control_action(char *cmd)
 			// Update band stack info of current band with new Tune Power value - W9JES
 			char ti[4];
 			strncpy(ti, request + 6, 3);
-			band_stack[atoi(get_field_by_label("SELBAND")->value)].tnpwr = atoi(ti);
+			ti[3] = 0;
+			const int band_idx = atoi(get_field_by_label("SELBAND")->value);
+			if (band_idx >= 0 && band_idx < sizeof(band_stack) / sizeof(struct band))
+				band_stack[band_idx].tnpwr = atoi(ti);
 			settings_updated++;
 		}
 
