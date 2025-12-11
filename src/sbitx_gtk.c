@@ -60,6 +60,8 @@ extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
 extern char *cw_get_stats(char *buf, size_t len);
+/* VSWR trip flag Clear on band change so previous trips don't persist. */
+extern int vswr_tripped;
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -9395,6 +9397,8 @@ void change_band(char *request)
 		if (stack >= STACK_DEPTH)
 			stack = 0;
 		band_stack[new_band].index = stack;
+	} else {
+		vswr_tripped = 0;  // clear vswr_tripped
 	}
 	stack = band_stack[new_band].index;
 	int mode_ix = band_stack[new_band].mode[stack];
