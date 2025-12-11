@@ -9376,7 +9376,7 @@ void change_band(char *request)
 		if (band_stack[old_band].start <= old_freq && old_freq <= band_stack[old_band].stop)
 			break;
 
-	int stack = band_stack[old_band].index;
+	int stack = old_band < max_bands ? band_stack[old_band].index : 0;
 	if (stack < 0 || stack >= STACK_DEPTH)
 		stack = 0;
 	if (old_band < max_bands)
