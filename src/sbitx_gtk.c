@@ -9560,7 +9560,7 @@ void do_control_action(char *cmd)
 	static char modestore[10], powerstore[10]; // GLG TUNE previous state
 	strcpy(request, cmd);					   // Don't mangle the original, thank you
 
-	printf("do_control_action called with command: %s\n", request); //Debug logging
+	//printf("do_control_action called with command: %s\n", request); //Debug logging
 
 	if (!strcmp(request, "CLOSE"))
 	{
