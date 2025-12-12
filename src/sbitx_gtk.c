@@ -9355,6 +9355,7 @@ void change_band(char *request)
 	int max_bands = sizeof(band_stack) / sizeof(struct band);
 	long new_freq, old_freq;
 	char buff[100];
+	request[2] = toupper(request[2]); // make sure the 'M' is uppercase.
 
 	// find the band that has just been selected, the first char is #, we skip it
 	for (new_band = 0; new_band < max_bands; new_band++)
@@ -9559,7 +9560,7 @@ void do_control_action(char *cmd)
 	static char modestore[10], powerstore[10]; // GLG TUNE previous state
 	strcpy(request, cmd);					   // Don't mangle the original, thank you
 
-	// printf("do_control_action called with command: %s\n", request); //Debug logging
+	printf("do_control_action called with command: %s\n", request); //Debug logging
 
 	if (!strcmp(request, "CLOSE"))
 	{
@@ -10048,6 +10049,8 @@ void initialize_macro_selection() {
 */
 void cmd_exec(char *cmd)
 {
+
+	//printf( "cmd_exec called with command: %s\n", cmd); // Debug logging
 	int i, j;
 	int mode = mode_id(get_field("r1:mode")->value);
 
@@ -10449,6 +10452,10 @@ else if (!strcasecmp(exec, "decode"))
 		// if (strlen(buff))
 		//	set_field("#text_in", buff);
 	}
+	else if( strstr("80M60M40M30M20M17M15M12M10M", exec) != NULL || 
+		     strstr("80m60m40m30m20m17m15m12m10m", exec) != NULL){
+		change_band(exec);
+	}
 	else
 	{
 		char field_name[32];
@@ -10464,6 +10471,7 @@ else if (!strcasecmp(exec, "decode"))
 			if (set_field(f->cmd, args))
 			{
 				write_console(STYLE_LOG, "Invalid setting:");
+				printf("Invalid setting: %s=%s\n", f->cmd, args);
 			}
 			else
 			{
