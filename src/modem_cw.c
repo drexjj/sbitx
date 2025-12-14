@@ -230,11 +230,6 @@ static int32_t tx_sample_buffer[1024];  // TX decoder buffer
 static int tx_buffer_pos = 0;
 static bool tx_session_active = false;  // Track if we're in a TX session
 
-// these values are to suppor a degug log only and can be deleted in operational code
-static FILE *cw_rx_log_fp = NULL;
-static int cw_rx_log_count = 0;
-static bool cw_rx_log_done = false;
-
 // Blackman-Harris cw envelope
 // data values were calculated in external spreadsheet
 static const float cw_envelope_data[480] = {
@@ -397,6 +392,8 @@ void            cw_init(void);
 char           *cw_get_stats(char *buf, size_t len);
 void            cw_poll(int bytes_available, int tx_is_on);
 void            cw_abort(void);
+
+int is_in_tx(void);  // from modems.c
 
 //////////////////////////////////////////
 //      CW transmit and keyer functions
@@ -1645,23 +1642,35 @@ static void cw_rx_match_letter(struct cw_decoder *decoder) {
     return;
   }
 
-  // Emit decoded character if in table
-   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
+  // emit decoded character if in table
+  for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
       if (cw_decode_enabled) {
-        write_console(STYLE_CW_RX, morse_rx_table[i].c);
+        // keep track of mode so we can change colors
+        static int last_mode = -1;
+        static int last_font = -1;  // track previous font color
+        int tx_is_on = is_in_tx();
+        int current_mode = tx_is_on;
+        int current_font = decoder->console_font;
+        
+        if (last_mode != -1 && last_mode != current_mode) {
+          // Use last_font for the newline, to preserve old line color
+          if (last_font != -1)
+            write_console(last_font, "\n");
+          else
+            write_console(current_font, "\n");  // Fallback, first use
+        }
+        
+        // print the decoded character with the current font and mode
+        write_console(current_font, morse_rx_table[i].c);
+        last_mode = current_mode;
+        last_font = current_font;
       }
       decoder->last_char_was_space = 0;
       tx_decoder.last_char_was_space = 0;
       return;
     }
   }
-  // Fallback: show raw Morse
-  // update - users not crazy about seeing the raw undecodable string so we won't show it
-  //write_console(decoder->console_font, morse_code_string);
-  decoder->last_char_was_space = 0;
-  tx_decoder.last_char_was_space = 0;
-  return;
 }
 
 // initialize a struct with values for use with Goertzel algorithm
@@ -1749,7 +1758,7 @@ void cw_init(void) {
   // TX decoder mirrors RX but uses TX pitch/font
   tx_decoder.n_bins = N_BINS;
   tx_decoder.wpm = 20;
-  tx_decoder.console_font = 11;  // TX decoder uses amber/yellow font
+  tx_decoder.console_font = STYLE_CW_TX;  // TX decoder uses amber/yellow font
 
   int cw_tx_pitch = get_pitch();
   cw_rx_bin_init(&tx_decoder.signal_minus2, cw_tx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
