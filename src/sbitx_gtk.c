@@ -9699,6 +9699,25 @@ void do_control_action(char *cmd)
 	{
 		tx_off();
 	}
+  else if (!strcasecmp(request, "TA ON") ||
+           !strcasecmp(request, "tuning_acceleration ON") ||
+           !strcasecmp(request, "TA OFF") ||
+           !strcasecmp(request, "tuning_acceleration OFF")) {
+
+    const char *val = "OFF";
+    if (!strcasecmp(request, "TA ON") ||
+        !strcasecmp(request, "tuning_acceleration ON")) {
+      val = "ON";
+    }
+    
+    struct field *accel = get_field("tuning_acceleration");
+    if (accel) {
+      strcpy(accel->value, val);
+      accel->is_dirty = 1;
+      accel->update_remote = 1;
+      settings_updated++;
+    }
+  }
 	else if (!strncmp(request, "RIT", 3))
 	{
 		// Keep SDR tuned to RX when RIT toggles or delta changes
