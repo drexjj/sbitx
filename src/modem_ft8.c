@@ -27,8 +27,10 @@
 #include "ft8_lib/ft8/constants.h"
 #include "ft8_lib/fft/kiss_fftr.h"
 
+#include "clu/src/dxcc.h"
+#include "clu/src/locator.h"
+
 // We try to avoid calling automatically the same stations again and again, at least in this session
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define FTX_CALLED_SIZE 64
 static char ftx_already_called[FTX_CALLED_SIZE][32];
 static int ftx_already_called_n = 0;
@@ -53,6 +55,13 @@ static bool is_cq = false; // is ftx_tx_text a CQ?
 static bool ftx_tx1st = true;
 static bool ftx_cq_alt = false;
 static bool ftx_xota = false;
+static bool cty_inited = false;
+
+// This path happens to be there on the rpiOS image. But
+// TODO ensure that we use the newest available file: it is updated often.
+static const char* cty_location = "/usr/share/hamradio-files/cty.dat";
+// This file should change less often; if a new country is omitted, we simply won't abbreviate its name.
+static const char* abbrev_location = "clu/data/abbrev.tsv";
 
 static const int kMin_score = 10; // Minimum sync score threshold for candidates
 static const int kMax_candidates = 120;
@@ -642,6 +651,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 		mycallsign_upper[i] = toupper(mycallsign[i]);
 	mycallsign_upper[i] = 0;
 
+	char mygrid[8];
+	strncpy(mygrid, field_str("MYGRID"), 8);
+	mygrid[4] = 0; // use only the first 4 letters of the grid
+	double mylat, mylon;
+	bool myloc_ok = !locator2longlat(&mylon, &mylat, mygrid);
+
     monitor_init(&mon, &mon_cfg);
 
     // Process the waveform data frame by frame - you could have a live loop here with data from an audio device
@@ -742,9 +757,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			decoded[idx_hash].last_qso_age = -1;
 			decoded[idx_hash].grid_last_qso_age = -1;
 
-			char buf[64];
+			char buf[128];
 			int prefix_len = 8 + snprintf(hmst_time_sprint(buf, raw_ms), sizeof(buf) - 8, " %3d %+03d %4d ", cand->score, cand->snr, freq_hz);
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s", text);
+
+			const bool is_cq = !strncmp(text, "CQ ", 3);
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -832,7 +849,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 					continue; // with the for loop, so as to skip the next line below
 				}
 				sem[sem_i].semantic = kFieldType_style_map[spans.types[span_i]];
-			}
+			} // loop over spans from ft8_lib
 			// set length of the last span (no next span, but null terminator in text)
 			if (span_i > 0) {
 				sem[sem_i - 1].length = strlen(text + spans.offsets[span_i - 1]);
@@ -879,6 +896,32 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 					}
 				}
 			}
+
+			// add supplementary information: country, distance, azimuth
+			if (!cty_inited)
+				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
+			if (is_cq && cty_inited) {
+				dxcc_data info = lookupcountry_by_callsign(callsign);
+				if (info.country) {
+					const char *country_abbrev = NULL;
+					double distance = 0.0, azimuth = 0.0;
+					//~ sem[sem_i].semantic = STYLE_COUNTRY;
+					// TODO store this in callsigns hashtable so we don't have to keep calling lookupcountry_by_callsign every time
+					country_abbrev = abbreviate_country(info.countryname);
+					int cty_abb_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %s", country_abbrev);
+					line_len += cty_abb_len;
+					int qrbOK = !qrb(mylon, mylat, info.longitude, info.latitude, &distance, &azimuth);
+					//~ printf("%s: %s '%s' @ %5.0lf a %3.0lf qrb ok? %d\n", callsign, country_abbrev, info.countryname, distance, azimuth, qrbOK);
+					if (qrbOK) {
+						// output to the LOG message but not the GTK console (it's too much): don't add to line_len
+						int dist_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %.0lf km", distance);
+						//~ line_len += dist_len;
+						int az_len = snprintf(buf + line_len + dist_len, sizeof(buf) - line_len - dist_len, " %.0lf°", azimuth); // U+00B0 degree symbol
+					}
+				}
+			}
+
+			// write the message out
 			const int message_type = ftx_message_get_i3(&message);
 			if (decoded[idx_hash].last_qso_age < 0 && decoded[idx_hash].grid_last_qso_age < 0) {
 				LOG(LOG_INFO, "<< %d.%c       %s\n",
