@@ -905,18 +905,29 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				if (info.country) {
 					const char *country_abbrev = NULL;
 					double distance = 0.0, azimuth = 0.0;
-					//~ sem[sem_i].semantic = STYLE_COUNTRY;
 					// TODO store this in callsigns hashtable so we don't have to keep calling lookupcountry_by_callsign every time
 					country_abbrev = abbreviate_country(info.countryname);
 					int cty_abb_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %s", country_abbrev);
+					sem[sem_i].semantic = STYLE_COUNTRY;
+					sem[sem_i].start_column = line_len;
+					sem[sem_i++].length = cty_abb_len;
 					line_len += cty_abb_len;
 					int qrbOK = !qrb(mylon, mylat, info.longitude, info.latitude, &distance, &azimuth);
 					//~ printf("%s: %s '%s' @ %5.0lf a %3.0lf qrb ok? %d\n", callsign, country_abbrev, info.countryname, distance, azimuth, qrbOK);
 					if (qrbOK) {
-						// output to the LOG message but not the GTK console (it's too much): don't add to line_len
+						// output to the LOG message but not the GTK console (it's too much): don't add to line_len or add spans, for now
 						int dist_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %.0lf km", distance);
 						//~ line_len += dist_len;
+						//~ assert(sem_i < MAX_CONSOLE_LINE_STYLES);
+						//~ sem[sem_i].semantic = STYLE_DISTANCE;
+						//~ sem[sem_i].start_column = line_len;
+						//~ sem[sem_i++].length = dist_len;
 						int az_len = snprintf(buf + line_len + dist_len, sizeof(buf) - line_len - dist_len, " %.0lf°", azimuth); // U+00B0 degree symbol
+						//~ line_len += az_len;
+						//~ assert(sem_i < MAX_CONSOLE_LINE_STYLES);
+						//~ sem[sem_i].semantic = STYLE_AZIMUTH;
+						//~ sem[sem_i].start_column = line_len + dist_len;
+						//~ sem[sem_i++].length = az_len;
 					}
 				}
 			}

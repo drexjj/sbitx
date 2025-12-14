@@ -95,6 +95,9 @@ char ff_char(int style) {
 		case STYLE_FT8_QUEUED:
 			return 'A' + 14;
 		case STYLE_FT8_REPLY:
+		case STYLE_COUNTRY:
+		case STYLE_DISTANCE:
+		case STYLE_AZIMUTH:
 			return 'A' + 15;
 		case STYLE_CW_RX:
 			return 'A' + 9;
@@ -126,6 +129,13 @@ char ff_char(int style) {
 			printf("warning: unhandled style %d treated as \"log\"\n", style);
 			return 'A' + 5;
 	}
+}
+
+// Look at current mapping from numeric style to web-UI letter style.
+// Note: do not rely on the numbers! use STYLE_ enums in C code, and constants for letter styles in JS
+void dump_all_styles() {
+	for (int i = STYLE_LOG; i <= STYLE_BLACK; ++i)
+		printf("style %d: #%c\n", i, ff_char(i));
 }
 
 int hd_decorate(int style, const char * message, const text_span_semantic *sem, int sem_count, char * decorated) {

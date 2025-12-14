@@ -6,7 +6,7 @@
 #define VER_STR "sbitx v5.2" // Brought to you by the sBitx 64 Bit Development Team
 
 // maximum sem_count in write_console_semantic()
-#define MAX_CONSOLE_LINE_STYLES 8
+#define MAX_CONSOLE_LINE_STYLES 12
 
 #define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32.
 
@@ -31,6 +31,9 @@ typedef enum {
 	STYLE_TIME,
 	STYLE_SNR,
 	STYLE_FREQ,
+	STYLE_COUNTRY,
+	STYLE_DISTANCE,
+	STYLE_AZIMUTH,
 
 	// mode-specific semantics
 	STYLE_FT8_RX,
