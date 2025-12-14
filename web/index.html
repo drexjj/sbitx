@@ -1339,7 +1339,7 @@
             el("FT8_controls").style.width = b.width() + "px"; // Ensure FT8_controls spans full width
         }
         if (el("sbitx-list-container")) {
-            el("sbitx-list-container").style.width = "320px"; // Match original fixed width
+            el("sbitx-list-container").style.width = "360px"; // Match css style
         }
         /* if(b.height() > 600){
             el("waterfall").height = b.height() / 4;
@@ -3080,151 +3080,96 @@
         }
     }
 
-    /* wsjtx functionality */
+    /* FTx functionality */
 
     var ft8_tx_count = 0;
     var ft8_tx_on_even = true;
     var ft8_tx_message = "";
 
-    /* old version (OZ7BX)
-        function FT8_stylize_message(text, style) {
-            //tokenize the message
-            var token_list = text.match(/\S+/g);
-            if (token_list.length < 8 || token_list[4] != '~' || token_list.length > 9) {
-                log("FT8_process_message: error parsing [" + text + "]");
-                return;
-            }
-
-            var index = 1;
-            var confidence_score = token_list[1];
-            var signal_strength = token_list[2];
-            var rx_frequency = token_list[3];
-            var contact_callsign = token_list[5];
-            var sender_callsign = token_list[6];
-            var message = token_list[7];
-            var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-            var mygrid = $("#MYGRID").val().substring(0, 4).toUpperCase();
-
-            if (style == 'Q')
-                return "sbitx-list-item wsjtx-message-queued";
-            if (contact_callsign == mycallsign)
-                return "sbitx-list-item wsjtx-message-for-me";
-            else if (sender_callsign == mycallsign)
-                return "sbitx-list-item wsjtx-mycallsign";
-        else if (contact_callsign == "CQ")
-                return "sbitx-list-item wsjtx-cq-in-message";
-            else
-                return "sbitx-list-item";
-    } */
     function deco_strip(text) {
         return text.replace(/#./g, '');
     }
 
-// Style codes of interest - if present the caller / grid is not found in the log
-const STYLE_CW_RX = 9;
-const STYLE_CW_TX = 10;
-const STYLE_MYCALL = 16;
-const STYLE_CALLER = 17;
-const STYLE_GRID = 18;
-function deco_get_style(text) {
-	let i = text.indexOf('#');
-	if (i >= 0 && text.length > i+1) {
-		return text.charCodeAt(i+1)-'A'.charCodeAt(0);
+	// Selected unique style codes from hist_disp.c
+	const STYLE_LOG = 'F'; // generic; also several FTX-specific fields
+	const STYLE_MYCALL = 'Q';
+	const STYLE_CALLER = 'R';
+	const STYLE_GRID = 'S';
+	const STYLE_FTX_RX = 'G'; // time, pitch
+	const STYLE_SNR = 'H';
+	const STYLE_FTX_QUEUED = 'O';
+	const STYLE_FTX_REPLY = 'P'; // country
+	const STYLE_CW_RX = 'J';
+	const STYLE_CW_TX = 'K';
+	const STYLE_FLDIGI_RX = 'L';
+	const STYLE_FLDIGI_TX = 'M';
+	const STYLE_TELNET = 'N';
+
+	function deco_get_style(text) {
+		let i = text.indexOf('#');
+		if (i >= 0 && text.length > i+1)
+			return text.slice(i + 1, i + 2);
+		return STYLE_LOG;
 	}
-	return 0;
-}
-function deco_to_span(text) {
-	let jclass = "";
-	switch (deco_get_style(text)) {
-		case STYLE_CW_RX:
-			jclass = "data_rx";
-			break;
-		case STYLE_CW_TX:
-			jclass = "data_tx";
-			break;
-		case STYLE_CALLER:
-			jclass = "ft8-new-caller";
-			break;
-		case STYLE_GRID:
-			jclass = "ft8-new-grid";
-			GRIDMAP.gridIdNotLogged(text.substring(2));
-			break;
-		case STYLE_MYCALL:
-			jclass = "wsjtx-mycallsign";
-			break;
-		default:
-			if (GRIDMAP.isValidGridId(text.substring(2))) {
-				GRIDMAP.gridIdLogged(text.substring(2));
-			}
-		    jclass = "ft8-old-grid";
-			break;
-	}
-	return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
-}
-function FT8_stylize_message_item(item, text, style) {
-	// TODO most of this is not necessary; just find the #<letter> tags and make spans
-	//tokenize the message
-	var token_list = text.match(/\S+/g);
-	if (token_list.length < 6 || token_list.length > 9){
-		log("FT8_stylize_message_item: not enough tokens in [" + text + "]" + JSON.stringify(token_list));
-		return;
-	}
-	var tilde_pos = -1;
-	for (var i = 3; i < token_list.length; ++i)
-		if (token_list[i] == '~') {
-			tilde_pos = i;
-			break;
+	function deco_to_span(text) {
+		let jclass = "";
+		switch (deco_get_style(text)) {
+			case STYLE_LOG:
+				jclass = "ftx-generic";
+				break;
+			case STYLE_MYCALL:
+				jclass = "ftx-mycallsign";
+				break;
+			case STYLE_CALLER:
+				jclass = "ftx-caller";
+				break;
+			case STYLE_GRID:
+				jclass = "ftx-grid";
+				GRIDMAP.gridIdNotLogged(text.substring(2));
+				break;
+			case STYLE_FTX_QUEUED:
+				jclass = "ftx-queued";
+				break;
+			case STYLE_FTX_REPLY:
+				jclass = "ftx-reply";
+				break;
+			default:
+				jclass = "list-default";
+				break;
 		}
-	if (tilde_pos < 0) {
-		log("FT8_stylize_message_item: tilde not found in [" + text + "]" + JSON.stringify(token_list));
-		return;
+		return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
 	}
 
-	var label_position = text.search("~");
-	var label = text.substring(0, label_position);
+	function FT8_stylize_message_item(item, text, style) {
+		console.log("FTx style", style, "len", text.length, text);
+		var recipient = "";
+		var sender = "";
+		var htmMessage = "";
 
-	// fields from RX messages
-	var confidence_score = token_list[1];
-	var signal_strength = token_list[2];
-	var rx_frequency = token_list[3];
-
-	// stuff past the tilde, in either RX or TX case
-	var m1 = token_list[tilde_pos + 1];
-	var m2 = token_list[tilde_pos + 2];
-	var m3 = token_list.length > tilde_pos + 3 ? token_list[tilde_pos + 3] : "";
-	var m4 = token_list.length > tilde_pos + 4 ? token_list[tilde_pos + 4] : "";
-	var mycallsign = $("#MYCALLSIGN").val().toUpperCase();
-	var mygrid = $("#MYGRID").val().substring(0,4).toUpperCase();
-	// console.log("FT8_stylize_message_item: vars", tilde_pos, m1, m2, m3, m4, mycallsign, mygrid);
-	if(style == 'Q') {
-		item.className = "sbitx-list-item wsjtx-message-queued";
-	}
-	else if (deco_strip(m1) == mycallsign){
-		item.className = "sbitx-list-item wsjtx-message-for-me";
-	}
-	else if (deco_strip(m2) == mycallsign){
-		item.className = "sbitx-list-item wsjtx-mycallsign";
-	}
-	else {
-		item.className = "sbitx-list-item";
-	}
-	var htmLabel = "<span class = 'ft8-label'>" + deco_strip(label) + "</span>";
-	// detailed markup
-	var htmMessage = "";
-	if (deco_strip(m1) == "CQ"){
-		item.className = "sbitx-list-item wsjtx-cq-in-message";
-		if (token_list.length == 8) { // CQ sender grid
-			htmMessage = "CQ " + deco_to_span(m2) + " " + deco_to_span(m3);
-		} else { // CQ DX sender grid
-			htmMessage = "CQ " + deco_strip(m2) + " " + deco_to_span(m3) + " " + deco_to_span(m4);
+		// find the #<letter> tags and build up htmMessage with spans
+		var prev_pos = 0;
+		while (prev_pos >= 0) {
+			let hash_pos = text.indexOf('#', prev_pos + 1);
+			if (hash_pos > 0 || prev_pos > 0)
+				htmMessage += deco_to_span(text.slice(prev_pos, hash_pos < 0 ? text.length : hash_pos).replaceAll(" ", "&nbsp;"));
+//~ 			console.log("hash @", hash_pos, "prev_pos", prev_pos, "now we have", htmMessage);
+			prev_pos = hash_pos;
 		}
+		// special case for one long span
+		if (htmMessage.length == 0 && text.length > 0)
+			htmMessage = deco_to_span(text.replaceAll(" ", "&nbsp;"));
+//~ 		console.log("emitting", htmMessage);
+
+		if (style == 'Q') { // queued to send
+			item.className = "sbitx-list-item ftx-queued";
+		} else if (style == 'TX') { // sending now
+			item.className = "sbitx-list-item ftx-tx";
+		} else { // e.g. style == "RX"
+			item.className = "sbitx-list-item";
+		}
+		item.innerHTML = '<span class="ft8-message">' + htmMessage + '</span>';
 	}
-	else {
-		// contact sender grid|R
-		htmMessage = deco_to_span(m1) + " " + deco_to_span(m2) + " " + deco_to_span(m3);
-	}
-	item.innerHTML = htmLabel + '<span class="ft8-message">' + htmMessage + '</span>';
-}
+
     function FT8_list_append(list_id, line, text, style){
         var item = document.createElement("li");
         FT8_stylize_message_item(item, text, style);

@@ -743,7 +743,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			decoded[idx_hash].grid_last_qso_age = -1;
 
 			char buf[64];
-			int prefix_len = 8 + snprintf(hmst_time_sprint(buf, raw_ms), sizeof(buf) - 8, " %3d %+03d %4d ~ ", cand->score, cand->snr, freq_hz);
+			int prefix_len = 8 + snprintf(hmst_time_sprint(buf, raw_ms), sizeof(buf) - 8, " %3d %+03d %4d ", cand->score, cand->snr, freq_hz);
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s", text);
 
 			//For troubleshooting you can display the time offset - n1qm
@@ -1128,7 +1128,7 @@ static void ftx_start_tx(int offset_ms){
 		ftx_pitch = freq;
 	ftx_tx_nsamples = sbitx_ftx_msg_audio(freq, ftx_tx_buffer);
 
-	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n",
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d %s\n",
 		ftx_pitch, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	write_console(STYLE_FT8_TX, buf);
 
@@ -1168,7 +1168,7 @@ void ft8_tx(char *message, int freq){
 	if (!freq)
 		freq = ftx_pitch;
 	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8,
-		"  TX     %4d ~ %s\n", freq, ftx_xota ? ftx_xota_text : ftx_tx_text);
+		"  TX     %4d %s\n", freq, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	if (!send_now)
 		write_console(STYLE_FT8_QUEUED, buf);
 
@@ -1202,7 +1202,7 @@ void ft8_tx_3f(const char* call_to, const char* call_de, const char* extra) {
 	}
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
 	ftx_would_send(); // update ftx_pitch, is_cq, ftx_tx1st, ftx_cq_alt, ftx_xota, ftx_xota_text
-	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d ~ %s\n", ftx_pitch, ftx_xota ? ftx_xota_text : ftx_tx_text);
+	snprintf(hmst_wallclock_time_sprint(buf), sizeof(buf) - 8, "  TX     %4d %s\n", ftx_pitch, ftx_xota ? ftx_xota_text : ftx_tx_text);
 	write_console(STYLE_FT8_QUEUED, buf);
 
 	const char *str_73 = strstr(extra, "73");
