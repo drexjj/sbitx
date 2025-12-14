@@ -482,13 +482,6 @@
                 <div id="gridmap"></div>
                 <div id="FT8_controls">
                     <div class="sbitxv3-control">
-                        <label class="sbitxv3-label" for="FTX_AUTO">AUTO</label>
-                        <select class="sbitxv3-selection sbitx-selection" id="FTX_AUTO">
-                            <option value="ON">ON</option>
-                            <option value="OFF">OFF</option>
-                        </select>
-                    </div>
-                    <div class="sbitxv3-control">
                         <label class="sbitxv3-label" for="FTX_CQ">CQ</label>
                         <select class="sbitxv3-selection sbitx-selection" id="FTX_CQ">
                             <option value="EVEN">EVEN</option>
@@ -497,13 +490,13 @@
                             <option value="XOTA">xOTA</option>
                         </select>
                     </div>
-                    <div class="linear" id="linear_TX_PITCH">
-                        <label class="linear-label" for="TX_PITCH">TX TONE</label>
-                        <input type="number" id="TX_PITCH" min="10" max="4000" class="linear-value">
-                        <div class="linear-dropdown">
-                            <input type="range" class="linear-slider" id="slider_TX_PITCH" max="4000" min="10" step="10"
-                                value="1900">
-                        </div>
+                    <div class="sbitxv3-control">
+                        <label class="sbitxv3-label" for="FTX_AUTO">AUTO</label>
+                        <select class="sbitxv3-selection sbitx-selection" id="FTX_AUTO">
+                            <option value="OFF">OFF</option>
+                            <option value="ANS">ANS</option>
+                            <option value="CQRESP">CQRESP</option>
+                        </select>
                     </div>
                     <div class="linear" id="linear_FTX_REPEAT">
                         <label class="linear-label" for="FTX_REPEAT">REPEAT</label>
@@ -511,6 +504,14 @@
                         <div class="linear-dropdown">
                             <input type="range" class="linear-slider" id="slider_FTX_REPEAT" max="10" min="1" step="1"
                                 value="3">
+                        </div>
+                    </div>
+                    <div class="linear" id="linear_TX_PITCH">
+                        <label class="linear-label" for="TX_PITCH">TX TONE</label>
+                        <input type="number" id="TX_PITCH" min="10" max="4000" class="linear-value">
+                        <div class="linear-dropdown">
+                            <input type="range" class="linear-slider" id="slider_TX_PITCH" max="4000" min="10" step="10"
+                                value="1900">
                         </div>
                     </div>
                     <div class="bottom-bar">
@@ -827,6 +828,7 @@
     var log_window = null;
     var session_id = "nullsession";
     var macros_file = "";
+    var current_macro = "";
     var spots = null;
     var logbook_bottom_row_id = -1;
     var logbook_top_row_id = 0;
@@ -3573,6 +3575,7 @@ function FT8_stylize_message_item(item, text, style) {
     }
 
     function logger_set_macro(macro_file_name) {
+        current_macro = macro_file_name;
         if (el("MACRO").value != macro_file_name)
             el("MACRO").value = macro_file_name;
         jQuery.get("/" + macro_file_name + ".mc", function (data) { macros_file = data; logger_keys_update(); });
@@ -3600,10 +3603,22 @@ function FT8_stylize_message_item(item, text, style) {
         for (var i = 0; i < names.length; i++)
             if (names[i].length > 0)
                 sel.appendChild(new Option(names[i], names[i]));
+        // Set to the current macro value if we have one stored
+        if (current_macro) {
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === current_macro) {
+                    sel.value = current_macro;
+                    // Load the macro file and update the buttons
+                    logger_set_macro(current_macro);
+                    break;
+                }
+            }
+        }
     }
 
     // trigged when the back sdr changes the macros
     function logger_macro_changed_from_sdr(new_macro) {
+        current_macro = new_macro;
         if (el("MACRO").value == new_macro)
             return;
         el("MACRO").value = new_macro;
