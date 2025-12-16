@@ -3120,41 +3120,9 @@
         return text.replace(/#./g, '');
     }
 
-    // Style codes of interest - if present the caller / grid is not found in the log
-    const FF_MYCALL = 16;
-    const FF_CALLER = 17;
-    const FF_GRID = 18;
-    function deco_get_style(text) {
-        let i = text.indexOf('#');
-        if (i >= 0 && text.length > i + 1) {
-            return text.charCodeAt(i + 1) - 'A'.charCodeAt(0);
-        }
-        return 0;
-    }
-    function deco_to_span(text) {
-        let jclass = "";
-        switch (deco_get_style(text)) {
-            case FF_CALLER:
-                jclass = "ft8-new-caller";
-                break;
-            case FF_GRID:
-                jclass = "ft8-new-grid";
-                GRIDMAP.gridIdNotLogged(text.substring(2));
-                break;
-            case FF_MYCALL:
-                jclass = "wsjtx-mycallsign";
-                break;
-            default:
-                if (GRIDMAP.isValidGridId(text.substring(2))) {
-                    GRIDMAP.gridIdLogged(text.substring(2));
-                }
-                jclass = "ft8-old-grid";
-                break;
-        }
-        return "<span class='" + jclass + "'>" + deco_strip(text) + "</span>";
-    }
-
 // Style codes of interest - if present the caller / grid is not found in the log
+const STYLE_CW_RX = 9;
+const STYLE_CW_TX = 10;
 const STYLE_MYCALL = 16;
 const STYLE_CALLER = 17;
 const STYLE_GRID = 18;
@@ -3168,6 +3136,12 @@ function deco_get_style(text) {
 function deco_to_span(text) {
 	let jclass = "";
 	switch (deco_get_style(text)) {
+		case STYLE_CW_RX:
+			jclass = "data_rx";
+			break;
+		case STYLE_CW_TX:
+			jclass = "data_tx";
+			break;
 		case STYLE_CALLER:
 			jclass = "ft8-new-caller";
 			break;
@@ -3370,8 +3344,7 @@ function FT8_stylize_message_item(item, text, style) {
     function cw_update(text, kindof) {
         var rx_window = el("data_window");
         var text_done = el("text_done");
-        text_done.innerHTML = text_done.innerHTML
-            + '<span class="' + kindof + '">' + text + "</span>";
+        text_done.innerHTML = text_done.innerHTML + deco_to_span(text);
         rx_window.scrollTop = rx_window.scrollHeight;
     }
 
