@@ -3133,6 +3133,16 @@
 			case STYLE_FTX_REPLY:
 				jclass = "ftx-reply";
 				break;
+			case STYLE_CW_RX:
+			case STYLE_FTX_RX:
+			case STYLE_FLDIGI_RX:
+			case STYLE_TELNET:
+				jclass = "data_rx";
+				break;
+			case STYLE_CW_TX:
+			case STYLE_FLDIGI_TX:
+				jclass = "data_tx";
+				break;
 			default:
 				jclass = "list-default";
 				break;
@@ -3289,6 +3299,10 @@
     function cw_update(text, kindof) {
         var rx_window = el("data_window");
         var text_done = el("text_done");
+        // ignore newline from CW: <span>\n</span> looks the same as a space.
+        // If we wanted a real break, we'd need to use <BR/> here.
+        if (text.match(/^#[JK][\n\r]+$/))
+           return;
         text_done.innerHTML = text_done.innerHTML + deco_to_span(text);
         rx_window.scrollTop = rx_window.scrollHeight;
     }
@@ -3998,7 +4012,6 @@
         }
 
         if (response.substring(0, 3) == "TX " || response.substring(0, 3) == "RX ") {
-
             if (response.substring(0, 2) == "TX" && in_tx == false)
                 switch_to_tx();
             else if (response.substring(0, 2) == "RX" && in_tx == true)

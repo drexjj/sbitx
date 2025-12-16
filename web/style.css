@@ -210,7 +210,7 @@ input {
     font-size: 18pt;
     line-height: 23px;
     font-weight: bold;
-    color: var(--accent-yellow);   
+    color: var(--accent-yellow);
 }
 
 #other_freq {
@@ -274,7 +274,7 @@ input {
 }
 
 .data_rx {
-    color: green;
+    color: #52ff6a;
 }
 
 .data_tx {
@@ -489,7 +489,7 @@ input {
 #pan_adapter {
     clear: both;
     width: 100%;
-    box-sizing: border-box; 
+    box-sizing: border-box;
     border: 4px solid #333;
     border-radius: 12px;
     padding: 5px;
@@ -927,7 +927,7 @@ input {
 
 #login_panel {
     width: 700px;
-    box-sizing: border-box; 
+    box-sizing: border-box;
     border: 4px solid #333;
     border-radius: 12px;
     padding: 5px;
@@ -943,7 +943,7 @@ input {
 #digi_ui, #menu_panel, #keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
     clear: both;
     width: 100%;
-    box-sizing: border-box; 
+    box-sizing: border-box;
     border: 4px solid #333;
     border-radius: 12px;
     padding: 5px;
