@@ -836,8 +836,15 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			// set length of the last span (no next span, but null terminator in text)
 			if (span_i > 0) {
 				sem[sem_i - 1].length = strlen(text + spans.offsets[span_i - 1]);
-				//~ printf("final span has len %d sem %d\n", sem[sem_i - 1].length, sem[sem_i - 1].semantic);
+				//~ printf("final span '%s' has len %d sem %d\n", text + spans.offsets[span_i - 1], sem[sem_i - 1].length, sem[sem_i - 1].semantic);
 				switch (sem[sem_i - 1].semantic) {
+					case STYLE_FT8_RX: {
+						// RR73 and RRR should not stand out.
+						if (!strncmp(buf + sem[sem_i - 1].start_column, "RR73", 4) || !strncmp(buf + sem[sem_i - 1].start_column, "RRR", 4)) {
+							sem[sem_i - 1].semantic = STYLE_LOG;
+							break;
+						}
+					}
 					case STYLE_GRID: {
 						// If RR73 got tagged as a grid, it's not a grid.
 						if (!strncmp(buf + sem[sem_i - 1].start_column, "RR73", 4)) {
@@ -1400,8 +1407,10 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 	char snr[8], pitch[8], grid[8], rst[8], extra[16], callee[16], time_str[10];
 	int snr_start = 0, pitch_start = 0, grid_start = 0, rst_start = 0, callee_start = 0, extra_start = 0;
 	int time = -1;
-	bool rrst = false;
-	bool rr73 = false;
+	bool is_rrst = false;
+	const bool is_73 = strstr(line + line_len - 5, " 73");
+	const bool is_rr73 = strstr(line + line_len - 5, "RR73");
+	const bool is_rrr = strstr(line + line_len - 5, "RRR");
 	// expect spans[0] to apply to the whole line; start with spans[1] to look at individual "words"
 	for (int s = 1; s < MAX_CONSOLE_LINE_STYLES; ++s) {
 		char *dbg_label = NULL;
@@ -1416,15 +1425,18 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				break;
 			case STYLE_SNR:
 				snr_start = extract_single_semantic(line, line_len, spans[s], snr, sizeof(snr));
-				field_set("SENT", snr);
+				// Update the SENT field with SNR of received message
+				// only when it should affect the report that we send;
+				// leave it alone near the end of the QSO, so that we log what we have actually sent.
+				if (!is_rr73 && !is_73 && !is_rrr)
+					field_set("SENT", snr);
 				dbg_label = "SNR"; dbg_val = snr;
 				break;
 			case STYLE_GRID:
 			case STYLE_EXISTING_GRID:
 				grid_start = extract_single_semantic(line, line_len, spans[s], grid, sizeof(grid));
 				// If "RR73" shows up here, it's not a grid.
-				if (!strncmp(grid, "RR73", 4)) {
-					rr73 = true;
+				if (is_rr73) {
 					extra_start = grid_start;
 					grid_start = 0;
 					strncpy(extra, grid, sizeof(extra));
@@ -1441,7 +1453,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				// a signal report of -07. That's how we want to log it, so remove the leading R.
 				if (rst[0] == 'R') {
 					memmove(rst, rst + 1, 6);
-					rrst = true;
+					is_rrst = true;
 				}
 				field_set("RECV", rst);
 				dbg_label = "RST"; dbg_val = rst;
@@ -1462,8 +1474,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				char buf[8];
 				int start = extract_single_semantic(line, line_len, spans[s], buf, sizeof(buf));
 				// "RR73" normally shows up here (we don't want it to stand out in the log).
-				if (!strncmp(buf, "RR73", 4)) {
-					rr73 = true;
+				if (is_rr73) {
 					extra_start = start;
 					strncpy(extra, buf, sizeof(extra));
 					dbg_label = "plain"; dbg_val = extra;
@@ -1509,14 +1520,14 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		ft8_tx_3f(caller, mycall, mygrid);
 		return;
 	}
-	if (rr73 || (extra_start && !strncmp(extra, "RR73", 4))) {
+	if (is_rr73 || is_rrr) {
 		LOG(LOG_DEBUG, "received RR73, send 73\n");
 		ftx_repeat = 1;
 		ft8_tx_3f(caller, mycall, "73");
 		enter_qso();
 		return;
 	}
-	if (extra_start && !strncmp(extra, "73", 2)) {
+	if (is_73) {
 		LOG(LOG_DEBUG, "received 73\n");
 		enter_qso();
 		call_wipe();
@@ -1524,7 +1535,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		ftx_tx_text[0] = 0;
 		return;
 	}
-	if (rrst) {
+	if (is_rrst) {
 		LOG(LOG_DEBUG, "received roger-report; send RR73\n");
 		ft8_tx_3f(caller, mycall, "RR73");
 		return;
