@@ -9355,11 +9355,16 @@ void change_band(char *request)
 	int max_bands = sizeof(band_stack) / sizeof(struct band);
 	long new_freq, old_freq;
 	char buff[100];
-	request[2] = toupper(request[2]); // make sure the 'M' is uppercase.
+	char band_name[10];
+
+	// Make a local copy to avoid modifying string literals
+	strncpy(band_name, request, sizeof(band_name) - 1);
+	band_name[sizeof(band_name) - 1] = '\0';
+	band_name[2] = toupper(band_name[2]); // make sure the 'M' is uppercase.
 
 	// find the band that has just been selected, the first char is #, we skip it
 	for (new_band = 0; new_band < max_bands; new_band++)
-		if (!strcmp(request, band_stack[new_band].name))
+		if (!strcmp(band_name, band_stack[new_band].name))
 			break;
 
 	// continue if the band is legit
