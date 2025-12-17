@@ -1309,35 +1309,45 @@ void on_selection_changed(GtkTreeSelection* selection, gpointer user_data)
 	}
 }
 
-gboolean logbook_close(GtkWidget* widget, GdkEvent* event, gpointer data)
+void logbook_close(GtkWidget* widget, gpointer user_data)
 {
-	logbook_window = NULL;
+	/*
+		At the time this callback occurs, the toplevel is already being destroyed,
+		so do NOT call gtk_widget_destroy().
+
+		 We do need to drop our own reference to the list store so the
+		 model can be finalized once the tree view releases its ref.
+		 Finally, clear module-level pointers to avoid dangling references.
+	*/
+	if (list_store) {
+		g_object_unref(list_store);
+		list_store = NULL;
+	}
 	tree_view = NULL;
-	return FALSE;
+	selection = NULL;
+	logbook_window = NULL;
 }
 
 void logbook_list_open()
 {
-	GtkWidget* window;
-	GtkWidget* scrolled_window;
-	// GtkWidget *tree_view;
-
+	// If the logbook window is already open and the user hits the
+	// main window LOG button again, just raise the logbook window on top.
 	if (logbook_window != NULL) {
 		gtk_window_present(GTK_WINDOW(logbook_window));
 		return;
 	}
 
-	// Create a window
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "Logbook");
-	g_signal_connect(window, "destroy", G_CALLBACK(logbook_close), NULL);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
-	gtk_window_set_default_size(GTK_WINDOW(window), 780, 400); // Set initial window size
+	// Create a logbook_window
+	GtkWidget* scrolled_window;
+	logbook_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title(GTK_WINDOW(logbook_window), "Logbook");
+	g_signal_connect(logbook_window, "destroy", G_CALLBACK(logbook_close), NULL);
+	gtk_container_set_border_width(GTK_CONTAINER(logbook_window), 10);
+	gtk_window_set_default_size(GTK_WINDOW(logbook_window), 780, 400); // Set initial logbook_window size
 
-	logbook_window = window;
 	// Create a box to hold the elements
 	GtkWidget* vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-	gtk_container_add(GTK_CONTAINER(window), vbox);
+	gtk_container_add(GTK_CONTAINER(logbook_window), vbox);
 
 	// Create a toolbar
 	GtkWidget* toolbar = gtk_toolbar_new();
@@ -1407,12 +1417,13 @@ void logbook_list_open()
 		gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
 	}
 
-	// connect the edit button the handler, passing the tree_view (afte tree_view is created)
+	// Connect buttons to handlers, passing tree_view as user_data
 	g_signal_connect(edit_button, "clicked", G_CALLBACK(edit_button_clicked), tree_view);
 	g_signal_connect(delete_button, "clicked", G_CALLBACK(delete_button_clicked), tree_view);
-	//	g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), window);  - W9JES
-	g_signal_connect(export_button, "clicked", G_CALLBACK(export_button_clicked), window); // W9JES
-	g_signal_connect(search_entry, "changed", G_CALLBACK(search_update), tree_view);	   // Connect signal handler
+	g_signal_connect(search_entry, "changed", G_CALLBACK(search_update), tree_view);
+	// These handlers take logbook_window as user_data
+	//	g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), logbook_window);  - W9JES
+	g_signal_connect(export_button, "clicked", G_CALLBACK(export_button_clicked), logbook_window); // W9JES
 	/*
 		// Apply CSS for tree view
 		GtkCssProvider *cssProvider = gtk_css_provider_new();
@@ -1440,5 +1451,5 @@ void logbook_list_open()
 	//	g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), tree_view);
 
 	// Show all widgets
-	gtk_widget_show_all(window);
+	gtk_widget_show_all(logbook_window);
 }
