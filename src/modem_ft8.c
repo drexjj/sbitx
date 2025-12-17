@@ -59,9 +59,9 @@ static bool cty_inited = false;
 
 // This path happens to be there on the rpiOS image. But
 // TODO ensure that we use the newest available file: it is updated often.
-static const char* cty_location = "/usr/share/hamradio-files/cty.dat";
+static const char* cty_location = "data/cty.dat";
 // This file should change less often; if a new country is omitted, we simply won't abbreviate its name.
-static const char* abbrev_location = "clu/data/abbrev.tsv";
+static const char* abbrev_location = "clu/share/clu/abbrev.tsv";
 
 static const int kMin_score = 10; // Minimum sync score threshold for candidates
 static const int kMax_candidates = 120;

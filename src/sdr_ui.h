@@ -119,4 +119,6 @@ void macro_label(int fn_key, char *label);
 void macro_list(char *output);
 void macro_get_keys(char *output);
 
+void download_check();
+
 #endif // SDR_UI_H

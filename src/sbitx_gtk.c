@@ -10615,6 +10615,7 @@ int main(int argc, char *argv[])
 	sync_system_time(ntp_server);
 	// ---
 	rtc_sync();
+	download_check();
 
 	struct field *f;
 	f = active_layout;
