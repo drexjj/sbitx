@@ -1328,6 +1328,23 @@ void logbook_close(GtkWidget* widget, gpointer user_data)
 	logbook_window = NULL;
 }
 
+/*!
+    Handle key presses in the logbook window.
+    Close the logbook when Ctrl-W (or Ctrl-w) is pressed.
+    Return TRUE if the event was handled to stop further processing.
+ */
+gboolean logbook_key_press(GtkWidget* widget, GdkEventKey* event, gpointer user_data)
+{
+	if ((event->state & GDK_CONTROL_MASK) &&
+	    (event->keyval == GDK_KEY_w || event->keyval == GDK_KEY_W)) {
+		if (logbook_window) {
+			gtk_widget_destroy(logbook_window);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 void logbook_list_open()
 {
 	// If the logbook window is already open and the user hits the
@@ -1342,6 +1359,7 @@ void logbook_list_open()
 	logbook_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(logbook_window), "Logbook");
 	g_signal_connect(logbook_window, "destroy", G_CALLBACK(logbook_close), NULL);
+	g_signal_connect(logbook_window, "key-press-event", G_CALLBACK(logbook_key_press), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(logbook_window), 10);
 	gtk_window_set_default_size(GTK_WINDOW(logbook_window), 780, 400); // Set initial logbook_window size
 
