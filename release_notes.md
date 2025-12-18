@@ -15,6 +15,7 @@
   + Transmit pitch can be changed between transmitted messages
   + Incoming/outgoing messages are logged to the terminal
   + Send RR73 in response to an R-report instead of RRR
+  + Look up callsign country names in a local copy of cty.dat (automatically updated)
   + **FT4** support: same features as FT8, twice as fast (and less robust)
   + More timestamp precision for both FT4 and FT8
   + FTX_CQ ALT_EVEN setting: CQ every 4th slot (listen more)
