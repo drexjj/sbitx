@@ -37,6 +37,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include "ftx_rules.h"
 #include "sdr.h"
 #include "sound.h"
 #include "sdr_ui.h"
@@ -10902,4 +10903,6 @@ void cleanup_on_exit() {
 
 	// Add any other cleanup tasks here
 	printf("Cleaning up resources before exit\n");
+
+	clear_ftx_rules();
 }

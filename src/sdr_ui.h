@@ -79,8 +79,6 @@ typedef struct {
 	uint8_t semantic : 8; // used directly as style in this UI
 } text_span_semantic;
 
-time_t time_sbitx();
-
 void setup();
 void loop();
 void display();

@@ -12,6 +12,7 @@
 #include <fftw3.h>
 #include <pthread.h>
 #include <unistd.h>
+#include "ftx_rules.h"
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "modem_ft8.h"
@@ -56,6 +57,7 @@ static bool ftx_tx1st = true;
 static bool ftx_cq_alt = false;
 static bool ftx_xota = false;
 static bool cty_inited = false;
+static bool rules_inited = false;
 
 // This path happens to be there on the rpiOS image. But
 // TODO ensure that we use the newest available file: it is updated often.
@@ -764,6 +766,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 			const bool is_cq = !strncmp(text, "CQ ", 3);
 			bool my_call_found = false;
+			int priority = 0;
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -910,6 +913,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			// Don't do that otherwise: it can confuse ftx_call_or_continue()
 			if (!cty_inited)
 				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
+			if (!rules_inited)
+				load_ftx_rules();
+			rules_inited = true; // or at least we aren't going to try again
 			if ((is_cq || (my_call_found && grid[0])) && cty_inited) {
 				dxcc_data info = lookupcountry_by_callsign(callsign);
 				if (info.country) {
@@ -945,15 +951,16 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 					}
 				}
 			}
+			priority = ftx_priority(buf, line_len, sem, sem_i, NULL);
 
 			// write the message out
 			const int message_type = ftx_message_get_i3(&message);
 			if (decoded[idx_hash].last_qso_age < 0 && decoded[idx_hash].grid_last_qso_age < 0) {
-				LOG(LOG_INFO, "<< %d.%c       %s\n",
-					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
+				LOG(LOG_INFO, "<< %d.%c p%+d   %s\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), priority, buf);
 			} else {
-				LOG(LOG_INFO, "<< %d.%c       %s; last QSO with %s was %d hours ago, with grid %d hours ago\n",
-					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message),
+				LOG(LOG_INFO, "<< %d.%c p%+d   %s; last QSO with %s was %d hours ago, with grid %d hours ago\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), priority,
 					buf, callsign, decoded[idx_hash].last_qso_age, decoded[idx_hash].grid_last_qso_age);
 			}
 			buf[line_len++] = '\n';
