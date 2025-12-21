@@ -560,7 +560,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		//~ printf("col %d of %d type %d: ADIF %s value '%s'\n",
 			//~ i, num_cols, sqlite3_column_type(stmt, i), adif_names[i], field_value);
 
-		const int field_len = strlen(field_value);
+		int field_len = strlen(field_value);
 		bool output_done = false;
 		// Columns are in the order requested in prepare_query_by_date().
 		// First, take care of special cases for certain columns:
@@ -589,6 +589,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		} break;
 		case 3: // qso_date
 			strip_chr(field_value, '-');
+			field_len = strlen(field_value);
 			break;
 		case 7: // exch_sent
 			if (is_ftx)
