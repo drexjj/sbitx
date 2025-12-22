@@ -89,8 +89,8 @@ int load_ftx_rules()
 			}
 		}
 		rules[count] = rule;
-		printf("rule i %d ID %d: field_s %d regex '%s' min %d max %d pri adj %d\n",
-				count, rule.id, rule.field, regex_s, rule.min_value, rule.max_value, rule.cq_resp_pri_adj);
+		// printf("rule i %d ID %d: field_s %d regex '%s' min %d max %d pri adj %d\n",
+		// 		count, rule.id, rule.field, regex_s, rule.min_value, rule.max_value, rule.cq_resp_pri_adj);
 	}
 	if (count == MAX_RULES)
 		printf("only %d rules are allowed: ignoring the rest", MAX_RULES);
@@ -225,7 +225,7 @@ int ftx_priority(const char *text, int text_len, const text_span_semantic *spans
 			// 		field_s, rule.id, rule.field, to_me ? rule.ans_pri_adj : rule.cq_resp_pri_adj);
 			int m = pcre2_match_8(rule.regex, field_s, field_len, 0, 0, match_data, NULL);
 			if (m > 0) {
-				printf("%s matched rule %d: %d\n", field_s, rule.id, m);
+				// printf("%s matched rule %d: %d\n", field_s, rule.id, m);
 				ret += to_me ? rule.ans_pri_adj : rule.cq_resp_pri_adj;
 			}
 		}
