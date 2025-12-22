@@ -100,6 +100,7 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 int web_get_console(char *buff, int max);
 int extract_single_semantic(const char* text, int text_len, text_span_semantic span, char *out, int outlen);
 int extract_semantic(const char* text, int text_len, const text_span_semantic* spans, sbitx_style sem, char *out, int outlen);
+int console_extract_semantic(uint32_t row, sbitx_style sem, char *out, int outlen);
 
 int is_in_tx();
 void abort_tx();

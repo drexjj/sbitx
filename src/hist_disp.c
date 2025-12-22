@@ -96,9 +96,11 @@ char ff_char(int style) {
 			return 'A' + 14;
 		case STYLE_FT8_REPLY:
 		case STYLE_COUNTRY:
-		case STYLE_DISTANCE:
-		case STYLE_AZIMUTH:
 			return 'A' + 15;
+		case STYLE_DISTANCE:
+			return 'A' + 20;
+		case STYLE_AZIMUTH:
+			return 'A' + 21;
 		case STYLE_CW_RX:
 			return 'A' + 9;
 		case STYLE_CW_TX:

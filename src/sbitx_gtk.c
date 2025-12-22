@@ -238,8 +238,8 @@ struct font_style font_table[] = {
 	{STYLE_SNR, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FREQ, 0, 0.7, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_COUNTRY, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_DISTANCE, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
-	{STYLE_AZIMUTH, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_DISTANCE, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_ITALIC},
+	{STYLE_AZIMUTH, 0.6, 0.4, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 
 	// mode-specific semantics
 	{STYLE_FT8_RX, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -1600,6 +1600,8 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 	text_span_semantic *console_line_spans = console_stream[console_current_line].spans;
 	int output_span_i = 0;
 	int col = console_line_spans[0].length;
+	const bool is_ftx = sem[0].semantic == STYLE_FT8_RX;
+	bool newline = false;
 	const text_span_semantic *next_sem = sem;
 	while (*next_char)
 	{
@@ -1619,17 +1621,16 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 			++next_sem;
 		}
 		char c = *next_char;
-		if (c == '\n' || col >= console_cols) {
+		if (c == '\n' || (!is_ftx && col >= console_cols)) {
 			//~ printf("ending line at col %d line %d spans %d:%d %d:%d ...\n", col, console_current_line, console_line_spans);
 			console_line_string[col] = 0;
 			console_init_next_line();
+			newline = true;
 			console_line_string = console_stream[console_current_line].text;
 			console_line_spans = console_stream[console_current_line].spans;
 			col = 0;
 			output_span_i = 0;
-		}
-		else if (c < 128 && c >= ' ') // TODO support UTF-8 (otherwise isgraph() might work)
-		{
+		} else if (c < 128 && c >= ' ') {// TODO support UTF-8 (otherwise isgraph() might work)
 			console_line_string[col++] = c & 0x7f;
 		}
 		++next_char;
@@ -1685,6 +1686,8 @@ void draw_console(cairo_t* gfx, struct field* f)
 		// tracking where we are, horizontally
 		int x = 0;
 		int col = 0;
+		const bool is_ftx = line->spans[0].semantic == STYLE_FT8_RX;
+		bool everything_fits = true;
 		char buf[MAX_LINE_LENGTH];
 		int default_sem = STYLE_LOG;
 		int span = 0;
@@ -1712,12 +1715,23 @@ void draw_console(cairo_t* gfx, struct field* f)
 			// copy the substring and null-terminate, because cairo_show_text() can't take a length argument :-(
 			const int wlen = stpncpy(buf, line->text + line->spans[span].start_column, len) - buf;
 			col += wlen;
+			// If the line comes from a message-at-a-time protocol like FT8/FT4, wrapping is
+			// not expected: so don't output any text for trailing fields that won't completely fit.
+			// E.g. we usually don't have room for both distance and azimuth, but
+			// often we have room for distance if the rest of the message isn't too long.
+			if (is_ftx && col > console_cols) {
+				// this exaggerates a little if we end with a degree symbol (more bytes than glyphs)
+				// but we don't need to display azimuth anyway, unless there's a lot of space
+				// printf("FTX: '%s' would end at col %d, but max %d\n", line->text, col, console_cols);
+				everything_fits = false;
+				break; // don't draw this span
+			}
 			buf[wlen] = 0;
 			x += draw_text(gfx, f->x + 2 + x, y, buf, line->spans[span].semantic);
 			//~ printf("   drew span %d col %d len %d style %d end @ %d px: '%s' from '%s'\n",
 				//~ span, line->spans[span].start_column, len, line->spans[span].semantic, x, buf, line->text);
 		}
-		if (line->text + col) {
+		if (everything_fits && line->text + col) {
 			// draw the default-styled text to the right of the last span
 			const int wlen = stpncpy(buf, line->text + col, sizeof(buf) - col) - buf;
 			buf[wlen] = 0;
@@ -1817,14 +1831,24 @@ int extract_semantic(const char* text, int text_len, const text_span_semantic* s
 }
 
 /*!
-	From the console line at the given \a line number, see if the semantic \a sem
-	can be found.  If so, copy the substring to \a out (which has a max length \a len),
+	From the console line at the given \a row number (the number that increments forever,
+	not the console_stream array index), see if the semantic \a sem can be found.
+	If so, copy the substring to \a out (which has a max length \a len),
 	and return the start position where it was found.
 
 	Returns -1 if it was not found.
 */
-int console_extract_semantic(int line, sbitx_style sem, char *out, int outlen) {
-	return extract_semantic(console_stream[line].text, strlen(console_stream[console_selected_line].text),
+int console_extract_semantic(uint32_t row, sbitx_style sem, char *out, int outlen) {
+	int line = -1;
+	for (int i = 0; i < MAX_CONSOLE_LINES && line < 0; ++i)
+		if (console_stream[i].spans[0].start_row == row)
+			line = i;
+
+	if (line < 0)
+		return -1;
+
+	// printf("console_extract_semantic r %d sem %d: %d len %d\n", row, sem, line, outlen); //console_stream[line].spans[0].length);
+	return extract_semantic(console_stream[line].text, console_stream[line].spans[0].length,
 		console_stream[line].spans, sem, out, outlen);
 }
 

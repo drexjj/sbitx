@@ -3095,6 +3095,8 @@
 	const STYLE_MYCALL = 'Q';
 	const STYLE_CALLER = 'R';
 	const STYLE_GRID = 'S';
+	const STYLE_DISTANCE = 'U';
+	const STYLE_AZIMUTH = 'V';
 	const STYLE_FTX_RX = 'G'; // time, pitch
 	const STYLE_SNR = 'H';
 	const STYLE_FTX_QUEUED = 'O';
@@ -3125,6 +3127,14 @@
 				break;
 			case STYLE_GRID:
 				jclass = "ftx-grid";
+				GRIDMAP.gridIdNotLogged(text.substring(2));
+				break;
+			case STYLE_DISTANCE:
+				jclass = "ftx-distance";
+				GRIDMAP.gridIdNotLogged(text.substring(2));
+				break;
+			case STYLE_AZIMUTH:
+				jclass = "ftx-azimuth";
 				GRIDMAP.gridIdNotLogged(text.substring(2));
 				break;
 			case STYLE_FTX_QUEUED:

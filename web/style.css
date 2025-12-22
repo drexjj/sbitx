@@ -560,6 +560,16 @@ input {
     color: rgb(255, 204, 0);
 }
 
+.ftx-distance {
+	font-size: 8pt;
+	color: rgb(255, 204, 0);
+}
+
+.ftx-azimuth {
+	font-size: 8pt;
+	color: rgb(153, 102, 0);
+}
+
 .ftx-mycallsign {
 	font-weight: bold;
     color: rgb(255, 0, 0);
