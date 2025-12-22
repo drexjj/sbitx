@@ -5399,7 +5399,9 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
           else if (ema_rate < 40.0) mult = 5;   // 10 Hz steps become 50 Hz steps
           else                      mult = 10;  // 10 Hz steps become 100 Hz steps
 
-          const long cap = 50000;               // largest accelerated tuning step we accept
+          // tuning acceleration now only benfits users with small tuning steps selected (10, 100, 500Hz)
+          // users with 1kHz or larger tuning step size will get no acceleration
+          const long cap = 1000;        // largest accelerated tuning step we accept
           long proposed = (long)base_step * mult;
           if (proposed > cap) proposed = cap;
           local_step = (int)proposed;
