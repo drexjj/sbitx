@@ -69,7 +69,7 @@ void check_and_handle_vswr(int vswr)
 			// Write warning to console
 			char warning_msg[128];
 			snprintf(warning_msg, sizeof(warning_msg), 
-			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f",
+			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
 			         swr, max_vswr, 1);
 			write_console(STYLE_LOG, warning_msg);
 		}
