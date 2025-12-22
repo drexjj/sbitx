@@ -206,7 +206,7 @@ time_t logbook_last_qso(const char* callsign, int len)
 			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
 		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_last_qso_stmt, NULL);
 		if (zErrMsg != SQLITE_OK) {
-			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %s\n", zErrMsg);
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %d\n", zErrMsg);
 			return ret;
 		}
 	}
@@ -237,7 +237,7 @@ time_t logbook_grid_last_qso(const char *id, int len)
 			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
 		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_grid_last_qso_stmt, NULL);
 		if (zErrMsg != SQLITE_OK) {
-			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %s\n", zErrMsg);
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %d\n", zErrMsg);
 			return ret;
 		}
 	}
