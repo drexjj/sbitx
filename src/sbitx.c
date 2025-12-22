@@ -2336,7 +2336,7 @@ void setup()
 		sbitx_version = SBITX_V2;
 
 	setup_audio_codec();
-	sound_thread_start("plughw:0,0");
+	sound_thread_start("plughw:CARD=audioinjectorpi,DEV=0");
 
 	sleep(1); // why? to allow the aloop to initialize?
 
@@ -2589,3 +2589,4 @@ void sdr_request(char *request, char *response)
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */
 }
+

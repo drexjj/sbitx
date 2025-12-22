@@ -1078,10 +1078,10 @@ void *sound_thread_function(void *ptr){
 	last_loopback_reset = gettime_now.tv_sec;
 
 // Open the Loopback Play Device
-//  printf("opening loopback on plughw:1,0 sound card\n");
+//  printf("opening loopback on plughw:CARD=Loopback,DEV=0 sound card\n");
 
 	for (i = 0; i < 10; i++){
-		if(sound_start_loopback_play("plughw:1,0") == 0)
+		if(sound_start_loopback_play("plughw:CARD=Loopback,DEV=0") == 0)
 			break;
 		fprintf(stderr, "*Error opening Loopback Play device");
 		delay(1000);
@@ -1104,11 +1104,11 @@ void *loopback_thread_function(void *ptr){
 	sch.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	pthread_setschedparam(loopback_thread, SCHED_FIFO, &sch);
 //	printf("loopback thread is %x\n", loopback_thread);
-//  printf("opening loopback on plughw:1,0 sound card\n");	
+//  printf("opening loopback on plughw:CARD=Loopback_1,DEV=1 sound card\n");	
 
 	int i = 0;
 	for (i = 0; i < 10; i++){
-		if (sound_start_loopback_capture("plughw:2,1") == 0)
+		if (sound_start_loopback_capture("plughw:CARD=Loopback_1,DEV=1") == 0)
 			break;
 		fprintf(stderr, "*Error opening Loopback Capture device");
 		delay(1000);
@@ -1158,9 +1158,10 @@ void sound_process(int32_t *input_i, int32_t *input_q, int32_t *output_i, int32_
 }
 
 void main(int argc, char **argv){
-	sound_thread_start("plughw:0,0");
+	sound_thread_start("plughw:CARD=audioinjectorpi,DEV=0");
 	sleep(10);
 	sound_thread_stop();
 	sleep(10);
 }
 */
+
