@@ -763,6 +763,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s", text);
 
 			const bool is_cq = !strncmp(text, "CQ ", 3);
+			bool my_call_found = false;
+			bool has_grid = false;
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -772,7 +774,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			memset(sem, 0, sizeof(sem));
 			char callsign[20];
 			memset(callsign, 0, sizeof(callsign));
-			bool my_call_found = false;
 			int calls_found = 0;
 			int total_calls = message_callsign_count(&spans);
 			int span_i = 0;
@@ -868,6 +869,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 						if (!strncmp(buf + sem[sem_i - 1].start_column, "RR73", 4)) {
 							sem[sem_i - 1].semantic = STYLE_LOG; // should not stand out
 							break;
+						} else if (!strncmp(buf + sem[sem_i - 1].start_column - 1, " 73", 3)) {
+							sem[sem_i - 1].semantic = STYLE_FT8_RX; // should stand out
+							break;
+						} else {
+							has_grid = true;
 						}
 						// When was the last QSO with someone in this grid?
 						time_t recent_grid_qso = sem[sem_i - 1].length > 0 ? logbook_grid_last_qso(buf + sem[sem_i - 1].start_column, sem[sem_i - 1].length) : 0ll;
@@ -898,10 +904,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				}
 			}
 
-			// add supplementary information: country, distance, azimuth
+			// If it's a CQ, or is addressed to me _and_ has a grid,
+			// add supplementary information: country, distance, azimuth.
+			// Don't do that otherwise: it can confuse ftx_call_or_continue()
 			if (!cty_inited)
 				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
-			if (is_cq && cty_inited) {
+			if ((is_cq || (my_call_found && has_grid)) && cty_inited) {
 				dxcc_data info = lookupcountry_by_callsign(callsign);
 				if (info.country) {
 					const char *country_abbrev = NULL;
@@ -1460,15 +1468,17 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 	int snr_start = 0, pitch_start = 0, grid_start = 0, rst_start = 0, callee_start = 0, extra_start = 0;
 	int time = -1;
 	bool is_rrst = false;
-	const bool is_73 = strstr(line + line_len - 5, " 73");
-	const bool is_rr73 = strstr(line + line_len - 5, "RR73");
+	const bool is_73 = strstr(line, " 73"); // search the whole line in case the message has country, etc.
+	const bool is_rr73 = strstr(line + line_len - 5, "RR73"); // we are careful not to add country to roger messages
 	const bool is_rrr = strstr(line + line_len - 5, "RRR");
 	// expect spans[0] to apply to the whole line; start with spans[1] to look at individual "words"
 	for (int s = 1; s < MAX_CONSOLE_LINE_STYLES; ++s) {
 		char *dbg_label = NULL;
 		char *dbg_val = NULL;
-		if (!spans[s].length)
+		if (!spans[s].length) {
+			LOG(LOG_DEBUG, "   span %d has length 0.  The end.\n", s);
 			break; // a zero-length span marks the end of the spans array
+		}
 		switch (spans[s].semantic) {
 			case STYLE_TIME:
 				extract_single_semantic(line, line_len, spans[s], time_str, sizeof(time_str));
@@ -1543,7 +1553,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				break;
 		}
 		if (dbg_label)
-			LOG(LOG_DEBUG, "   span @ %d len %d: %d %s '%s'\n", spans[s].start_column, spans[s].length, spans[s].semantic, dbg_label, dbg_val);
+			LOG(LOG_DEBUG, "   span %d @ %d len %d: %d %s '%s'\n", s, spans[s].start_column, spans[s].length, spans[s].semantic, dbg_label, dbg_val);
 	}
 
 	if (time < 0) {
