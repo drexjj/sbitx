@@ -94,7 +94,7 @@ int field_int(char *label);
 
 void write_console(sbitx_style style, const char *text);
 // write plain text, with semantically-tagged spans that imply styling
-void write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count);
+uint32_t write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count);
 int web_get_console(char *buff, int max);
 int extract_single_semantic(const char* text, int text_len, text_span_semantic span, char *out, int outlen);
 int extract_semantic(const char* text, int text_len, const text_span_semantic* spans, sbitx_style sem, char *out, int outlen);

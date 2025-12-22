@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -687,15 +688,15 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	} decoded_message_t;
 
 	int num_decoded = 0;
-    decoded_message_t decoded[kMax_decoded_messages];
-    decoded_message_t* decoded_hashtable[kMax_decoded_messages];
-
-    // Initialize hash table pointers
-    for (int i = 0; i < kMax_decoded_messages; ++i)
-        decoded_hashtable[i] = NULL;
-
+	decoded_message_t decoded[kMax_decoded_messages];
+	decoded_message_t* decoded_hashtable[kMax_decoded_messages];
 	int n_decodes = 0;
 	int crc_mismatches = 0;
+	int highest_priority = -999;
+	uint32_t highest_priority_row = 0;
+
+	// Initialize hash table pointers
+	memset(decoded_hashtable, 0, sizeof(decoded_hashtable));
 
     // Go over candidates and attempt to decode messages
     for (int idx = 0; idx < num_candidates; ++idx)
@@ -965,7 +966,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			}
 			buf[line_len++] = '\n';
 			buf[line_len] = 0;
-			write_console_semantic(buf, sem, sem_i);
+			uint32_t console_row = write_console_semantic(buf, sem, sem_i);
+
+			if (priority > highest_priority) {
+				highest_priority = priority;
+				highest_priority_row = console_row;
+			}
 
 			if (my_call_found)
 				ftx_call_or_continue(buf, line_len, sem);
@@ -1004,6 +1010,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 		memset(cand_callsign, 0, sizeof(cand_callsign));
 		memset(cand_exch, 0, sizeof(cand_exch));
 
+		if (highest_priority_row) {
+			console_extract_semantic(highest_priority_row, STYLE_CALLER, cand_callsign, sizeof(cand_callsign));
+			// printf("highest priority was %d from row %d: %s\n", highest_priority, highest_priority_row, cand_callsign);
+		}
+
 		for (int idx = 0; idx < kMax_decoded_messages; idx++) {
 			if (decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
 				int de_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_CALL);
@@ -1014,6 +1025,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				char callsign[12];
 				tokncpy(callsign, decoded_hashtable[idx]->text + de_offset, sizeof(callsign));
 				// if our last QSO with this callsign was too recent, don't call again
+				// TODO don't skip if last QSO wasn't on the same band and mode
 				if (decoded_hashtable[idx]->last_qso_age >= 0 && decoded_hashtable[idx]->last_qso_age < recent_qso_age) {
 					LOG(LOG_DEBUG, "Skipping %s: age %d hours is too recent\n",
 						callsign, decoded_hashtable[idx]->last_qso_age);
@@ -1021,6 +1033,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				}
 
 				// Prioritize xOTA, /QRP and /P
+				//
+				// TODO remove this: we have highest-priority CQ already
+
 				if (!strncmp(decoded_hashtable[idx]->text + 4, "OTA ", 4) ||
 					 strstr(callsign, "/QRP") || strstr(callsign, "/P") ) {
 
@@ -1080,8 +1095,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			}
 			set_field_int("ftx_rx_pitch", cand_pitch);
 			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
-			LOG(LOG_INFO, "Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
-				ftx_tx1st ? "even" : "odd", prioritized ? "prioritized " : "", cand_callsign,
+			LOG(LOG_INFO, "Auto-responding in %s slot to p%+d '%s' @ '%s' from t %d snr %d f %d '%s'\n",
+				ftx_tx1st ? "even" : "odd", highest_priority, cand_callsign,
 				cand_exch, cand_time_sec, cand_snr, cand_pitch, cand_text);
 			strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], cand_callsign);
 			ftx_already_called_n++;

@@ -1580,14 +1580,16 @@ void write_console(sbitx_style style, const char *text)
 	Append \a text with \a sem_count styled spans to the console.
 	\a text should end with a newline if it's meant to be a whole console line;
 	otherwise it gets appended to the last line, until the last line gets too long.
+	Returns the console (monotonically increasing) row number to which
+	the given \a text was added.
 */
-void write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count)
+uint32_t write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count)
 {
 	if (!text || text[0] == 0)
-		return;
+		return 0;
 
-	// TODO get rid of this: maybe come up with a way to send the `sem` array separately
-	// to the web and remote UIs too; otherwise use `sem` to "decorate" with a better markup
+	// It might be nice to get rid of hd_decorate(): maybe come up with a way to
+	// send the `sem` array separately to the web and remote UIs. (or maybe not)
 	{
 		char decorated[1000];
 		assert(sem);
@@ -1604,8 +1606,9 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 	const bool is_ftx = sem[0].semantic == STYLE_FT8_RX;
 	bool newline = false;
 	const text_span_semantic *next_sem = sem;
-	while (*next_char)
-	{
+	// printf("write_console_semantic lsem %d l %d r %d sc %d %s",
+	// 		sem[0].semantic, console_current_line, console_last_row, sem_count, text);
+	while (*next_char) {
 		int text_i = next_char - text;
 		while (next_sem < sem + sem_count && next_sem->start_column == text_i) {
 			text_span_semantic *out_sem = &console_line_spans[output_span_i];
@@ -1641,6 +1644,11 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 	struct field *f = get_field("#console");
 	if (f)
 		f->is_dirty = 1;
+
+	// Return the console row number to which text has been set or added.
+	// If we called console_init_next_line (as usual), it's the previous row.
+	// But if we are still on console_last_row (for example in CW mode), that's the one.
+	return newline ? console_last_row - 1 : console_last_row;
 }
 
 void draw_console(cairo_t* gfx, struct field* f)

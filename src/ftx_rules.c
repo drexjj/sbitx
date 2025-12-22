@@ -135,16 +135,16 @@ int ftx_priority(const char *text, int text_len, const text_span_semantic *spans
 			break; // a zero-length span marks the end of the spans array
 		switch (spans[s].semantic) {
 			case STYLE_SNR:
-				extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf));
-				snr = atoi(buf);
+				if (extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf)) >= 0)
+					snr = atoi(buf);
 				break;
 			case STYLE_DISTANCE:
-				extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf));
-				distance = atoi(buf);
+				if (extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf)) >= 0)
+					distance = atoi(buf);
 				break;
 			case STYLE_AZIMUTH:
-				extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf));
-				azimuth = atoi(buf);
+				if (extract_single_semantic(text, text_len, spans[s], buf, sizeof(buf)) >= 0)
+					azimuth = atoi(buf);
 				break;
 			case STYLE_GRID:
 			case STYLE_EXISTING_GRID:
@@ -206,7 +206,10 @@ int ftx_priority(const char *text, int text_len, const text_span_semantic *spans
 				ret += to_me ? rule.ans_pri_adj : rule.cq_resp_pri_adj;
 			break;
 		case RULE_FIELD_DISTANCE:
-			// printf("checking distance rule: %d min %d max %d\n", distance, rule.min_value, rule.max_value);
+			// printf("checking distance rule: %d min %d max %d (btw az %d)\n", distance, rule.min_value, rule.max_value, azimuth);
+			// max is a 16-bit signed number: not quite big enough for Earth's circumference; so
+			// if rule.max_value == -1 it means there is no maximum
+			// (there's probably no reason you'd want a max anyway)
 			if (distance > 0 && distance >= rule.min_value && (rule.max_value < 0 || distance <= rule.max_value))
 				ret += to_me ? rule.ans_pri_adj : rule.cq_resp_pri_adj;
 			break;
