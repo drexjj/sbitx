@@ -1337,7 +1337,8 @@ void ft8_poll(int tx_is_on){
 			tx_off();
 			ftx_repeat = ftx_repeat_save;
 			if (!ftx_repeat) {
-				call_wipe();
+				if (strcmp(field_str("FTX_AUTO"), "OFF"))
+					call_wipe();
 				ft8_abort(true);
 				ftx_tx_text[0] = 0;
 			}
@@ -1579,6 +1580,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		ftx_repeat = 1;
 		ft8_tx_3f(caller, mycall, "73");
 		enter_qso();
+		// don't call_wipe() yet: wait for the 73 to finish sending
 		return;
 	}
 	if (is_73) {
