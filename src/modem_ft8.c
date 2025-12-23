@@ -623,9 +623,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	bool is_ft8 = !strcmp(field_str("MODE"), "FT8");
 	recent_qso_age = field_int("RCT_QSO_AGE");
 
-    LOG(LOG_DEBUG, "sbitx_ftx_decode: %s sample rate %d Hz, %d samples, %.3f seconds\n",
-		(is_ft8 ? "FT8" : "FT4"), sample_rate, num_samples, (double)num_samples / sample_rate);
-
     // Compute FFT over the whole signal and store it
     monitor_t mon;
     monitor_config_t mon_cfg = {
@@ -642,6 +639,10 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	const int packet_time_ms = is_ft8 ? 15000 : 7500;
 	const int raw_ms = (wallclock_day_ms / packet_time_ms) * packet_time_ms;
 	time_t now = time(NULL);
+	int time_sec_i = (raw_ms % 60000) / 1000;
+
+	LOG(LOG_DEBUG, "sbitx_ftx_decode: %02d %s sample rate %d Hz, %d samples, %.3f seconds\n",
+		time_sec_i, (is_ft8 ? "FT8" : "FT4"), sample_rate, num_samples, (double)num_samples / sample_rate);
 
 	int i;
 	char mycallsign_upper[20];
@@ -1301,11 +1302,7 @@ void ft8_rx(int32_t *samples, int count) {
 	for (int i = 0; i < count; i += decimation_ratio)
 		ftx_rx_buffer[ftx_rx_buff_index++] = samples[i] / 200000000.0f;
 
-	int time_was = wallclock_day_ms;
 	ftx_update_clock();
-	// we only need to check every half-second
-	if (time_was / 500 == wallclock_day_ms / 500)
-		return;
 
 	int slot_time = wallclock_day_ms % 15000;
 	int min_secs = 12000;
@@ -1315,7 +1312,7 @@ void ft8_rx(int32_t *samples, int count) {
 		min_secs = 6000;
 		slot_time_decode = 13000 / 2;
 	}
-	//~ printf("time %d -> %d; slot %d; ftx_rx_buff_index %d\n", time_was % 60000, wallclock_day_ms % 60000, slot_time, ftx_rx_buff_index);
+	//~ printf("time %d; slot %d; ftx_rx_buff_index %d\n", wallclock_day_ms % 60000, slot_time, ftx_rx_buff_index);
 
 	if (slot_time < 500)
 		ftx_rx_buff_index = 0;
