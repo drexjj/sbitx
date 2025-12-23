@@ -1643,7 +1643,7 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 
 void draw_console(cairo_t *gfx, struct field *f)
 {
-    /* Temporarily bump console font heights when bigfont is enabled */
+    // save then change console font heights when bigfont is enabled
     int saved_heights[STYLE_TELNET + 1];
     if (bigfont_enabled) {
         // Save and modify all console-related style heights (STYLE_LOG through STYLE_TELNET)
@@ -1714,7 +1714,7 @@ void draw_console(cairo_t *gfx, struct field *f)
             start_line = 0;
     }
 
-    /* Restore font height so other UI is unaffected */
+    // restore embiggen'd font height
     if (bigfont_enabled) {
         for (int i = STYLE_LOG; i <= STYLE_TELNET; i++) {
           font_table[i]. height = saved_heights[i];
