@@ -133,7 +133,7 @@ int zero_beat_min_magnitude = 0;
 
 // bigfont control
 static int bigfont_enabled = 0;
-static int bigfont_size = 20;  // Default big font size for console
+static int bigfont_size = 18;  // Default big font size, still fits 3 lines in decoder console
 
 // INA260 I2C Address and Register Definitions
 #define INA260_ADDRESS 0x40
