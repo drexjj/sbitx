@@ -368,7 +368,7 @@ void logbook_add(const char* contact_callsign, const char* rst_sent, const char*
 	int freq = field_int("FREQ");
 	// For FT8/FT4 we log dial frequency + audio frequency
 	if (ftx) {
-		const int pitch = field_int("PITCH");
+		const int pitch = field_int("FTX_RX_PITCH");
 		printf("FTx: freq %d + pitch %d\n", freq, pitch);
 		freq += pitch;
 	}
