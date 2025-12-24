@@ -1641,91 +1641,75 @@ void write_console_semantic(const char *text, const text_span_semantic *sem, int
 		f->is_dirty = 1;
 }
 
-void draw_console(cairo_t *gfx, struct field *f) {
-  // save then change console font heights when bigfont is enabled
-  int saved_heights[STYLE_TELNET + 1];
-  if (bigfont_enabled) {
-    // Save and modify all console-related style heights (STYLE_LOG through STYLE_TELNET)
-    for (int i = STYLE_LOG; i <= STYLE_TELNET; i++) {
-      saved_heights[i] = font_table[i].height;
-      font_table[i].height = bigfont_size;
-    }
-  }
+void draw_console(cairo_t *gfx, struct field *f)
+{
+	int line_height = font_table[f->font_index].height;
+	int n_lines = (f->height / line_height) - 1;
 
-  int line_height = font_table[f->font_index].height;
-  int n_lines = (f->height / line_height) - 1;
+	rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
-  rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
+	// estimate!
+	int char_width = measure_text(gfx, "01234567890123456789", f->font_index) / 20;
+	console_cols = MIN(f->width / char_width, MAX_LINE_LENGTH);
+	int y = f->y;
+	int j = 0;
 
-  // estimate average char width using current (possibly big) font
-  // Use 'M' characters for a more conservative width estimate (M is typically widest)
-  int char_width = measure_text(gfx, "MMMMMMMMMMMMMMMMMMMM", f->font_index) / 20;
-  if (char_width < 1) char_width = 1;
+	int start_line = console_current_line - n_lines;
+	if (start_line < 0)
+		start_line += MAX_CONSOLE_LINES;
 
-  // Subtract a small margin (e.g., 6 pixels for padding on each side) to ensure text fits
-  int usable_width = f->width - 12;   // seems like a big pad but big fonts work with it
-  if (usable_width < char_width) usable_width = char_width;
+	for (int i = 0; i <= n_lines; i++) {
+		struct console_line *line = console_stream + start_line;
+		if (start_line == console_selected_line)
+			fill_rect(gfx, f->x, y + 1, f->width, font_table[line->spans[0].semantic].height + 1, SELECTED_LINE);
+		// tracking where we are, horizontally
+		int x = 0;
+		int col = 0;
+		char buf[MAX_LINE_LENGTH];
+		int default_sem = STYLE_LOG;
+		int span = 0;
+		// The first span may be a fallback. If the second span is valid and overlaps it, start with that one.
+		if (line->spans[1].start_column == 0 && line->spans[1].length) {
+			span = 1;
+			default_sem = line->spans[0].semantic;
+			//~ printf("-> line %d: first span had length %d; starting with span 1: col %d len %d: '%s'\n",
+					//~ i, line->spans[0].length, line->spans[1].start_column, line->spans[1].length, line->text);
+		}
+		for (; span < MAX_CONSOLE_LINE_STYLES && line->spans[span].length; ++span) {
+			//~ printf("-> line %d span %d col %d len %d style %d @ col %d x %d\n",
+				//~ i, span, line->spans[span].start_column, line->spans[span].length, line->spans[span].semantic, col, x);
+			if (line->spans[span].start_column > col) {
+				// draw the default-styled text to the left of this span
+				const int len = MIN(line->spans[span].start_column - col, MAX_LINE_LENGTH - 1);
+				memcpy(buf, line->text + col, len);
+				col += len;
+				buf[len] = 0;
+				x += draw_text(gfx, f->x + 2 + x, y, buf, default_sem);
+				//~ printf("   nabbed text '%s' to left of %d,  len %d; end @ col %d, %d px\n",
+					//~ buf, line->spans[span].start_column, len, col, x);
+			}
+			const int len = MIN(line->spans[span].length, MAX_LINE_LENGTH - 1);
+			// copy the substring and null-terminate, because cairo_show_text() can't take a length argument :-(
+			const int wlen = stpncpy(buf, line->text + line->spans[span].start_column, len) - buf;
+			col += wlen;
+			buf[wlen] = 0;
+			x += draw_text(gfx, f->x + 2 + x, y, buf, line->spans[span].semantic);
+			//~ printf("   drew span %d col %d len %d style %d end @ %d px: '%s' from '%s'\n",
+				//~ span, line->spans[span].start_column, len, line->spans[span].semantic, x, buf, line->text);
+		}
+		if (line->text + col) {
+			// draw the default-styled text to the right of the last span
+			const int wlen = stpncpy(buf, line->text + col, sizeof(buf) - col) - buf;
+			buf[wlen] = 0;
+			x += draw_text(gfx, f->x + 2 + x, y, buf, default_sem);
+			//~ printf("   nabbed text '%s' to right of %d,  len %d; end @ %d px\n", buf, col, wlen, col, x);
+		}
 
-  console_cols = MIN(usable_width / char_width, MAX_LINE_LENGTH);
-
-  int y = f->y;
-  int j = 0;
-
-  int start_line = console_current_line - n_lines;
-  if (start_line < 0) start_line += MAX_CONSOLE_LINES;
-
-  for (int i = 0; i <= n_lines; i++) {
-    struct console_line *line = console_stream + start_line;
-    if (start_line == console_selected_line)
-      fill_rect(gfx, f->x, y + 1, f->width, font_table[line->spans[0].semantic].height + 1,
-                SELECTED_LINE);
-    // tracking where we are, horizontally
-    int x = 0;
-    int col = 0;
-    char buf[MAX_LINE_LENGTH];
-    int default_sem = STYLE_CW_RX;
-    int span = 0;
-    // The first span may be a fallback.  If the second span is valid and overlaps it, start with
-    // that one.
-    if (line->spans[1].start_column == 0 && line->spans[1].length) {
-      span = 1;
-      default_sem = line->spans[0].semantic;
-    }
-    for (; span < MAX_CONSOLE_LINE_STYLES && line->spans[span].length; ++span) {
-      if (line->spans[span].start_column > col) {
-        // draw the default-styled text to the left of this span
-        const int len = MIN(line->spans[span].start_column - col, MAX_LINE_LENGTH - 1);
-        memcpy(buf, line->text + col, len);
-        col += len;
-        buf[len] = 0;
-        x += draw_text(gfx, f->x + 2 + x, y, buf, default_sem);
-      }
-      const int len = MIN(line->spans[span].length, MAX_LINE_LENGTH - 1);
-      // copy the substring and null-terminate, because cairo_show_text() can't take a length
-      // argument : -(
-      const int wlen = stpncpy(buf, line->text + line->spans[span].start_column, len) - buf;
-      col += wlen;
-      buf[wlen] = 0;
-      x += draw_text(gfx, f->x + 2 + x, y, buf, line->spans[span].semantic);
-    }
-    if (line->text + col) {
-      // draw the default-styled text to the right of the last span
-      const int wlen = stpncpy(buf, line->text + col, sizeof(buf) - col) - buf;
-      buf[wlen] = 0;
-      x += draw_text(gfx, f->x + 2 + x, y, buf, default_sem);
-    }
-
-    start_line++;
-    y += line_height;
-    if (start_line >= MAX_CONSOLE_LINES) start_line = 0;
-  }
-
-  // restore embiggen'd font height
-  if (bigfont_enabled) {
-    for (int i = STYLE_LOG; i <= STYLE_TELNET; i++) {
-      font_table[i].height = saved_heights[i];
-    }
-  }
+		start_line++;
+		y += line_height;
+		if (start_line >= MAX_CONSOLE_LINES)
+			start_line = 0;
+	}
 }
 
 /*!
@@ -3392,7 +3376,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
         cairo_show_text(gfx, zbeat_cw_stats);
       }
 		}
-      
+
 		// Draw LED indicators
 		int box_width = 10;
 		int box_height = 5;
@@ -6010,7 +5994,7 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		}
 
 		if (selected_band)
-		{		
+		{
 
 			// Check if the selected band is different from the current band
 			if (strcmp(f->label, selected_band) != 0)
@@ -9739,7 +9723,7 @@ void do_control_action(char *cmd)
         !strcasecmp(request, "tuning_acceleration ON")) {
       val = "ON";
     }
-    
+
     struct field *accel = get_field("tuning_acceleration");
     if (accel) {
       strcpy(accel->value, val);
@@ -10241,7 +10225,7 @@ else if (!strcasecmp(exec, "decode"))
   else if (!strcasecmp(exec, "bigfont")) {
     if (!strlen(args)) {
       char msg[64];
-      snprintf(msg, sizeof(msg), "bigfont is %s (size: %d)\n", 
+      snprintf(msg, sizeof(msg), "bigfont is %s (size: %d)\n",
                bigfont_enabled ? "ON" : "OFF", bigfont_size);
       write_console(STYLE_LOG, msg);
       return;
@@ -10530,7 +10514,7 @@ else if (!strcasecmp(exec, "decode"))
 		// if (strlen(buff))
 		//	set_field("#text_in", buff);
 	}
-	else if( strstr("80M60M40M30M20M17M15M12M10M", exec) != NULL || 
+	else if( strstr("80M60M40M30M20M17M15M12M10M", exec) != NULL ||
 		     strstr("80m60m40m30m20m17m15m12m10m", exec) != NULL){
 		change_band(exec);
 	}
@@ -10801,7 +10785,7 @@ int main(int argc, char *argv[])
 	}
 
 	gtk_main();
-	
+
 	save_user_settings(1);
 	return 0;
 }
