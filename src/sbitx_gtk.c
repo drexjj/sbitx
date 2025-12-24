@@ -1662,8 +1662,8 @@ void draw_console(cairo_t *gfx, struct field *f) {
   int char_width = measure_text(gfx, "MMMMMMMMMMMMMMMMMMMM", f->font_index) / 20;
   if (char_width < 1) char_width = 1;
 
-  // Subtract a small margin (e.g., 4 pixels for padding on each side) to ensure text fits
-  int usable_width = f->width - 8;
+  // Subtract a small margin (e.g., 6 pixels for padding on each side) to ensure text fits
+  int usable_width = f->width - 12;   // seems like a big pad but big fonts work with it
   if (usable_width < char_width) usable_width = char_width;
 
   console_cols = MIN(usable_width / char_width, MAX_LINE_LENGTH);
