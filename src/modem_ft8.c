@@ -764,7 +764,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 			const bool is_cq = !strncmp(text, "CQ ", 3);
 			bool my_call_found = false;
-			bool has_grid = false;
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -774,6 +773,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			memset(sem, 0, sizeof(sem));
 			char callsign[20];
 			memset(callsign, 0, sizeof(callsign));
+			char grid[5];
+			memset(grid, 0, sizeof(grid));
 			int calls_found = 0;
 			int total_calls = message_callsign_count(&spans);
 			int span_i = 0;
@@ -873,7 +874,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 							sem[sem_i - 1].semantic = STYLE_FT8_RX; // should stand out
 							break;
 						} else {
-							has_grid = true;
+							strncpy(grid, buf + sem[sem_i - 1].start_column, 4);
 						}
 						// When was the last QSO with someone in this grid?
 						time_t recent_grid_qso = sem[sem_i - 1].length > 0 ? logbook_grid_last_qso(buf + sem[sem_i - 1].start_column, sem[sem_i - 1].length) : 0ll;
@@ -909,7 +910,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			// Don't do that otherwise: it can confuse ftx_call_or_continue()
 			if (!cty_inited)
 				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
-			if ((is_cq || (my_call_found && has_grid)) && cty_inited) {
+			if ((is_cq || (my_call_found && grid[0])) && cty_inited) {
 				dxcc_data info = lookupcountry_by_callsign(callsign);
 				if (info.country) {
 					const char *country_abbrev = NULL;
@@ -921,8 +922,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 					sem[sem_i].start_column = line_len;
 					sem[sem_i++].length = cty_abb_len;
 					line_len += cty_abb_len;
+					if (grid[0])
+						set_location_from_grid(&info, grid);
 					int qrbOK = !qrb(mylon, mylat, info.longitude, info.latitude, &distance, &azimuth);
-					//~ printf("%s: %s '%s' @ %5.0lf a %3.0lf qrb ok? %d\n", callsign, country_abbrev, info.countryname, distance, azimuth, qrbOK);
+					LOG(LOG_DEBUG, "%s: %s '%s' @ %5.2lf,%5.2lf (qrb ok? %d) d %5.0lf a %3.0lf rel to me @ %5.2lf,%5.2lf\n",
+						callsign, country_abbrev, info.countryname, info.latitude, info.longitude,
+						qrbOK, distance, azimuth, mylat, mylon);
 					if (qrbOK) {
 						int dist_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %.0lf", distance);
 						assert(sem_i < MAX_CONSOLE_LINE_STYLES);
