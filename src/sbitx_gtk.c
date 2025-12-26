@@ -5978,7 +5978,32 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		// If not expanded, expand the dropdown
 		if (f_dropdown_expanded != f)
 		{
-			return do_dropdown(f, gfx, event, a, b, c);
+			// Call the standard dropdown to expand it
+			int result = do_dropdown(f, gfx, event, a, b, c);
+
+			// Now fix the highlighted option to match the current band (in f->label, not f->value)
+			if (f_dropdown_expanded == f)
+			{
+				// Find the current band's index in the selection list
+				char temp[1000];
+				strcpy(temp, f->selection);
+				char *p = strtok(temp, "/");
+				int idx = 0;
+				dropdown_highlighted = 0; // default to first option
+
+				while (p)
+				{
+					if (!strcmp(p, f->label))
+					{
+						dropdown_highlighted = idx;
+						break;
+					}
+					idx++;
+					p = strtok(NULL, "/");
+				}
+			}
+
+			return result;
 		}
 
 		// If expanded, check if click is on an option
