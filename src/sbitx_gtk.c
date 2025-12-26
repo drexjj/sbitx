@@ -354,6 +354,7 @@ int is_fullscreen = 0;
 
 extern void settings_ui(GtkWidget *p);
 extern void eq_ui(GtkWidget *p);
+void ftx_rules_ui(GtkWidget* p);
 
 // these are callbacks called by the operating system
 static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr,
@@ -1118,6 +1119,8 @@ struct field main_controls[] = {
 	 "", 1, 10, 1, FT8_CONTROL},
 	{"ftx_rx_pitch", NULL, 700, -350, 50, 50, "FTX_RX_PITCH", 40, "600", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL}, // substitute for rx_pitch only in FTx modes
+	{"#ftx_rules", NULL, 1000, -1000, 50, 50, "RULES", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+	 "", 0, 0, 0, 0, FT8_CONTROL},
 
 	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 32, 1, 0},
@@ -4330,6 +4333,7 @@ static void layout_ui()
       field_move("FTX_REPEAT", 525, y_top, 75, row_h);
       field_move("MACRO", 600, y_top, 75, row_h);
       field_move("TX_PITCH", 675, y_top, 75, row_h);
+      field_move("RULES", 753, y_top, 44, row_h);
 
       // Bottom row: function keys and extras
       field_move("F1", 5, y_bottom, 70, row_h);
@@ -9778,6 +9782,10 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "SET"))
 	{
 		settings_ui(window);
+	}
+	else if (!strcmp(request, "RULES"))
+	{
+		ftx_rules_ui(window);
 	}
 	else if (!strcmp(request, "CAL"))
 	{

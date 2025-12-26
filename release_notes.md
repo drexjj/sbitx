@@ -24,6 +24,7 @@
     * ANS auto-answers and finishes QSOs; click a previous incoming message if you need to repond again to it
     * CQRESP additionally chooses a CQ to respond to, when no QSO is in progress
     * ftx_rules table in the database holds rules to prioritize which message to answer
+    * there's a "rules" window for editing those
   + colors:
     * different colors on different fields; interesting stuff stands out
     * my callsign: red
