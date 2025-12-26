@@ -62,6 +62,8 @@ bool ftx_delete_rule(int8_t id);
 
 // Functions to populate a GUI table
 
+const char *ftx_rule_field_name(ftx_rules_field field);
+ftx_rules_field ftx_rule_field_from_name(const char *name);
 void *ftx_rule_prepare_query_all();
 int ftx_next_rule(void *query, ftx_rule *rule, char *desc_buf, int desc_size, char *regex_buf, int regex_size);
 void ftx_rule_end_query(void *query);

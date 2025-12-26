@@ -66,21 +66,7 @@ int load_ftx_rules()
 		rule.max_value = sqlite3_column_int(stmt, 4);
 		rule.cq_resp_pri_adj = sqlite3_column_int(stmt, 5);
 		rule.ans_pri_adj = sqlite3_column_int(stmt, 6);
-
-		if (!strncmp(field_name, "call", 4))
-			rule.field = RULE_FIELD_CALLSIGN;
-		else if (!strncmp(field_name, "cq_token", 8))
-			rule.field = RULE_FIELD_CQ_TOKEN;
-		else if (!strncmp(field_name, "country", 7))
-			rule.field = RULE_FIELD_COUNTRY;
-		else if (!strncmp(field_name, "grid", 4))
-			rule.field = RULE_FIELD_GRID;
-		else if (!strncmp(field_name, "snr", 3))
-			rule.field = RULE_FIELD_SNR;
-		else if (!strncmp(field_name, "distance", 8))
-			rule.field = RULE_FIELD_DISTANCE;
-		else if (!strncmp(field_name, "bearing", 7) || !strncmp(field_name, "azimuth", 7))
-			rule.field = RULE_FIELD_AZIMUTH;
+		rule.field = ftx_rule_field_from_name(field_name);
 
 		int regex_len = regex_s ? strlen(regex_s) : 0;
 
@@ -455,6 +441,45 @@ bool ftx_delete_rule(int8_t id)
 	return false;
 }
 
+const char *ftx_rule_field_name(ftx_rules_field field)
+{
+	switch (field) {
+		case RULE_FIELD_CALLSIGN:  return "call";
+		case RULE_FIELD_CQ_TOKEN:  return "cq_token";
+		case RULE_FIELD_COUNTRY:   return "country";
+		case RULE_FIELD_GRID:      return "grid";
+		case RULE_FIELD_SNR:       return "snr";
+		case RULE_FIELD_DISTANCE:  return "distance";
+		case RULE_FIELD_AZIMUTH:   return "azimuth";
+		default:                   return "none";
+	}
+}
+
+ftx_rules_field ftx_rule_field_from_name(const char *name)
+{
+	if (!name)
+		return RULE_FIELD_NONE;
+
+	/* match same substrings as used elsewhere in this file */
+	if (!strncmp(name, "call", 4))
+		return RULE_FIELD_CALLSIGN;
+	if (!strncmp(name, "cq_token", 8))
+		return RULE_FIELD_CQ_TOKEN;
+	if (!strncmp(name, "country", 7))
+		return RULE_FIELD_COUNTRY;
+	if (!strncmp(name, "grid", 4))
+		return RULE_FIELD_GRID;
+	if (!strncmp(name, "snr", 3))
+		return RULE_FIELD_SNR;
+	if (!strncmp(name, "distance", 8))
+		return RULE_FIELD_DISTANCE;
+	/* legacy DB might use 'bearing' or 'azimuth' */
+	if (!strncmp(name, "bearing", 7) || !strncmp(name, "azimuth", 7))
+		return RULE_FIELD_AZIMUTH;
+
+	return RULE_FIELD_NONE;
+}
+
 void *ftx_rule_prepare_query_all()
 {
 	if (!db_open())
@@ -504,28 +529,7 @@ int ftx_next_rule(void *query, ftx_rule *rule, char *desc_buf, int desc_size, ch
 	rule->cq_resp_pri_adj = (int8_t)cq_adj;
 	rule->ans_pri_adj = (int8_t)ans_adj;
 	rule->regex = NULL; /* GUI consumer gets the regex in regex_buf */
-
-	/* map field name to enum (same logic as load_ftx_rules) */
-	if (field_name) {
-		if (!strncmp((const char *)field_name, "call", 4))
-			rule->field = RULE_FIELD_CALLSIGN;
-		else if (!strncmp((const char *)field_name, "cq_token", 8))
-			rule->field = RULE_FIELD_CQ_TOKEN;
-		else if (!strncmp((const char *)field_name, "country", 7))
-			rule->field = RULE_FIELD_COUNTRY;
-		else if (!strncmp((const char *)field_name, "grid", 4))
-			rule->field = RULE_FIELD_GRID;
-		else if (!strncmp((const char *)field_name, "snr", 3))
-			rule->field = RULE_FIELD_SNR;
-		else if (!strncmp((const char *)field_name, "distance", 8))
-			rule->field = RULE_FIELD_DISTANCE;
-		else if (!strncmp((const char *)field_name, "bearing", 7) || !strncmp((const char *)field_name, "azimuth", 7))
-			rule->field = RULE_FIELD_AZIMUTH;
-		else
-			rule->field = RULE_FIELD_NONE;
-	} else {
-		rule->field = RULE_FIELD_NONE;
-	}
+	rule->field = ftx_rule_field_from_name(field_name);
 
 	/* copy description and regex into provided buffers, if any */
 	if (desc && desc_buf && desc_size > 0) {
