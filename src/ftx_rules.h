@@ -18,6 +18,7 @@ typedef enum {
 	RULE_FIELD_SNR,      // int min/max, in dB
 	RULE_FIELD_DISTANCE, // int min/max, in km
 	RULE_FIELD_AZIMUTH,  // int min/max, in degrees from 0 to 360
+	RULE_FIELD_COUNT	 // the end
 }  ftx_rules_field;
 
 /*	A representation of a rule from the ftx_rules table
@@ -37,15 +38,32 @@ typedef struct {
 	void *regex; // pcre2_code * return value from pcre2_compile()
 } ftx_rule;
 
-/*! Load all rules from the ftx_rules database table.
- 	Returns the number found, 0 if none, -1 if there is no ftx_rules table. */
+// Functions to load and run the rules engine
+
 int load_ftx_rules();
 
 void clear_ftx_rules();
 
 int ftx_rules_count();
 
-/*! Returns the priority (score) of an FT8/FT4 message \a text with semantic spans. */
 int ftx_priority(const char *text, int text_len, const text_span_semantic *sem, int sem_count, bool *is_to_me);
+
+// Individual rule editing functionality
+
+int ftx_add_regex_rule(const char *desc, ftx_rules_field field, const char *regex,
+	int8_t cq_resp_pri_adj, int8_t ans_pri_adj);
+
+int ftx_add_numeric_rule(const char *desc, ftx_rules_field field, int16_t min_value,
+	int16_t max_value, int8_t cq_resp_pri_adj, int8_t ans_pri_adj);
+
+bool ftx_rule_update_priorities(int8_t id, int8_t cq_resp_pri_adj, int8_t ans_pri_adj);
+
+bool ftx_delete_rule(int8_t id);
+
+// Functions to populate a GUI table
+
+void *ftx_rule_prepare_query_all();
+int ftx_next_rule(void *query, ftx_rule *rule, char *desc_buf, int desc_size, char *regex_buf, int regex_size);
+void ftx_rule_end_query(void *query);
 
 #endif // FTX_RULES_H
