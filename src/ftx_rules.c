@@ -11,7 +11,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 
-#define MAX_RULES 64
+#define MAX_RULES 128
 
 static sqlite3* db = NULL;
 
@@ -43,18 +43,24 @@ int load_ftx_rules()
 	int count = 0;
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db,
-		"select id, field, regex, min, max, priority_adj from ftx_rules;",
+		"select id, field, regex, min, max, cq_priority_adj, ans_priority_adj from ftx_rules;",
 		-1, &stmt, NULL);
 
-	for (count = 0; count < 64 && sqlite3_step(stmt) == SQLITE_ROW; ++count) {
+	for (count = 0; count < MAX_RULES && sqlite3_step(stmt) == SQLITE_ROW; ++count) {
+		const int rule_id = sqlite3_column_int(stmt, 0);
+		if (rule_id > 127) {
+			printf("skipping high-numbered rule %d\n", rule_id);
+			continue;
+		}
 		ftx_rule rule;
 		memset(&rule, 0, sizeof(rule));
-		rule.id = sqlite3_column_int(stmt, 0);
+		rule.id = rule_id;
 		const char *field_name = sqlite3_column_text(stmt, 1);
 		const unsigned char *regex_s = sqlite3_column_text(stmt, 2);
 		rule.min_value = sqlite3_column_int(stmt, 3);
 		rule.max_value = sqlite3_column_int(stmt, 4);
-		rule.cq_resp_pri_adj = sqlite3_column_int(stmt, 5); // TODO the other one
+		rule.cq_resp_pri_adj = sqlite3_column_int(stmt, 5);
+		rule.ans_pri_adj = sqlite3_column_int(stmt, 6);
 
 		if (!strncmp(field_name, "call", 4))
 			rule.field = RULE_FIELD_CALLSIGN;
@@ -88,9 +94,13 @@ int load_ftx_rules()
 				match_data = pcre2_match_data_create_from_pattern(rule.regex, NULL);
 			}
 		}
-		rules[count] = rule;
-		// printf("rule i %d ID %d: field_s %d regex '%s' min %d max %d pri adj %d\n",
-		// 		count, rule.id, rule.field, regex_s, rule.min_value, rule.max_value, rule.cq_resp_pri_adj);
+		if (rule.cq_resp_pri_adj || rule.ans_pri_adj) {
+			rules[count] = rule;
+		// 	printf("rule i %d ID %d: field_s %d regex '%s' min %d max %d pri adj %d\n",
+		// 			count, rule.id, rule.field, regex_s, rule.min_value, rule.max_value, rule.cq_resp_pri_adj);
+		// } else {
+		// 	printf("skipping disabled rule %d\n", rule.id);
+		}
 	}
 	if (count == MAX_RULES)
 		printf("only %d rules are allowed: ignoring the rest", MAX_RULES);

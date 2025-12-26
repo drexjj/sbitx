@@ -50,6 +50,10 @@ git submodule update --init
 
 if test -f "data/sbitx.db"; then
 	HAS_TX_POWER=`sqlite3 data/sbitx.db "SELECT COUNT(*) AS CNTREC FROM pragma_table_info('logbook') WHERE name='tx_power'"`
+	HAS_FTX_RULES=`sqlite3 data/sbitx.db "SELECT COUNT(*) AS CNTREC FROM pragma_table_info('ftx_rules') WHERE name='regex'"`
+	if [ "$HAS_FTX_RULES" -eq 0 ]; then
+		sqlite3 data/sbitx.db < data/add_ftx_rules.sql
+	fi
 	if [ "$HAS_TX_POWER" -eq 0 ]; then
 		echo "new columns will be added to the database"
 		sqlite3 data/sbitx.db < data/add_columns.sql
@@ -60,6 +64,7 @@ else
 	echo "database doesn't exist, it will be created"
 	cd data
 	sqlite3 sbitx.db < create_db.sql
+	sqlite3 sbitx.db < add_ftx_rules.sql
 	cd ..
 fi
 

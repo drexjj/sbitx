@@ -22,7 +22,8 @@
   + FTX_AUTO modes:
     * OFF is fully manual: click messages only to populate logger fields, then use macro buttons
     * ANS auto-answers and finishes QSOs; click a previous incoming message if you need to repond again to it
-    * CQRESP additionally chooses a CQ to respond to, when no QSO is in progress, prioritizing /P /QRP and xOTA
+    * CQRESP additionally chooses a CQ to respond to, when no QSO is in progress
+    * ftx_rules table in the database holds rules to prioritize which message to answer
   + colors:
     * different colors on different fields; interesting stuff stands out
     * my callsign: red
