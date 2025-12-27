@@ -5,6 +5,8 @@
  *
  * Provides a compact widget (button + popover + listbox) that behaves well on
  * touchscreens: it highlights rows while dragging and selects on release.
+ *
+ * Written mostly by ChatGPT 5 mini
  */
 
 #include "touch_combo.h"
@@ -20,7 +22,7 @@ typedef struct {
 	GtkWidget *scrolled;     /* cached GtkScrolledWindow we create */
 	GtkWidget *listbox;      /* GtkListBox of items */
 	GList     *items;        /* list of char* (g_strdup'd) */
-	int        active;       /* active index or -1 */
+	int        active;       /* selection: active index or -1 */
 	GtkListBoxRow *hover_row;/* currently hovered row during drag */
 	int        popup_width;  /* optional override width (px) */
 	int        popup_height; /* optional override height (px) - used as cap */
@@ -79,9 +81,7 @@ list_motion_cb(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 	TouchComboData *tcd = tcd_from_widget((GtkWidget*)user_data);
 	if (!tcd || !tcd->listbox || !event) return FALSE;
 
-	/* event->y is relative to widget */
-	int y = (int)event->y;
-	GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(tcd->listbox), y);
+	GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(tcd->listbox), event->y);
 	if (row != tcd->hover_row) {
 		if (tcd->hover_row)
 			gtk_widget_set_state_flags(GTK_WIDGET(tcd->hover_row), GTK_STATE_FLAG_NORMAL, TRUE);
@@ -236,6 +236,15 @@ touch_combo_button_clicked_cb(GtkButton *b, gpointer user_data)
 	adjust_popover_size(tcd_inner);
 	gtk_widget_show_all(tcd_inner->popover);
 	gtk_popover_popup(GTK_POPOVER(tcd_inner->popover));
+
+	// highlight the previously-existing selection
+	GtkListBoxRow *firstRow = gtk_list_box_get_row_at_index(GTK_LIST_BOX(tcd_inner->listbox), 0);
+	GtkListBoxRow *row = gtk_list_box_get_row_at_index(GTK_LIST_BOX(tcd_inner->listbox), tcd_inner->active);
+	if (firstRow)
+		gtk_widget_set_state_flags(GTK_WIDGET(firstRow), GTK_STATE_FLAG_NORMAL, TRUE);
+	tcd_inner->hover_row = row;
+	if (row)
+		gtk_widget_set_state_flags(GTK_WIDGET(row), GTK_STATE_FLAG_SELECTED, TRUE);
 }
 
 /* Public API --------------------------------------------------------------- */
