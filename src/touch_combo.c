@@ -102,7 +102,7 @@ list_button_release_cb(GtkWidget *widget, GdkEventButton *event, gpointer user_d
 	if (tcd->hover_row) {
 		gpointer idxp = g_object_get_data(G_OBJECT(tcd->hover_row), "index");
 		if (idxp) {
-			int index = GPOINTER_TO_INT(idxp);
+			int index = GPOINTER_TO_INT(idxp) - 1;
 			if (index >= 0 && index < g_list_length(tcd->items)) {
 				tcd->active = index;
 				const char *s = (const char*)g_list_nth_data(tcd->items, index);
@@ -125,7 +125,7 @@ list_row_activated_cb(GtkListBox *box, GtkListBoxRow *row, gpointer user_data)
 
 	gpointer idxp = g_object_get_data(G_OBJECT(row), "index");
 	if (!idxp) return;
-	int index = GPOINTER_TO_INT(idxp);
+	int index = GPOINTER_TO_INT(idxp) - 1;
 	if (index < 0 || index >= g_list_length(tcd->items)) return;
 
 	tcd->active = index;
@@ -311,7 +311,7 @@ touch_combo_append_text(GtkWidget *touch_combo, const char *text)
 	GtkWidget *lbl = gtk_label_new(text);
 	gtk_label_set_xalign(GTK_LABEL(lbl), 0.0);
 	gtk_container_add(GTK_CONTAINER(row), lbl);
-	g_object_set_data(G_OBJECT(row), "index", GINT_TO_POINTER(index));
+	g_object_set_data(G_OBJECT(row), "index", GINT_TO_POINTER(index + 1));
 	gtk_list_box_insert(GTK_LIST_BOX(tcd->listbox), row, -1);
 	gtk_widget_show_all(row);
 
