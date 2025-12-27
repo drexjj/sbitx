@@ -22,6 +22,7 @@ enum {
 static GtkListStore *store = NULL;
 static GtkWidget *dialog = NULL;
 static GtkWidget *grid = NULL;
+static GtkWidget *tree = NULL;
 static GtkWidget *lbl_desc = NULL;
 static GtkWidget *entry_desc = NULL;
 static GtkWidget *lbl_field = NULL;
@@ -45,6 +46,7 @@ static GtkWidget *btn_add = NULL;
 static GtkWidget *btn_update = NULL;
 static GtkWidget *btn_delete = NULL;
 static GtkWidget *btn_close = NULL;
+static bool programmatic_priority_change = false;
 
 static GtkTreeViewColumn* add_text_column(GtkWidget *tree, const char *title, int col, int min_width)
 {
@@ -121,8 +123,10 @@ static void on_selection_changed(GtkTreeSelection *sel, gpointer user_data)
 			-1);
 		// populate widgets
 		gtk_entry_set_text(GTK_ENTRY(entry_desc), desc ? desc : "");
+		programmatic_priority_change = true;
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_cq), cq_adj);
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_ans), ans_adj);
+		programmatic_priority_change = false;
 		gtk_combo_box_set_active(GTK_COMBO_BOX(combo_field), field - 1);
 		update_field_visibility(field);
 		if (is_numeric_field(field)) {
@@ -139,8 +143,10 @@ static void on_selection_changed(GtkTreeSelection *sel, gpointer user_data)
 		// no selection
 		gtk_entry_set_text(GTK_ENTRY(entry_desc), "");
 		gtk_entry_set_text(GTK_ENTRY(entry_regex), "");
+		programmatic_priority_change = true;
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_cq), 0);
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_ans), 0);
+		programmatic_priority_change = false;
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_min), 0);
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_max), 0);
 		g_object_set_data(G_OBJECT(dialog), "selected-id", GINT_TO_POINTER(-1));
@@ -183,6 +189,58 @@ static void on_field_changed(GtkComboBox *cb, gpointer user_data)
 
 static void on_add_clicked(GtkButton *btn, gpointer user_data)
 {
+	gtk_entry_set_text(GTK_ENTRY(entry_desc), "");
+	programmatic_priority_change = true;
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_cq), 0);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_ans), 0);
+	programmatic_priority_change = false;
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_min), 0);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_max), 0);
+	gtk_entry_set_text(GTK_ENTRY(entry_regex), "");
+	GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree));
+	gtk_tree_selection_unselect_all(sel);
+	g_object_set_data(G_OBJECT(dialog), "selected-id", GINT_TO_POINTER(-1));
+}
+
+static void on_priority_changed(GtkSpinButton *spin, gpointer user_data)
+{
+	if (programmatic_priority_change)
+		return;
+	int sel_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dialog), "selected-id"));
+	if (sel_id < 0)
+		return;
+	int8_t cq_pri = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_cq));
+	int8_t ans_pri = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_ans));
+	// printf("rule %d: priorities changed to %d %d\n", sel_id, cq_pri, ans_pri);
+	ftx_rule_update_priorities(sel_id, cq_pri, ans_pri);
+
+	/* Iterate the list store to find the row with matching ID and update its priorities */
+	GtkTreeIter iter;
+	gboolean valid;
+	gint id;
+	valid = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
+	while (valid) {
+		gtk_tree_model_get(GTK_TREE_MODEL(store), &iter, COL_ID, &id, -1);
+		if (id == sel_id) {
+			gtk_list_store_set(store, &iter,
+				COL_CQ_ADJ, cq_pri,
+				COL_ANS_ADJ, ans_pri,
+				-1);
+			break;
+		}
+		valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &iter);
+	}
+}
+
+/*!
+	For now, to update a rule, delete it and add a new one.
+*/
+static void on_update_clicked(GtkButton *btn, gpointer user_data)
+{
+	int sel_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dialog), "selected-id"));
+	if (sel_id > 0)
+		ftx_delete_rule((int8_t)sel_id);
+
 	const char *desc = gtk_entry_get_text(GTK_ENTRY(entry_desc));
 	ftx_rules_field field = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_field)) + 1;
 	int cq_adj = (int)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_cq));
@@ -196,17 +254,6 @@ static void on_add_clicked(GtkButton *btn, gpointer user_data)
 		ftx_add_regex_rule(desc, field, regex, (int8_t)cq_adj, (int8_t)ans_adj);
 	}
 	refresh_rules_list();
-}
-
-/*!
- 	For now, to update a rule, delete it and add a new one.
-*/
-static void on_update_clicked(GtkButton *btn, gpointer user_data)
-{
-	int sel_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dialog), "selected-id"));
-	if (sel_id <= 0) return;
-	ftx_delete_rule((int8_t)sel_id);
-	on_add_clicked(btn, user_data);
 }
 
 static void on_delete_clicked(GtkButton *btn, gpointer user_data)
@@ -256,7 +303,7 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
 		GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 	gtk_box_pack_start(GTK_BOX(vbox), scrolled, TRUE, TRUE, 0);
-	GtkWidget *tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(store));
+	tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(store));
 	gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(tree), TRUE);
 	gtk_container_add(GTK_CONTAINER(scrolled), tree);
 	add_text_column(tree, "Description", COL_DESC, 300);
@@ -278,7 +325,7 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 
 	// Editing widgets area
 	grid = gtk_grid_new();
-	gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
+	gtk_grid_set_row_spacing(GTK_GRID(grid), 3);
 	gtk_grid_set_column_spacing(GTK_GRID(grid), 6);
 	gtk_box_pack_start(GTK_BOX(vbox), grid, FALSE, FALSE, 0);
 
@@ -289,6 +336,10 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	entry_desc = gtk_entry_new();
 	gtk_entry_set_max_length(GTK_ENTRY(entry_desc), 256);
 	gtk_grid_attach(GTK_GRID(grid), entry_desc, 1, 0, 3, 1);
+
+	// Add button
+	btn_add = gtk_button_new_with_label("+");
+	gtk_grid_attach(GTK_GRID(grid), btn_add, 4, 0, 1, 1);
 
 	// Field combobox
 	lbl_field = gtk_label_new("Field");
@@ -330,6 +381,7 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	gtk_widget_set_halign(lbl_cq, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), lbl_cq, 0, 3, 1, 1);
 	spin_cq = gtk_spin_button_new(adj_cq, 1, 0);
+	gtk_spin_button_set_range(GTK_SPIN_BUTTON(spin_cq), -127, 127);
 	gtk_grid_attach(GTK_GRID(grid), spin_cq, 1, 3, 1, 1);
 
 	adj_ans = gtk_adjustment_new(0, -128, 127, 1, 10, 0);
@@ -337,19 +389,18 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	gtk_widget_set_halign(lbl_ans, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), lbl_ans, 2, 3, 1, 1);
 	spin_ans = gtk_spin_button_new(adj_ans, 1, 0);
+	gtk_spin_button_set_range(GTK_SPIN_BUTTON(spin_ans), -127, 127);
 	gtk_grid_attach(GTK_GRID(grid), spin_ans, 3, 3, 1, 1);
 
 	// Buttons row
 	hbox_buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
 	gtk_box_pack_start(GTK_BOX(vbox), hbox_buttons, FALSE, FALSE, 0);
-	btn_add = gtk_button_new_with_label("Add New Rule");
 	btn_update = gtk_button_new_with_label("Update Rule");
 	btn_delete = gtk_button_new_with_label("Delete Rule");
 	btn_close = gtk_button_new_with_label("Close");
 	gtk_box_pack_end(GTK_BOX(hbox_buttons), btn_close, FALSE, FALSE, 0);
 	gtk_box_pack_end(GTK_BOX(hbox_buttons), btn_delete, FALSE, FALSE, 0);
 	gtk_box_pack_end(GTK_BOX(hbox_buttons), btn_update, FALSE, FALSE, 0);
-	gtk_box_pack_end(GTK_BOX(hbox_buttons), btn_add, FALSE, FALSE, 0);
 
 	// Wire up signals
 	GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree));
@@ -360,6 +411,8 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	g_signal_connect(btn_update, "clicked", G_CALLBACK(on_update_clicked), NULL);
 	g_signal_connect(btn_delete, "clicked", G_CALLBACK(on_delete_clicked), NULL);
 	g_signal_connect_swapped(btn_close, "clicked", G_CALLBACK(gtk_widget_destroy), dialog);
+	g_signal_connect(spin_cq, "value-changed", G_CALLBACK(on_priority_changed), NULL);
+	g_signal_connect(spin_ans, "value-changed", G_CALLBACK(on_priority_changed), NULL);
 
 	// Initial state
 	g_object_set_data(G_OBJECT(dialog), "selected-id", GINT_TO_POINTER(-1));

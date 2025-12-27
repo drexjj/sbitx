@@ -107,7 +107,7 @@ void clear_ftx_rules()
 		if (rules[i].regex)
 			pcre2_code_free(rules[i].regex);
 	}
-	printf("clearing %d rules %d bytes\n", rules_count, sizeof(rules));
+	// printf("clearing %d rules %d bytes\n", rules_count, sizeof(rules));
 	memset(rules, 0, sizeof(rules));
 	rules_count = 0;
 	if (match_data)
