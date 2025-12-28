@@ -278,8 +278,14 @@ int ftx_add_regex_rule(const char *desc, ftx_rules_field field, const char *rege
 			return -1;
 	}
 
-	const char *sql = "insert into ftx_rules (description, field, regex, min, max, cq_priority_adj, ans_priority_adj) "
-		"values (?, ?, ?, NULL, NULL, ?, ?);";
+	/*	Instead of letting SQLite auto-assign an ever-increasing id, pick the lowest
+		available positive id. Use a SELECT subquery so we can keep the existing
+		bind parameter layout (desc, field, regex, cq, ans).
+		The subquery finds the smallest gap by looking for t1.id+1 values that do
+		not exist in the table. If the table is empty, it falls back to 1. */
+	const char *sql = "insert into ftx_rules (id, description, field, regex, min, max, cq_priority_adj, ans_priority_adj) "
+		"select COALESCE((SELECT t1.id+1 FROM ftx_rules t1 LEFT JOIN ftx_rules t2 ON t1.id+1 = t2.id "
+		"WHERE t2.id IS NULL ORDER BY t1.id LIMIT 1), 1), ?, ?, ?, NULL, NULL, ?, ?;";
 	sqlite3_stmt *stmt = NULL;
 	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rc != SQLITE_OK) {
@@ -341,8 +347,14 @@ int ftx_add_numeric_rule(const char *desc, ftx_rules_field field, int16_t min_va
 			return -1;
 	}
 
-	const char *sql = "insert into ftx_rules (description, field, regex, min, max, cq_priority_adj, ans_priority_adj) "
-		"values (?, ?, NULL, ?, ?, ?, ?);";
+	/*	Instead of letting SQLite auto-assign an ever-increasing id, pick the lowest
+		available positive id. Use a SELECT subquery so we can keep the existing
+		bind parameter layout (desc, field, regex, cq, ans).
+		The subquery finds the smallest gap by looking for t1.id+1 values that do
+		not exist in the table. If the table is empty, it falls back to 1. */
+	const char *sql = "insert into ftx_rules (id, description, field, regex, min, max, cq_priority_adj, ans_priority_adj) "
+		"select COALESCE((SELECT t1.id+1 FROM ftx_rules t1 LEFT JOIN ftx_rules t2 ON t1.id+1 = t2.id "
+		"WHERE t2.id IS NULL ORDER BY t1.id LIMIT 1), 1), ?, ?, NULL, ?, ?, ?, ?;";
 	sqlite3_stmt *stmt = NULL;
 	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rc != SQLITE_OK) {

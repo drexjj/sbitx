@@ -233,11 +233,73 @@ static void on_priority_changed(GtkSpinButton *spin, gpointer user_data)
 }
 
 /*!
-	For now, to update a rule, delete it and add a new one.
+	To update a rule, delete it and add a new one.
+	This can result in it having a different ID:
+	it's likely to be a low-valued one.
 */
 static void on_update_clicked(GtkButton *btn, gpointer user_data)
 {
 	int sel_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dialog), "selected-id"));
+	if (sel_id > 0) {
+		// Find the corresponding row in the list store and compare values.
+		GtkTreeIter iter;
+		gboolean valid = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
+		while (valid) {
+			gint id;
+			gtk_tree_model_get(GTK_TREE_MODEL(store), &iter, COL_ID, &id, -1);
+			if (id == sel_id) {
+				char *model_desc = NULL;
+				char *model_regex = NULL;
+				int model_field = 0;
+				int model_cq = 0, model_ans = 0;
+				int model_min = 0, model_max = 0;
+				gtk_tree_model_get(GTK_TREE_MODEL(store), &iter,
+					COL_DESC, &model_desc,
+					COL_FIELD, &model_field,
+					COL_CQ_ADJ, &model_cq,
+					COL_ANS_ADJ, &model_ans,
+					COL_MIN, &model_min,
+					COL_MAX, &model_max,
+					COL_REGEX, &model_regex,
+					-1);
+
+				const char *ui_desc = gtk_entry_get_text(GTK_ENTRY(entry_desc));
+				int ui_field = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_field)) + 1;
+				int ui_cq = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_cq));
+				int ui_ans = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_ans));
+				bool unchanged = false;
+
+				if (is_numeric_field(ui_field)) {
+					int ui_min = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_min));
+					int ui_max = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_max));
+					unchanged = (g_strcmp0(model_desc, ui_desc) == 0 &&
+																		model_field == ui_field &&
+																		model_cq == ui_cq &&
+																		model_ans == ui_ans &&
+																		model_min == ui_min &&
+																		model_max == ui_max);
+				} else {
+					const char *ui_regex = gtk_entry_get_text(GTK_ENTRY(entry_regex));
+					unchanged = (g_strcmp0(model_desc, ui_desc) == 0 &&
+																		model_field == ui_field &&
+																		model_cq == ui_cq &&
+																		model_ans == ui_ans &&
+																		g_strcmp0(model_regex, ui_regex) == 0);
+				}
+
+				g_free(model_desc);
+				g_free(model_regex);
+
+				if (unchanged) {
+					// Nothing changed, nothing to do.
+					return;
+				}
+				break;
+			}
+			valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &iter);
+		}
+	}
+
 	if (sel_id > 0)
 		ftx_delete_rule((int8_t)sel_id);
 
@@ -395,7 +457,7 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	// Buttons row
 	hbox_buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
 	gtk_box_pack_start(GTK_BOX(vbox), hbox_buttons, FALSE, FALSE, 0);
-	btn_update = gtk_button_new_with_label("Update Rule");
+	btn_update = gtk_button_new_with_label("Save Changes");
 	btn_delete = gtk_button_new_with_label("Delete Rule");
 	btn_close = gtk_button_new_with_label("Close");
 	gtk_box_pack_end(GTK_BOX(hbox_buttons), btn_close, FALSE, FALSE, 0);
