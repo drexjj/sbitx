@@ -896,14 +896,17 @@ void export_button_clicked(GtkWidget* window)
 	gtk_widget_destroy(dialog);
 }
 
-// Signal handler to allow only uppercase letters and numbers for Callsign
+/*!
+	Validator (signal handler) for callsigns.
+	Allows only uppercase letters, numbers, slashes and hyphens.
+*/
 static void on_callsign_changed(GtkWidget* widget, gpointer data)
 {
 	const gchar* text = gtk_entry_get_text(GTK_ENTRY(widget));
 	gchar* result = g_strdup(text);
 
 	for (int i = 0; i < strlen(text); ++i) {
-		if (!isalnum(text[i])) {
+		if (!(isalnum(text[i]) || text[i] == '/' || text[i] == '-')) {
 			result[i] = '\0';
 		} else {
 			result[i] = toupper(text[i]);
