@@ -1,13 +1,21 @@
 # v5.3 - Currently In Test/Dev
 **New Features:**
-- Refactored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen.
-- CW decoding while sending
-- "Quick Options" menu by holding both encoder buttons for 2 seconds.
-- `\cal` command for calibrating the scale per band (external Power/SWR meter required).
+- Refactored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen. (Jared KJ5DTK)
+- CW decoding while sending (Jared KJ5DTK)
+- "Quick Options" menu by holding both encoder buttons for 2 seconds. (Jared KJ5DTK)
+- `\cal` command for calibrating the scale per band (external Power/SWR meter required). (Jared KJ5DTK)
 - `\snap` command to take screen shot of sBitx software
-- Voltage and Current added to UI by VFO
-- Power and SWR shown with a decimal place
+- Voltage and Current added to UI by VFO (Jared KJ5DTK)
+- Power and SWR shown with a decimal place (Jared KJ5DTK)
 - Added High SWR trigger and auto power reduction to 1 which is configurable by the \maxvswr command, default to 3:1
+- ADIF UDP Logging Support (Jared KJ5DTK).  
+  + Configured via user_settings.ini: 
+    ```
+    #adif_broadcast_enable=OFF
+    #adif_broadcast_ip=127.0.0.1
+    #adif_broadcast_port=2237
+    ```
+  + Can be used to log to a local or remote logbook.  Or to FT8battle.com 
 - **FTx features** (Shawn K7IHZ / LB2JK):
   + Updated to latest ft8_lib. It now labels spans in the message text so we get them identified correctly.
   + Support for non-standard calls (special stations, prefixes used while travelling, etc.)

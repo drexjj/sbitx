@@ -26,6 +26,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "logbook.h"
+#include "adif_broadcast.h"
 
 #include <sqlite3.h>
 
@@ -399,6 +400,9 @@ void logbook_add(const char* contact_callsign, const char* rst_sent, const char*
 		logbook_open();
 
 	sqlite3_exec(db, statement, 0, 0, &err_msg);
+
+	// Broadcast ADIF record via UDP if enabled
+	adif_broadcast_qso();
 
 	logbook_refill(NULL);
 }

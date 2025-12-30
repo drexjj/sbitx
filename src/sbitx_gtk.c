@@ -47,6 +47,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "modem_ft8.h"
 #include "modem_cw.h"
 #include "i2cbb.h"
+#include "adif_broadcast.h"
 #include "webserver.h"
 #include "logbook.h"
 #include "hist_disp.h"
@@ -1121,6 +1122,13 @@ struct field main_controls[] = {
 
 	{"#telneturl", NULL, 1000, -1000, 400, 149, "TELNETURL", 70, "dxc.nc7j.com:7373", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 32, 1, 0},
+
+	{"#adif_broadcast_enable", NULL, 1000, -1000, 50, 50, "ADIF_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#adif_broadcast_ip", NULL, 1000, -1000, 150, 50, "ADIF_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 20, 1, 0},
+	{"#adif_broadcast_port", NULL, 1000, -1000, 50, 50, "ADIF_PORT", 40, "12060", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 1024, 65535, 1, 0},
 
   // macros keyboard
 
@@ -10911,6 +10919,9 @@ void cleanup_on_exit() {
 
 	// Add any other cleanup tasks here
 	printf("Cleaning up resources before exit\n");
+
+	// Close ADIF broadcast socket
+	adif_broadcast_close();
 
 	clear_ftx_rules();
 }
