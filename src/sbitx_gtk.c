@@ -48,6 +48,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "modem_cw.h"
 #include "i2cbb.h"
 #include "adif_broadcast.h"
+#include "wsjtx_broadcast.h"
 #include "webserver.h"
 #include "logbook.h"
 #include "hist_disp.h"
@@ -1131,6 +1132,13 @@ struct field main_controls[] = {
 	{"#adif_broadcast_ip", NULL, 1000, -1000, 150, 50, "ADIF_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 20, 1, 0},
 	{"#adif_broadcast_port", NULL, 1000, -1000, 50, 50, "ADIF_PORT", 40, "12060", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 1024, 65535, 1, 0},
+
+	{"#wsjtx_broadcast_enable", NULL, 1000, -1000, 50, 50, "WSJTX_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#wsjtx_broadcast_ip", NULL, 1000, -1000, 150, 50, "WSJTX_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 20, 1, 0},
+	{"#wsjtx_broadcast_port", NULL, 1000, -1000, 50, 50, "WSJTX_PORT", 40, "2237", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1024, 65535, 1, 0},
 
   // macros keyboard
@@ -10826,6 +10834,10 @@ int main(int argc, char *argv[])
 		ini_parse(directory, user_settings_handler, NULL);
 	}
 
+	// Initialize WSJT-X UDP broadcast
+	wsjtx_broadcast_init();
+	wsjtx_broadcast_heartbeat();
+
 	// the logger fields may have an unfinished qso details
 	call_wipe();
 
@@ -10835,6 +10847,10 @@ int main(int argc, char *argv[])
 
 	// now set the frequency of operation and more to vfo_a
 	set_field("r1:freq", get_field("#vfo_a_freq")->value);
+
+	// Send initial WSJT-X status after frequency is set
+	// Gridtracker needs Status messages to establish the station context
+	wsjtx_broadcast_status_auto();
 
 	console_init();
 	write_console(STYLE_LOG, VER_STR);
@@ -10930,6 +10946,9 @@ void cleanup_on_exit() {
 
 	// Close ADIF broadcast socket
 	adif_broadcast_close();
+
+	// Close WSJT-X broadcast socket
+	wsjtx_broadcast_close();
 
 	clear_ftx_rules();
 }
