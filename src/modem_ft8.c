@@ -1009,6 +1009,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			console_extract_semantic(highest_priority_row, STYLE_CALLER, cand_callsign, sizeof(cand_callsign));
 			console_extract_semantic(highest_priority_row, STYLE_FREQ, cand_exch, sizeof(cand_exch)); // not really: just use the same buffer
 			cand_pitch = atoi(cand_exch);
+			memset(cand_exch, 0, sizeof(cand_exch));
 			console_extract_semantic(highest_priority_row, STYLE_GRID, cand_exch, sizeof(cand_exch));
 
 			field_set("CALL", cand_callsign);
