@@ -648,6 +648,34 @@ struct band band_stack[] = {
 	{"10M", 28000000, 29700000, 0, {28000000, 28040000, 28074000, 28250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}, 50, 50},
 };
 
+// Standard WSJT-X FT8 and FT4 frequencies (dial frequencies in Hz)
+// Key format: "BAND-MODE" (e.g., "80M-FT8", "40M-FT4")
+static struct {
+	const char *key;
+	long frequency;
+} ftx_standard_frequencies[] = {
+	// FT8 frequencies
+	{"80M-FT8", 3573000},
+	{"60M-FT8", 5357000},
+	{"40M-FT8", 7074000},
+	{"30M-FT8", 10136000},
+	{"20M-FT8", 14074000},
+	{"17M-FT8", 18100000},
+	{"15M-FT8", 21074000},
+	{"12M-FT8", 24915000},
+	{"10M-FT8", 28074000},
+	// FT4 frequencies (Note: 60M does not have a standard FT4 frequency)
+	{"80M-FT4", 3575000},
+	{"40M-FT4", 7047500},
+	{"30M-FT4", 10140000},
+	{"20M-FT4", 14080000},
+	{"17M-FT4", 18104000},
+	{"15M-FT4", 21140000},
+	{"12M-FT4", 24919000},
+	{"10M-FT4", 28180000},
+	{NULL, 0}
+};
+
 char *stack_place[4] = {"=---", "-=--", "--=-", "---="};
 char *place_char = "=";
 
@@ -708,6 +736,8 @@ int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int
 int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 struct band *get_band_by_frequency(int frequency);
+static void set_ftx_frequency(int mode);
+static long get_ftx_frequency_for_band(int band_index, int mode);
 void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
@@ -732,6 +762,8 @@ struct field main_controls[] = {
 
 	// Off Screen Items:
 	{"#band_stack_pos_option", do_toggle_option, 1000, -1000, 40, 40, "BSTACKPOSOPT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#ftx_auto_freq", do_toggle_option, 1000, -1000, 40, 40, "FTXAUTOFREQ", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"#snap", NULL, 1000, -1000, 40, 40, "SNAP", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
    	"", 0, 0, 0, COMMON_CONTROL},
@@ -6176,6 +6208,9 @@ int do_mode_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		{
 			strcpy(prev_value, f->value);
 			update_current_band_stack();
+
+			// Auto-set frequency when switching TO FT4 or FT8
+			set_ftx_frequency(mode_id(f->value));
 		}
 
 		return result;
@@ -8849,6 +8884,9 @@ void set_radio_mode(char *mode)
 	struct field *f = get_field_by_label("MODE");
 	if (strcmp(f->value, umode))
 		field_set("MODE", umode);
+
+	// Auto-set frequency when switching TO FT4 or FT8 (for web interface)
+	set_ftx_frequency(mode_id(umode));
 }
 
 // Long press Volume control to reveal the EQ settings -W2JON
@@ -9482,6 +9520,83 @@ int is_in_tx()
 	return in_tx;
 }
 
+// Auto-set FTx frequency for the given mode based on current band
+// Called when mode changes to FT4/FT8 or when band changes while in FT4/FT8
+static void set_ftx_frequency(int mode)
+{
+	if (mode != MODE_FT4 && mode != MODE_FT8) {
+		return; // Only applies to FT4/FT8 modes
+	}
+
+	struct field *freq_field = get_field("r1:freq");
+	if (!freq_field) {
+		return;
+	}
+
+	long current_freq = atol(freq_field->value);
+	struct band *current_band = get_band_by_frequency(current_freq);
+
+	if (!current_band) {
+		return;
+	}
+
+	int band_index = current_band - band_stack;
+	long ftx_freq = get_ftx_frequency_for_band(band_index, mode);
+
+	if (ftx_freq > 0) {
+		char freq_str[20];
+		char resp[100];
+		sprintf(freq_str, "%ld", ftx_freq);
+		set_operating_freq(ftx_freq, resp);
+		field_set("FREQ", freq_str);
+
+		// Update band stack with new frequency
+		int stack_pos = current_band->index;
+		if (stack_pos >= 0 && stack_pos < STACK_DEPTH) {
+			current_band->freq[stack_pos] = ftx_freq;
+		}
+	}
+}
+
+// Get standard FT4/FT8 frequency for a given band and mode
+// Returns 0 if feature is disabled or frequency not found
+static long get_ftx_frequency_for_band(int band_index, int mode)
+{
+	// Check if auto-frequency feature is enabled
+	const char *auto_freq = field_str("FTXAUTOFREQ");
+	if (!auto_freq || strcmp(auto_freq, "ON") != 0) {
+		return 0;
+	}
+
+	if (band_index < 0 || band_index >= (sizeof(band_stack) / sizeof(struct band))) {
+		return 0;
+	}
+
+	// Get mode string
+	const char *mode_str = NULL;
+	if (mode == MODE_FT8) {
+		mode_str = "FT8";
+	} else if (mode == MODE_FT4) {
+		mode_str = "FT4";
+	} else {
+		return 0; // Not an FTx mode
+	}
+
+	// Construct lookup key: "BAND-MODE" (e.g., "80M-FT8")
+	const char *band_name = band_stack[band_index].name;
+	char key[16];
+	snprintf(key, sizeof(key), "%s-%s", band_name, mode_str);
+
+	// Search for the frequency in the table
+	for (int i = 0; ftx_standard_frequencies[i].key != NULL; i++) {
+		if (!strcmp(key, ftx_standard_frequencies[i].key)) {
+			return ftx_standard_frequencies[i].frequency;
+		}
+	}
+
+	return 0; // Not found
+}
+
 /* handle the ui request and update the controls */
 
 void change_band(char *request)
@@ -9563,6 +9678,10 @@ void change_band(char *request)
 	}
 	field_set("MODE", mode_name[mode_ix]);
 	update_field(get_field("r1:mode"));
+
+	// Auto-set frequency when changing bands IN FT4 or FT8 mode
+	set_ftx_frequency(mode_ix);
+
 	highlight_band_field(new_band);
 	update_current_band_stack();
 
