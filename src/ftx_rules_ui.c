@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "ftx_rules.h"
+#include "touch_combo.h"
 
 // List store and tree view columns
 enum {
@@ -127,7 +128,7 @@ static void on_selection_changed(GtkTreeSelection *sel, gpointer user_data)
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_cq), cq_adj);
 		gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_ans), ans_adj);
 		programmatic_priority_change = false;
-		gtk_combo_box_set_active(GTK_COMBO_BOX(combo_field), field - 1);
+		touch_combo_set_active(combo_field, field - 1);
 		update_field_visibility(field);
 		if (is_numeric_field(field)) {
 			gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin_min), minv);
@@ -180,10 +181,10 @@ static void refresh_rules_list()
 	ftx_rule_end_query(q);
 }
 
-static void on_field_changed(GtkComboBox *cb, gpointer user_data)
+static void on_field_changed(GtkWidget *widget, gpointer user_data)
 {
-	const ftx_rules_field field = gtk_combo_box_get_active(GTK_COMBO_BOX(cb)) + 1;
-	// printf("cb chose field %d: numeric? %d\n", field, is_numeric_field(field));
+	const ftx_rules_field field = touch_combo_get_active(widget) + 1;
+	// printf("touch combo chose field %d: numeric? %d\n", field, is_numeric_field(field));
 	update_field_visibility(field);
 }
 
@@ -304,7 +305,7 @@ static void on_update_clicked(GtkButton *btn, gpointer user_data)
 		ftx_delete_rule((int8_t)sel_id);
 
 	const char *desc = gtk_entry_get_text(GTK_ENTRY(entry_desc));
-	ftx_rules_field field = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_field)) + 1;
+	ftx_rules_field field = touch_combo_get_active(combo_field) + 1;
 	int cq_adj = (int)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_cq));
 	int ans_adj = (int)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin_ans));
 	if (is_numeric_field(field)) {
@@ -407,11 +408,10 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	lbl_field = gtk_label_new("Field");
 	gtk_widget_set_halign(lbl_field, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), lbl_field, 0, 1, 1, 1);
-	combo_field = gtk_combo_box_text_new();
+	combo_field = touch_combo_new();
 	// populate with names from ftx_rule_field_name()
 	for (int f = RULE_FIELD_CALLSIGN; f < RULE_FIELD_COUNT; ++f)
-			gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_field),
-				NULL, ftx_rule_field_name((ftx_rules_field)f));
+		touch_combo_append_text(combo_field, ftx_rule_field_name((ftx_rules_field)f));
 	gtk_grid_attach(GTK_GRID(grid), combo_field, 1, 1, 1, 1);
 
 	// Regex entry (shown only for regex rules)
@@ -468,7 +468,7 @@ GtkWidget *ftx_rules_ui(GtkWidget* parentWindow)
 	GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree));
 	gtk_tree_selection_set_mode(sel, GTK_SELECTION_SINGLE);
 	g_signal_connect(sel, "changed", G_CALLBACK(on_selection_changed), NULL);
-	g_signal_connect(combo_field, "changed", G_CALLBACK(on_field_changed), NULL);
+	touch_combo_set_changed_callback(combo_field, G_CALLBACK(on_field_changed), NULL);
 	g_signal_connect(btn_add, "clicked", G_CALLBACK(on_add_clicked), NULL);
 	g_signal_connect(btn_update, "clicked", G_CALLBACK(on_update_clicked), NULL);
 	g_signal_connect(btn_delete, "clicked", G_CALLBACK(on_delete_clicked), NULL);

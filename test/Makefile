@@ -4,5 +4,5 @@ LIBS += -fsanitize=address -static-libasan
 CC = gcc
 LINK = gcc
 
-ftxrules: ../src/ftx_rules_ui.c ../src/ftx_rules.c ftxrules_main.c
+ftxrules: ../src/ftx_rules_ui.c ../src/ftx_rules.c ../src/touch_combo.c ftxrules_main.c
 	gcc -o ftxrules $(CFLAGS) $(LFLAGS) $(LIBS) $^

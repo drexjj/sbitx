@@ -1,4 +1,4 @@
-/* 
+/*
 	By Ashhar Farhan and chatGPT.
 	Under GPL v3
 
@@ -21,7 +21,7 @@ At first it wrote it in python as I had not specified C, then I asked:
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 #include <math.h>
 #include <complex.h>
 #include <fftw3.h>
@@ -48,7 +48,7 @@ At first it wrote it in python as I had not specified C, then I asked:
 #include "sound.h"
 #include "modem_ft8.h"
 #include "modem_cw.h"
-
+#include "touch_combo.h"
 
 // Function to handle the OK button click event
 static void ok_button_clicked(GtkWidget *widget, gpointer data) {
@@ -63,7 +63,7 @@ static void ok_button_clicked(GtkWidget *widget, gpointer data) {
 		field_set("MYCALLSIGN", callsign);
 		field_set("MYGRID", my_grid);
 		field_set("PASSKEY", pin);
-		
+
     g_print("Callsign: %s\n", callsign);
     g_print("My Grid: %s\n", my_grid);
     g_print("PIN: %s\n", pin);
@@ -168,24 +168,24 @@ void settings_ui(GtkWidget* parent){
 		gtk_entry_set_text(GTK_ENTRY(entry_grid), (gchar *)field_str("MYGRID"));
 
     // xOTA selection (IOTA/SOTA/POTA) and location
-    combo = gtk_combo_box_text_new();
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "NONE");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "IOTA");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "SOTA");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "POTA");
+    combo = touch_combo_new();
+    touch_combo_append_text(combo, "NONE");
+    touch_combo_append_text(combo, "IOTA");
+    touch_combo_append_text(combo, "SOTA");
+    touch_combo_append_text(combo, "POTA");
     {
 		const gchar *xota_type = (gchar *)field_str("xOTA");
 		if (xota_type && *xota_type) {
 			if (g_ascii_strcasecmp(xota_type, "IOTA") == 0)
-				gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 1);
+				touch_combo_set_active(combo, 1);
 			else if (g_ascii_strcasecmp(xota_type, "SOTA") == 0)
-				gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 2);
+				touch_combo_set_active(combo, 2);
 			else if (g_ascii_strcasecmp(xota_type, "POTA") == 0)
-				gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 3);
+				touch_combo_set_active(combo, 3);
 			else
-				gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+				touch_combo_set_active(combo, 0);
 		} else {
-			gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+			touch_combo_set_active(combo, 0);
 		}
     }
     gtk_grid_attach(GTK_GRID(grid), combo, 0, 2, 1, 1);
@@ -225,7 +225,7 @@ void settings_ui(GtkWidget* parent){
         const gchar *pin = gtk_entry_get_text(GTK_ENTRY(entry_pin));
         const gchar *grid = gtk_entry_get_text(GTK_ENTRY(entry_grid));
         const gchar *xota_loc = gtk_entry_get_text(GTK_ENTRY(entry_xota));
-		const gchar *xota = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo));
+		const gchar *xota = touch_combo_get_active_text(combo);
 
     // You can perform operations with the retrieved data here
     // For example, print them to the console
