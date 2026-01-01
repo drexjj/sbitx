@@ -1,5 +1,5 @@
-#ifndef WSJTX_BROADCAST_H
-#define WSJTX_BROADCAST_H
+#ifndef UDP_BROADCAST_H
+#define UDP_BROADCAST_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,19 +19,19 @@
  * Initialize the WSJT-X UDP broadcast socket
  * Returns 0 on success, -1 on error
  */
-int wsjtx_broadcast_init(void);
+int udp_broadcast_init(void);
 
 /**
  * Close the WSJT-X UDP broadcast socket
  */
-void wsjtx_broadcast_close(void);
+void udp_broadcast_close(void);
 
 /**
  * Send a Heartbeat message (Type 0)
  * Should be called on startup and periodically (every 15 seconds)
  * Returns 0 on success, -1 on error
  */
-int wsjtx_broadcast_heartbeat(void);
+int udp_broadcast_heartbeat(void);
 
 /**
  * Send a Status message (Type 1)
@@ -50,7 +50,7 @@ int wsjtx_broadcast_heartbeat(void);
  * @param de_grid Own grid square
  * @param dx_grid DX grid square (or "")
  */
-int wsjtx_broadcast_status(
+int udp_broadcast_status(
     uint64_t frequency,
     const char *mode,
     const char *dx_call,
@@ -78,7 +78,7 @@ int wsjtx_broadcast_status(
  * @param low_confidence Whether decode has low confidence
  * @param off_air Whether this is a transmitted message (not received)
  */
-int wsjtx_broadcast_decode(
+int udp_broadcast_decode(
     uint32_t time_ms,
     int32_t snr,
     double delta_time,
@@ -95,7 +95,7 @@ int wsjtx_broadcast_decode(
  * @param timestamp String in format "HH:MM:SS" or "HHMMSS"
  * @return Milliseconds since midnight
  */
-uint32_t wsjtx_timestamp_to_ms(const char *timestamp);
+uint32_t udp_timestamp_to_ms(const char *timestamp);
 
 /**
  * Send a Status message using current radio state from fields
@@ -103,6 +103,6 @@ uint32_t wsjtx_timestamp_to_ms(const char *timestamp);
  * from the sbitx field system and sends a Status message.
  * Returns 0 on success, -1 on error
  */
-int wsjtx_broadcast_status_auto(void);
+int udp_broadcast_status_auto(void);
 
-#endif /* WSJTX_BROADCAST_H */
+#endif /* UDP_BROADCAST_H */

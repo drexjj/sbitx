@@ -1,4 +1,4 @@
-#include "wsjtx_broadcast.h"
+#include "udp_broadcast.h"
 #include "sdr_ui.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,20 +113,20 @@ static void encode_header(uint32_t msg_type) {
 /**
  * Initialize the WSJT-X broadcast socket
  */
-int wsjtx_broadcast_init(void) {
-    const char *enabled = field_str("WSJTX_BROADCAST");
+int udp_broadcast_init(void) {
+    const char *enabled = field_str("UDP_BROADCAST");
 
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0; /* Not enabled, not an error */
     }
 
     /* Get IP and port - these settings use # prefix so label matches */
-    const char *ip = field_str("WSJTX_IP");
+    const char *ip = field_str("UDP_IP");
     if (ip == NULL || !ip[0]) {
         ip = "127.0.0.1";
     }
 
-    const char *port_str = field_str("WSJTX_PORT");
+    const char *port_str = field_str("UDP_PORT");
     int port = 2237; /* Default port */
     if (port_str != NULL && port_str[0]) {
         port = atoi(port_str);
@@ -181,7 +181,7 @@ int wsjtx_broadcast_init(void) {
 /**
  * Close the WSJT-X broadcast socket
  */
-void wsjtx_broadcast_close(void) {
+void udp_broadcast_close(void) {
     if (broadcast_socket >= 0) {
         close(broadcast_socket);
         broadcast_socket = -1;
@@ -193,12 +193,12 @@ void wsjtx_broadcast_close(void) {
  */
 static int send_message(void) {
     if (broadcast_socket < 0) {
-        if (wsjtx_broadcast_init() < 0) {
+        if (udp_broadcast_init() < 0) {
             return -1;
         }
     }
 
-    const char *enabled = field_str("WSJTX_BROADCAST");
+    const char *enabled = field_str("UDP_BROADCAST");
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0; /* Not enabled */
     }
@@ -219,7 +219,7 @@ static int send_message(void) {
 /**
  * Send a Heartbeat message (Type 0)
  */
-int wsjtx_broadcast_heartbeat(void) {
+int udp_broadcast_heartbeat(void) {
     encode_header(WSJTX_MSG_HEARTBEAT);
     encode_utf8(WSJTX_ID);
     encode_quint32(WSJTX_SCHEMA);
@@ -232,7 +232,7 @@ int wsjtx_broadcast_heartbeat(void) {
 /**
  * Send a Status message (Type 1)
  */
-int wsjtx_broadcast_status(
+int udp_broadcast_status(
     uint64_t frequency,
     const char *mode,
     const char *dx_call,
@@ -321,7 +321,7 @@ int wsjtx_broadcast_status(
 /**
  * Send a Decode message (Type 2)
  */
-int wsjtx_broadcast_decode(
+int udp_broadcast_decode(
     uint32_t time_ms,
     int32_t snr,
     double delta_time,
@@ -369,7 +369,7 @@ int wsjtx_broadcast_decode(
 /**
  * Helper: Convert HH:MM:SS timestamp to milliseconds since midnight
  */
-uint32_t wsjtx_timestamp_to_ms(const char *timestamp) {
+uint32_t udp_timestamp_to_ms(const char *timestamp) {
     if (timestamp == NULL) {
         return 0;
     }
@@ -395,9 +395,9 @@ uint32_t wsjtx_timestamp_to_ms(const char *timestamp) {
 /**
  * Send a Status message using current radio state from fields
  */
-int wsjtx_broadcast_status_auto(void) {
+int udp_broadcast_status_auto(void) {
     /* Check if broadcasting is enabled */
-    const char *enabled = field_str("WSJTX_BROADCAST");
+    const char *enabled = field_str("UDP_BROADCAST");
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0;
     }
@@ -452,7 +452,7 @@ int wsjtx_broadcast_status_auto(void) {
     uint32_t rx_df = (rx_df_str && rx_df_str[0]) ? (uint32_t)atoi(rx_df_str) : 0;
     uint32_t tx_df = rx_df; /* TX pitch = RX pitch (no separate TX pitch field) */
 
-    return wsjtx_broadcast_status(frequency, mode, dx_call, report,
-                                   tx_enabled, transmitting, decoding,
-                                   rx_df, tx_df, de_call, de_grid, dx_grid);
+    return udp_broadcast_status(frequency, mode, dx_call, report,
+                                 tx_enabled, transmitting, decoding,
+                                 rx_df, tx_df, de_call, de_grid, dx_grid);
 }

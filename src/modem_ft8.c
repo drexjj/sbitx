@@ -18,7 +18,7 @@
 #include "sdr_ui.h"
 #include "modem_ft8.h"
 #include "logbook.h"
-#include "wsjtx_broadcast.h"
+#include "udp_broadcast.h"
 
 #define LOG_LEVEL LOG_INFO
 
@@ -979,7 +979,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 			// Broadcast decode to WSJT-X compatible applications (e.g., Gridtracker)
 			const char *mode_str = is_ft8 ? "~" : "+";
-			wsjtx_broadcast_decode(raw_ms, cand->snr, 0.0, freq_hz, mode_str,
+			udp_broadcast_decode(raw_ms, cand->snr, 0.0, freq_hz, mode_str,
 			                       decoded[idx_hash].text, false, false);
 
 			if (priority > highest_priority) {
@@ -1047,7 +1047,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     // Send status update after decode cycle
     // This keeps Gridtracker updated with current radio state
     if (n_decodes > 0) {
-        wsjtx_broadcast_status_auto();
+        udp_broadcast_status_auto();
     }
 
     return n_decodes;
@@ -1169,11 +1169,11 @@ static void ftx_start_tx(int offset_ms){
 	// Broadcast transmitted message to WSJT-X compatible applications
 	bool is_ft8_mode = !strcmp(field_str("MODE"), "FT8");
 	const char *tx_mode_str = is_ft8_mode ? "~" : "+";
-	wsjtx_broadcast_decode(wallclock_day_ms % 86400000, 0, 0.0, ftx_pitch, tx_mode_str,
-	                       ftx_xota ? ftx_xota_text : ftx_tx_text, false, true);
+	udp_broadcast_decode(wallclock_day_ms % 86400000, 0, 0.0, ftx_pitch, tx_mode_str,
+	                     ftx_xota ? ftx_xota_text : ftx_tx_text, false, true);
 
 	// Send status update to indicate we're transmitting
-	wsjtx_broadcast_status_auto();
+	udp_broadcast_status_auto();
 
 	const int message_type = ftx_message_get_i3(&ftx_tx_msg);
 	LOG(LOG_INFO, ">> %d.%c rpt %d %s", message_type,
