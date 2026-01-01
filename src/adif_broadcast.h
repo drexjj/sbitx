@@ -1,8 +1,8 @@
 #ifndef ADIF_BROADCAST_H
 #define ADIF_BROADCAST_H
 
-// Initialize ADIF UDP broadcast (called on first use)
-int adif_broadcast_init(const char *ip, int port);
+// Initialize ADIF UDP broadcast (reads settings from fields)
+int adif_broadcast_init(void);
 
 // Broadcast the most recently logged QSO
 int adif_broadcast_qso(void);

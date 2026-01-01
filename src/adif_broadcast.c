@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <complex.h>
@@ -15,50 +16,234 @@
 #include "logbook.h"
 #include "adif_broadcast.h"
 
-static int broadcast_socket = -1;
-static struct sockaddr_in broadcast_addr;
-static char last_ip[20] = "";
-static int last_port = 0;
+/* Multi-destination support */
+#define MAX_DESTINATIONS 10
+#define MAX_DEST_STRING 256
 
-int adif_broadcast_init(const char *ip, int port) {
-	// Close existing socket if IP/port changed
-	if (broadcast_socket >= 0 &&
-		(strcmp(ip, last_ip) != 0 || port != last_port)) {
-		close(broadcast_socket);
-		broadcast_socket = -1;
-	}
+/* Destination structure */
+struct destination {
+    char host[256];  /* IP address or hostname */
+    int port;
+    int socket;
+    struct sockaddr_in addr;
+    int initialized;
+};
 
-	// Already initialized with same settings
-	if (broadcast_socket >= 0)
+/* Static variables for socket management */
+static struct destination destinations[MAX_DESTINATIONS];
+static int num_destinations = 0;
+static char last_destinations_str[MAX_DEST_STRING] = "";
+
+/**
+ * Parse semicolon-delimited destination string
+ * Format: "IP:port;IP:port;..."
+ * Returns: Number of valid destinations parsed
+ */
+static int parse_destinations(const char *dest_str, struct destination *dests, int max_dests) {
+	if (dest_str == NULL || dest_str[0] == '\0') {
 		return 0;
+	}
 
-	// Create UDP socket
-	broadcast_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (broadcast_socket < 0) {
-		printf("ADIF Broadcast: Failed to create socket: %s\n", strerror(errno));
+	char buffer[MAX_DEST_STRING];
+	strncpy(buffer, dest_str, sizeof(buffer) - 1);
+	buffer[sizeof(buffer) - 1] = '\0';
+
+	int count = 0;
+	char *saveptr;
+	char *token = strtok_r(buffer, ";", &saveptr);
+
+	while (token != NULL && count < max_dests) {
+		/* Trim leading whitespace */
+		while (*token == ' ' || *token == '\t') {
+			token++;
+		}
+
+		/* Skip empty tokens */
+		if (*token == '\0') {
+			token = strtok_r(NULL, ";", &saveptr);
+			continue;
+		}
+
+		/* Find colon separator */
+		char *colon = strchr(token, ':');
+		if (colon == NULL) {
+			printf("ADIF: Malformed destination (no colon): %s\n", token);
+			token = strtok_r(NULL, ";", &saveptr);
+			continue;
+		}
+
+		/* Split IP and port */
+		*colon = '\0';
+		char *ip = token;
+		char *port_str = colon + 1;
+
+		/* Trim trailing whitespace from IP */
+		char *end = colon - 1;
+		while (end > ip && (*end == ' ' || *end == '\t')) {
+			*end = '\0';
+			end--;
+		}
+
+		/* Trim whitespace from port */
+		while (*port_str == ' ' || *port_str == '\t') {
+			port_str++;
+		}
+
+		/* Validate hostname/IP is not empty */
+		if (ip[0] == '\0') {
+			printf("ADIF: Empty hostname/IP in destination\n");
+			token = strtok_r(NULL, ";", &saveptr);
+			continue;
+		}
+
+		/* Validate port */
+		int port = atoi(port_str);
+		if (port < 1024 || port > 65535) {
+			printf("ADIF: Invalid port %d (must be 1024-65535): %s:%s\n", port, ip, port_str);
+			token = strtok_r(NULL, ";", &saveptr);
+			continue;
+		}
+
+		/* Store parsed destination (hostname or IP) */
+		strncpy(dests[count].host, ip, sizeof(dests[count].host) - 1);
+		dests[count].host[sizeof(dests[count].host) - 1] = '\0';
+		dests[count].port = port;
+		dests[count].socket = -1;
+		dests[count].initialized = 0;
+		count++;
+
+		token = strtok_r(NULL, ";", &saveptr);
+	}
+
+	if (count >= max_dests && token != NULL) {
+		printf("ADIF: Warning - maximum %d destinations supported, ignoring extras\n", max_dests);
+	}
+
+	return count;
+}
+
+/**
+ * Initialize a single destination socket
+ */
+static int init_destination(struct destination *dest) {
+	/* Resolve hostname/IP to address */
+	struct addrinfo hints, *result, *rp;
+	char port_str[8];
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;        /* IPv4 */
+	hints.ai_socktype = SOCK_DGRAM;   /* UDP */
+	hints.ai_flags = 0;
+	hints.ai_protocol = IPPROTO_UDP;
+
+	snprintf(port_str, sizeof(port_str), "%d", dest->port);
+
+	int gai_error = getaddrinfo(dest->host, port_str, &hints, &result);
+	if (gai_error != 0) {
+		printf("ADIF: Failed to resolve %s:%d: %s\n",
+				dest->host, dest->port, gai_strerror(gai_error));
 		return -1;
 	}
 
-	// Set non-blocking
-	int flags = fcntl(broadcast_socket, F_GETFL, 0);
-	fcntl(broadcast_socket, F_SETFL, flags | O_NONBLOCK);
+	/* Try each address until we successfully create a socket */
+	int sock = -1;
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sock >= 0) {
+			/* Copy the resolved address */
+			memcpy(&dest->addr, rp->ai_addr, sizeof(dest->addr));
+			break;
+		}
+	}
 
-	// Configure destination address
-	memset(&broadcast_addr, 0, sizeof(broadcast_addr));
-	broadcast_addr.sin_family = AF_INET;
-	broadcast_addr.sin_port = htons(port);
+	freeaddrinfo(result);
 
-	if (inet_aton(ip, &broadcast_addr.sin_addr) == 0) {
-		printf("ADIF Broadcast: Invalid IP address: %s\n", ip);
-		close(broadcast_socket);
-		broadcast_socket = -1;
+	if (sock < 0) {
+		printf("ADIF: Failed to create socket for %s:%d: %s\n",
+				dest->host, dest->port, strerror(errno));
 		return -1;
 	}
 
-	strncpy(last_ip, ip, sizeof(last_ip) - 1);
-	last_port = port;
+	dest->socket = sock;
 
-	printf("ADIF Broadcast: Initialized UDP to %s:%d\n", ip, port);
+	/* Set non-blocking mode */
+	int flags = fcntl(dest->socket, F_GETFL, 0);
+	if (flags >= 0) {
+		fcntl(dest->socket, F_SETFL, flags | O_NONBLOCK);
+	}
+
+	dest->initialized = 1;
+	return 0;
+}
+
+/**
+ * Close all destination sockets
+ */
+static void close_all_destinations(void) {
+	for (int i = 0; i < num_destinations; i++) {
+		if (destinations[i].socket >= 0) {
+			close(destinations[i].socket);
+			destinations[i].socket = -1;
+		}
+		destinations[i].initialized = 0;
+	}
+	num_destinations = 0;
+}
+
+/**
+ * Initialize the ADIF broadcast socket(s)
+ */
+int adif_broadcast_init(void) {
+	const char *enabled = field_str("ADIF_BROADCAST");
+
+	if (enabled == NULL || strcmp(enabled, "ON") != 0) {
+		return 0; /* Not enabled, not an error */
+	}
+
+	/* Get destinations string */
+	const char *dest_str = field_str("ADIF_DESTINATIONS");
+	if (dest_str == NULL || dest_str[0] == '\0') {
+		dest_str = "127.0.0.1:12060"; /* Default */
+	}
+
+	/* Check if destinations changed */
+	if (strcmp(last_destinations_str, dest_str) == 0 && num_destinations > 0) {
+		return 0; /* Already initialized with same settings */
+	}
+
+	/* Close all old sockets */
+	close_all_destinations();
+
+	/* Parse new destinations */
+	num_destinations = parse_destinations(dest_str, destinations, MAX_DESTINATIONS);
+
+	if (num_destinations == 0) {
+		printf("ADIF: No valid destinations, trying default 127.0.0.1:12060\n");
+		/* Try default as fallback */
+		num_destinations = parse_destinations("127.0.0.1:12060", destinations, MAX_DESTINATIONS);
+		if (num_destinations == 0) {
+			return -1;
+		}
+	}
+
+	/* Initialize each destination socket */
+	int success_count = 0;
+	for (int i = 0; i < num_destinations; i++) {
+		if (init_destination(&destinations[i]) == 0) {
+			success_count++;
+		}
+	}
+
+	if (success_count == 0) {
+		printf("ADIF: Failed to initialize any destinations\n");
+		return -1;
+	}
+
+	/* Save current configuration */
+	strncpy(last_destinations_str, dest_str, sizeof(last_destinations_str) - 1);
+	last_destinations_str[sizeof(last_destinations_str) - 1] = '\0';
+
+	printf("ADIF: Initialized %d of %d destinations\n", success_count, num_destinations);
 	return 0;
 }
 
@@ -246,18 +431,11 @@ int adif_broadcast_qso(void) {
 
 	printf("ADIF Broadcast: Enabled, preparing to send...\n");
 
-	// Get IP and port from settings
-	const char *ip = field_str("ADIF_IP");
-	if (!ip || !ip[0])
-		ip = "127.0.0.1";
-
-	int port = field_int("ADIF_PORT");
-	if (port < 1024 || port > 65535)
-		port = 12060;
-
-	// Initialize socket if needed
-	if (adif_broadcast_init(ip, port) < 0)
-		return -1;
+	// Initialize sockets if needed (lazy init)
+	if (num_destinations == 0) {
+		if (adif_broadcast_init() < 0)
+			return -1;
+	}
 
 	// Open database connection
 	sqlite3 *db = NULL;
@@ -289,23 +467,32 @@ int adif_broadcast_qso(void) {
 
 	printf("ADIF Broadcast: Formatted record: %s\n", adif_buffer);
 
-	// Send via UDP
-	int sent = sendto(broadcast_socket, adif_buffer, len, 0,
-					  (struct sockaddr*)&broadcast_addr, sizeof(broadcast_addr));
+	// Send to all destinations
+	int success_count = 0;
+	for (int i = 0; i < num_destinations; i++) {
+		if (!destinations[i].initialized || destinations[i].socket < 0) {
+			continue;
+		}
 
-	if (sent < 0) {
-		printf("ADIF Broadcast: sendto failed: %s\n", strerror(errno));
-		return -1;
+		int sent = sendto(destinations[i].socket, adif_buffer, len, 0,
+						 (struct sockaddr*)&destinations[i].addr,
+						 sizeof(destinations[i].addr));
+
+		if (sent < 0) {
+			printf("ADIF Broadcast: sendto %s:%d failed: %s\n",
+				   destinations[i].host, destinations[i].port, strerror(errno));
+		} else {
+			printf("ADIF Broadcast: Sent %d bytes to %s:%d\n",
+				   sent, destinations[i].host, destinations[i].port);
+			success_count++;
+		}
 	}
 
-	printf("ADIF Broadcast: Sent %d bytes to %s:%d\n", sent, ip, port);
-	return 0;
+	return (success_count > 0) ? 0 : -1;
 }
 
 void adif_broadcast_close(void) {
-	if (broadcast_socket >= 0) {
-		close(broadcast_socket);
-		broadcast_socket = -1;
-		printf("ADIF Broadcast: Socket closed\n");
-	}
+	close_all_destinations();
+	last_destinations_str[0] = '\0';
+	printf("ADIF Broadcast: Sockets closed\n");
 }

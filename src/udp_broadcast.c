@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
@@ -23,11 +24,23 @@
 /* Maximum message buffer size */
 #define MAX_BUFFER_SIZE 2048
 
+/* Multi-destination support */
+#define MAX_DESTINATIONS 10
+#define MAX_DEST_STRING 256
+
+/* Destination structure */
+struct destination {
+    char host[256];  /* IP address or hostname */
+    int port;
+    int socket;
+    struct sockaddr_in addr;
+    int initialized;
+};
+
 /* Static variables for socket management */
-static int broadcast_socket = -1;
-static struct sockaddr_in broadcast_addr;
-static char last_ip[20] = "";
-static int last_port = 0;
+static struct destination destinations[MAX_DESTINATIONS];
+static int num_destinations = 0;
+static char last_destinations_str[MAX_DEST_STRING] = "";
 
 /* Unique ID for this application */
 static const char *WSJTX_ID = "sBitx";
@@ -111,7 +124,163 @@ static void encode_header(uint32_t msg_type) {
 }
 
 /**
- * Initialize the WSJT-X broadcast socket
+ * Parse semicolon-delimited destination string
+ * Format: "IP:port;IP:port;..."
+ * Returns: Number of valid destinations parsed
+ */
+static int parse_destinations(const char *dest_str, struct destination *dests, int max_dests) {
+    if (dest_str == NULL || dest_str[0] == '\0') {
+        return 0;
+    }
+
+    char buffer[MAX_DEST_STRING];
+    strncpy(buffer, dest_str, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    int count = 0;
+    char *saveptr;
+    char *token = strtok_r(buffer, ";", &saveptr);
+
+    while (token != NULL && count < max_dests) {
+        /* Trim leading whitespace */
+        while (*token == ' ' || *token == '\t') {
+            token++;
+        }
+
+        /* Skip empty tokens */
+        if (*token == '\0') {
+            token = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        /* Find colon separator */
+        char *colon = strchr(token, ':');
+        if (colon == NULL) {
+            fprintf(stderr, "UDP: Malformed destination (no colon): %s\n", token);
+            token = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        /* Split IP and port */
+        *colon = '\0';
+        char *ip = token;
+        char *port_str = colon + 1;
+
+        /* Trim trailing whitespace from IP */
+        char *end = colon - 1;
+        while (end > ip && (*end == ' ' || *end == '\t')) {
+            *end = '\0';
+            end--;
+        }
+
+        /* Trim whitespace from port */
+        while (*port_str == ' ' || *port_str == '\t') {
+            port_str++;
+        }
+
+        /* Validate hostname/IP is not empty */
+        if (ip[0] == '\0') {
+            fprintf(stderr, "UDP: Empty hostname/IP in destination\n");
+            token = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        /* Validate port */
+        int port = atoi(port_str);
+        if (port < 1024 || port > 65535) {
+            fprintf(stderr, "UDP: Invalid port %d (must be 1024-65535): %s:%s\n", port, ip, port_str);
+            token = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        /* Store parsed destination (hostname or IP) */
+        strncpy(dests[count].host, ip, sizeof(dests[count].host) - 1);
+        dests[count].host[sizeof(dests[count].host) - 1] = '\0';
+        dests[count].port = port;
+        dests[count].socket = -1;
+        dests[count].initialized = 0;
+        count++;
+
+        token = strtok_r(NULL, ";", &saveptr);
+    }
+
+    if (count >= max_dests && token != NULL) {
+        fprintf(stderr, "UDP: Warning - maximum %d destinations supported, ignoring extras\n", max_dests);
+    }
+
+    return count;
+}
+
+/**
+ * Initialize a single destination socket
+ */
+static int init_destination(struct destination *dest) {
+    /* Resolve hostname/IP to address */
+    struct addrinfo hints, *result, *rp;
+    char port_str[8];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;        /* IPv4 */
+    hints.ai_socktype = SOCK_DGRAM;   /* UDP */
+    hints.ai_flags = 0;
+    hints.ai_protocol = IPPROTO_UDP;
+
+    snprintf(port_str, sizeof(port_str), "%d", dest->port);
+
+    int gai_error = getaddrinfo(dest->host, port_str, &hints, &result);
+    if (gai_error != 0) {
+        fprintf(stderr, "UDP: Failed to resolve %s:%d: %s\n",
+                dest->host, dest->port, gai_strerror(gai_error));
+        return -1;
+    }
+
+    /* Try each address until we successfully create a socket */
+    int sock = -1;
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock >= 0) {
+            /* Copy the resolved address */
+            memcpy(&dest->addr, rp->ai_addr, sizeof(dest->addr));
+            break;
+        }
+    }
+
+    freeaddrinfo(result);
+
+    if (sock < 0) {
+        fprintf(stderr, "UDP: Failed to create socket for %s:%d: %s\n",
+                dest->host, dest->port, strerror(errno));
+        return -1;
+    }
+
+    dest->socket = sock;
+
+    /* Set non-blocking mode */
+    int flags = fcntl(dest->socket, F_GETFL, 0);
+    if (flags >= 0) {
+        fcntl(dest->socket, F_SETFL, flags | O_NONBLOCK);
+    }
+
+    dest->initialized = 1;
+    return 0;
+}
+
+/**
+ * Close all destination sockets
+ */
+static void close_all_destinations(void) {
+    for (int i = 0; i < num_destinations; i++) {
+        if (destinations[i].socket >= 0) {
+            close(destinations[i].socket);
+            destinations[i].socket = -1;
+        }
+        destinations[i].initialized = 0;
+    }
+    num_destinations = 0;
+}
+
+/**
+ * Initialize the WSJT-X broadcast socket(s)
  */
 int udp_broadcast_init(void) {
     const char *enabled = field_str("UDP_BROADCAST");
@@ -120,100 +289,104 @@ int udp_broadcast_init(void) {
         return 0; /* Not enabled, not an error */
     }
 
-    /* Get IP and port - these settings use # prefix so label matches */
-    const char *ip = field_str("UDP_IP");
-    if (ip == NULL || !ip[0]) {
-        ip = "127.0.0.1";
+    /* Get destinations string */
+    const char *dest_str = field_str("UDP_DESTINATIONS");
+    if (dest_str == NULL || dest_str[0] == '\0') {
+        dest_str = "127.0.0.1:2237"; /* Default */
     }
 
-    const char *port_str = field_str("UDP_PORT");
-    int port = 2237; /* Default port */
-    if (port_str != NULL && port_str[0]) {
-        port = atoi(port_str);
-    }
-    if (port < 1024 || port > 65535) {
-        fprintf(stderr, "WSJTX: Invalid port %d, using default 2237\n", port);
-        port = 2237;
+    /* Check if destinations changed */
+    if (strcmp(last_destinations_str, dest_str) == 0 && num_destinations > 0) {
+        return 0; /* Already initialized with same settings */
     }
 
-    /* Check if we need to recreate the socket */
-    if (broadcast_socket >= 0) {
-        if (strcmp(last_ip, ip) == 0 && last_port == port) {
-            return 0; /* Already initialized with same settings */
+    /* Close all old sockets */
+    close_all_destinations();
+
+    /* Parse new destinations */
+    num_destinations = parse_destinations(dest_str, destinations, MAX_DESTINATIONS);
+
+    if (num_destinations == 0) {
+        fprintf(stderr, "UDP: No valid destinations, trying default 127.0.0.1:2237\n");
+        /* Try default as fallback */
+        num_destinations = parse_destinations("127.0.0.1:2237", destinations, MAX_DESTINATIONS);
+        if (num_destinations == 0) {
+            return -1;
         }
-        /* Settings changed, close old socket */
-        close(broadcast_socket);
-        broadcast_socket = -1;
     }
 
-    /* Create UDP socket */
-    broadcast_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (broadcast_socket < 0) {
-        fprintf(stderr, "WSJTX: Failed to create socket: %s\n", strerror(errno));
+    /* Initialize each destination socket */
+    int success_count = 0;
+    for (int i = 0; i < num_destinations; i++) {
+        if (init_destination(&destinations[i]) == 0) {
+            success_count++;
+        }
+    }
+
+    if (success_count == 0) {
+        fprintf(stderr, "UDP: Failed to initialize any destinations\n");
         return -1;
     }
 
-    /* Set non-blocking mode */
-    int flags = fcntl(broadcast_socket, F_GETFL, 0);
-    if (flags >= 0) {
-        fcntl(broadcast_socket, F_SETFL, flags | O_NONBLOCK);
-    }
+    /* Save current configuration */
+    strncpy(last_destinations_str, dest_str, sizeof(last_destinations_str) - 1);
+    last_destinations_str[sizeof(last_destinations_str) - 1] = '\0';
 
-    /* Configure destination address */
-    memset(&broadcast_addr, 0, sizeof(broadcast_addr));
-    broadcast_addr.sin_family = AF_INET;
-    broadcast_addr.sin_port = htons(port);
-    if (inet_aton(ip, &broadcast_addr.sin_addr) == 0) {
-        fprintf(stderr, "WSJTX: Invalid IP address: %s\n", ip);
-        close(broadcast_socket);
-        broadcast_socket = -1;
-        return -1;
-    }
-
-    /* Save settings */
-    strncpy(last_ip, ip, sizeof(last_ip) - 1);
-    last_ip[sizeof(last_ip) - 1] = '\0';
-    last_port = port;
-
+    fprintf(stderr, "UDP: Initialized %d of %d destinations\n", success_count, num_destinations);
     return 0;
 }
 
 /**
- * Close the WSJT-X broadcast socket
+ * Close the WSJT-X broadcast sockets
  */
 void udp_broadcast_close(void) {
-    if (broadcast_socket >= 0) {
-        close(broadcast_socket);
-        broadcast_socket = -1;
-    }
+    close_all_destinations();
+    last_destinations_str[0] = '\0';
 }
 
 /**
- * Send the current message buffer via UDP
+ * Send the current message buffer via UDP to all destinations
  */
 static int send_message(void) {
-    if (broadcast_socket < 0) {
+    /* Initialize if needed */
+    if (num_destinations == 0) {
         if (udp_broadcast_init() < 0) {
             return -1;
         }
     }
 
+    /* Check if still enabled */
     const char *enabled = field_str("UDP_BROADCAST");
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0; /* Not enabled */
     }
 
-    ssize_t sent = sendto(broadcast_socket, msg_buffer, msg_pos, 0,
-                          (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr));
+    int success_count = 0;
+    int error_count = 0;
 
-    if (sent < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            fprintf(stderr, "WSJTX: Failed to send message: %s\n", strerror(errno));
-            return -1;
+    /* Send to all destinations */
+    for (int i = 0; i < num_destinations; i++) {
+        if (!destinations[i].initialized || destinations[i].socket < 0) {
+            continue;
+        }
+
+        ssize_t sent = sendto(destinations[i].socket, msg_buffer, msg_pos, 0,
+                             (struct sockaddr *)&destinations[i].addr,
+                             sizeof(destinations[i].addr));
+
+        if (sent < 0) {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                fprintf(stderr, "UDP: Failed to send to %s:%d: %s\n",
+                       destinations[i].host, destinations[i].port, strerror(errno));
+                error_count++;
+            }
+        } else {
+            success_count++;
         }
     }
 
-    return 0;
+    /* Return success if at least one destination succeeded */
+    return (success_count > 0) ? 0 : -1;
 }
 
 /**

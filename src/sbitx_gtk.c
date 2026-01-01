@@ -1161,17 +1161,13 @@ struct field main_controls[] = {
 
 	{"#adif_broadcast_enable", NULL, 1000, -1000, 50, 50, "ADIF_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#adif_broadcast_ip", NULL, 1000, -1000, 150, 50, "ADIF_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
-	 "", 0, 20, 1, 0},
-	{"#adif_broadcast_port", NULL, 1000, -1000, 50, 50, "ADIF_PORT", 40, "12060", FIELD_NUMBER, STYLE_FIELD_VALUE,
-	 "", 1024, 65535, 1, 0},
+	{"#adif_destinations", NULL, 1000, -1000, 300, 50, "ADIF_DESTINATIONS", 140, "127.0.0.1:12060", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 255, 1, 0},
 
 	{"#udp_broadcast_enable", NULL, 1000, -1000, 50, 50, "UDP_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#udp_broadcast_ip", NULL, 1000, -1000, 150, 50, "UDP_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
-	 "", 0, 20, 1, 0},
-	{"#udp_broadcast_port", NULL, 1000, -1000, 50, 50, "UDP_PORT", 40, "2237", FIELD_NUMBER, STYLE_FIELD_VALUE,
-	 "", 1024, 65535, 1, 0},
+	{"#udp_destinations", NULL, 1000, -1000, 300, 50, "UDP_DESTINATIONS", 140, "127.0.0.1:2237", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 255, 1, 0},
 
   // macros keyboard
 
