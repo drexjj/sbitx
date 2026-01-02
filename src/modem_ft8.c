@@ -550,15 +550,17 @@ static int sbitx_ft8_decode(float *signal, int num_samples, bool is_ft8)
                  // We try to avoid calling automatically the same stations again and again, at least in this session
                  bool found = false;
                  for (int ii = 0; ii < min(ft8_already_called_n, FT8_CALLED_SIZE); ii++) {
-                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii]))
+                     if (!strcmp(decoded_hashtable[idx]->text, ft8_already_called[ii])) {
                         found = true;
+                        break;
+                     }
                  }
 
                  if (!found) {
                     candmsg = decoded_hashtable[idx]->displaytext;
                     candtext = decoded_hashtable[idx]->text;
+                    break;
                  }
-                 break;
               }
 
               if ( !strncmp(decoded_hashtable[idx]->text, "CQ ", 3) ) {
