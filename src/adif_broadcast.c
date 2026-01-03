@@ -172,6 +172,31 @@ static int init_destination(struct destination *dest) {
 		fcntl(dest->socket, F_SETFL, flags | O_NONBLOCK);
 	}
 
+	/* Check if this is a multicast address (224.0.0.0 - 239.255.255.255) */
+	unsigned char first_octet = ((unsigned char*)&dest->addr.sin_addr.s_addr)[0];
+	if (first_octet >= 224 && first_octet <= 239) {
+		/* This is a multicast address - set multicast socket options */
+		printf("ADIF: Detected multicast address: %s:%d\n", dest->host, dest->port);
+
+		/* Set SO_REUSEADDR to allow multiple sockets on same port */
+		int reuse = 1;
+		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+			printf("ADIF: Warning - Failed to set SO_REUSEADDR: %s\n", strerror(errno));
+		}
+
+		/* Set multicast TTL to 1 (same subnet only) */
+		unsigned char ttl = 1;
+		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+			printf("ADIF: Warning - Failed to set IP_MULTICAST_TTL: %s\n", strerror(errno));
+		}
+
+		/* Enable multicast loopback (useful for debugging) */
+		unsigned char loop = 1;
+		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
+			printf("ADIF: Warning - Failed to set IP_MULTICAST_LOOP: %s\n", strerror(errno));
+		}
+	}
+
 	dest->initialized = 1;
 	return 0;
 }
@@ -194,7 +219,7 @@ static void close_all_destinations(void) {
  * Initialize the ADIF broadcast socket(s)
  */
 int adif_broadcast_init(void) {
-	const char *enabled = field_str("ADIF_BROADCAST");
+	const char *enabled = field_str("ADIF_ENABLE");
 
 	if (enabled == NULL || strcmp(enabled, "ON") != 0) {
 		return 0; /* Not enabled, not an error */
@@ -419,7 +444,7 @@ static sqlite3_stmt* get_last_qso(sqlite3 *db) {
 
 int adif_broadcast_qso(void) {
 	// Check if broadcasting is enabled
-	const char *enabled = field_str("ADIF_BROADCAST");
+	const char *enabled = field_str("ADIF_ENABLE");
 	if (!enabled || strcmp(enabled, "ON") != 0) {
 		printf("ADIF Broadcast: Disabled (setting: %s)\n", enabled ? enabled : "NULL");
 		return 0;

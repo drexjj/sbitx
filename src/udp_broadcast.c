@@ -261,6 +261,31 @@ static int init_destination(struct destination *dest) {
         fcntl(dest->socket, F_SETFL, flags | O_NONBLOCK);
     }
 
+    /* Check if this is a multicast address (224.0.0.0 - 239.255.255.255) */
+    unsigned char first_octet = ((unsigned char*)&dest->addr.sin_addr.s_addr)[0];
+    if (first_octet >= 224 && first_octet <= 239) {
+        /* This is a multicast address - set multicast socket options */
+        fprintf(stderr, "UDP: Detected multicast address: %s:%d\n", dest->host, dest->port);
+
+        /* Set SO_REUSEADDR to allow multiple sockets on same port */
+        int reuse = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+            fprintf(stderr, "UDP: Warning - Failed to set SO_REUSEADDR: %s\n", strerror(errno));
+        }
+
+        /* Set multicast TTL to 1 (same subnet only) */
+        unsigned char ttl = 1;
+        if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+            fprintf(stderr, "UDP: Warning - Failed to set IP_MULTICAST_TTL: %s\n", strerror(errno));
+        }
+
+        /* Enable multicast loopback (useful for debugging) */
+        unsigned char loop = 1;
+        if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
+            fprintf(stderr, "UDP: Warning - Failed to set IP_MULTICAST_LOOP: %s\n", strerror(errno));
+        }
+    }
+
     dest->initialized = 1;
     return 0;
 }
@@ -283,7 +308,7 @@ static void close_all_destinations(void) {
  * Initialize the WSJT-X broadcast socket(s)
  */
 int udp_broadcast_init(void) {
-    const char *enabled = field_str("UDP_BROADCAST");
+    const char *enabled = field_str("UDP_ENABLE");
 
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0; /* Not enabled, not an error */
@@ -356,7 +381,7 @@ static int send_message(void) {
     }
 
     /* Check if still enabled */
-    const char *enabled = field_str("UDP_BROADCAST");
+    const char *enabled = field_str("UDP_ENABLE");
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0; /* Not enabled */
     }
@@ -570,7 +595,7 @@ uint32_t udp_timestamp_to_ms(const char *timestamp) {
  */
 int udp_broadcast_status_auto(void) {
     /* Check if broadcasting is enabled */
-    const char *enabled = field_str("UDP_BROADCAST");
+    const char *enabled = field_str("UDP_ENABLE");
     if (enabled == NULL || strcmp(enabled, "ON") != 0) {
         return 0;
     }
