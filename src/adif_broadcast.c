@@ -263,6 +263,7 @@ static int format_adif_for_broadcast(sqlite3_stmt *stmt, char *buf, int buf_size
 	const char *their_call = (const char*)sqlite3_column_text(stmt, 8);
 	const char *rst_rcvd = (const char*)sqlite3_column_text(stmt, 9);
 	const char *their_grid = (const char*)sqlite3_column_text(stmt, 10);
+	const char *comments = (const char*)sqlite3_column_text(stmt, 12);
 	const char *tx_power = (const char*)sqlite3_column_text(stmt, 13);
 
 	// Convert frequency from Hz to MHz
@@ -382,14 +383,9 @@ static int format_adif_for_broadcast(sqlite3_stmt *stmt, char *buf, int buf_size
 	}
 
 	// Comment (optional)
-	char comment[128];
-	snprintf(comment, sizeof(comment), "%s  Sent: %s  Rcvd: %s",
-		submode ? submode : "",
-		rst_sent ? rst_sent : "",
-		rst_rcvd ? rst_rcvd : "");
-	if (comment[0]) {
+	if (comments && comments[0]) {
 		offset += snprintf(buf + offset, buf_size - offset,
-			"<comment:%d>%s ", (int)strlen(comment), comment);
+			"<comment:%d>%s ", (int)strlen(comments), comments);
 	}
 
 	// End of record (lowercase!)
