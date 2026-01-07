@@ -1486,6 +1486,17 @@ void console_init()
 	console_current_line = 0;
 }
 
+// this is an alternative to calling console_init() that
+// preserves console content when redrawing the console
+void soft_console_init()
+{
+    struct field *f = get_field("#console");
+    if (!f)
+        return;
+    // mark console for redraw, but do not touch console_stream content or scroll/selection state
+    f->is_dirty = TRUE;
+}
+
 void web_add_string(char *string)
 {
 	while (*string)
@@ -4382,7 +4393,7 @@ static void layout_ui()
   switch (m_id) {
   case MODE_FT4:
   case MODE_FT8:
-    console_init();
+    soft_console_init();
 
     // Place buttons and calculate highest Y position for FTx
     {
@@ -4431,8 +4442,8 @@ static void layout_ui()
 
   case MODE_CW:
   case MODE_CWR:
-    console_init();  // start with a clean log
-
+    soft_console_init();
+    
     const int row_h = 37;  // row height since we adopted 4-row keyboard
     const int row_gap = 3;
     const int y_top = y2 - ((row_h + row_gap) * 2) - row_gap;
