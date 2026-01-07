@@ -1456,7 +1456,7 @@ void write_console(int style, char *raw_text)
 	text = decorated;
 	web_write(style, text);
 	// move to a new line if the style has changed
-	if (style != console_style)
+	if ((style != FONT_ONLY_REMOTEAPP) && (style != console_style))
 	{
 		q_write(&q_web, '{');
 		q_write(&q_web, style + 'A');
@@ -1493,6 +1493,8 @@ void write_console(int style, char *raw_text)
 		}
 	*/
 	write_to_remote_app(style, raw_text);
+        if (style == FONT_ONLY_REMOTEAPP)
+          return;
 
 	int console_line_max = MIN(console_cols, MAX_LINE_LENGTH);
 	while (*text)
@@ -8436,20 +8438,31 @@ void cmd_exec(char *cmd)
 	}
 	else if (!strcasecmp(exec, "freq") || !strcasecmp(exec, "f"))
 	{
-		long freq = atol(args);
-		if (freq == 0)
-		{
-			write_console(FONT_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
-		}
-		else if (freq < 30000)
-			freq *= 1000;
+                if (!strcmp(args, "?")) {
+                  struct field *freq = get_field("r1:freq");
+                  if (freq && freq->value) {
+                    char buf[64];
+                    strcpy(buf, "freq: ");
+                    strcat(buf, freq->value);
+                    write_console(FONT_ONLY_REMOTEAPP, buf);
+                  }
+                
+                } else {
+			long freq = atol(args);
+			if (freq == 0)
+			{
+				write_console(FONT_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
+			}
+			else if (freq < 30000)
+				freq *= 1000;
 
-		if (freq > 0)
-		{
-			char freq_s[20];
-			sprintf(freq_s, "%ld", freq);
-			set_field("r1:freq", freq_s);
-		}
+			if (freq > 0)
+			{
+				char freq_s[20];
+				sprintf(freq_s, "%ld", freq);
+				set_field("r1:freq", freq_s);
+			}
+                }
 	}
 	else if (!strcasecmp(exec, "rit"))
 	{
