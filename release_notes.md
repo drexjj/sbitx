@@ -17,6 +17,7 @@
     ```
   + Can be used to log to a local or remote logbook.  Or to FT8battle.com 
 - FTx automatically switches to the correct frequency when the Band or Mode is changed. For example if the mode is FT4 and the band changes from 20M to 10M then the correct frequency is set.  Likewise if you are on 10M USB and change to FT8 then the correct frequency is set for 10M FT8. (Jared KJ5DTK)
+- Allow the telnet interface to query the currently tuned frequency, using the command 'freq ?'. This is useful if an external telnet agent (such as the external project sbitx2pskreporter) needs to know the current frequency.
 - **FTx features** (Shawn K7IHZ / LB2JK):
   + Updated to latest ft8_lib. It now labels spans in the message text so we get them identified correctly.
   + Support for non-standard calls (special stations, prefixes used while travelling, etc.)
