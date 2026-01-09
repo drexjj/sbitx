@@ -5,8 +5,11 @@ These are text commands that can be entered from the keyboard
 	Sets your grid (six letters) that is used in FT8 and other modes to
 	indicate your approximate locationi.
 \freq [frequency in Hz or Kilohertz]
-	You can also type just 'f' instead 'freq'
+	You can also type just 'f' instead than 'freq'
 	if you the type '\f 7050' it will set be the same as '\freq 7050000'
+\freq ?
+	You can also type just 'f' instead than 'freq'
+	Returns the current tuned frequency
 \cwdelay [100-2000] msec. How long radio remains in transmit in CW before
 	timing out to rx. ex: "\cwdelay 500"
 \cwinput [key\keyer\kbd]
