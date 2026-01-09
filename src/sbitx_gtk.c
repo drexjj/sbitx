@@ -4287,9 +4287,9 @@ void menu2_display(int show) {
 		// Only show WFCALL if option is ON and mode is not FTx, CW, or CWR
 		const char *current_mode = field_str("MODE");
 		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
-		    !strncmp(current_mode, "FT", 2) &&
-		    strcmp(current_mode, "CW") != 0 &&
-		    strcmp(current_mode, "CWR") != 0)	{
+		    strncmp(current_mode, "FT", 2) != 0 &&
+		    strcmp(current_mode, "CW") != 0 != 0 &&
+		    strcmp(current_mode, "CWR") != 0) {
 			field_move("WFCALL", screen_width - 197, screen_height - 40, 95, 37); // Add WFCALL
 		}
 
