@@ -10633,19 +10633,29 @@ else if (!strcasecmp(exec, "decode"))
 	}
 	else if (!strcasecmp(exec, "freq") || !strcasecmp(exec, "f"))
 	{
-		long freq = atol(args);
-		if (freq == 0)
-		{
-			write_console(STYLE_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
-		}
-		else if (freq < 30000)
-			freq *= 1000;
-
-		if (freq > 0)
-		{
-			char freq_s[20];
-			sprintf(freq_s, "%ld", freq);
-			set_field("r1:freq", freq_s);
+		if (!strcmp(args, "?")) {
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				char buf[64];
+				strcpy(buf, "freq: ");
+				strcat(buf, freq->value);
+				// We want the response to this command not to appear in the ft8 log
+				write_to_remote_app(STYLE_LOG, buf);
+			}
+		} else {
+			long freq = atol(args);
+			if (freq == 0)
+			{
+				write_console(STYLE_LOG, "Usage: \f xxxxx (in Hz or KHz)\n");
+			}
+			else if (freq < 30000)
+				freq *= 1000;	
+			if (freq > 0)
+			{
+				char freq_s[20];
+				sprintf(freq_s, "%ld", freq);
+				set_field("r1:freq", freq_s);
+			}
 		}
 	}
 	else if (!strcasecmp(exec, "rit"))
