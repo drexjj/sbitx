@@ -1,24 +1,42 @@
 # v5.3 - Currently In Test/Dev
 **New Features:**
-- Refactored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen. (Jared KJ5DTK)
-- CW decoding while sending (Jared KJ5DTK)
-- "Quick Options" menu by holding both encoder buttons for 2 seconds. (Jared KJ5DTK)
-- `\cal` command for calibrating the scale per band (external Power/SWR meter required). (Jared KJ5DTK)
-- `\snap` command to take screen shot of sBitx software
-- Voltage and Current added to UI by VFO (Jared KJ5DTK)
-- Power and SWR shown with a decimal place (Jared KJ5DTK)
-- Added High SWR trigger and auto power reduction to 1 which is configurable by the \maxvswr command, default to 3:1
-- ADIF UDP Logging Support (Jared KJ5DTK).  
-  + Configured via user_settings.ini: 
+- Consolodated Band, Mode, Bandstack, and other buttons to comboboxes
+- CW Decoder Toggle
+  + cw decoder is "on" by default and sends decoded text to console.  Turning decode OFF runs the decoder in a quiet mode. Console command `\decode on|off`
+- Larger Font Size Option
+  + Operator can specify a font size from 10 to 40 points
+  + Primarily intended for operators who prefer a bigger font when using the cw decoder, but applies to text output sent to the console in all modes
+  + Console command `\bigfont on|off` and `\bigfont xx` where xx is a number between 10 and 40
+- Console content is now persistent when changing modes or resizing the GUI
+- Refactored multiple UI elements (Mode, Band, BandStack, Span, Menu, and more!) to use Dropdowns which should allow for better access when using the touch screen.
+- CW decoding now available while sending
+- Automatic Peak Filter function/settings added to local GUI
+- "Quick Options" menu by holding both encoder buttons for 2 seconds
+- `\cal` command for calibrating the scale per band (external Power/SWR meter required)
+- `\snap` command to take screen shot of sBitx software ans stored in sbitx/screenshots folder
+- Voltage and Current added to UI near VFO
+- Power and SWR shown with a decimal place
+- High SWR trigger and auto power reduction to 1 which is configurable by the `\maxvswr` command, default to 3:1 or 0 to disable it
+- Added full screen toggle button for GUI 9 (can also start sbitx fullscreen with -f switch such as `./sbitx -f`)
+- ADIF UDP Logging Support  
+  + Configured via user_settings.ini (defaults to OFF): 
     ```
-    #adif_broadcast_enable=OFF
-    #adif_broadcast_ip=127.0.0.1
-    #adif_broadcast_port=2237
+    #adif_enable=ON
+    #adif_destinations=129.212.188.3:2237;antares.local:2333;224.0.0.1:2238
     ```
-  + Can be used to log to a local or remote logbook.  Or to FT8battle.com 
-- FTx automatically switches to the correct frequency when the Band or Mode is changed. For example if the mode is FT4 and the band changes from 20M to 10M then the correct frequency is set.  Likewise if you are on 10M USB and change to FT8 then the correct frequency is set for 10M FT8. (Jared KJ5DTK)
-- Allow the telnet interface to query the currently tuned frequency, using the command 'freq ?'. This is useful if an external telnet agent (such as the external project sbitx2pskreporter) needs to know the current frequency.
-- **FTx features** (Shawn K7IHZ / LB2JK):
+  + Can send to a local or remote logbook.  Hostnames and multicast groups supported.
+  + Sending to ft8battle.com endpoint also supported (`129.212.188.3:2237`)
+  + Multiple endpoints seperated with `;`
+- GridTracker2 UDP support
+  + Configured via user_settings.ini (defaults to OFF):
+    ```
+    #udp_enable=ON
+    #udp_destinations=127.0.0.1:2237;antares.local:2237;224.0.0.2:2236
+    ```
+  + Can send to local or remote locations.  Hostnames and multicast groups supported.
+  + Multiple endpoints seperated with `;`
+- FTx automatically switches to the correct frequency when the Band or Mode is changed. For example if the mode is FT4 and the band changes from 20M to 10M then the correct frequency is set.  Likewise if you are on 10M USB and change to FT8 then the correct frequency is set for 10M FT8.
+- **FTx features**:
   + Updated to latest ft8_lib. It now labels spans in the message text so we get them identified correctly.
   + Support for non-standard calls (special stations, prefixes used while travelling, etc.)
   + Support for CQ tokens (such as CQ POTA or CQ 123)
@@ -41,12 +59,12 @@
     * callsigns and grids found in recent QSOs from the logbook: dim green to avoid standing out
     * otherwise, a caller that has not had a recent QSO with me is orange, and a grid is amber
     * new setting `recent_qso_age`, in hours (24 by default)
-- **xOTA** for activators (Shawn K7IHZ / LB2JK):
+- **xOTA** for activators:
   + Before your activation, choose IOTA/SOTA/POTA in settings, and add the island/peak/park location reference
   + Choose IOTA/SOTA/POTA macros to get a special CQ button
   + Choose FTX_CQ XOTA to send alternating "CQ SOTA" (POTA/IOTA) and "SO &lt;location&gt;" (PO/IO) to tell chasers where you are
   + xota and location are logged to the database, and can be exported to ADIF, ready for upload afterwards
-- **Logbook** (Shawn K7IHZ / LB2JK):
+- **Logbook**:
   + the Freq field is Hz-accurate in FTx modes (dial frequency + pitch)
   + Editing comments afterwards from the logbook window works better
   + Power and SWR are logged to the database
@@ -55,6 +73,10 @@
   + Clicking a message (in addition to responding if it's FT8/FT4) copies the text to the X11 selection
     so that you can paste it anywhere with the middle mouse button
   + Any field can be adjusted with the mouse wheel while hovering: no need to click first
+**Fixes:**
+- Restored green highlighted buttons for on/off toggle
+- Restored function to enable panafall when web session is open
+- Fixed tuning acceleration funcion to read previously stored command
 
 # v5.2
 **New Features:**
@@ -90,7 +112,7 @@
 **Morse Tables:**
 - Further corrections and improvements to TX keyboard tables and RX decoder tables.
 
-**Built-in FT8 Updates** (by Fabrizio F4VUK):
+**Built-in FT8 Updates**:
 - Auto-mode now tracks calls already worked in current session.
 - Old QSO data cleared when calling CQ.
 

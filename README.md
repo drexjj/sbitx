@@ -1,5 +1,5 @@
 # sBitx - 64-Bit Version
-![sBitx image](sb52.jpg)
+![sBitx image](sb53.jpg)
 
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64-bit Raspberry Pi image, which can be downloaded [here](https://github.com/drexjj/sbitx/releases).
@@ -9,15 +9,15 @@ An improved version of the sBitx application designed for the sBitx hardware. Th
 We have an incredible development team collaborating on improvements for the sBitx platform:
 
 - **JJ - W9JES**
-- **Jon - W2JON**
-- **Lee - W4WHL**
+- **Jared - KJ5DTK**
 - **Mike - KB2ML**
-- **Lars - OZ7BX**
+- **Bob - KD8CGH**
+- **Shawn - K7IHZ**
 
 A huge thank you to everyone who contributes their time and expertise to this project!
 
 ## Release Notes
-[Available Here](https://github.com/drexjj/sbitx/blob/prerelease/release_notes.txt)
+[Available Here](https://github.com/drexjj/sbitx/blob/release_notes.md)
 
 
 ## 📂 File Compatibility
@@ -57,7 +57,7 @@ For detailed installation and upgrade instructions, please visit the [Wiki Page]
 
 ## 📥 Download the 64-Bit Image
 
-A preconfigured, downloadable Raspberry Pi 4 image file is available. This image is designed for a **32GB SD card or USB drive** and can be installed using **Balena Etcher** or **Raspberry Pi Imager**.
+A preconfigured, downloadable Raspberry Pi 4/5 image file is available. This image is designed for a **32GB SD card or USB drive** and can be installed using **Balena Etcher** or **Raspberry Pi Imager**.
 
 **Bonus**: The image comes preinstalled with sBITX Toolbox and other useful ham radio tools.
 
@@ -92,16 +92,12 @@ A huge thank you to the contributors who have played a vital role in this projec
 - **Evan - AC9TU**
 - **Steve - N3SB**
 
-## Background
-
-To learn more about the sBitx and how it came to be; visit https://www.vu2ese.com/index.php/2022/07/20/the-sbitx-the-sdr-for-the-homebrewer/
-
 
 ## 🌟 Support the Project
 
 If you find these enhancements valuable or have benefited from using sBitx, consider supporting our work. Every donation, big or small, helps us keep development going.
 
-💖 [**Donate Here**](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
+💖 [**Support Our Work and Give Thanks**](https://www.patreon.com/cw/RadioElectronicsHub) or make a 1 time donation [**Here**](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
 
 Can't donate? No worries! Contributing code, documentation, or spreading the word also makes a big impact.
 

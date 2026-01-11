@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define VER_STR "sbitx v5.3_dev" // Brought to you by the volunteer development Team for sBitx
+#define VER_STR "sbitx v5.3" // Brought to you by the volunteer development Team for sBitx
 
 // maximum sem_count in write_console_semantic()
 #define MAX_CONSOLE_LINE_STYLES 12

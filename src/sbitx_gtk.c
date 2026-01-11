@@ -3538,7 +3538,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// Draw LED background
 		cairo_save(gfx);
 		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
-		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 4,
+		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 2,  // 4
 						box_height + 4);
 		cairo_fill(gfx);
 
@@ -4287,9 +4287,9 @@ void menu2_display(int show) {
 		// Only show WFCALL if option is ON and mode is not FTx, CW, or CWR
 		const char *current_mode = field_str("MODE");
 		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
-		    !strncmp(current_mode, "FT", 2) &&
-		    strcmp(current_mode, "CW") != 0 &&
-		    strcmp(current_mode, "CWR") != 0)	{
+		    strncmp(current_mode, "FT", 2) != 0 &&
+		    strcmp(current_mode, "CW") != 0 != 0 &&
+		    strcmp(current_mode, "CWR") != 0) {
 			field_move("WFCALL", screen_width - 197, screen_height - 40, 95, 37); // Add WFCALL
 		}
 
