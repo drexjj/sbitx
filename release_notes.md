@@ -17,7 +17,7 @@
 - Voltage and Current added to UI near VFO
 - Power and SWR shown with a decimal place
 - High SWR trigger and auto power reduction to 1 which is configurable by the `\maxvswr` command, default to 3:1 or 0 to disable it
-- Added full screen toggle button for GUI 9 (can also start sbitx fullscreen with -f switch such as `./sbitx -f`)
+- Added full screen toggle button for GUI (can also start sbitx fullscreen with -f switch such as `./sbitx -f`)
 - ADIF UDP Logging Support  
   + Configured via user_settings.ini (defaults to OFF): 
     ```
@@ -36,6 +36,7 @@
   + Can send to local or remote locations.  Hostnames and multicast groups supported.
   + Multiple endpoints seperated with `;`
 - FTx automatically switches to the correct frequency when the Band or Mode is changed. For example if the mode is FT4 and the band changes from 20M to 10M then the correct frequency is set.  Likewise if you are on 10M USB and change to FT8 then the correct frequency is set for 10M FT8.
+- Allow the telnet interface to query the currently tuned frequency, using the command 'freq ?'. This is useful for use with an external telnet agent 
 - **FTx features**:
   + Updated to latest ft8_lib. It now labels spans in the message text so we get them identified correctly.
   + Support for non-standard calls (special stations, prefixes used while travelling, etc.)
