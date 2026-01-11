@@ -8096,42 +8096,14 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 		}
 	}
 
-	// Check if we should block touch scrolling
-	int should_block_touch = 0;
-
 	// Block touch scrolling when a dropdown is expanded
-	if (f_dropdown_expanded)
-		should_block_touch = 1;
-
-	// Block touch scrolling for any dropdown field (even when not expanded)
-	if (hoverField && hoverField->value_type == FIELD_DROPDOWN)
-		should_block_touch = 1;
-
-	if (should_block_touch)
-	{
-		// Block smooth scrolling (touch drag/swipe, touchpad)
-		if (event->direction == GDK_SCROLL_SMOOTH)
-			return TRUE;
-
-		// Block scrolling from touchscreen and touchpad devices
-		GdkDevice *device = gdk_event_get_source_device((GdkEvent *)event);
-		if (device)
-		{
-			GdkInputSource source = gdk_device_get_source(device);
-			if (source == GDK_SOURCE_TOUCHSCREEN || source == GDK_SOURCE_TOUCHPAD)
-				return TRUE;
-
-			// Block if device name suggests it's a touchscreen (Pi Display fallback)
-			const char *device_name = gdk_device_get_name(device);
-			if (device_name && (strstr(device_name, "touch") || strstr(device_name, "Touch")))
-				return TRUE;
-		}
-	}
+	if ((hoverField && hoverField->value_type == FIELD_DROPDOWN) ||f_dropdown_expanded)
+		return TRUE;
 
 	if (hoverField)
 	{
 		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
-		//~ printf("scroll @%lf, %lf; direction %d reverse? %d field %s\n", event->x, event->y, event->direction, reverse, hoverField->label);
+		printf("scroll @%lf, %lf; direction %d reverse? %d field %s type %s\n", event->x, event->y, event->direction, reverse, hoverField->label, hoverField->value_type);
 		if (event->direction == 0)
 		{
 			if (reverse)
@@ -8178,23 +8150,10 @@ static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer
 	int x = (int)(event->x);
 	int y = (int)(event->y);
 
-	// Block touch drag on dropdown fields
+	// Block drag on dropdown fields
 	if (f_focus && f_focus->value_type == FIELD_DROPDOWN)
 	{
-		GdkDevice *device = gdk_event_get_source_device((GdkEvent *)event);
-		if (device)
-		{
-			GdkInputSource source = gdk_device_get_source(device);
-
-			// Block drag from touchscreen and touchpad devices
-			if (source == GDK_SOURCE_TOUCHSCREEN || source == GDK_SOURCE_TOUCHPAD)
-				return TRUE;
-
-			// Block if device name suggests it's a touchscreen (Pi Display fallback)
-			const char *device_name = gdk_device_get_name(device);
-			if (device_name && (strstr(device_name, "touch") || strstr(device_name, "Touch")))
-				return TRUE;
-		}
+		return TRUE;
 	}
 
 	// if a control is in focus and it handles the mouse drag, then just do that
