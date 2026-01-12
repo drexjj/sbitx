@@ -3,7 +3,7 @@
 # The webserver will read these values to properly configure the web interface
 VNC_PORT=5905
 WS_PORT=6085
-DISPLAY_NUM=1
+DISPLAY_NUM=5
 
 # Define the widget label for the web interface
 WIDGET_LABEL="MSHV"
