@@ -1,8 +1,8 @@
 #!/bin/bash
 # Define the VNC and WebSocket ports for this application
 # The webserver will read these values to properly configure the web interface
-VNC_PORT=5900
-WS_PORT=6080
+VNC_PORT=5901
+WS_PORT=6081
 DISPLAY_NUM=0
 
 # Define the widget label for the web interface
