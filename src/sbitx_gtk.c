@@ -8103,7 +8103,7 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 	if (hoverField)
 	{
 		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
-		printf("scroll @%lf, %lf; direction %d reverse? %d field %s type %s\n", event->x, event->y, event->direction, reverse, hoverField->label, hoverField->value_type);
+		//printf("scroll @%lf, %lf; direction %d reverse? %d field %s\n", event->x, event->y, event->direction, reverse, hoverField->label);
 		if (event->direction == 0)
 		{
 			if (reverse)
