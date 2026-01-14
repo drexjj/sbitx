@@ -37,6 +37,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include <pthread.h>
 #include "ftx_rules.h"
 #include "sdr.h"
 #include "sound.h"
@@ -84,6 +85,7 @@ int main_ui_encoders_enabled = 1;  // Flag to disable encoders when calibration 
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
+pthread_mutex_t wf_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int scope_avg = 10; // Default value for SCOPEAVG
 float sp_baseline = 0;
@@ -2766,6 +2768,7 @@ void init_waterfall()
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
 
+	pthread_mutex_lock(&wf_buffer_mutex);
 	if (wf)
 	{
 		free(wf);
@@ -2778,6 +2781,8 @@ void init_waterfall()
 		exit(0);
 	}
 	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
+	pthread_mutex_unlock(&wf_buffer_mutex);
+
 
 	if (waterfall_map)
 	{
@@ -2921,6 +2926,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	int index = 0;
 	static float wf_offset = 0;
+	pthread_mutex_lock(&wf_buffer_mutex);
 	for (int i = 0; i < f->width; i++)
 	{
 		// Scale the input value (original behavior restored)
@@ -2981,6 +2987,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			waterfall_map[index++] = 0;						 // Blue
 		}
 	}
+	pthread_mutex_unlock(&wf_buffer_mutex);
 
 	// Use the same baseline that had been calculated for the spectrum
 	// This gives good results as it's averaged, hence less noisy
@@ -3806,9 +3813,11 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
 
 		// Fill the waterfall with the original (unchanged) y value
+		pthread_mutex_lock(&wf_buffer_mutex);
 		for (int k = 0; k <= 1 + (int)x_step; k++)
 			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
 
+		pthread_mutex_unlock(&wf_buffer_mutex);
 		x += x_step;
 		if (f->width <= x)
 			x = f->width - 1;
