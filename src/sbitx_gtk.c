@@ -2780,8 +2780,6 @@ void init_waterfall()
 		exit(0);
 	}
 	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
-	pthread_mutex_unlock(&wf_buffer_mutex);
-
 
 	if (waterfall_map)
 	{
