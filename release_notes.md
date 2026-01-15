@@ -1,6 +1,7 @@
 # v5.3 - Currently In Test/Dev
 **New Features:**
-- Consolodated Band, Mode, Bandstack, and other buttons to comboboxes
+- Added tune option for CW mode
+- Consolidated Band, Mode, Bandstack, and other buttons to comboboxes
 - CW Decoder Toggle
   + cw decoder is "on" by default and sends decoded text to console.  Turning decode OFF runs the decoder in a quiet mode. Console command `\decode on|off`
 - Larger Font Size Option

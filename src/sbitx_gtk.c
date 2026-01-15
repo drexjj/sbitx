@@ -37,6 +37,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include <pthread.h>
 #include "ftx_rules.h"
 #include "sdr.h"
 #include "sound.h"
@@ -84,6 +85,7 @@ int main_ui_encoders_enabled = 1;  // Flag to disable encoders when calibration 
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
+pthread_mutex_t wf_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int scope_avg = 10; // Default value for SCOPEAVG
 float sp_baseline = 0;
@@ -93,6 +95,8 @@ int scope_size = 100;	// Default size
 static bool layout_needs_refresh = false;
 static int last_scope_size = -1; // Default to an invalid value initially
 float scope_alpha_plus = 0.0;	 // Default additional scope alpha
+
+int tune_key=0; // CW tuning
 
 #define AVERAGING_FRAMES 15 // Number of frames to average
 // Buffer to hold past spectrum data
@@ -2702,8 +2706,8 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	for (i = 0; i < f->width; i++)
 	{
 		int index = (i * n_env_samples) / f->width;
-		int min = mod_display[index++];
-		int max = mod_display[index++];
+        int min = mod_display[index++ % MOD_MAX];
+        int max = mod_display[index++ % MOD_MAX];
 		cairo_move_to(gfx, f->x + i, min + h_center);
 		cairo_line_to(gfx, f->x + i, max + h_center + 1);
 	}
@@ -2766,6 +2770,7 @@ void init_waterfall()
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
 
+	pthread_mutex_lock(&wf_buffer_mutex);
 	if (wf)
 	{
 		free(wf);
@@ -2778,6 +2783,8 @@ void init_waterfall()
 		exit(0);
 	}
 	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
+	pthread_mutex_unlock(&wf_buffer_mutex);
+
 
 	if (waterfall_map)
 	{
@@ -2921,6 +2928,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	int index = 0;
 	static float wf_offset = 0;
+	pthread_mutex_lock(&wf_buffer_mutex);
 	for (int i = 0; i < f->width; i++)
 	{
 		// Scale the input value (original behavior restored)
@@ -2981,6 +2989,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			waterfall_map[index++] = 0;						 // Blue
 		}
 	}
+	pthread_mutex_unlock(&wf_buffer_mutex);
 
 	// Use the same baseline that had been calculated for the spectrum
 	// This gives good results as it's averaged, hence less noisy
@@ -3806,9 +3815,11 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
 
 		// Fill the waterfall with the original (unchanged) y value
+		pthread_mutex_lock(&wf_buffer_mutex);
 		for (int k = 0; k <= 1 + (int)x_step; k++)
 			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
 
+		pthread_mutex_unlock(&wf_buffer_mutex);
 		x += x_step;
 		if (f->width <= x)
 			x = f->width - 1;
@@ -4436,7 +4447,7 @@ static void layout_ui()
       field_move("ESC", 675, y_bottom, 75, row_h);
     }
 
-    // Keep TUNE hidden
+    // TUNE control is offscreen in this mode
     field_move("TUNE", 1000, -1000, 40, 40);
     break;
 
@@ -4578,8 +4589,8 @@ static void layout_ui()
     field_move("F9", 600, y_bottom, 75, row_h);
     field_move("F10", 675, y_bottom, 70, row_h);
 
-    // TUNE control is offscreen in this mode
-    field_move("TUNE", 1000, -1000, 40, 40);
+    // TUNE control is on screen in this mode
+	field_move("TUNE", 460, 5, 40, 40);
     break;
 
   case MODE_USB:
@@ -8553,6 +8564,11 @@ int key_poll() {
   int key = CW_IDLE;
   int input_method = get_cw_input_method();
 
+  if (tune_key == 1) {  // fake key down for CW tune
+	   key = CW_DOWN;
+	   return key;
+   }
+   
   // Handle straight key input
   if (input_method == CW_STRAIGHT) {
     if ((digitalRead(PTT) == LOW) || (digitalRead(DASH) == LOW)) {
@@ -8729,6 +8745,9 @@ int get_cw_delay()
 
 int get_cw_input_method()
 {
+	if (tune_key == 1) {  // fake straight key down for CW tune
+		return CW_STRAIGHT;
+	}
 	struct field *f = get_field("#cwinput");
 	if (!strcmp(f->value, "KEYBOARD"))
 		return CW_KBD;
@@ -9914,11 +9933,16 @@ void do_control_action(char *cmd)
 		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
-		sdr_request("r1:mode=TUNE", response);
+		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
+			tune_key = 1;  // fake straight key down
+			delay(100);
+		} else {
+		sdr_request("r1:mode=TUNE", response);				
 		delay(100);
-		tx_on(TX_SOFT);
-	}
-	else if (!strcmp(request, "TUNE OFF"))
+		tx_on(TX_SOFT);	
+		}
+	}  // end tune on
+	 if (!strcmp(request, "TUNE OFF"))
 	{
 		if (tune_on_invoked)
 		{
@@ -9926,6 +9950,7 @@ void do_control_action(char *cmd)
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
+			tune_key=0; // for CW/CWR
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 		}
@@ -9942,6 +9967,7 @@ void do_control_action(char *cmd)
 			//  Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
+			tune_key=0;  // for CW/CWR
 			// if (modestore != NULL) // Check for null before accessing or modifying
 			field_set("MODE", modestore);
 
