@@ -2152,7 +2152,9 @@ void save_user_settings(int forced)
 	{
 		// Skip #band and #band_stack_pos - these are computed fields, not saved
 		// The band stack index is saved per-band in the [80M], [40M], etc. sections
-		if (!strcmp(active_layout[i].cmd, "#band") || !strcmp(active_layout[i].cmd, "#band_stack_pos"))
+		if (!strcmp(active_layout[i].cmd, "#band") || 
+			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
+			!strcmp(active_layout[i].cmd, "#ftx_auto"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
@@ -2311,7 +2313,9 @@ static int user_settings_handler(void *user, const char *section,
 
 		// Skip #band and #band_stack_pos - these are computed fields from the old implementation
 		// They should not be loaded from settings
-		if (!strcmp(cmd, "#band") || !strcmp(cmd, "#band_stack_pos"))
+		if (!strcmp(cmd, "#band") || 
+			!strcmp(cmd, "#band_stack_pos") ||
+			!strcmp(cmd, "#ftx_auto"))  // ftx_auto needs to be reset to default on launch
 		{
 			return 1;
 		}
