@@ -2087,6 +2087,33 @@
             filterRightX = half_width + hz_per_pixel * high;
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         }
+        
+        // Skip filter visualization for FT8 mode
+        if (mode !== "FT8") {
+            // Calculate the visual edge positions (where the edges are actually drawn)
+            const visualLeftEdgeX = filterLeftX;
+            const visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
+            
+            // Store both the filter positions and visual edge positions for detection
+            window.filterLeftEdgeX = filterLeftX;
+            window.filterRightEdgeX = filterRightX;
+            window.visualLeftEdgeX = visualLeftEdgeX;
+            window.visualRightEdgeX = visualRightEdgeX;
+            
+            // Draw filter edges with a more prominent color to indicate they're draggable
+            ctx.fillStyle = "#666";
+            ctx.fillRect(visualLeftEdgeX, 0, 6, drawHeight); // Left edge
+            ctx.fillRect(visualRightEdgeX, 0, 6, drawHeight); // Right edge
+        }
+        
+        // Add a highlight effect at the top of the edges
+        //ctx.fillStyle = "#aaa";
+        //ctx.fillRect(visualLeftEdgeX, 0, 6, 5); // Left edge highlight
+        //ctx.fillRect(visualRightEdgeX, 0, 6, 5); // Right edge highlight
+        
+        // Debug visualization removed for production
+        
+        // Debug logging removed for production
 
         // Skip filter visualization for FTx modes
         if (mode !== "FT8" && mode !== "FT4") {
@@ -2873,6 +2900,7 @@
             }
         }
     }
+    
 
 
 

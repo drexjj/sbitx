@@ -134,7 +134,7 @@ int get_input_volume()
 {
 	return input_volume;
 }
-
+ 
 static int multicast_socket = -1;
 
 #define MUTE_MAX 6
@@ -1595,6 +1595,15 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
+	
+	// Check if browser microphone is active and use it instead of physical mic
+	int32_t browser_mic_samples[n_samples];
+	int use_browser_mic = is_browser_mic_active();
+	
+	if (use_browser_mic) {
+		// Get upsampled browser mic audio
+		upsample_browser_mic(browser_mic_samples, n_samples);
+	}
 
 	// Check if browser microphone is active and use it instead of physical mic
 	int32_t browser_mic_samples[n_samples];
@@ -2321,7 +2330,7 @@ void setup()
 	jitter_buffer_samples = 0;
 
 	modem_init();
-
+	
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;

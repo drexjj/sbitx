@@ -993,6 +993,9 @@ struct field main_controls[] = {
 
 	{"#scope_size", do_wf_edit, 150, 50, 5, 50, "SCOPESIZE", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 150, 5, 0},
+	
+	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0, 0, 0, 0},	 
 
 	 {"#tx_panafall", do_toggle_option, 150, 50, 5, 50, "TXPANAFAL", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 		"ON/OFF", 0, 0, 0, 0},
@@ -8707,6 +8710,11 @@ void hw_init()
 
 	enc_init(&enc_a, ENC_FAST, ENC1_B, ENC1_A);
 	enc_init(&enc_b, ENC_FAST, ENC2_A, ENC2_B);
+	
+	// Initialize MFK state
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
+	enc1_sw_prev = 1; // ENC1_SW is active-low, starts high
 
 	// Initialize MFK state
 	mfk_locked_to_volume = 0;
@@ -9467,7 +9475,7 @@ gboolean ui_tick(gpointer gook)
 	return TRUE;
 }
 
-void ui_init(int argc, char *argv[])
+void ui_init(int argc, char *argv[], int fullscreen)
 {
 
 	gtk_init(&argc, &argv);
@@ -9488,6 +9496,13 @@ void ui_init(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
+
+	// Apply fullscreen mode if requested
+	if (fullscreen) {
+		gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
+		gtk_window_fullscreen(GTK_WINDOW(window));
+		is_fullscreen = 1;
+	}
 
 	display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
@@ -10678,6 +10693,44 @@ else if (!strcasecmp(exec, "decode"))
 	}
   else if (!strcasecmp(exec, "exit"))
 	{
+		struct field *rit_field = get_field("#rit");
+		if (!rit_field) {
+			write_console(FONT_LOG, "Error: RIT field not found\n");
+			return;
+		}
+		
+		if (!strcasecmp(args, "on"))
+		{
+			// Turn RIT on
+			set_field("#rit", "ON");
+			set_field("#rit_delta", "000000"); // zero the RIT delta
+		}
+		else if (!strcasecmp(args, "off"))
+		{
+			// Turn RIT off
+			set_field("#rit", "OFF");
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				int current_freq = atoi(freq->value);
+				char response[128];
+				
+				// Adjust VFO up by 10Hz
+				set_operating_freq(current_freq + 10, response);
+				
+				// Small 5ms delay 
+				usleep(5000); 
+				
+				// Adjust VFO back down by 10Hz to original frequency
+				set_operating_freq(current_freq, response);
+			}
+		}
+		focus_field(f_last_text);
+	}
+  else if (!strcasecmp(exec, "exit"))
+	{
 		tx_off();
 		set_field("#record", "OFF");
 		save_user_settings(1);
@@ -10959,13 +11012,22 @@ int main(int argc, char *argv[])
 	puts(VER_STR);
 	active_layout = main_controls;
 
+	// Parse command line arguments for fullscreen mode
+	int fullscreen = 0;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--fullscreen") == 0) {
+			fullscreen = 1;
+			break;
+		}
+	}
+
 	// ensure_single_instance();
 
 	// unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
 
-	ui_init(argc, argv);
+	ui_init(argc, argv, fullscreen);
 	hw_init();
 	console_init();
 
