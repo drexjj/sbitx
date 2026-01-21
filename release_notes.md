@@ -1,4 +1,4 @@
-# v5.3 - Currently In Test/Dev
+# v5.3
 **New Features:**
 - Added tune option for CW mode
 - Consolidated Band, Mode, Bandstack, and other buttons to comboboxes
