@@ -6,6 +6,7 @@
 #include <stdint.h> 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>   
 #include <sys/time.h>
@@ -28,7 +29,7 @@
 #define HIGH_DECAY 50    // controls max high_level adjustment
 #define NOISE_DECAY 100  // controls max noise_level adjustment
 
-// structs and typedefs
+// structs
 struct morse_tx {
 	char c;
 	const char *code;
@@ -36,15 +37,13 @@ struct morse_tx {
 
 struct morse_rx {
 	char *c;
-	char *code;
+	const char *code;
 };
 
 struct bin {
 	float coeff;
 	float sine;
 	float cosine;
-	float omega;
-	int k;
 	double scalingFactor;
 	int freq;
 	int n;
@@ -57,35 +56,64 @@ struct symbol {
 };
 
 struct cw_decoder {
-  // denoise/detect timing and state
-  bool mark;
-  bool prev_mark;
-  bool sig_state;
-  uint32_t history_sig;
-  int ticker;
-  int dot_len;   // use dot as timing unit
-  // levels and SNR state
-  int magnitude;
-  int high_level;
-  int noise_floor;
-  // frequency-bin tracking
-  int max_bin_idx;
-  int max_bin_streak;
-  // Goertzel bins
+  // configuration
+  int n_bins;
+  int wpm;
+  int console_font;  // decoder output STYLE_CW_RX or STYLE_CW_TX
+
+  // bins (Goertzel filters at offsets)
   struct bin signal_minus2;
   struct bin signal_minus1;
   struct bin signal_center;
   struct bin signal_plus1;
   struct bin signal_plus2;
-  // configuration/state
-  int n_bins;
-  int wpm;
+
+  // detect (instantaneous detection / denoise history)
+  bool mark;
+  bool prev_mark;
+  bool sig_state;
+  uint32_t history_sig;
+  int ticker;
+
+  // levels (SNR/high/low tracking + winning bin)
+  int magnitude;
+  int high_level;
+  int noise_floor;
+  int max_bin_idx;
+  int max_bin_streak;
+
+  // timing (dot length, gaps, symbol assembly state)
+  int dot_len;              // use dot as timing unit
   int next_symbol;
   int last_char_was_space;
+  float space_ema;          // EMA of inter-character space (ticks)
+  float char_gap_ema;
+  float word_gap_ema;
+
+  // kmeans 2-D clustering state
+  float k_centroid_noise[2];   // centroid for noise cluster
+  float k_centroid_signal[2];  // centroid for signal cluster
+  int   k_count_noise;         // decaying counts (informational)
+  int   k_count_signal;
+  float k_alpha;               // learning rate for centroid updates (0..1)
+  int   k_warmup;              // warmup/seed counter
+  int   k_signal_streak;       // consecutive signal assignments
+  int   k_noise_streak;        // consecutive noise assignments
+  bool  k_initialized;         // true when centroids have been seeded
+
+  // mark emission parameters in log-domain
+  float mark_mu_dot;
+  float mark_var_dot;
+  float mark_mu_dash;
+  float mark_var_dash;
+  bool  mark_emission_ready;
+
+  // symbol buffer
   struct symbol symbol_str[MAX_SYMBOLS];
 };
 
 static struct cw_decoder decoder;
+static struct cw_decoder tx_decoder;
 
 // Morse code tables
 static const struct morse_tx morse_tx_table[] = {
@@ -157,6 +185,7 @@ static const struct morse_rx morse_rx_table[] = {
     {"<KN>", "-.--."},
     {"<BK>", "-...-.-"},
     {"<SK>", "...-.-"},
+    {"<KA>", "-.-.-"},
 
     // frequently run-together characters that we want to decode right (concatenated codes)
     {"FB",  "..-.-..."},   // F (..-.) + B (-...)
@@ -184,6 +213,7 @@ static int data_tx_until = 0;
 static const char *symbol_next = NULL;
 
 bool cw_reverse = false;    // cw paddles reverse if true
+
 static uint8_t cw_current_symbol = CW_IDLE;
 static uint8_t cw_next_symbol = CW_IDLE;
 static uint8_t cw_last_symbol = CW_IDLE;
@@ -191,9 +221,14 @@ static uint8_t cw_mode = CW_STRAIGHT;
 static int cw_bytes_available = 0;
 
 extern int text_ready;  // flag that TEXT buffer in gui is ready to send
+extern int cw_decode_enabled;  // flag that UI has enabled cw decoding
 
 static int cw_envelope_pos = 0; // position within the envelope
 static int cw_envelope_len = 480; // length of the envelope
+
+static int32_t tx_sample_buffer[1024];  // TX decoder buffer
+static int tx_buffer_pos = 0;
+static bool tx_session_active = false;  // Track if we're in a TX session
 
 // Blackman-Harris cw envelope
 // data values were calculated in external spreadsheet
@@ -296,9 +331,72 @@ static const float cw_envelope_data[480] = {
   0.9997016348f, 0.9998508072f, 0.9999502668f, 1.0f
 };
 
+// low-pass FIR filter coefficients
+// generated for a 5000 Hz cutoff at a 96000 Hz sample rate using a Blackman window
+static const float fir_coeffs[64] = {
+    1.08424165e-19f,  -4.95217686e-06f, -8.90038960e-06f, 9.10186219e-06f,  7.22463826e-05f,
+    1.99508746e-04f,  3.97578446e-04f,  6.52204412e-04f,  9.20791878e-04f,  1.12876449e-03f,
+    1.17243269e-03f,  9.30617527e-04f,  2.85948198e-04f,  -8.45319093e-04f, -2.47858182e-03f,
+    -4.52722324e-03f, -6.77751473e-03f, -8.87984399e-03f, -1.03625797e-02f, -1.06717427e-02f,
+    -9.23519903e-03f, -5.54506182e-03f, 7.52629663e-04f,  9.77507452e-03f,  2.13417483e-02f,
+    3.49485179e-02f,  4.97855288e-02f,  6.48009930e-02f,  7.88054510e-02f,  9.06039038e-02f,
+    9.91377783e-02f,  1.03616099e-01f,  1.03616099e-01f,  9.91377783e-02f,  9.06039038e-02f,
+    7.88054510e-02f,  6.48009930e-02f,  4.97855288e-02f,  3.49485179e-02f,  2.13417483e-02f,
+    9.77507452e-03f,  7.52629663e-04f,  -5.54506182e-03f, -9.23519903e-03f, -1.06717427e-02f,
+    -1.03625797e-02f, -8.87984399e-03f, -6.77751473e-03f, -4.52722324e-03f, -2.47858182e-03f,
+    -8.45319093e-04f, 2.85948198e-04f,  9.30617527e-04f,  1.17243269e-03f,  1.12876449e-03f,
+    9.20791878e-04f,  6.52204412e-04f,  3.97578446e-04f,  1.99508746e-04f,  7.22463826e-05f,
+    9.10186219e-06f,  -8.90038960e-06f, -4.95217686e-06f, 1.08424165e-19f};
+
 
 //////////////////////////////////////////
-// CW transmit and keyer functions
+//  Function prototypes
+//  ordered to match definitions in code
+//////////////////////////////////////////
+
+// CW TX/keyer prototypes (ordered to match definitions in code)
+static void     cw_init_morse_lut(void);
+static uint8_t  cw_get_next_symbol(void);
+static int      cw_read_key(void);
+float           cw_tx_get_sample(void);
+static void     handle_mode_straight(uint8_t symbol_now);
+static void     handle_mode_bug(uint8_t symbol_now);
+static void     handle_mode_ultimatic(uint8_t symbol_now);
+static void     handle_mode_iambic_common(uint8_t symbol_now, bool modeB);
+static void     handle_mode_kbd(uint8_t symbol_now);
+void            handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now);
+
+// CW decoder entry points and helpers
+void            cw_rx(int32_t *samples, int count);
+static void     cw_tx_decode_samples(void);
+void            apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order);
+static void     cw_rx_bin(struct cw_decoder *p, int32_t *samples);
+int             cw_get_max_bin_highlight_index(void);
+static int      cw_rx_bin_detect(struct bin *p, int32_t *data);
+static int      cw_rx_kmeans_update_2d(struct cw_decoder *p, int magnitude, int max_idx,
+                                       float *out_d_noise, float *out_d_signal, float *out_centroid_sep);
+static int      kmeans_1d(float *values, int n, int k, float *clusters, int *assignments);
+static bool     estimate_mark_emissions(struct cw_decoder *p, float *log_mark_durs, int n,
+                                        float *dot_mu, float *dot_var, float *dash_mu, float *dash_var);
+static void     viterbi_decode_marks(float *log_mark_durs, int n, float dot_mu, float dot_var,
+                                     float dash_mu, float dash_var, int *out_assignments);
+static void     cw_rx_update_levels(struct cw_decoder *p);
+static void     cw_rx_denoise(struct cw_decoder *p);
+static bool     cw_rx_detect_symbol(struct cw_decoder *p);
+static void     cw_rx_add_symbol(struct cw_decoder *p, char symbol);
+static void     cw_rx_match_letter(struct cw_decoder *decoder);
+static void     cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq);
+
+// CW init/poll/stats API
+void            cw_init(void);
+char           *cw_get_stats(char *buf, size_t len);
+void            cw_poll(int bytes_available, int tx_is_on);
+void            cw_abort(void);
+
+int is_in_tx(void);  // from modems.c
+
+//////////////////////////////////////////
+//      CW transmit and keyer functions
 //////////////////////////////////////////
 
 // build the look-up table from morse_tx_table; called once during initialization
@@ -368,17 +466,15 @@ static int cw_read_key(){
     symbol_next = morse_lut[uc];
 
     if (symbol_next) {
-        char buff[2] = { (char)toupper(uc), 0 };  // safe ctype: uc is unsigned char
-        write_console(FONT_CW_TX, buff);
+        // REMOVED WITH DECODING CW ON TX MOD
+        //char buff[2] = { (char)toupper(uc), 0 };  // safe ctype: uc is unsigned char
+        //write_console(STYLE_CW_TX, buff);
         return cw_get_next_symbol();
     } else {
         // unknown character: ignore
         return CW_IDLE;
     }
 }
-
-// Function prototype for the state machine handler
-void handle_cw_state_machine(uint8_t, uint8_t);
 
 // use input from macro playback, keyboard or key/paddle to key the transmitter
 // keydown and keyup times
@@ -418,7 +514,7 @@ float cw_tx_get_sample() {
 
   // data driven cw envelope shaping
   // key transmitter with envelope contained in cw_envelope_data[]
-  if (keydown_count > 0) {
+  if (keydown_count > 0) {  
     if (cw_envelope_pos < cw_envelope_len)
       cw_envelope = cw_envelope_data[cw_envelope_pos++];
     else
@@ -433,7 +529,21 @@ float cw_tx_get_sample() {
       cw_envelope = 0.0f;
     keyup_count--;
   }
-  sample = ((vfo_read(&cw_tone) / FLOAT_SCALE) * cw_envelope) / 8;
+  
+  // generate cw_tone sample for transmission
+  float tone = vfo_read(&cw_tone) / FLOAT_SCALE;
+  // apply envelope for actual transmitted audio
+  sample = (tone * cw_envelope) / 8;
+
+  // for TX decoding, use a hard-gated tone to provide decoder
+  float decode_sample = 0.0f;
+  if (cw_envelope > 0.001f) decode_sample = tone / 8.0f;  //reduce level of sampled TX signal
+  tx_sample_buffer[tx_buffer_pos++] = (int32_t)(decode_sample * 32768.0f);
+  // when buffer is full send it to TX decoder
+  if (tx_buffer_pos >= 1024) {
+      cw_tx_decode_samples();
+      tx_buffer_pos = 0;
+  }
   
   // keep extending 'cw_tx_until' while we're sending
   if ((symbol_now == CW_DOWN) || (symbol_now == CW_DOT) ||
@@ -453,15 +563,15 @@ float cw_tx_get_sample() {
 // and keyup_count needed to key transmitter.  The large switch case 
 // statement has been replaced with dedicated functions for each cw mode
 
-/* used in iambic modes to queue the next element */
+// used in iambic modes to queue the next element
 static uint8_t cw_next_symbol_flag = 0;
 
 // inline functions replace repeated code
-static inline void key_off_short(void)         { keydown_count = 0;           keyup_count = 1;           }
-static inline void key_on_short(void)          { keydown_count = 1;           keyup_count = 0;           }
-static inline void send_dot(void)              { keydown_count = cw_period;   keyup_count = cw_period;   }
-static inline void send_dash(void)             { keydown_count = cw_period*3; keyup_count = cw_period;   }
-static inline void schedule(uint8_t sym)       { cw_next_symbol = sym;        cw_next_symbol_flag = 1;   }
+static inline void key_off_short(void)   { keydown_count = 0;           keyup_count = 1;         }
+static inline void key_on_short(void)    { keydown_count = 1;           keyup_count = 0;         }
+static inline void send_dot(void)        { keydown_count = cw_period;   keyup_count = cw_period; }
+static inline void send_dash(void)       { keydown_count = cw_period*3; keyup_count = cw_period; }
+static inline void schedule(uint8_t sym) { cw_next_symbol = sym;        cw_next_symbol_flag = 1; }
 
 static inline void send_symbol_now(uint8_t sym) {
   if (sym == CW_DOT) { send_dot();  cw_last_symbol = CW_DOT; }
@@ -541,7 +651,7 @@ static void handle_mode_ultimatic(uint8_t symbol_now) {
 
 // iambic modes alternate dots and dashes when paddles are squeezed
 static void handle_mode_iambic_common(uint8_t symbol_now, bool modeB) {
-  /* emit queued symbol as soon as gap is available */
+  // emit queued symbol as soon as gap is available
   if (cw_next_symbol_flag && (keyup_count == 0)) {
     send_symbol_now(cw_next_symbol);
     cw_next_symbol_flag = 0;
@@ -600,7 +710,7 @@ static void handle_mode_iambic_common(uint8_t symbol_now, bool modeB) {
         cw_last_symbol = CW_DASH;
         cw_current_symbol = CW_DASH;
       } else if (symbol_now == CW_SQUEEZE) {
-        /* alternate immediate, and in mode B also queue opposite */
+        // alternate immediate, and in IAMBICB also queue opposite
         if (keyup_count == 0) {
           if (cw_last_symbol == CW_DOT) { send_dash(); cw_last_symbol = CW_DASH; }
           else                          { send_dot();  cw_last_symbol = CW_DOT;  }
@@ -614,7 +724,7 @@ static void handle_mode_iambic_common(uint8_t symbol_now, bool modeB) {
 
 // keyboard mode handles symbols coming from keyboard or macros
 static void handle_mode_kbd(uint8_t symbol_now) {
-  /* single-state behavior */
+  // single-state behavior
   if (symbol_now == CW_IDLE) {
     cw_last_symbol = CW_IDLE; cw_current_symbol = CW_IDLE;
   } else if (symbol_now == CW_DOT) {
@@ -623,10 +733,10 @@ static void handle_mode_kbd(uint8_t symbol_now) {
     send_dash(); cw_last_symbol = CW_DASH; cw_current_symbol = CW_IDLE;
   } else if (symbol_now == CW_DOT_DELAY) {
     keyup_count = cw_period * 1; cw_last_symbol = CW_DOT_DELAY; cw_current_symbol = CW_IDLE;
-  } else if (symbol_now == CW_DASH_DELAY) { /* inter-char extension */
+  } else if (symbol_now == CW_DASH_DELAY) { // inter-char extension
     if (cw_last_symbol != CW_WORD_DELAY) keyup_count = cw_period * 2;
     cw_last_symbol = CW_DASH_DELAY; cw_current_symbol = CW_IDLE;
-  } else if (symbol_now == CW_WORD_DELAY) { /* inter-word spacing */
+  } else if (symbol_now == CW_WORD_DELAY) { // inter-word spacing
     keyup_count = (cw_last_symbol == CW_DASH_DELAY) ? cw_period * 4 : cw_period * 7;
     cw_last_symbol = CW_WORD_DELAY; cw_current_symbol = CW_IDLE;
   }
@@ -662,80 +772,94 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 }
 
 //////////////////////////////////////////////////////////////////////////
-// CW DECODER FUNCTIONS
-// processing flow
-// cw_rx(int32_t *samples, int count)  // called from modem_rx()
-// │                                      in modems.c
-// ├── apply_fir_filter(...) 
-// │
-// ├── cw_rx_bin(&decoder, s)
-// │   ├── cw_rx_bin_detect(&p->signal_center, samples)
-// │   ├── cw_rx_bin_detect(&p->signal_plus, samples)
-// │   ├── cw_rx_bin_detect(&p->signal_minus, samples)
-// │
-// ├── cw_rx_update_levels(&decoder)
-// │
-// ├── cw_rx_denoise(&decoder)
-// └── cw_rx_detect_symbol(&decoder) 
-//     ├── cw_rx_add_symbol(&decoder, char symbol)  [mark/space transitions]
-//     └── cw_rx_match_letter(&decoder)             [symbol/letter boundary]
+// CW Decoder Functions
+//
+// cw_rx (entry point)   NOTE: cw_tx_decode_samples follow same flow
+// └─ apply_fir_filter(input, filtered_samples, fir_coeffs, count, 64)
+//    └─ decimation / build s[]
+//       └─ cw_rx_bin(&decoder, s)
+//          ├─ cw_rx_bin_detect(&p->signal_minus2, samples)  (Goertzel)
+//          ├─ cw_rx_bin_detect(&p->signal_minus1, samples)  (Goertzel)
+//          ├─ cw_rx_bin_detect(&p->signal_center, samples)  (Goertzel)
+//          ├─ cw_rx_bin_detect(&p->signal_plus1,  samples)  (Goertzel)
+//          └─ cw_rx_bin_detect(&p->signal_plus2,  samples)  (Goertzel)
+//          └─ cw_rx_kmeans_update_2d(p, magnitude, max_idx)
+//          └─ (clustering decision & set p->sig_state)
+//       └─ cw_rx_update_levels(&decoder)
+//       └─ cw_rx_denoise(&decoder)
+//       └─ cw_rx_detect_symbol(&decoder) return true when character gap detected
+//          ├─ if transition mark->space:
+//          │   └─ cw_rx_add_symbol(p, 'm')
+//          ├─ if transition space->mark:
+//          │   └─ cw_rx_add_symbol(p, ' ')
+//          ├─ when measuring gaps (space continuing):
+//              └─ (maybe) write_console(STYLE_CW_RX, " ")
+//       └─ cw_rx_match_letter(&decoder) when character gap detected:
+//          ├─ build mark_durs[] / mark_mags[]]
+//          ├─ compute log_mark_durs[]
+//          ├─ estimate_mark_emissions(decoder, log_mark_durs, n_marks, ...)
+//          │   └─ kmeans_1d(log_mark_durs, n_marks, 2, clusters, assignments)
+//          │      └─ (iterative 1-D kmeans, returns clusters + assignments)
+//          ├─ if est_ok:
+//          │   └─ viterbi_decode_marks(log_mark_durs, n_marks, dot_mu, 
+//          │          dot_var, dash_mu, dash_var, assignments)
+//          │      └─ (Viterbi DP, returns assignments)
+//          └─ else (fallback):
+//              └─ greedy threshold classifier
+//          ├─ build morse_code_string by iterating symbol_str[] + assignments
+//          ├─ (map morse string to table)
+//          │   └─ write_console(STYLE_CW_RX, morse or char)
+//          └─ update decoder->dot_len (adaptation)
+//
 //////////////////////////////////////////////////////////////////////////
 
-// CW decoder function prototypes
-void cw_rx(int32_t *samples, int count);
-static const float fir_coeffs[64];
-void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order);
-static void cw_rx_bin(struct cw_decoder *p, int32_t *samples);
-static int  cw_rx_bin_detect(struct bin *p, int32_t *data);
-static void cw_rx_update_levels(struct cw_decoder *p);
-static void cw_rx_denoise(struct cw_decoder *p);
-static void cw_rx_detect_symbol(struct cw_decoder *p);
-static void cw_rx_add_symbol(struct cw_decoder *p, char symbol);
-static void cw_rx_match_letter(struct cw_decoder *p);
-
-// CW decoder initialization and polling function prototypes
-void cw_init(void);
-void cw_poll(int bytes_available, int tx_is_on);
-static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq);
-
+// this is the entry point for cw decoder functions
 // take block of audio samples and call cw decoding functions
+// inputs:  int32_t *samples, int count
+// returns: void
 void cw_rx(int32_t *samples, int count) {
   int decimation_factor = 8;  // 96 kHz -> 12 kHz
-  int32_t filtered_samples[count];
+  int32_t filtered_samples[count];  // use local copies and don't modify original data
   int32_t s[128];
-  // apply anti-aliasing low pass filter
+  // apply anti-aliasing low pass filter then down-sample
   apply_fir_filter(samples, filtered_samples, fir_coeffs, count, 64);
-  // use decimation_factor to downsample
-  // and eliminate eight LSB (and reduce magnitude)
+  // downsample and eliminate eight LSB (A/D was 24 bits, not 32)
   for (int i = 0; i < decoder.n_bins; i++){	
     s[i] = filtered_samples[i * decimation_factor] >> 8;			
   }
-  cw_rx_bin(&decoder, s);         // look for signal in this block
-  cw_rx_update_levels(&decoder);  // update high and low noise levels
-  cw_rx_denoise(&decoder);        // denoise the signal state
-  cw_rx_detect_symbol(&decoder);  // detect Morse symbols
+  cw_rx_bin(&decoder, s);              // look for signal in this block
+  cw_rx_update_levels(&decoder);       // update high and low noise levels
+  cw_rx_denoise(&decoder);             // denoise the signal state
+  if (cw_rx_detect_symbol(&decoder)) { // returns true when character gap found 
+    cw_rx_match_letter(&decoder);
+  }
 }
 
-// static constant array of low-pass FIR filter coefficients
-// generated for a 5000 Hz cutoff at a 96000 Hz sample rate using a Blackman window
-static const float fir_coeffs[64] = {
-    1.08424165e-19f, -4.95217686e-06f, -8.90038960e-06f, 9.10186219e-06f, 7.22463826e-05f,
-    1.99508746e-04f, 3.97578446e-04f, 6.52204412e-04f, 9.20791878e-04f, 1.12876449e-03f,
-    1.17243269e-03f, 9.30617527e-04f, 2.85948198e-04f, -8.45319093e-04f, -2.47858182e-03f,
-    -4.52722324e-03f, -6.77751473e-03f, -8.87984399e-03f, -1.03625797e-02f, -1.06717427e-02f,
-    -9.23519903e-03f, -5.54506182e-03f, 7.52629663e-04f, 9.77507452e-03f, 2.13417483e-02f,
-    3.49485179e-02f, 4.97855288e-02f, 6.48009930e-02f, 7.88054510e-02f, 9.06039038e-02f,
-    9.91377783e-02f, 1.03616099e-01f, 1.03616099e-01f, 9.91377783e-02f, 9.06039038e-02f,
-    7.88054510e-02f, 6.48009930e-02f, 4.97855288e-02f, 3.49485179e-02f, 2.13417483e-02f,
-    9.77507452e-03f, 7.52629663e-04f, -5.54506182e-03f, -9.23519903e-03f, -1.06717427e-02f,
-    -1.03625797e-02f, -8.87984399e-03f, -6.77751473e-03f, -4.52722324e-03f, -2.47858182e-03f,
-    -8.45319093e-04f, 2.85948198e-04f, 9.30617527e-04f, 1.17243269e-03f, 1.12876449e-03f,
-    9.20791878e-04f, 6.52204412e-04f, 3.97578446e-04f, 1.99508746e-04f, 7.22463826e-05f,
-    9.10186219e-06f, -8.90038960e-06f, -4.95217686e-06f, 1.08424165e-19f
-};
+// entry point for decoding transmitted CW
+// operates much like cw_rx()
+static void cw_tx_decode_samples(void) {
+  int decimation_factor = 8;  // 96 kHz -> 12 kHz
+  int32_t s[N_BINS];
 
-// apply the FIR filter using convolution
-void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count, int order) {
+  // decimate directly (no FIR) and drop eight LSBs
+  for (int i = 0; i < N_BINS; i++) {
+    s[i] = tx_sample_buffer[i * decimation_factor] >> 8;
+  }
+	
+  // process through decoder just like on RX
+  cw_rx_bin(&tx_decoder, s);
+  cw_rx_update_levels(&tx_decoder);
+  cw_rx_denoise(&tx_decoder);
+  if (cw_rx_detect_symbol(&tx_decoder))
+    cw_rx_match_letter(&tx_decoder);
+}
+
+// apply the FIR low-pass filter using convolution
+// inputs:  int32_t *input, int32_t *output, const float *coeffs, int input_count, int order
+// returns: void
+// notes:  added to eliminate aliasing with down-sampling (LPF possibly not needed?)
+void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int input_count,
+                      int order) {
   for (int i = 0; i < input_count; i++) {
     float sum = 0.0f;
     for (int j = 0; j < order; j++) {
@@ -749,6 +873,9 @@ void apply_fir_filter(int32_t *input, int32_t *output, const float *coeffs, int 
 }
 
 // detect signal in this block of samples
+// inputs:  struct cw_decoder *p, int32_t *samples
+// returns: void
+// notes:
 static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   // get magnitude in each of five frequency bins
   // Bins are at -80, -35, 0, +35, +80 Hz relative to center pitch
@@ -763,44 +890,89 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   int max_idx = 2;
   if (mag_minus2 > sig_now) { sig_now = mag_minus2; max_idx = 0; }
   if (mag_minus1 > sig_now) { sig_now = mag_minus1; max_idx = 1; }
-  if (mag_plus1  > sig_now) { sig_now = mag_plus1;  max_idx = 3; }
-  if (mag_plus2  > sig_now) { sig_now = mag_plus2;  max_idx = 4; }
+  if (mag_plus1 > sig_now)  { sig_now = mag_plus1;  max_idx = 3; }
+  if (mag_plus2 > sig_now)  { sig_now = mag_plus2;  max_idx = 4; }
   p->magnitude = sig_now;
 
   // track winning streak count for max_bin_idx
   if (p->max_bin_idx == max_idx) {
-      p->max_bin_streak++;
+    p->max_bin_streak++;
   } else {
-      p->max_bin_streak = 1;
-      p->max_bin_idx = max_idx;
+    p->max_bin_streak = 1;
+    p->max_bin_idx = max_idx;
   }
-    
-  // Compare to recent magnitude levels and consider 
-  // max_bin_streak length to determine if signal present
-  // I set SNR threshold higher when there is no streak going, 
-  // and lower when we have a streak
-  if ((p->max_bin_streak == 1) &&
-        (p->magnitude >= p->noise_floor + 0.4f * (p->high_level - p->noise_floor)))
-    p->sig_state = true; 
-  // with a streak of 2 or more we accept lower SNR
-  else if ((p->max_bin_streak >= 2) &&
-        (p->magnitude >= p->noise_floor + 0.15f * (p->high_level - p->noise_floor)))
+
+  // replaced old simple SNR comparison with 2-D clustering decision
+  // features: x0 = log(1+mag), x1 = distance-from-center (abs(max_idx-2))
+  // we still fallback to legacy method while clustering is not yet reliable,
+  // but use a hybrid policy: quick magnitude thresholds for clear cases,
+  // otherwise consult kmeans when confident
+  const float Z_HIGH = 0.50f;   // strong-signal threshold (normalized)
+  const float Z_LOW  = 0.15f;   // clear-noise threshold (normalized)
+  const float min_centroid_sep = 0.25f;  // min separation to trust clustering
+  const int MIN_KCOUNT = 8;              // require some samples in each cluster
+  const int min_signal_streak = 2;       // streaks for hysteresis
+  const int min_noise_streak = 2;
+
+  // always update centroids and get back distances for decision-making
+  float d_noise = 0.0f, d_signal = 0.0f, centroid_sep = 0.0f;
+  int assigned_signal = cw_rx_kmeans_update_2d(p, p->magnitude, max_idx, &d_noise, &d_signal, &centroid_sep);
+  bool kmeans_reliable = (p->k_initialized && centroid_sep >= min_centroid_sep &&
+                          p->k_count_noise >= MIN_KCOUNT && p->k_count_signal >= MIN_KCOUNT);
+
+  // compute normalized magnitude z = (mag - noise) / (high - noise)
+  float denom = (float)(p->high_level - p->noise_floor);
+  if (denom <= 0.0f) denom = 1.0f;
+  float z = ((float)p->magnitude - (float)p->noise_floor) / denom;
+
+  if (z >= Z_HIGH) {
+    // clear signal by magnitude
     p->sig_state = true;
-  else
+  } else if (z <= Z_LOW) {
+    // clear noise by magnitude
     p->sig_state = false;
+  } else {
+    // if signal not clearly present, consult kmeans if it's reliable
+    if (kmeans_reliable) {
+      // use assignment + streak hysteresis (kmeans updated streaks internally)
+      if (assigned_signal) {
+        if (p->k_signal_streak >= min_signal_streak) p->sig_state = true;
+        // otherwise keep previous p->sig_state until streak threshold reached
+      } else {
+        if (p->k_noise_streak >= min_noise_streak) p->sig_state = false;
+      }
+    } else { 
+      // clustering not reliable yet: fallback to legacy SNR heuristic
+      if ((p->max_bin_streak == 1) &&
+          (p->magnitude >= p->noise_floor + 0.4f * (p->high_level - p->noise_floor)))
+        p->sig_state = true;
+      else if ((p->max_bin_streak >= 2) &&
+               (p->magnitude >= p->noise_floor + 0.15f * (p->high_level - p->noise_floor)))
+        p->sig_state = true;
+      else
+        p->sig_state = false;
+    }
+  }
+
   p->ticker++;
 }
-
-// this function only called from sbitx_gtk.c to supply zerobeat indicator 
-// with info on which bin to highlight
+// gets the bin index that had the strongest magnitude signal
+// inputs:  
+// returns: int decoder.max_bin_idx
+// notes: this function is called from sbitx_gtk.c to find which bin
+// to highlight in zerobeat indicator
 int cw_get_max_bin_highlight_index(void) {
-  // return -1 if no signal present or if no streak (I might tune the streak number)
+  // return -1 if no signal present or if no streak
+  // change this if we want more 'action' in the zerobeat indicator
   if (!decoder.sig_state) return -1;
   if (decoder.max_bin_streak < 2) return -1;
-  return decoder.max_bin_idx; // 0..4, where 2 is the center bin
+  return decoder.max_bin_idx;  // 0..4, where 2 is the center bin
 }
 
-// use fractional Goertzel algorithm to detect the magnitude of a specific frequency bin
+// fractional Goertzel algorithm to detect the magnitude of a specific frequency bin
+// inputs:  struct bin *p, int32_t *data
+// returns: int magnitude
+// notes: 
 static int cw_rx_bin_detect(struct bin *p, int32_t *data) {
   // Q1 and Q2 are the previous two states in the Goertzel recurrence
   float Q2 = 0;
@@ -808,17 +980,307 @@ static int cw_rx_bin_detect(struct bin *p, int32_t *data) {
   for (int index = 0; index < p->n; index++) {
     float Q0 = p->coeff * Q1 - Q2 + (float)(*data);
     Q2 = Q1;
-    Q1 = Q0;	
+    Q1 = Q0;
     data++;
   }
   // compute in-phase (cosine) and quadrature (sine) components at the target frequency
   double real = (Q1 * p->cosine - Q2) / p->scalingFactor;
   double imag = (Q1 * p->sine) / p->scalingFactor;
-  int magnitude = (int)(sqrt(real*real + imag*imag));
+  int magnitude = (int)(sqrt(real * real + imag * imag));
   return magnitude;
 }
 
+// 2-D clustering of bin magnitude and distance from center bin,
+// i.e. features are log(1+mag), distance-from-center
+// Updates centroids (always), returns assignment (1=signal,0=noise)
+// and outputs distances and centroid separation so caller can decide
+// whether to trust clustering or fall back to magnitude heuristic.
+static int cw_rx_kmeans_update_2d(struct cw_decoder *p, int magnitude, int max_idx,
+                                  float *out_d_noise, float *out_d_signal,
+                                  float *out_centroid_sep) {
+  const int center_idx = 2;
+  float x0 = logf(1.0f + (float)magnitude);              // magnitude, log-compressed
+  float x1 = fabsf((float)max_idx - (float)center_idx);  // distance from center bin
+
+  // startup seeding: use first two samples to initialize centroids
+  if (!p->k_initialized) {
+    if (p->k_warmup == 0) {
+      p->k_centroid_noise[0] = x0;
+      p->k_centroid_noise[1] = x1;
+      p->k_warmup++;
+      /* Output diagnostics if requested */
+      if (out_d_noise) *out_d_noise = 0.0f;
+      if (out_d_signal) *out_d_signal = 0.0f;
+      if (out_centroid_sep) *out_centroid_sep = 0.0f;
+      return 0;  // assigned to noise for now
+    } else if (p->k_warmup == 1) {
+      p->k_centroid_signal[0] = x0;
+      p->k_centroid_signal[1] = x1;
+      p->k_warmup++;
+      // ensure ordering: signal centroid should have larger x0 than noise centroid
+      if (p->k_centroid_noise[0] > p->k_centroid_signal[0]) {
+        float t0 = p->k_centroid_noise[0], t1 = p->k_centroid_noise[1];
+        p->k_centroid_noise[0] = p->k_centroid_signal[0];
+        p->k_centroid_noise[1] = p->k_centroid_signal[1];
+        p->k_centroid_signal[0] = t0;
+        p->k_centroid_signal[1] = t1;
+      }
+      p->k_initialized = true;
+      if (out_d_noise) *out_d_noise = 0.0f;
+      if (out_d_signal) *out_d_signal = 0.0f;
+      if (out_centroid_sep) *out_centroid_sep = 0.0f;
+      return 1;  // assigned to signal for this seed frame
+    } else {
+      // Unexpected state: seed from legacy tracked levels so centroids are reasonable
+      p->k_centroid_noise[0] = logf(1.0f + (float)p->noise_floor);
+      p->k_centroid_noise[1] = 2.0f;
+      p->k_centroid_signal[0] = logf(1.0f + (float)p->high_level);
+      p->k_centroid_signal[1] = 0.0f;
+      p->k_initialized = true;
+      /* fall through to normal update below */
+    }
+  }
+
+  // compute Euclidean distances to both centroids in (x0,x1) space
+  float dn0 = x0 - p->k_centroid_noise[0];
+  float dn1 = x1 - p->k_centroid_noise[1];
+  float ds0 = x0 - p->k_centroid_signal[0];
+  float ds1 = x1 - p->k_centroid_signal[1];
+  float d_noise = sqrtf(dn0 * dn0 + dn1 * dn1);
+  float d_signal = sqrtf(ds0 * ds0 + ds1 * ds1);
+
+  // learning rate (alpha) with safe default
+  float alpha = p->k_alpha;
+  if (alpha <= 0.0f) alpha = 0.04f;
+
+  // nearest-centroid assignment and EMA update of centroids
+  int assigned_signal = (d_signal < d_noise) ? 1 : 0;
+  if (!assigned_signal) {
+    p->k_count_noise++;
+    p->k_centroid_noise[0] = (1.0f - alpha) * p->k_centroid_noise[0] + alpha * x0;
+    p->k_centroid_noise[1] = (1.0f - alpha) * p->k_centroid_noise[1] + alpha * x1;
+    p->k_noise_streak++;
+    p->k_signal_streak = 0;
+  } else {
+    p->k_count_signal++;
+    p->k_centroid_signal[0] = (1.0f - alpha) * p->k_centroid_signal[0] + alpha * x0;
+    p->k_centroid_signal[1] = (1.0f - alpha) * p->k_centroid_signal[1] + alpha * x1;
+    p->k_signal_streak++;
+    p->k_noise_streak = 0;
+  }
+
+  // keep ordering sensible ... signal centroid typically has the larger magnitude
+  if (p->k_centroid_signal[0] < p->k_centroid_noise[0]) {
+    float t0 = p->k_centroid_noise[0];
+    float t1 = p->k_centroid_noise[1];
+    p->k_centroid_noise[0] = p->k_centroid_signal[0] * 0.98f;
+    p->k_centroid_noise[1] = p->k_centroid_signal[1] * 1.02f;
+    p->k_centroid_signal[0] = t0 * 1.02f;
+    p->k_centroid_signal[1] = t1 * 0.98f;
+  }
+
+  // recompute centroid separation for diagnostics
+  float dx0 = p->k_centroid_signal[0] - p->k_centroid_noise[0];
+  float dx1 = p->k_centroid_signal[1] - p->k_centroid_noise[1];
+  float centroid_sep = sqrtf(dx0 * dx0 + dx1 * dx1);
+
+  if (out_centroid_sep) *out_centroid_sep = centroid_sep;
+  if (out_d_noise) *out_d_noise = d_noise;
+  if (out_d_signal) *out_d_signal = d_signal;
+
+  return assigned_signal;
+}
+
+// simple 1-D kmeans (small, iterative). Operates on positive float values.
+// This function takes marks with lengths and builds two centroids with dot and dash
+// assignments 
+//  - k: number of clusters (2 for dot/dash)
+//  - clusters: on input may contain seeds (length k); on output contains centroids
+//  - assignments: output array length n with cluster indices 0..k-1
+// inputs:  float *values, int n, int k, float *clusters, int *assignments
+// returns: int KM_MAX_ITERS (the number of iterations performed)
+// notes: One centroid corresponds to the short marks (dots), the other to the long marks (dashes)
+// When converged, the computed centroids (mu) and variances (var) in the log domain are 
+// meaningful and can be used reliably by the Viterbi decoder to label each observed mark as dot or dash
+static int kmeans_1d(float *values, int n, int k, float *clusters, int *assignments) {
+    if (n <= 0 || k <= 0) return 0;
+    const int KM_MAX_ITERS = 10;
+    // seed clusters if zeros: min & max
+    float vmin = values[0], vmax = values[0];
+    for (int i = 1; i < n; ++i) {
+        if (values[i] < vmin) vmin = values[i];
+        if (values[i] > vmax) vmax = values[i];
+    }
+    if (k >= 1 && clusters[0] == 0.0f) clusters[0] = vmin;
+    if (k >= 2 && clusters[1] == 0.0f) clusters[1] = vmax;
+
+    for (int iter = 0; iter < KM_MAX_ITERS; ++iter) {
+        for (int i = 0; i < n; ++i) {
+            float bestd = fabsf(values[i] - clusters[0]);
+            int best = 0;
+            for (int c = 1; c < k; ++c) {
+                float d = fabsf(values[i] - clusters[c]);
+                if (d < bestd) { bestd = d; best = c; }
+            }
+            assignments[i] = best;
+        }
+        // recompute centroids
+        float sum[3] = {0.0f, 0.0f, 0.0f};
+        int count[3] = {0,0,0};
+        for (int i = 0; i < n; ++i) {
+            int a = assignments[i];
+            sum[a] += values[i];
+            count[a] += 1;
+        }
+        int converged = 1;
+        for (int c = 0; c < k; ++c) {
+            if (count[c] > 0) {
+                float newc = sum[c] / (float)count[c];
+                if (fabsf(newc - clusters[c]) > 1e-4f) converged = 0;
+                clusters[c] = newc;
+            }
+        }
+        if (converged) return iter + 1;
+    }
+    return KM_MAX_ITERS;
+}
+
+// Estimate mark emission parameters (dot/dash) using 1-D kmeans on
+// log(mark duration).  
+// inputs:   struct cw_decoder *p, float *log_mark_durs, int n,
+//           float *dot_mu, float *dot_var, float *dash_mu, float *dash_var
+// returns: bool TRUE (if the estimation is reliable)
+// notes: computes dot_mu, dot_var, dash_mu, dash_var (all in log-domain)
+static bool estimate_mark_emissions(struct cw_decoder *p, float *log_mark_durs, int n,
+                                    float *dot_mu, float *dot_var, float *dash_mu, float *dash_var) {
+    if (n <= 0) return false;
+    if (n == 1) {
+        // not enough samples; fall back to decoder->dot_len
+        *dot_mu = logf(1.0f + (float)p->dot_len);
+        *dash_mu = logf(1.0f + (float)p->dot_len * 3.0f);
+        *dot_var = *dash_var = 0.5f;
+        return false;
+    }
+
+    int assignments[MAX_SYMBOLS];
+    float clusters[2] = {0.0f, 0.0f};
+    // seed min/max
+    float vmin = log_mark_durs[0], vmax = log_mark_durs[0];
+    for (int i = 1; i < n; ++i) {
+      if (log_mark_durs[i] < vmin) vmin = log_mark_durs[i];
+      if (log_mark_durs[i] > vmax) vmax = log_mark_durs[i];
+    }
+    clusters[0] = vmin; clusters[1] = vmax;
+
+    kmeans_1d(log_mark_durs, n, 2, clusters, assignments);
+
+    // compute cluster stats
+    float sum0 = 0.0f, sum1 = 0.0f;
+    float ss0 = 0.0f, ss1 = 0.0f;
+    int c0 = 0, c1 = 0;
+    for (int i = 0; i < n; ++i) {
+        if (assignments[i] == 0) {
+          sum0 += log_mark_durs[i];
+          ss0 += log_mark_durs[i]*log_mark_durs[i]; c0++;
+        }
+        else {
+          sum1 += log_mark_durs[i];
+          ss1 += log_mark_durs[i]*log_mark_durs[i];
+          c1++;
+        }
+    }
+    if (c0 == 0 || c1 == 0) {
+        // degenerate clustering
+        return false;
+    }
+    float mu0 = sum0 / (float)c0;
+    float mu1 = sum1 / (float)c1;
+    float var0 = (ss0 / (float)c0) - (mu0 * mu0);
+    float var1 = (ss1 / (float)c1) - (mu1 * mu1);
+    if (var0 <= 1e-4f) var0 = 1e-4f;
+    if (var1 <= 1e-4f) var1 = 1e-4f;
+
+    // identify dot = smaller centroid
+    if (mu0 <= mu1) {
+        *dot_mu = mu0; *dot_var = var0;
+        *dash_mu = mu1; *dash_var = var1;
+    } else {
+        *dot_mu = mu1; *dot_var = var1;
+        *dash_mu = mu0; *dash_var = var0;
+    }
+
+    // require minimal separation in log-domain to be confident
+    const float MIN_SEP_LOG = 0.23f;  // WAS .25
+    if ( (*dash_mu - *dot_mu) < MIN_SEP_LOG )
+      return false;
+    else
+      return true;
+}
+
+// Viterbi decoder for sequence of mark log-durations using two states,
+// 0=DOT, 1=DASH. Uses Gaussian emission models (log-domain).
+// inputs: float *log_mark_durs, int n, float dot_mu, float dot_var, 
+//         float dash_mu, float dash_var, int *out_assignments
+// returns: void
+// notes: outputs assignments array of length n with 0/1
+static void viterbi_decode_marks(float *log_mark_durs, int n, float dot_mu, float dot_var, float dash_mu, float dash_var, int *out_assignments) {
+    if (n <= 0) return;
+    // range check
+    if (dot_var <= 0.0f) dot_var = 1e-3f;
+    if (dash_var <= 0.0f) dash_var = 1e-3f;
+
+    // precompute emission log-likelihoods
+    float emit[MAX_SYMBOLS][2];
+    const float LOG2PI = logf(2.0f * (float)M_PI);
+    for (int t = 0; t < n; ++t) {
+        float x = log_mark_durs[t];
+        float ldot = -0.5f * ( (x - dot_mu)*(x - dot_mu) / dot_var ) - 0.5f * (LOG2PI + logf(dot_var));
+        float ldash = -0.5f * ( (x - dash_mu)*(x - dash_mu) / dash_var ) - 0.5f * (LOG2PI + logf(dash_var));
+        emit[t][0] = ldot;
+        emit[t][1] = ldash;
+    }
+
+    // transition log-probabilities (favor staying same state slightly)
+    const float P_STAY = 0.55f;   // >>>>> try tweaking this <<<<<
+    const float P_SWITCH = 1.0f - P_STAY;
+    const float log_stay = logf(P_STAY);
+    const float log_switch = logf(P_SWITCH);
+
+    // dp arrays
+    float dp[MAX_SYMBOLS][2];
+    int back[MAX_SYMBOLS][2];
+
+    // priors (equal)
+    dp[0][0] = logf(0.5f) + emit[0][0];
+    dp[0][1] = logf(0.5f) + emit[0][1];
+    back[0][0] = back[0][1] = -1;
+
+    for (int t = 1; t < n; ++t) {
+        for (int s = 0; s < 2; ++s) {
+            // compute best previous
+            float bestv = dp[t-1][0] + ( (s==0) ? log_stay : log_switch );
+            int bestp = 0;
+            float v1 = dp[t-1][1] + ( (s==1) ? log_stay : log_switch );
+            if (v1 > bestv) { bestv = v1; bestp = 1; }
+            dp[t][s] = bestv + emit[t][s];
+            back[t][s] = bestp;
+        }
+    }
+
+    // termination: pick best final state
+    int bests = (dp[n-1][1] > dp[n-1][0]) ? 1 : 0;
+    int cur = bests;
+    for (int t = n-1; t >= 0; --t) {
+        out_assignments[t] = cur;
+        cur = back[t][cur];
+        if (cur < 0) break;
+    }
+}
+
 // update signal level tracking
+// inputs:  struct cw_decoder *p
+// returns: void
+// notes:
 static void cw_rx_update_levels(struct cw_decoder *p) {
   // treat current magnitude as a candidate for the new high level
   int new_high = p->magnitude;
@@ -838,14 +1300,17 @@ static void cw_rx_update_levels(struct cw_decoder *p) {
   }
 }
 
-// updates the 'mark' state (p->mark) based on a smoothed version of 
+// updates the 'mark' state (p->mark) based on a smoothed version of
 // the raw input signal (p->sig_state)
+// inputs:  struct cw_decoder *p
+// returns: void
+// notes:
 static void cw_rx_denoise(struct cw_decoder *p) {
   p->prev_mark = p->mark;
   // use sliding window to smooth sig_state over time
-  p->history_sig <<= 1;    // Shift register: oldest bit out, make room for new sample
-  if (p->sig_state)        // If current input is a 'mark'
-    p->history_sig |= 1;   // then set least significant bit
+  p->history_sig <<= 1;   // Shift register: oldest bit out, make room for new sample
+  if (p->sig_state)       // If current input is a 'mark'
+    p->history_sig |= 1;  // then set least significant bit
   uint16_t sig = p->history_sig & 0b1111;
   // use Kernighan's algorithm to count number of set bits (1s)
   int count = 0;
@@ -864,71 +1329,106 @@ static void cw_rx_denoise(struct cw_decoder *p) {
 
 // detect transitions between mark and space and if a dot, dash, character space
 // or word space has occurred
-static void cw_rx_detect_symbol(struct cw_decoder *p) {
-  // detect mark/space transitions and symbol boundaries based on current and previous 'mark' states
-  // case where we are at end of a mark (transition from mark to space)
-  if (!p->mark && p->prev_mark) {
-    cw_rx_add_symbol(p, 'm');  // add a 'mark' (or 'm' for measurement) symbol to the buffer
-    p->ticker = 0;             // reset the ticker as a new space period begins
-  }
-  // case where we are at start of a mark (transition from space to mark)
-  else if (p->mark && !p->prev_mark) {
-    cw_rx_add_symbol(p, ' ');   // add a 'space' symbol (representing the gap before the mark
-    p->ticker = 0;              // reset the ticker to start timing the new mark
-  }
-  // case where we are continuing space (both current and previous are space)
-  else if (!p->mark && !p->prev_mark) {
-    // gaps set in relation to dot length
-    const int element_gap = p->dot_len;      // 1 dot
-    const int char_gap    = 3 * p->dot_len;  // 3 dots
-    const int word_gap    = 7 * p->dot_len;  // 7 dots
+// detect Farnsworth spacing and adjust word-gap threshold when found
+// returns: bool - true if a character gap was detected (caller should call matcher)
+static bool cw_rx_detect_symbol(struct cw_decoder *p) {
+  // Tunables
+  const float ALPHA = 0.14f;    // EMA smoothing factor
+  const float WORD_THR = 1.7f;  // min word gap/char gap ratio for word boundary
+  const int WORD_COUNT = 3;     // number of consecutive chars before allowing word boundary
+  const int MAX_MARK = 12;      // max mark duration, dots
+  const float GAP_ALPHA = 0.20f; // EMA for measured gaps (char/word)
 
-    if (p->next_symbol == 0) {
-      // no symbol being built, check for word gap (long space)
-      if (p->ticker >= word_gap) {
-        if (!p->last_char_was_space) {
-          write_console(FONT_CW_RX, " ");  // output a space to the console (word separator)
-          p->last_char_was_space = 1;
-        }
-        p->ticker = 0;   // reset ticker after outputting space
-      }
+  // Nominal gaps if EMAs not ready
+  int dot = p->dot_len;
+  int char_gap_nom = 3 * dot;
+  int word_gap_nom = 7 * dot;
+
+  // Compute current thresholds (use EMAs if available, otherwise nominal)
+  int char_gap = (p->char_gap_ema > 0.0f) ? (int)p->char_gap_ema : char_gap_nom;
+  int word_gap = (p->word_gap_ema > 0.0f) ? (int)p->word_gap_ema : word_gap_nom;
+
+  // Enforce ordering
+  if (word_gap <= char_gap + dot) 
+    word_gap = char_gap + 2 * dot;
+
+  // -- Transition (MARK -> SPACE): End of element
+  if (!p->mark && p->prev_mark) {
+    cw_rx_add_symbol(p, 'm');
+    p->ticker = 0;
+    return false;
+  }
+
+  // -- Transition (SPACE -> MARK): Start of new mark, gap just finished
+  if (p->mark && !p->prev_mark) {
+    int gap_ticks = p->ticker;
+    cw_rx_add_symbol(p, ' ');
+    p->last_char_was_space = 0;
+
+    // --- Update gap EMAs based on what we just measured ---
+    if (gap_ticks >= word_gap) {
+        // treat as word gap
+        if (p->word_gap_ema <= 0.0f) p->word_gap_ema = (float)gap_ticks;
+        else p->word_gap_ema = (1.0f - GAP_ALPHA) * p->word_gap_ema + GAP_ALPHA * (float)gap_ticks;
     } else {
-      // there is an ongoing symbol sequence being built (marks and possibly a trailing space)
-      // close the current element when we have at least an element gap (~1 dot) and the last added entry was a mark.
-      if (p->ticker >= element_gap) {
-        if (p->symbol_str[p->next_symbol - 1].is_mark) {
-          // add a single element-terminating space only once per gap
-          cw_rx_add_symbol(p, ' ');
-          // we do NOT reset ticker here; we want to keep measuring the space to detect char/word gap
-        }
+        // treat as inter-character gap
+        if (p->char_gap_ema <= 0.0f) p->char_gap_ema = (float)gap_ticks;
+        else p->char_gap_ema = (1.0f - GAP_ALPHA) * p->char_gap_ema + GAP_ALPHA * (float)gap_ticks;
+    }
+    
+    p->ticker = 0;
+    return false;
+  }
+
+  // -- Remain in SPACE: Check for symbol/char/word gaps
+  if (!p->mark && !p->prev_mark) {
+    int t = p->ticker;
+
+    // If we’re in the middle of building a character, handle element + char gaps
+    if (p->next_symbol > 0) {
+      // Add a single inter-element space after a mark
+      if (t >= dot && p->symbol_str[p->next_symbol - 1].is_mark) {
+        cw_rx_add_symbol(p, ' ');
+        // do NOT reset ticker; we still want to measure the full gap
       }
-      // finalize the character only when we reach a character gap (~3 dots)
-      if (p->ticker >= char_gap) {
+
+      // Close the character after the char gap
+      if (t >= char_gap) {
         cw_rx_match_letter(p);
-        // if this also looks like a word gap, print a space
-        if (p->ticker >= word_gap) {
-          if (!p->last_char_was_space) {
-            write_console(FONT_CW_RX, " ");
-            p->last_char_was_space = 1;
-          }
-          p->ticker = 0;
-        }
+        p->last_char_was_space = 0;
+        // ticker is left running to continue measuring for a possible word gap
       }
     }
+
+    // Word gap check is independent of whether we’re currently building a char
+    // TEMP: ignore EMAs, use nominal values only
+    int dot = p->dot_len;
+    int char_gap = 3 * dot;
+    int word_gap = 7 * dot;
+	  if (t >= word_gap) {
+      // Suppress consecutive spaces for this decoder only
+      if (cw_decode_enabled && !p->last_char_was_space) {
+        write_console(p->console_font, " ");
+      }
+      p->last_char_was_space = 1;
+      // Do NOT reset ticker; let the next space->mark transition measure the full gap
+    }
   }
-  // case where we are still in a mark (both current and previous are mark)
+  // -- Remain in MARK: Avoid runaway marks (long pressed carrier)
   else if (p->mark && p->prev_mark) {
-    if (p->ticker >= p->dot_len * 9)
-      p->ticker = p->dot_len * 3;
+    if (p->ticker > MAX_MARK * dot) p->ticker = 3 * dot;
   }
+  return false;
 }
 
 // add a mark or space to the symbol buffer, store its duration (ticks),
 // and update the symbol's average magnitude
+// inputs:  struct cw_decoder *p, char symbol
+// returns: void
+// notes:
 static void cw_rx_add_symbol(struct cw_decoder *p, char symbol) {
   // if it's full clear it
-  if (p->next_symbol == MAX_SYMBOLS)
-      p->next_symbol = 0;
+  if (p->next_symbol == MAX_SYMBOLS) p->next_symbol = 0;
   // only ' ' (space) is treated as a space; all other symbols are marks
   p->symbol_str[p->next_symbol].is_mark = (symbol != ' ');  // 0 for space, 1 for  mark
   // store the duration of the symbol (number of ticks since last transition)
@@ -942,139 +1442,526 @@ static void cw_rx_add_symbol(struct cw_decoder *p, char symbol) {
 
 // take string of marks and spaces with their durations in "ticks" and
 // translate them into a Morse code character
+// inputs:  struct cw_decoder *decoder
+// returns: void
+// notes:
+// gate output by Viterbi confidence
 static void cw_rx_match_letter(struct cw_decoder *decoder) {
-  char morse_code_string[MAX_SYMBOLS];
   // if no symbols have been received, there's nothing to decode
-  if (decoder->next_symbol == 0)
-    return;
+  if (decoder->next_symbol == 0) return;
 
-  // initialize state variables for processing symbols
-  int is_currently_in_mark = 0;
-  int current_segment_ticks = 0;  
-  morse_code_string[0] = '\0';   // ensure the string starts empty
-  // calculate the minimum acceptable duration for a dot
-  int min_valid_symbol_duration = (decoder->dot_len * 3) / 5;  // 0.6 of a dot
-
-  for (int i = 0; i < decoder->next_symbol; i++) {
-    if (decoder->symbol_str[i].is_mark) {   // if the current symbol is a 'mark' (signal present)
-      if (!is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
-        is_currently_in_mark = 1;
-        current_segment_ticks = 0;  // reset tick counter for the new mark segment
-      }
-    } else {    // if the current symbol is a 'space' (silence)
-      if (is_currently_in_mark && decoder->symbol_str[i].ticks >= min_valid_symbol_duration) {
-        is_currently_in_mark = 0;  // we are now in a space
-        // classify the preceding mark based on its duration
-        // dash if > 2.5 dots
-        if (current_segment_ticks >= (decoder->dot_len * 7) / 3) {  // 2.5 dots
-          strcat(morse_code_string, "-");
-          // now make adaptive adjustment using just observed dash length
-          int dash_prev = decoder->dot_len * 3;
-          int new_dash  = (dash_prev * 3 + current_segment_ticks) / 4;
-          int theoretical_dash = (18 * SAMPLING_FREQ) / (5 * N_BINS * decoder->wpm);
-          // new_dash should be between half and double expected length
-          if (theoretical_dash / 2 < new_dash && new_dash < theoretical_dash * 2)
-            decoder->dot_len = new_dash / 3;
-        } else if (current_segment_ticks >= min_valid_symbol_duration) {
-          // this was a dot
-          strcat(morse_code_string, ".");
-        }
-      }
+  // build arrays of mark durations and magnitudes from collected symbols
+  float mark_durs[MAX_SYMBOLS];
+  float mark_mags[MAX_SYMBOLS];
+  int n_marks = 0;
+  for (int i = 0; i < decoder->next_symbol; ++i) {
+    if (decoder->symbol_str[i].is_mark) {
+      mark_durs[n_marks] = (float)decoder->symbol_str[i].ticks;
+      mark_mags[n_marks] = (float)decoder->symbol_str[i].magnitude;
+      n_marks++;
     }
-    // accumulate ticks for the current segment (mark or space)
-    current_segment_ticks += decoder->symbol_str[i].ticks;
   }
 
-  decoder->next_symbol = 0;  // reset the symbol buffer for the next letter/sequence
+  // If no marks, clear buffer and return
+  if (n_marks == 0) {
+    decoder->next_symbol = 0;
+    return;
+  }
+
+  // convert to log-domain for clustering / emission estimation
+  float log_mark_durs[MAX_SYMBOLS];
+  for (int i = 0; i < n_marks; ++i) log_mark_durs[i] = logf(1.0f + mark_durs[i]);
+
+  // estimate emissions via kmeans (dot/dash mu and var in log-domain)
+  float dot_mu, dot_var, dash_mu, dash_var;
+  bool est_ok = estimate_mark_emissions(decoder, log_mark_durs, n_marks, &dot_mu, &dot_var,
+                                        &dash_mu, &dash_var);
+  if (est_ok) {
+    // store estimates in decoder for diagnostics and future use
+    decoder->mark_mu_dot = dot_mu;
+    decoder->mark_var_dot = dot_var;
+    decoder->mark_mu_dash = dash_mu;
+    decoder->mark_var_dash = dash_var;
+    decoder->mark_emission_ready = true;
+  } else {
+    // fallback: use previous estimates if available, otherwise derive from dot_len
+    if (decoder->mark_emission_ready) {
+      dot_mu = decoder->mark_mu_dot;
+      dot_var = decoder->mark_var_dot;
+      dash_mu = decoder->mark_mu_dash;
+      dash_var = decoder->mark_var_dash;
+      est_ok = true;  // use cached estimates
+    } else {
+      dot_mu = logf(1.0f + (float)decoder->dot_len);
+      dash_mu = logf(1.0f + (float)decoder->dot_len * 3.0f);
+      dot_var = dash_var = 1.0f;
+    }
+  }
+
+  // if we have good emission models, run Viterbi to decode sequence of marks
+  int assignments[MAX_SYMBOLS];
+  int used_viterbi = 0;
+  if (est_ok && n_marks >= 1) {
+    viterbi_decode_marks(log_mark_durs, n_marks, dot_mu, dot_var, dash_mu, dash_var, assignments);
+    used_viterbi = 1;   // this supports DEBUG code
+  } else {
+    // fallback greedy classification by threshold: dash if >= 2.5*dot_len (approx)
+    for (int i = 0; i < n_marks; ++i) {
+      float ticks = mark_durs[i];
+      if (ticks >= (decoder->dot_len * 7) / 3)
+        assignments[i] = 1;
+      else
+        assignments[i] = 0;
+    }
+  }
+    
+  // build morse string from assignments in original symbol order
+  char morse_code_string[MAX_SYMBOLS + 1];
+  int mpos = 0;
+  morse_code_string[0] = '\0';
+  int mark_idx = 0;
+  for (int i = 0; i < decoder->next_symbol && mpos < MAX_SYMBOLS; ++i) {
+    if (decoder->symbol_str[i].is_mark) {
+      morse_code_string[mpos++] = (assignments[mark_idx] == 0) ? '.' : '-';
+      mark_idx++;
+    } else {
+      // spaces between elements are handled by cw_rx_detect_symbol and char/word gaps
+    }
+  }
+  morse_code_string[mpos] = '\0';
+
+  // adapt decoder->dot_len from estimated dot centroid if reliable
+  if (est_ok) {
+    float dot_ticks_est = expf(dot_mu) - 1.0f;
+    float dash_ticks_est = expf(dash_mu) - 1.0f;
+    if (dot_ticks_est > 0.0f && dash_ticks_est / dot_ticks_est > 1.5f && dash_ticks_est / dot_ticks_est < 4.5f) {
+      // avoid large single-step jumps caused by noise
+      const float DOT_ADAPT_ALPHA = 0.20f;   // existing alpha (can be lowered if desired)
+      const float MIN_ADAPT_RATIO = 0.70f;   // do not shrink dot_len by more than 30% in one step
+      const float MAX_ADAPT_RATIO = 1.50f;   // do not grow dot_len by more than 50% in one step
+
+      float proposed = (1.0f - DOT_ADAPT_ALPHA) * (float)decoder->dot_len + DOT_ADAPT_ALPHA * dot_ticks_est;
+      float min_allowed = (float)decoder->dot_len * MIN_ADAPT_RATIO;
+      float max_allowed = (float)decoder->dot_len * MAX_ADAPT_RATIO;
+      if (proposed < min_allowed) proposed = min_allowed;
+      if (proposed > max_allowed) proposed = max_allowed;
+
+      int new_dot_len = (int)(proposed + 0.5f);
+      if (new_dot_len < 1) new_dot_len = 1;
+      decoder->dot_len = new_dot_len;
+    }
+  }
+
+  // in noisy conditions slowly recover dot_len back towards UI WPM
+  // this prevents the decoder from remaining stuck after transient noise
+  if (!decoder->mark_emission_ready) {
+    int expected_dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * decoder->wpm);
+    if (expected_dot_len < 1) expected_dot_len = 1;
+    const float DOT_RECOVER_ALPHA = 0.25f;  // EMA step 25% toward UI WPM per character
+    decoder->dot_len = (int)((1.0f - DOT_RECOVER_ALPHA) * decoder->dot_len + DOT_RECOVER_ALPHA * expected_dot_len + 0.5f);
+    if (decoder->dot_len < 1) decoder->dot_len = 1;
+  }
+  
+  // reset buffer before mapping/printing so next symbols start fresh
+  decoder->next_symbol = 0;
+
+  // If nothing decoded, nothing to do
+  if (morse_code_string[0] == '\0') {
+    return;
+  }
+
+  // compute average mark magnitude and normalized z
+  float avg_mag = 0.0f;
+  for (int i = 0; i < n_marks; ++i) avg_mag += mark_mags[i];
+  avg_mag /= (float)n_marks;
+  float denom = (float)(decoder->high_level - decoder->noise_floor);
+  if (denom <= 0.0f) denom = 1.0f;
+  float avg_z = (avg_mag - (float)decoder->noise_floor) / denom;
+
+  // centroid separation (diagnostic)
+  float dx0 = decoder->k_centroid_signal[0] - decoder->k_centroid_noise[0];
+  float dx1 = decoder->k_centroid_signal[1] - decoder->k_centroid_noise[1];
+  float centroid_sep = sqrtf(dx0 * dx0 + dx1 * dx1);
+
+  // emission margin (how much each mark prefers one label over the other)
+  // avg_margin = mean(|logP_dot - logP_dash|) across marks
+  float sum_margin = 0.0f;
+  const float LOG2PI = logf(2.0f * (float)M_PI);
+  // guard small variances
+  if (dot_var <= 0.0f) dot_var = 1e-3f;
+  if (dash_var <= 0.0f) dash_var = 1e-3f;
+  for (int t = 0; t < n_marks; ++t) {
+    float x = log_mark_durs[t];
+    float ldot = -0.5f * ((x - dot_mu) * (x - dot_mu) / dot_var) - 0.5f * (LOG2PI + logf(dot_var));
+    float ldash =
+        -0.5f * ((x - dash_mu) * (x - dash_mu) / dash_var) - 0.5f * (LOG2PI + logf(dash_var));
+    sum_margin += fabsf(ldot - ldash);
+  }
+  float avg_margin = sum_margin / (float)n_marks;
+
+  // sanity checks: dot/dash ratio
+  float dot_ticks_est = expf(dot_mu) - 1.0f;
+  float dash_ticks_est = expf(dash_mu) - 1.0f;
+  float dd_ratio = (dot_ticks_est > 0.0f) ? (dash_ticks_est / dot_ticks_est) : 0.0f;
+  int ratio_ok = (dd_ratio > 1.3f && dd_ratio < 5.0f) ? 1 : 0;  // I have tried to relax timing
+
+  // cluster counts
+  const int MIN_KCOUNT = 12;
+  int kcount_ok =
+      (decoder->k_count_signal >= MIN_KCOUNT && decoder->k_count_noise >= MIN_KCOUNT) ? 1 : 0;
+
+  // build a blended confidence score (0..1)
+  // weights chosen to favor emission margin and magnitude while still using kmeans info
+  const float W_Z = 0.35f;
+  const float W_SEP = 0.20f;
+  const float W_MARGIN = 0.35f;
+  const float W_KCNT = 0.05f;
+  const float W_RATIO = 0.05f;
+
+  // normalize components into 0..1 ranges with conservative normalization constants
+  float comp_z = (avg_z - 0.05f) / (0.6f - 0.05f);  // expected useful range [0.05..0.6]
+  if (comp_z < 0.0f) comp_z = 0.0f;
+  if (comp_z > 1.0f) comp_z = 1.0f;
+  float comp_sep = centroid_sep / 0.6f;  // treat 0.6 as a "large" sep
+  if (comp_sep < 0.0f) comp_sep = 0.0f;
+  if (comp_sep > 1.0f) comp_sep = 1.0f;
+  float comp_margin = avg_margin / 1.2f;  // margin ~1.2 is quite confident
+  if (comp_margin < 0.0f) comp_margin = 0.0f;
+  if (comp_margin > 1.0f) comp_margin = 1.0f;
+  float comp_kcnt = (kcount_ok) ? 1.0f : 0.0f;
+  float comp_ratio = (ratio_ok) ? 1.0f : 0.0f;
+
+  float confidence = W_Z * comp_z + W_SEP * comp_sep + W_MARGIN * comp_margin +
+                     W_KCNT * comp_kcnt + W_RATIO * comp_ratio;
+
+  const float CONF_THRESHOLD = 0.55f;   // base confidence gate
+
+  // Base confidence gate
+  if (confidence < CONF_THRESHOLD) {
+    return;
+  }
+
+  // emit decoded character if in table
   for (int i = 0; i < (int)(sizeof(morse_rx_table) / sizeof(struct morse_rx)); i++) {
     if (!strcmp(morse_code_string, morse_rx_table[i].code)) {
-      write_console(FONT_CW_RX, morse_rx_table[i].c);
+      if (cw_decode_enabled) {
+        // keep track of mode so we can change colors
+        static int last_mode = -1;
+        static int last_font = -1;  // track previous font color
+        int tx_is_on = is_in_tx();
+        int current_mode = tx_is_on;
+        int current_font = decoder->console_font;
+        
+        if (last_mode != -1 && last_mode != current_mode) {
+          // Use last_font for the newline, to preserve old line color
+          if (last_font != -1)
+            write_console(last_font, "\n");
+          else
+            write_console(current_font, "\n");  // Fallback, first use
+        }
+        
+        // print the decoded character with the current font and mode
+        write_console(current_font, morse_rx_table[i].c);
+        last_mode = current_mode;
+        last_font = current_font;
+      }
       decoder->last_char_was_space = 0;
       return;
     }
   }
-  write_console(FONT_CW_RX, morse_code_string);
-  decoder->last_char_was_space = 0;
 }
 
-// initialize a struct bin for use with Goertzel algorithm
+// initialize a struct with values for use with Goertzel algorithm
+// inputs:  struct bin *p, float freq, int n, float sampling_freq
+// returns: void
+// notes: filter will be centered on the specifed frequency
 static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq) {
-  p->omega = (2.0f * (float)M_PI * freq) / sampling_freq;   // exact fractional
-  p->sine = sinf(p->omega);
-  p->cosine = cosf(p->omega);
+  if (n <= 0) n = 1; // safeguard: n must be positive
+  float omega = (2.0f * (float)M_PI * freq) / sampling_freq;  // exact fractional
+  p->sine = sinf(omega);
+  p->cosine = cosf(omega);
   p->coeff = 2.0f * p->cosine;
   p->n = n;
   p->freq = (int)freq;
-  p->scalingFactor = n / 2.0;
+  p->scalingFactor = ((double)n) / 2.0;
+  if (p->scalingFactor == 0.0) p->scalingFactor = 1.0; // extra safety
 }
 
-void cw_init() {	
-	decoder.ticker = 0;
-	decoder.n_bins = N_BINS;
-	decoder.next_symbol = 0;
-	decoder.sig_state = false;
-  decoder.prev_mark = false;
-	decoder.magnitude= 0;
-	decoder.history_sig = 0;
-	decoder.wpm = 20;
-  decoder.last_char_was_space = 0;
-  decoder.max_bin_idx = -1;    // no previous winning bin
-  decoder.max_bin_streak = 0;  // no streak yet
-	decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM); 
+// initialize struct values for cw tx and decoder 
+// inputs:  none
+// returns: void
+void cw_init(void) {
+  // RX decoder: cfg 
+  decoder.n_bins = N_BINS;
+  decoder.wpm = 20;
+  decoder.console_font = STYLE_CW_RX;
 
-  // initialize five signal bins
+  // RX decoder: bins 
   int cw_rx_pitch = field_int("PITCH");
-  cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
-  cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
-  
-  // cw tx initialization
-  cw_init_morse_lut();    // build TX Morse code look-up table 
+  cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f, N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f, N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f, N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f, N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f, N_BINS, SAMPLING_FREQ);
+
+  // RX decoder: detect
+  decoder.mark = false;
+  decoder.prev_mark = false;
+  decoder.sig_state = false;
+  decoder.history_sig = 0;
+  decoder.ticker = 0;
+
+  // RX decoder: levels
+  decoder.magnitude = 0;
+  decoder.high_level = 0;
+  decoder.noise_floor = 0;
+  decoder.max_bin_idx = -1;
+  decoder.max_bin_streak = 0;
+
+  // RX decoder: timing
+  decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM);
+  decoder.next_symbol = 0;
+  decoder.last_char_was_space = 0;
+  decoder.space_ema = 0.0f;
+  decoder.char_gap_ema = 0.0f;
+  decoder.word_gap_ema = 0.0f;
+
+  // RX decoder: km (2-D clustering)
+  decoder.k_alpha = 0.04f;
+  decoder.k_warmup = 0;
+  decoder.k_count_noise = 0;
+  decoder.k_count_signal = 0;
+  decoder.k_centroid_noise[0] = 0.0f;
+  decoder.k_centroid_noise[1] = 0.0f;
+  decoder.k_centroid_signal[0] = 0.0f;
+  decoder.k_centroid_signal[1] = 0.0f;
+  decoder.k_signal_streak = 0;
+  decoder.k_noise_streak = 0;
+  decoder.k_initialized = false;
+
+  // RX decoder: em (mark emission params)
+  decoder.mark_mu_dot  = 0.0f;
+  decoder.mark_var_dot = 1.0f;
+  decoder.mark_mu_dash = 0.0f;
+  decoder.mark_var_dash= 1.0f;
+  decoder.mark_emission_ready = false;
+
+  // RX decoder: sym buffer
+  for (int i = 0; i < MAX_SYMBOLS; ++i) {
+    decoder.symbol_str[i].is_mark = 0;
+    decoder.symbol_str[i].magnitude = 0;
+    decoder.symbol_str[i].ticks = 0;
+  }
+
+  // TX decoder mirrors RX but uses TX pitch/font
+  tx_decoder.n_bins = N_BINS;
+  tx_decoder.wpm = 20;
+  tx_decoder.console_font = STYLE_CW_TX;  // TX decoder uses amber/yellow font
+
+  int cw_tx_pitch = get_pitch();
+  cw_rx_bin_init(&tx_decoder.signal_minus2, cw_tx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_minus1, cw_tx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_plus1,  cw_tx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+  cw_rx_bin_init(&tx_decoder.signal_plus2,  cw_tx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
+
+  tx_decoder.mark = false;
+  tx_decoder.prev_mark = false;
+  tx_decoder.sig_state = false;
+  tx_decoder.history_sig = 0;
+  tx_decoder.ticker = 0;
+
+  tx_decoder.magnitude = 0;
+  tx_decoder.high_level = 0;
+  tx_decoder.noise_floor = 0;
+  tx_decoder.max_bin_idx = -1;
+  tx_decoder.max_bin_streak = 0;
+
+  tx_decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM);
+  tx_decoder.next_symbol = 0;
+  tx_decoder.last_char_was_space = 0;
+  tx_decoder.space_ema = 0.0f;
+  tx_decoder.char_gap_ema = 0.0f;
+  tx_decoder.word_gap_ema = 0.0f;
+
+  tx_decoder.k_alpha = 0.04f;
+  tx_decoder.k_warmup = 0;
+  tx_decoder.k_count_noise = 0;
+  tx_decoder.k_count_signal = 0;
+  tx_decoder.k_centroid_noise[0] = 0.0f;
+  tx_decoder.k_centroid_noise[1] = 0.0f;
+  tx_decoder.k_centroid_signal[0] = 0.0f;
+  tx_decoder.k_centroid_signal[1] = 0.0f;
+  tx_decoder.k_signal_streak = 0;
+  tx_decoder.k_noise_streak = 0;
+  tx_decoder.k_initialized = false;
+
+  tx_decoder.mark_mu_dot  = 0.0f;
+  tx_decoder.mark_var_dot = 1.0f;
+  tx_decoder.mark_mu_dash = 0.0f;
+  tx_decoder.mark_var_dash= 1.0f;
+  tx_decoder.mark_emission_ready = false;
+
+  for (int i = 0; i < MAX_SYMBOLS; ++i) {
+    tx_decoder.symbol_str[i].is_mark = 0;
+    tx_decoder.symbol_str[i].magnitude = 0;
+    tx_decoder.symbol_str[i].ticks = 0;
+  }
+
+  // CW TX side (keyer, envelope, LUT)
+  cw_init_morse_lut();
   vfo_start(&cw_tone, 700, 0);
-	vfo_start(&cw_env, 200, 49044);  // not used with data driven waveform
-	cw_period = 9600;    // at 96ksps, 0.1sec = 1 dot at 12wpm
+  vfo_start(&cw_env, 200, 49044);  // not used with data-driven waveform
+  cw_period = 9600;                // at 96ksps, 0.1 sec = 1 dot at 12 WPM
+  keydown_count = 0;
+  keyup_count = 0;
+  cw_envelope = 0;
+}
+
+// called from sbitx_gtk.c to display cw stats under zerobeat indicator
+// return buffer with one line of cw stats with
+// format: "<WPM> 1:<ratio>"  with dash/dot ratio is shown to one decimal point
+// inputs:  
+// returns: buf, or NULL if it fails
+// notes: Uses decoder.mark_mu_* if mark_emission_ready is true, otherwise falls back
+// to decoder.dot_len heuristic (dot_len and 3*dot_len for dash)
+char *cw_get_stats(char *buf, size_t len)
+{
+  if (!buf || len == 0) return NULL;
+
+  float dot_ticks = (float)decoder.dot_len;
+  float dash_ticks = (float)decoder.dot_len * 3.0f;
+
+  if (decoder.mark_emission_ready) {
+    // mark_mu_* are in log(1 + ticks) domain so convert back to linear
+    dot_ticks  = expf(decoder.mark_mu_dot)  - 1.0f;
+    dash_ticks = expf(decoder.mark_mu_dash) - 1.0f;
+    if (dot_ticks < 1.0f) dot_ticks = 1.0f;
+    if (dash_ticks < dot_ticks) dash_ticks = dot_ticks * 3.0f;
+  }
+
+  float inst_ratio = dash_ticks / dot_ticks;
+
+  // instantaneous WPM from current dot estimate
+  float inst_wpm_f = 0.0f;
+  if (dot_ticks > 0.0f) {
+    inst_wpm_f = (6.0f * (float)SAMPLING_FREQ) /
+                 (5.0f * (float)decoder.n_bins * dot_ticks);
+  }
+  if (inst_wpm_f < 1.0f) inst_wpm_f = 1.0f;
+
+  // build smoothed values of wpm and dot-dash ratio
+  static int   have_ema = 0;
+  static float wpm_ema = 0.0f;
+  static float ratio_ema = 0.0f;
+  // Asymmetric adaptation: faster toward lower speeds, slower toward higher speeds (to resist noise spikes)
+  const float WPM_ALPHA_UP   = 0.18f;  // when instant WPM is higher than the current EMA
+  const float WPM_ALPHA_DOWN = 0.65f;  // when instant WPM is lower than the current EMA (adapt quickly downward)
+  const float WPM_MAX_UP_STEP = 1.5f;  // cap how much the displayed WPM can increase per update
+  const float RATIO_ALPHA = 0.45f;  
+
+  if (!have_ema) {
+    wpm_ema   = inst_wpm_f;
+    ratio_ema = inst_ratio;
+    have_ema  = 1;
+  } else {
+    if (inst_wpm_f < wpm_ema) {
+      // Move quickly toward lower detected speeds
+      wpm_ema = (1.0f - WPM_ALPHA_DOWN) * wpm_ema + WPM_ALPHA_DOWN * inst_wpm_f;
+    } else {
+      // Move cautiously toward higher (possibly noisy) speeds
+      float candidate = (1.0f - WPM_ALPHA_UP) * wpm_ema + WPM_ALPHA_UP * inst_wpm_f;
+      if (candidate - wpm_ema > WPM_MAX_UP_STEP) {
+        candidate = wpm_ema + WPM_MAX_UP_STEP;
+      }
+      wpm_ema = candidate;
+    }
+    ratio_ema = (1.0f - RATIO_ALPHA) * ratio_ema + RATIO_ALPHA * inst_ratio;
+  }
+
+  int est_wpm = (int)roundf(wpm_ema);
+  if (est_wpm < 1) est_wpm = 1;
+  float disp_ratio = ratio_ema;
+
+  // format the string to display under zerobeat
+  snprintf(buf, len, "%dwpm 1:%.1f", est_wpm, disp_ratio);
+  return buf;
+}
+
+// manage TX start/stop and keep keyer and decoder parameters in sync with
+// UI fields
+// inputs:  int bytes_available, int tx_is_on
+// returns: void
+// notes: updates global state (e.g. cw_bytes_available, cw_key_state, cw_period,
+// decoder.wpm and decoder.dot_len, cw_tx_until, cw_mode) and may call tx_on(TX_SOFT)
+// or tx_off() to start/stop transmission
+void cw_poll(int bytes_available, int tx_is_on) {
+  cw_bytes_available = bytes_available;
+  cw_key_state = key_poll();
+  int wpm = field_int("WPM");
+  cw_period = (12 * 9600) / wpm;
+
+  // retune the rx pitch if needed
+  int cw_rx_pitch = field_int("PITCH");
+  if (cw_rx_pitch != decoder.signal_center.freq) {
+    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus1, cw_rx_pitch + 35.0f, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus2, cw_rx_pitch + 80.0f, N_BINS, SAMPLING_FREQ);
+  }
+  // check if the wpm has changed
+  if (wpm != decoder.wpm) {
+    decoder.wpm = wpm;
+    decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
+  }
+  
+  // retune the tx decoder pitch if needed
+  int cw_tx_pitch = get_pitch();
+	if (cw_tx_pitch != tx_decoder.signal_center.freq) {
+    cw_rx_bin_init(&tx_decoder.signal_minus2, cw_tx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_minus1, cw_tx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_plus1,  cw_tx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&tx_decoder.signal_plus2,  cw_tx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
+  }
+	// check if the wpm has changed for tx decoder
+  if (wpm != tx_decoder.wpm){
+		tx_decoder.wpm = wpm;
+		tx_decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
+	}
+  
+  // TX ON if bytes are available (from macro/keyboard) or key is pressed
+  // or we are in the middle of symbol (dah/dit) transmission
+  millis_now = millis();
+  if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) ||
+        cw_key_state || (symbol_next && *symbol_next))) {
+    tx_on(TX_SOFT);
+    cw_tx_until = get_cw_delay() + millis_now;
+    cw_mode = get_cw_input_method();
+  } else if (tx_is_on && cw_tx_until < millis_now) {
+    // If we were in a TX session, write newline to end it
+		if (tx_session_active) {
+			write_console(STYLE_CW_TX, "\n");
+			tx_session_active = false;
+		}
+    tx_off();
+  }
+}
+
+// called by modem_abort() in modems.c
+// inputs: none
+// returns: void
+void cw_abort() {
+  // If we were in a TX session, write newline to end it
+	if (tx_session_active) {
+		write_console(STYLE_CW_TX, "\n");
+		tx_session_active = false;
+	}
+
+	// Reset TX state
 	keydown_count = 0;
 	keyup_count = 0;
-	cw_envelope = 0;
-}
-
-void cw_poll(int bytes_available, int tx_is_on){
-	cw_bytes_available = bytes_available;
-	cw_key_state = key_poll();
-	int wpm  = field_int("WPM");
-	cw_period = (12 * 9600)/wpm;
-
-	//retune the rx pitch if needed
-  int cw_rx_pitch = field_int("PITCH");
-	if (cw_rx_pitch != decoder.signal_center.freq) {
-    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 80.0f,  N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 35.0f,  N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 35.0f,  N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 80.0f,  N_BINS, SAMPLING_FREQ);
-  }
-	// check if the wpm has changed
-  if (wpm != decoder.wpm){
-		decoder.wpm = wpm;
-		decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm); 
-	}	
-
-	// TX ON if bytes are avaiable (from macro/keyboard) or key is pressed
-	// of we are in the middle of symbol (dah/dit) transmission 
-	if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) || 
-      cw_key_state || (symbol_next && *symbol_next)) > 0) {
-		tx_on(TX_SOFT);
-		millis_now = millis();
-		cw_tx_until = get_cw_delay() + millis_now;
-		cw_mode = get_cw_input_method();
-	}
-	else if (tx_is_on && cw_tx_until < millis_now){
-		tx_off();
-	}
-}
-
-void cw_abort(){
-	// currently does nothing
+	cw_tx_until = 0;
+	symbol_next = NULL;
 }

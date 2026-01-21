@@ -1,60 +1,123 @@
+#ifndef SDR_UI_H
+#define SDR_UI_H
+
+#include <stdint.h>
+
+#define VER_STR "sbitx v5.3" // Brought to you by the volunteer development Team for sBitx
+
+// maximum sem_count in write_console_semantic()
+#define MAX_CONSOLE_LINE_STYLES 12
+
+#define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32.
+
+extern int ext_ptt_enable;
+extern int display_freq;
+extern int spectrum_plot[];
+extern int cw_decode_enabled;
+
+// named styles / semantics used in various places in various UIs.
+typedef enum {
+	// semantic styles (only for the console so far):
+	// STYLE_LOG must come first, because it's 0, the default,
+	// and we use memset to initalize the console
+	STYLE_LOG = 0,
+	STYLE_MYCALL,
+	STYLE_CALLER,
+	STYLE_RECENT_CALLER, // callsign that was logged within recent_qso_age hours
+	STYLE_CALLEE,
+	STYLE_GRID,
+	STYLE_EXISTING_GRID, // grid that is found in the logbook already
+	STYLE_RST,
+	STYLE_TIME,
+	STYLE_SNR,
+	STYLE_FREQ,
+	STYLE_COUNTRY,
+	STYLE_DISTANCE,
+	STYLE_AZIMUTH,
+
+	// mode-specific semantics
+	STYLE_FT8_RX,
+	STYLE_FT8_TX,
+	STYLE_FT8_QUEUED,
+	STYLE_FT8_REPLY,
+	STYLE_CW_RX,
+	STYLE_CW_TX,
+	STYLE_FLDIGI_RX,
+	STYLE_FLDIGI_TX,
+	STYLE_TELNET,
+
+	// non-semantic styles, for other fields and UI elements
+	STYLE_FIELD_LABEL,
+	STYLE_FIELD_VALUE,
+	STYLE_LARGE_FIELD,
+	STYLE_LARGE_VALUE,
+	STYLE_SMALL,
+	STYLE_SMALL_FIELD_VALUE,
+	STYLE_BLACK
+}  sbitx_style;
+
+
+/*	At first glance this may look silly: not the simplest way to style the "console".
+	But this is an experiment in reusable UI design. Each instance of this struct can be applied
+	to a span within the _entire_ body of text, even if the text is editable (to an extent),
+	even if lines can be much longer than what we have in our "console".
+	Keeping text "clean" and storing semantics and styling separately allow
+	the same text to serve multiple purposes, without some ad-hoc markup language.
+	It also works better for remote UIs that may present the information in a different way.
+
+	The struct is 64 bits on purpose: it packs well in memory (most computers use 64-bit words),
+	and a memory image of a vector of these structs is meant to be portable to all
+	little-endian machines.
+
+	Too bad `semantic` is so short, but it's hard to imagine shortening any of the
+	other fields (for the general use case outside this UI).
+*/
+typedef struct {
+	uint32_t start_row : 32;
+	uint16_t start_column : 16;
+	uint8_t length : 8;
+	uint8_t semantic : 8; // used directly as style in this UI
+} text_span_semantic;
+
 void setup();
 void loop();
 void display();
 void redraw();
 void key_pressed(char c);
+
 int field_set(const char *label, const char *new_value);
-int get_field_value(char *id, char *value);
-int get_field_value_by_label(char *label, char *value);
-extern int spectrum_plot[];
+int set_field_int(const char *id, int value);
+int get_field_value(const char *id, char *value);
+int get_field_value_by_label(const char *label, char *value);
+const char *field_str(const char *label); // TODO look up by "cmd" not label
+int field_int(char *label);
+
+void write_console(sbitx_style style, const char *text);
+// write plain text, with semantically-tagged spans that imply styling
+uint32_t write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count);
+int web_get_console(char *buff, int max);
+int extract_single_semantic(const char* text, int text_len, text_span_semantic span, char *out, int outlen);
+int extract_semantic(const char* text, int text_len, const text_span_semantic* spans, sbitx_style sem, char *out, int outlen);
+int console_extract_semantic(uint32_t row, sbitx_style sem, char *out, int outlen);
+
+int is_in_tx();
+void abort_tx();
 void remote_execute(char *command);
 int remote_update_field(int i, char *text);
 void web_get_spectrum(char *buff);
 void save_user_settings(int forced);
-int web_get_console(char *buff, int max);
 int remote_audio_output(int16_t *samples);
-const char *field_str(const char *label);
-int field_int(char *label);
-int is_in_tx();
-void abort_tx();
-void enter_qso();
-extern int display_freq;
-
-
-#define FONT_FIELD_LABEL 0
-#define FONT_FIELD_VALUE 1
-#define FONT_LARGE_FIELD 2
-#define FONT_LARGE_VALUE 3
-#define FONT_SMALL 4
-#define FONT_LOG 5
-#define FONT_FT8_RX 6
-#define FONT_FT8_TX 7
-#define FONT_SMALL_FIELD_VALUE 8
-#define FONT_CW_RX 9 
-#define FONT_CW_TX 10 
-#define FONT_FLDIGI_RX 11
-#define FONT_FLDIGI_TX 12
-#define FONT_TELNET 13
-#define FONT_FT8_QUEUED 14
-#define FONT_FT8_REPLY 15
-
-#define FF_MYCALL 16
-#define FF_CALLER 17
-#define FF_GRID 18
-#define FONT_BLACK 19
-
-#define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32. 
-extern int ext_ptt_enable;
 void enter_qso();
 void call_wipe();
-void write_console(int style, char *text);
-int macro_load(char *filename, char *output);
+void update_log_ed();
+void write_call_log();
+
+int macro_load(const char *filename, char *output);
 int macro_exec(int key, char *dest);
 void macro_label(int fn_key, char *label);
 void macro_list(char *output);
 void macro_get_keys(char *output);
-void update_log_ed();
-void write_call_log();
-time_t time_sbitx();
 
-#define VER_STR "sbitx v5.2" // Brought to you by the sBitx 64 Bit Development Team
+void download_check();
+
+#endif // SDR_UI_H

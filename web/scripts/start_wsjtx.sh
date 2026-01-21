@@ -1,12 +1,12 @@
 #!/bin/bash
 # Define the VNC and WebSocket ports for this application
 # The webserver will read these values to properly configure the web interface
-VNC_PORT=5901
-WS_PORT=6081
+VNC_PORT=5904
+WS_PORT=6084
 DISPLAY_NUM=1
 
 # Define the widget label for the web interface
-WIDGET_LABEL="WSJT-X FT8"
+WIDGET_LABEL="WSJT-X"
 
 # Define the application name and start command
 APP_NAME="wsjtx"  # ** APP_NAME MUST match the script name (after the start_  prefix) for proper app-status API tracking **
@@ -15,6 +15,8 @@ APP_COMMAND="wsjtx"
 # Stop other apps
 #/home/pi/sbitx/web/scripts/stop_wsjtx.sh
 /home/pi/sbitx/web/scripts/stop_fldigi.sh
+/home/pi/sbitx/web/scripts/stop_jtdx.sh
+/home/pi/sbitx/web/scripts/stop_mshv.sh
 
 # Make sure the scripts are executable
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh

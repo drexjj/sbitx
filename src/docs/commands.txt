@@ -2,11 +2,14 @@ These are text commands that can be entered from the keyboard
 \callsign [callsign]
 	Sets your callsign to the following string.
 \grid [grid]
-	Sets your grid (six letters) that is used in FT8 and other modes to 
+	Sets your grid (six letters) that is used in FT8 and other modes to
 	indicate your approximate locationi.
 \freq [frequency in Hz or Kilohertz]
-	You can also type just 'f' instead 'freq' 
+	You can also type just 'f' instead than 'freq'
 	if you the type '\f 7050' it will set be the same as '\freq 7050000'
+\freq ?
+	You can also type just 'f' instead than 'freq'
+	Returns the current tuned frequency
 \cwdelay [100-2000] msec. How long radio remains in transmit in CW before
 	timing out to rx. ex: "\cwdelay 500"
 \cwinput [key\keyer\kbd]
@@ -15,21 +18,21 @@ These are text commands that can be entered from the keyboard
 \mode [USB\LSB\etc..]...
 	Chooses from the modes available in the mode selection control.
 	You can use 'm' instead of 'mode'
-\t 
+\t
 	Puts the radio into transmit. You can also use Ctrl-T
-\r 
+\r
 	Puts the radio into receive. You can also use Ctrl-R
 \topen [server]:[port]
 	Opens a telnet session with an RBN or a DX cluster telnet server.
 	It works with ip address as well as domain names
 	Ex: \topen dxc.g3lrs.org.ul:7300
-\tclose 
+\tclose
 	Closes the existing telnet session
 \w [telnet command string]
 	Writes the remaining text (skipping the space after '\w') to the
 	currently opened telnet server
 \txpitch [in Hz]
-	Sets the tone of transmit tone of the CW. 
+	Sets the tone of transmit tone of the CW.
 	Ex: \txpitch 700
 \bfo [offset in HZ]
     Allows adjustment of BFO during runtime; pass a value in +/- HZ
@@ -38,7 +41,7 @@ These are text commands that can be entered from the keyboard
 	Value is saved and restored on launch
 \macro [list\<name of macro to load>]
 \bs [ + | - | [0-9] ]
-	Allows adjusting the band power scale (from hw_settings.ini) to fine tune output 
+	Allows adjusting the band power scale (from hw_settings.ini) to fine tune output
 	power without having to restart the app, settings are not saved, but makes the
 	process simpler
 	[0-9]:	Choose the band to edit the scale of.  Where 0=80m, 1=60m, 2=40m, 3=30m,
@@ -57,7 +60,7 @@ These are text commands that can be entered from the keyboard
 	Shows or hides the relative S-Meter
 \ina260opt [ON | OFF]
 	Enables or disables the input source voltage and amperage display on the title box
-10M	
+10M
 12M
 15M
 17M
@@ -69,7 +72,7 @@ REC ON/OFF
 WEB
 AGC OFF/SLOW/MED/FAST
 DRIVE 1-100
-FREQ/F/f 
+FREQ/F/f
 AUDIO 0-100
 STEP 10K/1K/100H/10H
 SPAN 25K/10K/6K/2.5K
@@ -108,7 +111,7 @@ TX_PITCH 300-3000 (Hz)
 SIDTONE 0-100
 SENT_EXCHANGE (text)
 CONTEST_SERIAL 0-100000
-MACRO overloaded  
+MACRO overloaded
 POWER (watts)
 REF (in 1/10th of VSWR)
 ESC Abort
@@ -116,9 +119,9 @@ BW_CW (Hz)
 BW_VOICE (Hz)
 BW_DIGITAL (Hz)
 
-FT8_AUTO ON/OFF
-FT8_TX1ST ON/OFF
-FT8_REPEAT 1-10
+FTX_AUTO OFF/ANS/CQRESP
+FTX_CQ EVEN/ODD/ALT_EVEN/XOTA
+FTX_REPEAT 1-10
 TELNETURL [server:port]
 
 

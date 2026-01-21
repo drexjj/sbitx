@@ -1,4 +1,4 @@
-/* 
+/*
 	By Ashhar Farhan and chatGPT.
 	Under GPL v3
 
@@ -21,7 +21,7 @@ At first it wrote it in python as I had not specified C, then I asked:
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 #include <math.h>
 #include <complex.h>
 #include <fftw3.h>
@@ -48,7 +48,7 @@ At first it wrote it in python as I had not specified C, then I asked:
 #include "sound.h"
 #include "modem_ft8.h"
 #include "modem_cw.h"
-
+#include "touch_combo.h"
 
 // Function to handle the OK button click event
 static void ok_button_clicked(GtkWidget *widget, gpointer data) {
@@ -63,7 +63,7 @@ static void ok_button_clicked(GtkWidget *widget, gpointer data) {
 		field_set("MYCALLSIGN", callsign);
 		field_set("MYGRID", my_grid);
 		field_set("PASSKEY", pin);
-		
+
     g_print("Callsign: %s\n", callsign);
     g_print("My Grid: %s\n", my_grid);
     g_print("PIN: %s\n", pin);
@@ -104,10 +104,26 @@ static void on_my_grid_changed(GtkWidget *widget, gpointer data) {
     g_free(result);
 }
 
+// Signal handler to allow only uppercase letters, numbers, `/` and `-` for xOTA location
+static void on_alnum_slash_hyphen_changed(GtkWidget *widget, gpointer data) {
+    const gchar *text = gtk_entry_get_text(GTK_ENTRY(widget));
+    gchar *result = g_strdup(text);
+
+    for (int i = 0; i < strlen(text); ++i) {
+        if (!isalnum(text[i]) && text[i] != '/' && text[i] != '-') {
+            result[i] = '\0';
+        } else {
+            result[i] = toupper(text[i]);
+        }
+    }
+
+    gtk_entry_set_text(GTK_ENTRY(widget), result);
+    g_free(result);
+}
 
 // Function to create the dialog box
 void settings_ui(GtkWidget* parent){
-    GtkWidget *dialog, *grid, *label, *entry_callsign, *entry_grid, *entry_pin, *check_button;
+    GtkWidget *dialog, *grid, *label, *combo, *entry_callsign, *entry_grid, *entry_xota, *entry_pin, *check_button;
     GtkWidget *ok_button, *cancel_button;
 
     dialog = gtk_dialog_new_with_buttons("Settings", GTK_WINDOW(parent),
@@ -151,13 +167,41 @@ void settings_ui(GtkWidget* parent){
     gtk_grid_attach(GTK_GRID(grid), entry_grid, 1, 1, 1, 1);
 		gtk_entry_set_text(GTK_ENTRY(entry_grid), (gchar *)field_str("MYGRID"));
 
+    // xOTA selection (IOTA/SOTA/POTA) and location
+    combo = touch_combo_new();
+    touch_combo_append_text(combo, "NONE");
+    touch_combo_append_text(combo, "IOTA");
+    touch_combo_append_text(combo, "SOTA");
+    touch_combo_append_text(combo, "POTA");
+    {
+		const gchar *xota_type = (gchar *)field_str("xOTA");
+		if (xota_type && *xota_type) {
+			if (g_ascii_strcasecmp(xota_type, "IOTA") == 0)
+				touch_combo_set_active(combo, 1);
+			else if (g_ascii_strcasecmp(xota_type, "SOTA") == 0)
+				touch_combo_set_active(combo, 2);
+			else if (g_ascii_strcasecmp(xota_type, "POTA") == 0)
+				touch_combo_set_active(combo, 3);
+			else
+				touch_combo_set_active(combo, 0);
+		} else {
+			touch_combo_set_active(combo, 0);
+		}
+    }
+    gtk_grid_attach(GTK_GRID(grid), combo, 0, 2, 1, 1);
+    entry_xota = gtk_entry_new();
+    gtk_entry_set_max_length(GTK_ENTRY(entry_xota), 12);
+    g_signal_connect(entry_xota, "changed", G_CALLBACK(on_alnum_slash_hyphen_changed), NULL); // Connect signal handler
+    gtk_grid_attach(GTK_GRID(grid), entry_xota, 1, 2, 1, 1);
+		gtk_entry_set_text(GTK_ENTRY(entry_xota), (gchar *)field_str("LOCATION"));
+
     // PIN field
     label = gtk_label_new("PIN");
-    gtk_grid_attach(GTK_GRID(grid), label, 0, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, 3, 1, 1);
     entry_pin = gtk_entry_new();
     gtk_entry_set_max_length(GTK_ENTRY(entry_pin), 6);
     gtk_entry_set_input_purpose(GTK_ENTRY(entry_pin), GTK_INPUT_PURPOSE_NUMBER);
-    gtk_grid_attach(GTK_GRID(grid), entry_pin, 1, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), entry_pin, 1, 3, 1, 1);
 		gtk_entry_set_text(GTK_ENTRY(entry_pin), field_str("PASSKEY"));
 
 /*
@@ -180,14 +224,18 @@ void settings_ui(GtkWidget* parent){
         const gchar *callsign = gtk_entry_get_text(GTK_ENTRY(entry_callsign));
         const gchar *pin = gtk_entry_get_text(GTK_ENTRY(entry_pin));
         const gchar *grid = gtk_entry_get_text(GTK_ENTRY(entry_grid));
+        const gchar *xota_loc = gtk_entry_get_text(GTK_ENTRY(entry_xota));
+		const gchar *xota = touch_combo_get_active_text(combo);
 
     // You can perform operations with the retrieved data here
     // For example, print them to the console
 		field_set("MYCALLSIGN", callsign);
 		field_set("MYGRID", grid);
+		field_set("xOTA", xota);
+		field_set("LOCATION", xota_loc);
 		field_set("PASSKEY", pin);
-		
-				printf("%s, %s, %s\n", callsign, grid, pin);
+
+		printf("%s, %s, %s: %s, %s\n", callsign, grid, xota, xota_loc, pin);
         // Do something with the entered data (e.g., add it to the list)
         // Example:
         //add_to_list(list_store, user_id, password, grid_settings, "", "", "", "");

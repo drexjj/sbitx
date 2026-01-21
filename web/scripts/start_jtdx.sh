@@ -15,6 +15,8 @@ APP_COMMAND="jtdx"
 # Stop other apps
 /home/pi/sbitx/web/scripts/stop_wsjtx.sh
 /home/pi/sbitx/web/scripts/stop_js8call.sh
+/home/pi/sbitx/web/scripts/stop_mshv.sh
+/home/pi/sbitx/web/scripts/stop_fldigi.sh
 
 # Make sure the scripts are executable
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh

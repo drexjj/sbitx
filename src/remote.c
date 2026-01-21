@@ -30,11 +30,11 @@ void remote_start() {
     socklen_t addr_size;
 
     welcome_socket = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-  
+
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(8081);
     serverAddr.sin_addr.s_addr = INADDR_ANY;
-    memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);  
+    memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
 
     /* Bind the address struct to the socket */
     bind(welcome_socket, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
@@ -59,7 +59,7 @@ void remote_init() {
     remote_send("\r\n");
 }
 
-void remote_write(char *message) {
+void remote_write(const char *message) {
     if (data_socket < 0)
         return;
 
@@ -88,7 +88,7 @@ void remote_slice() {
 
         // init the console
         remote_init();
-    } else { 
+    } else {
         //this section was changed by W9JES
         len = recv(data_socket, buffer, sizeof(buffer), 0);
         if (len > 0) {

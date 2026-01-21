@@ -8,10 +8,6 @@ date
 cd $HOME/sbitx
 git stash --include-untracked
 git pull
-cd $HOME/sbitx/src/ft8_lib
-make
-sudo make install
-cd $HOME/sbitx
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 

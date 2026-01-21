@@ -15,6 +15,8 @@ APP_COMMAND="js8call"
 # Stop other apps
 /home/pi/sbitx/web/scripts/stop_wsjtx.sh
 /home/pi/sbitx/web/scripts/stop_fldigi.sh
+/home/pi/sbitx/web/scripts/stop_jtdx.sh
+/home/pi/sbitx/web/scripts/stop_mshv.sh
 
 # Make sure the scripts are executable
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
