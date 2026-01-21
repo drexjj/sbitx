@@ -1,27 +1,27 @@
 #!/bin/bash
 # Define the VNC and WebSocket ports for this application
 # The webserver will read these values to properly configure the web interface
-VNC_PORT=5902
-WS_PORT=6082
-DISPLAY_NUM=2
+VNC_PORT=5900
+WS_PORT=6080
+DISPLAY_NUM=0
 
 # Define the widget label for the web interface
-WIDGET_LABEL="FLDigi Digital Modes"
+WIDGET_LABEL="Main Desktop VNC"
 
-# Define the application name and command
-APP_NAME="fldigi"
-APP_COMMAND="fldigi"
+# Define the application name (lowercase, no spaces) and start command (use full path /home/pi/... and not ~/...)
+APP_NAME="main_vnc"
+APP_COMMAND="desktop"
 
-# Stop other apps
-/home/pi/sbitx/web/scripts/stop_wsjtx.sh
-/home/pi/sbitx/web/scripts/stop_js8call.sh
-/home/pi/sbitx/web/scripts/stop_mshv.sh
+# Stop other apps if needed
+# /home/pi/sbitx/web/scripts/stop_wsjtx.sh
+# /home/pi/sbitx/web/scripts/stop_fldigi.sh
+# /home/pi/sbitx/web/scripts/stop_js8call.sh
 
 # Make sure the scripts are executable
 chmod +x /home/pi/sbitx/web/scripts/start_novnc_proxy.sh
 chmod +x /home/pi/sbitx/web/scripts/stop_novnc_proxy.sh
 
-# Check if $APP_NAME is already running
+# Check if the application is already running
 pid=$(pgrep -x $APP_COMMAND)
 if [ -n "$pid" ]; then
     echo "$APP_NAME is already running with PID: $pid" >> /tmp/x11vnc_${APP_NAME}.log
@@ -37,7 +37,7 @@ echo "Xvfb PID: $XVFB_PID" >> /tmp/x11vnc_${APP_NAME}.log
 # Wait for Xvfb to start
 sleep 1
 
-# Check if port $VNC_PORT is in use
+# Check if port is in use
 if netstat -tuln | grep -q :$VNC_PORT; then
     echo "Port $VNC_PORT is already in use, attempting to kill process" >> /tmp/x11vnc_${APP_NAME}.log
     fuser -k $VNC_PORT/tcp
