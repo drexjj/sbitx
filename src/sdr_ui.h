@@ -47,6 +47,7 @@ typedef enum {
 	STYLE_TELNET,
 
 	// non-semantic styles, for other fields and UI elements
+	STYLE_HIGHLIGHT,
 	STYLE_FIELD_LABEL,
 	STYLE_FIELD_VALUE,
 	STYLE_LARGE_FIELD,

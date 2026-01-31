@@ -262,6 +262,7 @@ struct font_style font_table[] = {
 	{STYLE_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 
 	// non-semantic styles, for other fields and UI elements
+	{STYLE_HIGHLIGHT, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -1760,6 +1761,11 @@ void draw_console(cairo_t* gfx, struct field* f)
 	int j = 0;
 
 	int start_line = console_start_line(n_lines);
+	if (start_line < 0)
+		start_line += MAX_CONSOLE_LINES;
+
+	const char *logger_call = field_str("CALL");
+
 	for (int i = 0; i <= n_lines; i++) {
 		struct console_line* line = console_stream + start_line;
 		if (start_line == console_selected_line)
@@ -1808,7 +1814,14 @@ void draw_console(cairo_t* gfx, struct field* f)
 				break; // don't draw this span
 			}
 			buf[wlen] = 0;
-			x += draw_text(gfx, f->x + 2 + x, y, buf, line->spans[span].semantic);
+			int sem = line->spans[span].semantic;
+			if (logger_call[0] && (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_RECENT_CALLER)) {
+				// If a callsign in the console starts with the prefix typed into the logger CALL field,
+				// or if it matches it completely, draw with the highlight color.
+				if (!strncasecmp(buf, logger_call, strlen(logger_call)))
+					sem = STYLE_HIGHLIGHT;
+			}
+			x += draw_text(gfx, f->x + 2 + x, y, buf, sem);
 			//~ printf("   drew span %d col %d len %d style %d end @ %d px: '%s' from '%s'\n",
 				//~ span, line->spans[span].start_column, len, line->spans[span].semantic, x, buf, line->text);
 		}
@@ -5366,6 +5379,7 @@ void call_wipe()
 
 	// Reset cmd/comment field
 	set_field("#text_in", "");
+	soft_console_init(); // undo any highlighting
 }
 
 void update_titlebar()
@@ -5552,6 +5566,11 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		f->is_dirty = 1;
 		f->update_remote = 1;
 		f_last_text = f;
+		if (f == get_field("#contact_callsign")) {
+			if (a == MIN_KEY_ESC)
+				f->value[0] = 0;
+ 			soft_console_init();
+		}
 		return 1;
 	}
 	else if (event == FIELD_DRAW)
