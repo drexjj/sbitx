@@ -160,7 +160,7 @@ static int jitter_buffer_read = 0;
 static int jitter_buffer_samples = 0;
 static pthread_mutex_t jitter_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-FILE *pf_record;
+FILE *pf_record = NULL;
 int16_t record_buffer[1024];
 int32_t modulation_buff[MAX_BINS];
 
