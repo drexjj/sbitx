@@ -2469,8 +2469,10 @@ void sdr_request(char *request, char *response)
 	{
 		if (!strcmp(value, "off"))
 		{
-			fclose(pf_record);
-			pf_record = NULL;
+      if (pf_record) {
+  			fclose(pf_record);
+  			pf_record = NULL;
+      }
 		}
 		else
 			pf_record = wav_start_writing(value);
@@ -2589,4 +2591,3 @@ void sdr_request(char *request, char *response)
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */
 }
-
