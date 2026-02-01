@@ -10199,7 +10199,7 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "REC OFF"))
 	{
-		sdr_request("record", "off");
+		sdr_request("record=off", response);
 		if (record_start != 0)
 			write_console(STYLE_LOG, "Recording stopped\n");
 		record_start = 0;
