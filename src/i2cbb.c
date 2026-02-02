@@ -314,12 +314,16 @@ int32_t i2cbb_read_i2c_block_data(uint8_t i2c_address, uint8_t command, uint8_t 
 	}
 	i2c_stop_cond();
 */
-	address = (i2c_address << 1) | 1;
-	if (i2c_write_byte(1, 0, address)){ 
-		i2c_stop_cond();
-		printf("i2cbb.c:writing address failed at %x\n", i2c_address);
-		return -1;
-	}
+	static int addr_err_printed = 0;
+  address = (i2c_address << 1) | 1;
+  if (i2c_write_byte(1, 0, address)) { 
+    i2c_stop_cond();
+    if (!addr_err_printed) {
+      printf("i2cbb.c:writing address failed at %x\n", i2c_address);
+      addr_err_printed = 1;
+    }
+    return -1;
+}
 
 	//static uint8_t i2c_read_byte(int nack, int send_stop) 
 	uint8_t i = 0;
