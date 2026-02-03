@@ -1414,7 +1414,6 @@ void webserver_start(){
 	strcpy(s_web_root, directory);
 	strcat(s_web_root, "/web");
 	//printf("Dir %s\n",s_web_root);
-	//logbook_open();
- 	pthread_create( &webserver_thread, NULL, webserver_thread_function, 
+	pthread_create( &webserver_thread, NULL, webserver_thread_function,
 		(void*)NULL);
 }

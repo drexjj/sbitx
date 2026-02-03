@@ -11148,4 +11148,6 @@ void cleanup_on_exit() {
 	udp_broadcast_close();
 
 	clear_ftx_rules();
+
+	logbook_close();
 }
