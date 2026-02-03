@@ -60,11 +60,16 @@ int logbook_has_power_swr_xota() {
 	return ret;
 }
 
-/* writes the output to /tmp/sbitx_result_rows.txt
-	if the from_id is negative, it returns the later 50 records (higher id)
-	if the from_id is positive, it returns the prior 50 records (lower id) */
-
-int logbook_query(char* query, int from_id, char* result_file)
+/*!
+	Writes the output into a temporary file and copies the file path into
+	\a result_file, a string with length \a result_file_len.
+	(Currently the file path is always /tmp/sbitx_result_rows.txt, but don't count on it.)
+	The file format is strings separated by `|` characters (psv, pipe-separated values).
+	- If \a from_id is negative: writes the next 50 records with a higher id than that
+	- If \a from_id is positive: writes 50 records prior to it (those with a lower id)
+	- If \a from_id is \c 0: writes the most-recent 50 records
+*/
+int logbook_query(char* query, int from_id, char* result_file, int result_file_len)
 {
 	sqlite3_stmt* stmt;
 	char statement[200], param[2000];
@@ -105,7 +110,7 @@ int logbook_query(char* query, int from_id, char* result_file)
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
  	const char *output_path = "/tmp/sbitx_result_rows.txt";
-	strncpy(result_file, output_path, sizeof(result_file));
+	strncpy(result_file, output_path, result_file_len);
 
 	FILE* pf = fopen(output_path, "w");
 	if (!pf)

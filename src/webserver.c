@@ -241,7 +241,7 @@ static void get_logs(struct mg_connection *c, char *args){
 
 	query[0] = 0;
 	row_id = atoi(strtok(args, " "));
-	logbook_query(strtok(NULL, " \t\n"), row_id, logbook_path);
+	logbook_query(strtok(NULL, " \t\n"), row_id, logbook_path, sizeof(logbook_path));
 	FILE *pf = fopen(logbook_path, "r");
 	if (!pf)
 		return;

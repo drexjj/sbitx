@@ -4,7 +4,7 @@
 void logbook_add(const char *contact_callsign, const char *rst_sent, const char *exchange_sent,
 	const char *rst_recv, const char *exchange_recv, int tx_power, int tx_vswr,
 	const char *xota, const char *xota_loc, const char *comments);
-int logbook_query(char *query, int from_id, char *result_file);
+int logbook_query(char *query, int from_id, char *result_file, int result_file_len);
 int logbook_count_dup(const char *callsign, int last_seconds);
 int logbook_prev_log(const char *callsign, char *result);
 int logbook_get_grids(void (*f)(char *,int));
