@@ -298,6 +298,7 @@ uint32_t console_last_row = 0; // increments indefinitely; goes into spans[s].st
 int console_current_line = 0; // index in console_stream
 int console_selected_line = -1; // index
 time_t console_current_time = 0;
+static int console_scroll_offset = 0;  // 0 = tail (follow live), higher = lines above tail
 
 // max power and swr from most recent transmission, for the log
 int last_fwdpower = 0;
@@ -1486,6 +1487,7 @@ void console_init()
 	assert(f);
 	f->is_dirty = TRUE;
 	console_current_line = 0;
+	console_scroll_offset = 0;
 }
 
 // this is an alternative to calling console_init() that
@@ -1607,6 +1609,15 @@ int console_init_next_line()
 		console_current_line = 0;
 	memset(&console_stream[console_current_line], 0, sizeof(struct console_line));
 	return console_current_line;
+}
+
+// compute start line accounting for scrollback and wrapping ring buffer
+static int console_start_line(int visible_lines)
+{
+	int head = console_current_line;
+	int view_line = (head - console_scroll_offset + MAX_CONSOLE_LINES) % MAX_CONSOLE_LINES;
+	int start_line = (view_line - visible_lines + MAX_CONSOLE_LINES) % MAX_CONSOLE_LINES;
+	return start_line;
 }
 
 struct console_line *console_get_line(int line)
@@ -1746,10 +1757,7 @@ void draw_console(cairo_t* gfx, struct field* f)
 	int y = f->y;
 	int j = 0;
 
-	int start_line = console_current_line - n_lines;
-	if (start_line < 0)
-		start_line += MAX_CONSOLE_LINES;
-
+	int start_line = console_start_line(n_lines);
 	for (int i = 0; i <= n_lines; i++) {
 		struct console_line* line = console_stream + start_line;
 		if (start_line == console_selected_line)
@@ -1930,8 +1938,7 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	int line_height = font_table[f->font_index].height;
 	int n_lines = (f->height / line_height) - 1;
 	int l = 0;
-	int start_line = console_current_line - n_lines;
-
+	int start_line = console_start_line(n_lines);
 	switch (event)
 	{
 	case FIELD_DRAW:
@@ -1966,10 +1973,21 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		break;
 	}
 	case FIELD_EDIT:
-		if (a == MIN_KEY_UP && console_selected_line > start_line)
-			console_selected_line--;
-		else if (a == MIN_KEY_DOWN && console_selected_line < start_line + n_lines - 1)
-			console_selected_line++;
+		if (a == MIN_KEY_UP || a == MIN_KEY_DOWN) {
+			int max_offset = MAX_CONSOLE_LINES - n_lines - 1;
+			if (max_offset < 0) max_offset = 0;
+
+ 		  if (a == MIN_KEY_UP && console_scroll_offset < max_offset) {
+				console_scroll_offset++;
+			} else if (a == MIN_KEY_DOWN && console_scroll_offset > 0) {
+				console_scroll_offset--;
+			}
+
+			// Keep selection in view (top line when scrolling)
+			start_line = console_start_line(n_lines);
+			console_selected_line = start_line;
+			f->is_dirty = 1;
+		}
 		break;
 	}
 	return 0;
