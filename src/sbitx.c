@@ -24,6 +24,7 @@
 #include "ini.h"
 #include "para_eq.h"
 #include "swr_monitor.h"
+#include "cessb.h"
 
 #define DEBUG 0
 
@@ -1672,7 +1673,16 @@ void tx_process(
 				apply_eq(&tx_eq, input_mic, n_samples, 96000.0);
 			}
 		}
-	}
+    // apply CESSB processing if enabled (voice modes only)
+    if (cessb_enabled && (r->mode == MODE_USB || r->mode == MODE_LSB))
+    {
+      if (use_browser_mic) {
+          cessb_process_int32(&cessb_processor, browser_mic_samples, n_samples);
+      } else {
+          cessb_process_int32(&cessb_processor, input_mic, n_samples);
+      }
+	  }
+  }
 
 	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM))
 	{
@@ -2321,6 +2331,7 @@ void setup()
 	jitter_buffer_samples = 0;
 
 	modem_init();
+  cessb_init(&cessb_processor, 96000.0f);  // initialize CESSB processor
 
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
@@ -2346,6 +2357,7 @@ void setup()
 	delay(2000);
 	//	pf_debug = fopen("am_test.raw", "w");
 }
+
 void sdr_request(char *request, char *response)
 {
 	char cmd[100], value[1000];
@@ -2587,6 +2599,75 @@ void sdr_request(char *request, char *response)
 		bandtweak = atoi(value);
 		printf("Now adjusting band %i scale is currently: %f\n", band_power[bandtweak].f_start, band_power[bandtweak].scale);
 	}
+
+  // CESSB (Controlled Envelope SSB) Controls
+	else if (!strcasecmp(cmd, "cessb"))
+	{
+		// Enable/disable CESSB processing
+		// Usage: cessb=on, cessb=off, cessb=1, cessb=0
+		if (! strcasecmp(value, "on") || !strcmp(value, "1")) {
+			cessb_enabled = 1;
+			cessb_set_enabled(&cessb_processor, 1);
+			printf("CESSB processing enabled\n");
+		}
+		else if (!strcasecmp(value, "off") || !strcmp(value, "0")) {
+			cessb_enabled = 0;
+			cessb_set_enabled(&cessb_processor, 0);
+			printf("CESSB processing disabled\n");
+		}
+		else if (!strcasecmp(value, "status")) {
+			// Return current CESSB status
+			if (cessb_enabled)
+				strcpy(response, "ok on");
+			else
+				strcpy(response, "ok off");
+			return;
+		}
+		strcpy(response, "ok");
+	}
+	else if (!strcasecmp(cmd, "cessb_clip")) {
+		// Set CESSB clipping level (0.0 to 1.0)
+		// Usage: cessb_clip=0.85
+		float level = atof(value);
+		if (level > 0.0f && level <= 1.0f) {
+			cessb_set_clip_level(&cessb_processor, level);
+			printf("CESSB clip level set to %.2f\n", level);
+			strcpy(response, "ok");
+		}
+		else {
+			printf("CESSB clip level must be between 0.0 and 1.0\n");
+			strcpy(response, "error invalid range");
+		}
+	}
+	else if (!strcasecmp(cmd, "cessb_limit")) {
+		// Set CESSB envelope limit (0.0 to 2.0)
+		// Usage: cessb_limit=1.0
+		float limit = atof(value);
+		if (limit > 0.0f && limit <= 2.0f) {
+			cessb_set_envelope_limit(&cessb_processor, limit);
+			printf("CESSB envelope limit set to %.2f\n", limit);
+			strcpy(response, "ok");
+		}
+		else {
+			printf("CESSB envelope limit must be between 0.0 and 2.0\n");
+			strcpy(response, "error invalid range");
+		}
+	}
+	else if (!strcasecmp(cmd, "cessb_stats")) {
+    // Get CESSB processing statistics
+    // Usage: cessb_stats=get
+    float peak_reduction, avg_gain, talk_power;
+    cessb_get_stats(&cessb_processor, &peak_reduction, &avg_gain, &talk_power);
+    sprintf(response, "ok peak_reduction=%.1fdB avg_gain=%.1fdB talk_power=%.1fdB",
+            peak_reduction, avg_gain, talk_power);
+  }
+	else if (!strcasecmp(cmd, "cessb_reset")) {
+		// Reset CESSB statistics
+		// Usage: cessb_reset=1
+		cessb_reset_stats(&cessb_processor);
+		strcpy(response, "ok");
+	}
+	// end of CESSB Controls
 
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */
