@@ -59,6 +59,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "calibration_ui.h"
 #include "swr_monitor.h"
 #include <time.h>
+#include "cessb.h"
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -93,6 +94,14 @@ int scope_size = 100;	// Default size
 static bool layout_needs_refresh = false;
 static int last_scope_size = -1; // Default to an invalid value initially
 float scope_alpha_plus = 0.0;	 // Default additional scope alpha
+
+// added to support cessb testing, consider removing before release
+int tx_flag=0;
+int pw_ctr=0;
+float pw_avg = 0.0;
+float pw_min = 100.0;
+float pw_max = 0.0;
+// end of cessb testing values
 
 int tune_key=0; // CW tuning
 
@@ -739,6 +748,7 @@ int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 struct band *get_band_by_frequency(int frequency);
 static void set_ftx_frequency(int mode);
@@ -1073,6 +1083,10 @@ struct field main_controls[] = {
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "10/9/8/7/6/5/4/3/2/1/0", 0, 0, 0, 0},
 
+  // CESSB (Controlled Envelope SSB) Control
+	{"#cessb_plugin", do_cessb_edit, 1000, -1000, 40, 40, "CESSB", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, VOICE_CONTROL},
+
 	// BFO Control
 	{"#bfo_manual_offset", do_bfo_offset, 1000, -1000, 40, 40, "BFO", 80, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", -3000, 3000, 50, 0},
@@ -1378,7 +1392,13 @@ int set_field(const char *id, const char *value)
 	sprintf(buff, "%s %s", f->label, f->value);
 	do_control_action(buff);
 
-	update_field(f);
+	// mark field for redraw / remote update
+  update_field(f);
+  // if this field has a handler and is off-screen, invoke it immediately
+  // so off-screen toggles (like #cessb_plugin) actually take effect
+  if (f->fn && f->y < 0) {
+      f->fn(f, NULL, FIELD_EDIT, 0, 0, 0);
+  }
 	return 0;
 }
 
@@ -7329,6 +7349,31 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+// CESSB (Controlled Envelope SSB) toggle handler
+int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *cessb_field = field_str("CESSB");
+ // report current status if ON or OFF not specified
+  if (!cessb_field) {
+      printf("CESSB is currently %s\n", cessb_enabled ? "ON" : "OFF");
+      return 0;
+  }
+  if (!strcasecmp(cessb_field, "ON")) {
+      cessb_enabled = 1;
+      cessb_set_enabled(&cessb_processor, 1);
+      printf("CESSB enabled\n");
+      write_console(STYLE_LOG, "CESSB enabled\n");
+  } else if (!strcasecmp(cessb_field, "OFF")) {
+      cessb_enabled = 0;
+      cessb_set_enabled(&cessb_processor, 0);
+      printf("CESSB disabled\n");
+      write_console(STYLE_LOG, "CESSB disabled\n");
+  } else {
+      printf("do_cessb_edit: ignored unknown CESSB value '%s'\n", cessb_field);
+  }
+  return 0;
+}
+
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *txmon_control_field = field_str("TXMON");
@@ -7528,186 +7573,134 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
+  struct field *cessb_stat = get_field("#cessb_plugin");
 	struct field *ina260_stat = get_field("#ina260_option");
 	struct field *zero_beat_stat = get_field("#zero_beat");
 	struct field *tx_panafall_stat = get_field("#tx_panafall");
 	struct field *fullscreen_stat = get_field("#fullscreen");
   struct field *decode_stat = get_field("#decode");
 
-	if (fullscreen_stat)
-	{
-		int fs = !strcmp(fullscreen_stat->value, "ON") ? 1 : 0;
-		on_fullscreen_toggle(fs);
-	}
+	if (fullscreen_stat) {
+    int fs = !strcmp(fullscreen_stat->value, "ON") ? 1 : 0;
+    on_fullscreen_toggle(fs);
+  }
 
-	if (tx_panafall_stat)
-	{
-		if (!strcmp(tx_panafall_stat->value, "ON"))
-		{
-			tx_panafall_enabled = 1;
-			set_field("#scope_autoadj", "OFF");
-		}
-		else if (!strcmp(tx_panafall_stat->value, "OFF"))
-		{
-			tx_panafall_enabled = 0;
-		}
-	}
+  if (tx_panafall_stat) {
+    if (!strcmp(tx_panafall_stat->value, "ON")) {
+      tx_panafall_enabled = 1;
+      set_field("#scope_autoadj", "OFF");
+    } else if (!strcmp(tx_panafall_stat->value, "OFF")) {
+      tx_panafall_enabled = 0;
+    }
+  }
 
-	if (zero_beat_stat)
-	{
-		if (!strcmp(zero_beat_stat->value, "ON"))
-		{
-			zero_beat_enabled = 1;
-		}
-		else if (!strcmp(zero_beat_stat->value, "OFF"))
-		{
-			zero_beat_enabled = 0;
-		}
-	}
-	if (ina260_stat)
-	{
-		if (!strcmp(ina260_stat->value, "ON"))
-		{
-			has_ina260 = 1;
-		}
-		else if (!strcmp(ina260_stat->value, "OFF"))
-		{
-			has_ina260 = 0;
-		}
-	}
+  if (zero_beat_stat) {
+    if (!strcmp(zero_beat_stat->value, "ON")) {
+      zero_beat_enabled = 1;
+    } else if (!strcmp(zero_beat_stat->value, "OFF")) {
+      zero_beat_enabled = 0;
+    }
+  }
 
-	if (eq_stat)
-	{
-		if (!strcmp(eq_stat->value, "ON"))
-		{
-			eq_is_enabled = 1;
-		}
-		else if (!strcmp(eq_stat->value, "OFF"))
-		{
-			eq_is_enabled = 0;
-		}
-	}
+  if (ina260_stat) {
+    if (!strcmp(ina260_stat->value, "ON")) {
+      has_ina260 = 1;
+    } else if (!strcmp(ina260_stat->value, "OFF")) {
+      has_ina260 = 0;
+    }
+  }
+  
+  if (eq_stat) {
+    if (!strcmp(eq_stat->value, "ON")) {
+      eq_is_enabled = 1;
+    } else if (!strcmp(eq_stat->value, "OFF")) {
+      eq_is_enabled = 0;
+    }
+  }
+  
+  if (rx_eq_stat) {
+    if (!strcmp(rx_eq_stat->value, "ON")) {
+      rx_eq_is_enabled = 1;
+    } else if (!strcmp(rx_eq_stat->value, "OFF")) {
+      rx_eq_is_enabled = 0;
+    }
+  }
+  
+  if (notch_stat) {
+    if (!strcmp(notch_stat->value, "ON")) {
+      notch_enabled = 1;
+    } else if (!strcmp(notch_stat->value, "OFF")) {
+      notch_enabled = 0;
+    }
+  }
+  
+  if (apf_stat) {
+    if (!strcmp(apf_stat->value, "ON")) {
+      apf1.ison = 1;
+    } else if (!strcmp(apf_stat->value, "OFF")) {
+      apf1.ison = 0;
+    }
+  }
 
-	if (rx_eq_stat)
-	{
-		if (!strcmp(rx_eq_stat->value, "ON"))
-		{
-			rx_eq_is_enabled = 1;
-		}
-		else if (!strcmp(rx_eq_stat->value, "OFF"))
-		{
-			rx_eq_is_enabled = 0;
-		}
-	}
+  if (dsp_stat) {
+    if (!strcmp(dsp_stat->value, "ON")) {
+      dsp_enabled = 1;
+    } else if (!strcmp(dsp_stat->value, "OFF")) {
+      dsp_enabled = 0;
+    }
+  }
+  
+  if (anr_stat) {
+    if (!strcmp(anr_stat->value, "ON")) {
+      anr_enabled = 1;
+    } else if (!strcmp(anr_stat->value, "OFF")) {
+      anr_enabled = 0;
+    }
+  }
+  
+  if (eptt_stat) {
+    if (!strcmp(eptt_stat->value, "ON")) {
+      eptt_enabled = 1;
+    } else if (!strcmp(eptt_stat->value, "OFF")) {
+      eptt_enabled = 0;
+    }
+  }
+  
+  if (vfo_stat) {
+    if (!strcmp(vfo_stat->value, "ON")) {
+      vfo_lock_enabled = 1;
+    } else if (!strcmp(vfo_stat->value, "OFF")) {
+      vfo_lock_enabled = 0;
+    }
+  }
+  
+  if (comp_stat) {
+    if (atoi(comp_stat->value) != 0) {
+      comp_enabled = 1; 
+    } else {
+      comp_enabled = 0;
+    }
+  }
 
-	if (notch_stat)
-	{
-		if (!strcmp(notch_stat->value, "ON"))
-		{
-			notch_enabled = 1;
-		}
-		else if (!strcmp(notch_stat->value, "OFF"))
-		{
-			notch_enabled = 0;
-		}
-	}
+  if (cessb_stat) {
+    if (!strcmp(cessb_stat->value, "ON")) {
+      cessb_enabled = 1;
+      cessb_set_enabled(&cessb_processor, 1);
+    } else {
+      cessb_enabled = 0;
+      cessb_set_enabled(&cessb_processor, 0);
+    }
+  }
 
-	if (apf_stat)
-	{
-		if (!strcmp(apf_stat->value, "ON"))
-		{
-/*
-			printf(" apf_stat \n");
-			struct field *apf_gain_field = get_field("#apf_gain");
-			struct field *apf_width_field = get_field("#apf_width");
-			if ( ((abs(apf1.gain - (float)atoi(apf_gain_field->value))) > 1e-9) || // only if changed
-			     ((abs(apf1.width - (float)atoi(apf_width_field->value))) > 1.e-9) )
-			{
-				apf1.gain = (float)atoi(apf_gain_field->value);
-				apf1.width = (float)atoi(apf_width_field->value);
-				apf1.ison = 1;
-				init_apf();
-			}
-*/
-			apf1.ison = 1;
-		}
-		else if (!strcmp(apf_stat->value, "OFF"))
-		{
-			apf1.ison = 0;
-		}
-	}
-
-	if (dsp_stat)
-	{
-		if (!strcmp(dsp_stat->value, "ON"))
-		{
-			dsp_enabled = 1;
-		}
-		else if (!strcmp(dsp_stat->value, "OFF"))
-		{
-			dsp_enabled = 0;
-		}
-	}
-
-	if (anr_stat)
-	{
-		if (!strcmp(anr_stat->value, "ON"))
-		{
-			anr_enabled = 1;
-		}
-		else if (!strcmp(anr_stat->value, "OFF"))
-		{
-			anr_enabled = 0;
-		}
-	}
-
-	if (eptt_stat)
-	{
-		if (!strcmp(eptt_stat->value, "ON"))
-		{
-			eptt_enabled = 1;
-		}
-		else if (!strcmp(eptt_stat->value, "OFF"))
-		{
-			eptt_enabled = 0;
-		}
-	}
-
-	if (vfo_stat)
-	{
-		if (!strcmp(vfo_stat->value, "ON"))
-		{
-			vfo_lock_enabled = 1;
-		}
-		else if (!strcmp(vfo_stat->value, "OFF"))
-		{
-			vfo_lock_enabled = 0;
-		}
-	}
-
-	if (comp_stat)
-	{
-		if (atoi(comp_stat->value) != 0)
-		{
-			comp_enabled = 1;
-		}
-		else
-		{
-			comp_enabled = 0;
-		}
-	}
-  if (decode_stat)
-	{
-		if (!strcmp(decode_stat->value, "ON"))
-		{
-			cw_decode_enabled = 1;
-		}
-		else if (!strcmp(decode_stat->value, "OFF"))
-		{
-			cw_decode_enabled = 0;
-		}
-	}
-	return TRUE; // Return TRUE to keep the timer running
+  if (decode_stat) {
+    if (!strcmp(decode_stat->value, "ON")) {
+      cw_decode_enabled = 1;
+    } else if (!strcmp(decode_stat->value, "OFF")) {
+      cw_decode_enabled = 0;
+    }
+  }
+  
+  return TRUE;   // keep the timer running
 }
 
 // Function to check r1:volume and update input_volume variable for volume control normalization -W2JON
@@ -7838,9 +7831,9 @@ void set_ui(int id)
 	current_layout = id;
 }
 
-int static cw_keydown = 0;
-int static cw_hold_until = 0;
-int static cw_hold_duration = 150;
+static int cw_keydown = 0;
+static int cw_hold_until = 0;
+static int cw_hold_duration = 150;
 
 static void cw_key(int state)
 {
@@ -9229,6 +9222,30 @@ gboolean ui_tick(gpointer gook)
 		update_field(f); // move this each time the spectrum watefall index is moved
 		f = get_field("waterfall");
 		update_field(f);
+
+    // DEBUG CODE FOR CESSB
+    // power measurement for cessb
+        if ( in_tx != 0) {
+            if (tx_flag == 0 ) {  // initialize
+                 tx_flag=1;
+                 pw_ctr=0;
+                 pw_avg=0;
+                 pw_min=100.0;
+                 pw_max=0.0;
+             }
+        //printf(" fwdpower %.2f\n",fwdpower/10.0);
+        pw_ctr++;
+        pw_avg += fwdpower/10.0;
+        if (fwdpower/10.0 < pw_min)    pw_min = fwdpower/10.0;
+        if (fwdpower/10.0 > pw_max) pw_max = fwdpower/10.0;
+    } else {
+        if ( tx_flag == 1) {
+        pw_avg = pw_avg/pw_ctr;
+        printf("count %d: min %.2f  max %.2f  avg %.2f\n", pw_ctr, pw_min, pw_max, pw_avg);
+        }
+        tx_flag=0;
+    }
+    // END OF DEBUG CODE FOR CESSB
 
 		update_titlebar();
 		/*		f = get_field("#status");
@@ -10691,6 +10708,15 @@ else if (!strcasecmp(exec, "decode"))
 		save_user_settings(1);
 		exit(0);
 	}
+  else if (!strcasecmp(exec, "cessb")) {
+    if (!strlen(args)) {
+      printf("CESSB is currently %s\n", cessb_enabled ? "ON" : "OFF");
+    } else if (!strcasecmp(args, "on")) {
+        set_field("#cessb_plugin", "ON");
+    } else if (!strcasecmp(args, "off")) {
+        set_field("#cessb_plugin", "OFF");
+    } 
+  }
 	else if (!strcasecmp(exec, "qrz"))
 	{
 		if (strlen(args))
