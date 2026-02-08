@@ -884,7 +884,7 @@ struct field main_controls[] = {
 	 "", 100, 99999, 100, 0},
 	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "BLANK/LEFT/RIGHT/CROSSHAIR", 0, 0, 0, 0},
-	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RCT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RECENT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 99999, 1, 0}, // age in hours that we consider "recent" enough to avoid calling again
 
 	// parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
