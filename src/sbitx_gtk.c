@@ -56,6 +56,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
+#include "style_config.h"
 #include "calibration_ui.h"
 #include "swr_monitor.h"
 #include <time.h>
@@ -155,6 +156,9 @@ static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
 
+// Font-Style Config
+static StyleConfig global_style_config;
+
 // MFK timeout state
 static int mfk_locked_to_volume = 0;
 static unsigned long mfk_last_ms = 0;
@@ -219,8 +223,7 @@ int screen_width = 800, screen_height = 480;
 
 // we just use a look-up table to define the fonts used
 // the struct field indexes into this table
-struct font_style
-{
+struct font_style {
 	int index;
 	float r, g, b;
 	char name[32];
@@ -10595,8 +10598,14 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
-
-		else if (!strcasecmp(exec, "maxvswr"))
+	else if (!strcasecmp(exec, "savestyle")) {
+	char style_path[PATH_MAX];
+	char *home_path = getenv("HOME");
+	sprintf(style_path, "%s/sbitx/data/current_style.tpl", home_path);
+	save_default_style_config(style_path);
+	write_console(STYLE_LOG, "Current style saved to current_style.tpl\n");
+	}
+	else if (!strcasecmp(exec, "maxvswr"))
 	{
 		char msg[128];
 		if (strlen(args) > 0)
@@ -11079,7 +11088,24 @@ int main(int argc, char *argv[])
 	active_layout = main_controls;
 
 	// ensure_single_instance();
-
+  
+	// Load style configuration
+	char style_path[PATH_MAX];
+	char *home_path = getenv("HOME");
+		
+	// Try to load user's custom style first
+	sprintf(style_path, "%s/sbitx/data/user_style.tpl", home_path);
+	if (load_style_config(style_path, &global_style_config) < 0) {
+		// Fall back to default style
+		sprintf(style_path, "%s/sbitx/data/default_style.tpl", home_path);
+		if (load_style_config(style_path, &global_style_config) < 0) {
+			printf("No style config found, using built-in defaults\n");
+		}
+	}
+    
+	// Apply the loaded style configuration
+	apply_style_config(&global_style_config);
+  
 	// unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
