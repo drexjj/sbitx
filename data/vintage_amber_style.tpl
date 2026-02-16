@@ -296,7 +296,7 @@ slant=normal
 [font:STYLE_LARGE_VALUE]
 index=27
 family=Monospace
-size=24
+size=20
 color=1.00, 0.67, 0.00
 weight=bold
 slant=normal
