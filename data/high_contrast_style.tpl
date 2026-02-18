@@ -1,3 +1,6 @@
+; sBitx Style Configuration File
+; Edited with Style Editor
+
 [general]
 ui_font=Sans
 field_font_size=14
