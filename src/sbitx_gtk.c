@@ -7730,7 +7730,7 @@ gboolean check_plugin_controls(gpointer data)
 	{
 		if (!strcmp(apf_stat->value, "ON"))
 		{
-/*
+
 			printf(" apf_stat \n");
 			struct field *apf_gain_field = get_field("#apf_gain");
 			struct field *apf_width_field = get_field("#apf_width");
@@ -7740,9 +7740,8 @@ gboolean check_plugin_controls(gpointer data)
 				apf1.gain = (float)atoi(apf_gain_field->value);
 				apf1.width = (float)atoi(apf_width_field->value);
 				apf1.ison = 1;
-				init_apf();
 			}
-*/
+			init_apf();
 			apf1.ison = 1;
 		}
 		else if (!strcmp(apf_stat->value, "OFF"))
