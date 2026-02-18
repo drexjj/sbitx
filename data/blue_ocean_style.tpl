@@ -87,7 +87,7 @@ slant=normal
 
 [font:STYLE_MYCALL]
 index=1
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.40, 0.00
 weight=bold
@@ -95,7 +95,7 @@ slant=normal
 
 [font:STYLE_CALLER]
 index=2
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.67, 0.27
 weight=bold
@@ -103,7 +103,7 @@ slant=normal
 
 [font:STYLE_RECENT_CALLER]
 index=3
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -111,7 +111,7 @@ slant=normal
 
 [font:STYLE_CALLEE]
 index=4
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -119,7 +119,7 @@ slant=normal
 
 [font:STYLE_GRID]
 index=5
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.80, 0.53
 weight=normal
@@ -127,7 +127,7 @@ slant=normal
 
 [font:STYLE_EXISTING_GRID]
 index=6
-family=Sans
+family=Mono
 size=11
 color=0.00, 0.87, 0.67
 weight=normal
@@ -135,7 +135,7 @@ slant=normal
 
 [font:STYLE_RST]
 index=7
-family=Sans
+family=Mono
 size=11
 color=0.60, 0.67, 0.73
 weight=normal
@@ -143,7 +143,7 @@ slant=normal
 
 [font:STYLE_TIME]
 index=8
-family=Sans
+family=Mono
 size=11
 color=0.40, 0.80, 1.00
 weight=normal
@@ -151,7 +151,7 @@ slant=normal
 
 [font:STYLE_SNR]
 index=9
-family=Sans
+family=Mono
 size=11
 color=1.00, 1.00, 1.00
 weight=bold
@@ -159,7 +159,7 @@ slant=normal
 
 [font:STYLE_FREQ]
 index=10
-family=Sans
+family=Mono
 size=11
 color=0.27, 0.80, 0.87
 weight=normal
@@ -167,7 +167,7 @@ slant=normal
 
 [font:STYLE_COUNTRY]
 index=11
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -175,7 +175,7 @@ slant=normal
 
 [font:STYLE_DISTANCE]
 index=12
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.80, 0.40
 weight=normal
@@ -183,7 +183,7 @@ slant=italic
 
 [font:STYLE_AZIMUTH]
 index=13
-family=Sans
+family=Mono
 size=11
 color=0.80, 0.60, 0.40
 weight=normal
@@ -191,7 +191,7 @@ slant=normal
 
 [font:STYLE_FT8_RX]
 index=14
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -199,7 +199,7 @@ slant=normal
 
 [font:STYLE_FT8_TX]
 index=15
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.67, 0.27
 weight=normal
@@ -207,7 +207,7 @@ slant=normal
 
 [font:STYLE_FT8_QUEUED]
 index=16
-family=Sans
+family=Mono
 size=11
 color=0.33, 0.40, 0.47
 weight=normal
@@ -215,7 +215,7 @@ slant=normal
 
 [font:STYLE_FT8_REPLY]
 index=17
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.67, 0.27
 weight=normal
@@ -223,7 +223,7 @@ slant=normal
 
 [font:STYLE_CW_RX]
 index=18
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -231,7 +231,7 @@ slant=normal
 
 [font:STYLE_CW_TX]
 index=19
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.67, 0.27
 weight=normal
@@ -239,7 +239,7 @@ slant=normal
 
 [font:STYLE_FLDIGI_RX]
 index=20
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -247,7 +247,7 @@ slant=normal
 
 [font:STYLE_FLDIGI_TX]
 index=21
-family=Sans
+family=Mono
 size=11
 color=1.00, 0.67, 0.27
 weight=normal
@@ -255,7 +255,7 @@ slant=normal
 
 [font:STYLE_TELNET]
 index=22
-family=Sans
+family=Mono
 size=11
 color=0.00, 1.00, 0.67
 weight=normal
@@ -263,7 +263,7 @@ slant=normal
 
 [font:STYLE_HIGHLIGHT]
 index=23
-family=Sans
+family=Mono
 size=11
 color=1.00, 1.00, 1.00
 weight=bold
@@ -271,7 +271,7 @@ slant=normal
 
 [font:STYLE_FIELD_LABEL]
 index=24
-family=Sans
+family=Mono
 size=12
 color=0.40, 0.80, 1.00
 weight=normal
@@ -279,7 +279,7 @@ slant=normal
 
 [font:STYLE_FIELD_VALUE]
 index=25
-family=Sans
+family=Mono
 size=14
 color=1.00, 1.00, 1.00
 weight=bold
@@ -287,7 +287,7 @@ slant=normal
 
 [font:STYLE_LARGE_FIELD]
 index=26
-family=Sans
+family=Mono
 size=14
 color=0.40, 0.80, 1.00
 weight=normal
@@ -295,7 +295,7 @@ slant=normal
 
 [font:STYLE_LARGE_VALUE]
 index=27
-family=Sans
+family=Mono
 size=20
 color=1.00, 0.67, 0.00
 weight=bold
@@ -303,7 +303,7 @@ slant=normal
 
 [font:STYLE_SMALL]
 index=28
-family=Sans
+family=Mono
 size=10
 color=0.40, 0.80, 1.00
 weight=normal
@@ -311,7 +311,7 @@ slant=normal
 
 [font:STYLE_SMALL_FIELD_VALUE]
 index=29
-family=Sans
+family=Mono
 size=11
 color=1.00, 1.00, 1.00
 weight=normal
@@ -319,9 +319,8 @@ slant=normal
 
 [font:STYLE_BLACK]
 index=30
-family=Sans
+family=Mono
 size=14
 color=0.00, 0.00, 0.00
 weight=normal
 slant=normal
-
