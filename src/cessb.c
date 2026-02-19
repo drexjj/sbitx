@@ -9,7 +9,7 @@
 //
 // Processing chain:
 // - Input audio arrives as int32 and is normalized to float in [-1, +1]
-// - Apply Input AGC to automatically level the signal to target_level
+// - Automatically adjust audio input levels into working range
 // - Compute analytic signal using Hilbert (HILBERT_TAPS):
 //     I = delayed real sample
 //     Q = Hilbert output (quadrature)
@@ -34,11 +34,11 @@
 //
 // Key configuration parameters (see cessb.h)
 //
-//   AGC_TARGET_LEVEL              Target level for AGC (default 0.7)
+//   AGC_TARGET_LEVEL              Target level for AGC
 //   AGC_MAX_GAIN                  Maximum AGC boost (default 100 = 40 dB)
 //   AGC_MIN_GAIN                  Maximum AGC cut (default 0.1 = -20 dB)
-//   CESSB_CLIP_LEVEL              Hard clip threshold (default 0.85)
-//   CESSB_ENVELOPE_LIMIT          Final limiter ceiling (default 1.0)
+//   CESSB_CLIP_LEVEL              Hard clip threshold
+//   CESSB_ENVELOPE_LIMIT          Final limiter ceiling
 //   LOOKAHEAD_DEFAULT_SAMPLES     Default look-ahead (~2 ms at 96 kHz)
 //   LOOKAHEAD_DEFAULT_ATTACK_MS   Limiter attack (default 0.5 ms)
 //   LOOKAHEAD_DEFAULT_RELEASE_MS  Limiter release (default 50 ms)
@@ -679,4 +679,5 @@ void cessb_reset_stats(cessb_state_t *state) {
     state->min_limiter_gain = 1.0f;
     state->sample_count = 0;
 }
+
 
