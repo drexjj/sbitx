@@ -221,6 +221,16 @@ char *ui_font = "Sans";
 int field_font_size = 12;
 int screen_width = 800, screen_height = 480;
 
+/* --- Display scaling for various display sizes ---
+ * Configure in ~/sbitx/data/display_settings.ini 
+ *
+ */
+float ui_scale = 1.0f;
+static int ui_scale_applied = 0;
+
+/* Scale a pixel size/dimension by ui_scale */
+#define SC(x) ((int)((x) * ui_scale))
+
 // we just use a look-up table to define the fonts used
 // the struct field indexes into this table
 struct font_style {
@@ -4141,7 +4151,8 @@ void draw_dial(struct field *f, cairo_t *gfx)
 
 	fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 
-	// update the vfos
+	const int top_y    = f->y + 1;
+	const int bottom_y = f->y + font_table[STYLE_LARGE_FIELD].height + 3;
 	if (vfo->value[0] == 'A')
 		strcpy(vfo_a->value, f->value);
 	else
@@ -4152,18 +4163,18 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		if (!in_tx)
 		{
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(temp_str, "%d", (atoi(f->value) + atoi(rit_delta->value)));
 			sprintf(buff, "RX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 			sprintf(temp_str, "%d", (atoi(f->value) + atoi(rit_delta->value)));
 			sprintf(buff, "RX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 		}
 	}
         else if (!strcmp(split->value, "ON"))
@@ -4172,17 +4183,17 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_FIELD);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_VALUE);
 		}
 	}
 	else if (!strcmp(vfo->value, "A"))
@@ -4191,17 +4202,17 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "B:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "A:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "B:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 		}
 	}
 	else
@@ -4211,18 +4222,18 @@ void draw_dial(struct field *f, cairo_t *gfx)
 			strcpy(temp_str, vfo_a->value);
 			// sprintf(temp_str, "%d", vfo_a_freq);
 			sprintf(buff, "A:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "B:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 		}
 		else
 		{
 			strcpy(temp_str, vfo_a->value);
 			// sprintf(temp_str, "%d", vfo_a_freq);
 			sprintf(buff, "A:%s", freq_with_separators(temp_str));
-			draw_text(gfx, f->x + 5, f->y + 1, buff, STYLE_LARGE_FIELD);
+			draw_text(gfx, f->x + 5, top_y, buff, STYLE_LARGE_FIELD);
 			sprintf(buff, "TX:%s", freq_with_separators(f->value));
-			draw_text(gfx, f->x + 5, f->y + 15, buff, STYLE_LARGE_VALUE);
+			draw_text(gfx, f->x + 5, bottom_y, buff, STYLE_LARGE_VALUE);
 		}
 	}
 
@@ -4257,7 +4268,7 @@ void draw_dial(struct field *f, cairo_t *gfx)
 		}
 
 		int width = measure_text(gfx, buff, STYLE_FIELD_LABEL);
-		cairo_move_to(gfx, f->x + 163 - width, f->y + 1 + s->height);
+		cairo_move_to(gfx, f->x + SC(163) - width, top_y + s->height);
 		cairo_show_text(gfx, buff);
 	}
 }
@@ -4268,24 +4279,21 @@ void invalidate_rect(int x, int y, int width, int height)
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
 }
 
-// These functions have been removed to avoid memory corruption issues
-// The regular UI update cycle will handle refreshing the display when needed
-
-// the keyboard appears at the bottom 148 pixels of the window
-#define KEYBOARD_HEIGHT 148
+#define KEYBOARD_HEIGHT_BASE 148
+#define KEYBOARD_HEIGHT SC(KEYBOARD_HEIGHT_BASE)
 void keyboard_display(int show) {
   struct field *f;
 
-  // determine how many rows the keyboard has by counting '#kbd' fields with x==0
   int row_count = 0;
   for (f = active_layout; f->cmd[0]; f++) {
-    if (!strncmp(f->cmd, "#kbd", 4) && f->x == KEYBOARD_LEFT_PADDING) {
+    if (!strncmp(f->cmd, "#kbd", 4) &&
+        (f->x == KEYBOARD_LEFT_PADDING ||
+         (ui_scale != 1.0f && f->x == SC(KEYBOARD_LEFT_PADDING)))) {
 		 row_count++;
 	}
   }
   if (row_count <= 0) row_count = 1;
 
-  // Fit exactly into KEYBOARD_HEIGHT
   int base_step = KEYBOARD_HEIGHT / row_count;
   int remainder = KEYBOARD_HEIGHT % row_count;
 
@@ -4296,16 +4304,18 @@ void keyboard_display(int show) {
   for (f = active_layout; f->cmd[0]; f++) {
     if (!strncmp(f->cmd, "#kbd", 4)) {
       // new row begins when x==KEYBOARD_LEFT_PADDING
-      if (f->x == KEYBOARD_LEFT_PADDING) {
+      if (f->x == KEYBOARD_LEFT_PADDING || (ui_scale != 1.0f && f->x == SC(KEYBOARD_LEFT_PADDING))) {
         current_row++;
         int step = base_step + ((current_row < remainder) ? 1 : 0);
         current_row_y = base_y + current_row * step - KEYBOARD_BOTTOM_PADDING;
       }
 
-      if (show)
-        f->y = current_row_y;  // place at computed row height while showing
-      else
+      if (show) {
+        f->y = current_row_y;           // place at computed row y
+        f->height = base_step - KEYBOARD_BOTTOM_PADDING;  // fill the row
+      } else {
         f->y = -1000;  // hide keyboard rows
+      }
       update_field(f);
     }
   }
@@ -4335,32 +4345,32 @@ void menu_display(int show) {
 				// NEW LAYOUT @ 3.2
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 				// Line 1
-				field_move("SET", 5, screen_height - 80, 45, 37);
-				field_move("TXEQ", 70, screen_height - 80, 45, 37);
-				field_move("RXEQ", 120, screen_height - 80, 45, 37);
-				field_move("NOTCH", 185, screen_height - 80, 95, 37);
-				field_move("ANR", 295, screen_height - 80, 45, 37);
-				field_move("APF", 355, screen_height - 80, 95, 37);
-				field_move("COMP", 470, screen_height - 80, 45, 37);
-				field_move("TXMON", 535, screen_height - 80, 45, 37);
-				field_move("TNDUR", 600, screen_height - 80, 45, 37);
+				field_move("SET", SC(5), screen_height - SC(80), SC(45), SC(37));
+				field_move("TXEQ", SC(70), screen_height - SC(80), SC(45), SC(37));
+				field_move("RXEQ", SC(120), screen_height - SC(80), SC(45), SC(37));
+				field_move("NOTCH", SC(185), screen_height - SC(80), SC(95), SC(37));
+				field_move("ANR", SC(295), screen_height - SC(80), SC(45), SC(37));
+				field_move("APF", SC(355), screen_height - SC(80), SC(95), SC(37));
+				field_move("COMP", SC(470), screen_height - SC(80), SC(45), SC(37));
+				field_move("TXMON", SC(535), screen_height - SC(80), SC(45), SC(37));
+				field_move("TNDUR", SC(600), screen_height - SC(80), SC(45), SC(37));
 
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", screen_width - 135, screen_height - 80, 70, 37);
+					field_move("ePTT", screen_width - SC(135), screen_height - SC(80), SC(70), SC(37));
 				}
 
 				// Line 2
-				field_move("WEB", 5, screen_height - 40, 45, 37);
-				field_move("EQSET", 70, screen_height - 40, 95, 37);
-				field_move("NFREQ", 185, screen_height - 40, 45, 37);
-				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
-				field_move("DSP", 295, screen_height - 40, 45, 37);
-				field_move("GAIN", 355, screen_height - 40, 45, 37);
-				field_move("WIDTH", 405, screen_height - 40, 45, 37);
-				field_move("BFO", 470, screen_height - 40, 45, 37);
-				field_move("VFOLK", 535, screen_height - 40, 45, 37);
-				field_move("TNPWR", 600, screen_height - 40, 45, 37);
+				field_move("WEB", SC(5), screen_height - SC(40), SC(45), SC(37));
+				field_move("EQSET", SC(70), screen_height - SC(40), SC(95), SC(37));
+				field_move("NFREQ", SC(185), screen_height - SC(40), SC(45), SC(37));
+				field_move("BNDWTH", SC(235), screen_height - SC(40), SC(45), SC(37));
+				field_move("DSP", SC(295), screen_height - SC(40), SC(45), SC(37));
+				field_move("GAIN", SC(355), screen_height - SC(40), SC(45), SC(37));
+				field_move("WIDTH", SC(405), screen_height - SC(40), SC(45), SC(37));
+				field_move("BFO", SC(470), screen_height - SC(40), SC(45), SC(37));
+				field_move("VFOLK", SC(535), screen_height - SC(40), SC(45), SC(37));
+				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
 
 			}
 
@@ -4394,17 +4404,17 @@ void menu_display(int show) {
 void menu2_display(int show) {
 	if (show) {
 		// Display the waterfall-related controls in a new layout
-		field_move("WFMIN", 5, screen_height - 80, 70, 37);
-		field_move("WFMAX", 5, screen_height - 40, 70, 37);
-		field_move("WFSPD", 80, screen_height - 80, 70, 37);
-		field_move("SCOPEGAIN", 170, screen_height - 80, 70, 37);
-		field_move("SCOPEAVG", 170, screen_height - 40, 70, 37);  // Add SCOPEAVG field
-		field_move("SCOPESIZE", 245, screen_height - 80, 70, 37); // Add SCOPESIZE field
-		field_move("TXPANAFAL", 320, screen_height - 80, 70, 37); // Add TXPANAFAL field
-		field_move("INTENSITY", 245, screen_height - 40, 70, 37); // Add SCOPE ALPHA field
-		field_move("AUTOSCOPE", 320, screen_height - 40, 70, 37); // Add AUTOADJUST spectrum field
-    	field_move("FULLSCREEN", screen_width - 197, screen_height - 80, 95, 37); // Add FULLSCR field
-		field_move("PWR-DWN", screen_width - 97, screen_height - 80, 95, 37); // Add PWR-DWN field
+		field_move("WFMIN", SC(5), screen_height - SC(80), SC(70), SC(37));
+		field_move("WFMAX", SC(5), screen_height - SC(40), SC(70), SC(37));
+		field_move("WFSPD", SC(80), screen_height - SC(80), SC(70), SC(37));
+		field_move("SCOPEGAIN", SC(170), screen_height - SC(80), SC(70), SC(37));
+		field_move("SCOPEAVG", SC(170), screen_height - SC(40), SC(70), SC(37));  // Add SCOPEAVG field
+		field_move("SCOPESIZE", SC(245), screen_height - SC(80), SC(70), SC(37)); // Add SCOPESIZE field
+		field_move("TXPANAFAL", SC(320), screen_height - SC(80), SC(70), SC(37)); // Add TXPANAFAL field
+		field_move("INTENSITY", SC(245), screen_height - SC(40), SC(70), SC(37)); // Add SCOPE ALPHA field
+		field_move("AUTOSCOPE", SC(320), screen_height - SC(40), SC(70), SC(37)); // Add AUTOADJUST spectrum field
+    	field_move("FULLSCREEN", screen_width - SC(197), screen_height - SC(80), SC(95), SC(37)); // Add FULLSCR field
+		field_move("PWR-DWN", screen_width - SC(97), screen_height - SC(80), SC(95), SC(37)); // Add PWR-DWN field
 
 		// Only show WFCALL if option is ON and mode is not FTx, CW, or CWR
 		const char *current_mode = field_str("MODE");
@@ -4412,7 +4422,7 @@ void menu2_display(int show) {
 		    strncmp(current_mode, "FT", 2) != 0 &&
 		    strcmp(current_mode, "CW") != 0 != 0 &&
 		    strcmp(current_mode, "CWR") != 0) {
-			field_move("WFCALL", screen_width - 197, screen_height - 40, 95, 37); // Add WFCALL
+			field_move("WFCALL", screen_width - SC(197), screen_height - SC(40), SC(95), SC(37)); // Add WFCALL
 		}
 
 	} else {
@@ -4433,12 +4443,12 @@ static void layout_ui()
   int x1, y1, x2, y2;
   x1 = 0;
   x2 = screen_width;
-  y1 = 100;  // top 100 pixels reserved for main controls at top of screen
+  y1 = SC(100);  // top 100 pixels (scaled) reserved for main controls at top of screen
   y2 = screen_height;  // “content” bottom that moves up when menu or keyboard are shown
 
   // define standard size for spectrum
-  int default_spectrum_height = scope_size;
-  // clamp SCOPESIZE to 70 only when in CW mode, FULL spectrum, and KBD ON (layout-only)
+  int default_spectrum_height = SC(scope_size);
+  // clamp SCOPESIZE to SC(70) only when in CW mode, FULL spectrum, and KBD ON (layout-only)
   // don't like doing this clamp here but I couldn't figure out how to fix
   // the scope and waterfall under this condition
   {
@@ -4449,14 +4459,14 @@ static void layout_ui()
         strcmp(m,  "CW")   == 0 &&
         strcmp(sp, "FULL") == 0 &&
         strcmp(kb, "ON")   == 0 &&
-        default_spectrum_height > 70) {
-      default_spectrum_height = 70;
+        default_spectrum_height > SC(70)) {
+      default_spectrum_height = SC(70);
     }
   }
   // shared column layout for SPECT NORM: left console and right panadapter
-  const int col_left_x      = 5;    // left margin for console
-  const int split_x         = 360;  // left edge of spectrum/waterfall in SPECT NORM
-  const int split_gap       = 3;    // gap between console and spectrum
+  const int col_left_x      = SC(5);    // left margin for console
+  const int split_x         = SC(360);  // left edge of spectrum/waterfall in SPECT NORM
+  const int split_gap       = SC(3);    // gap between console and spectrum
   const int console_right_x = split_x - split_gap; // unified console right edge
 
   // move all other controls out of view if COMMON_CONTROL flag not set
@@ -4465,53 +4475,73 @@ static void layout_ui()
     if (!(f->section & COMMON_CONTROL))
     {
       update_field(f);
-      f->y = -1000;  // off screen
+      f->y = -1000; 
       update_field(f);
     }
   }
 
-  // Locate the KBD ON|OFF button (bottom right corner of screen)
-  field_move("KBD", screen_width - 48, screen_height - 40, 45, 37);
+  if (ui_scale != 1.0f) {
+    struct field *f_scale;
 
-  // place main radio controls at top of screen, positions relative to right edge
-  field_move("AUDIO", x2 - 45, 5, 40, 40);
-  field_move("FREQ", x2 - 212, 3, 180, 40);
-  field_move("STEP", x2 - 252, 5, 40, 40);
-  field_move("RIT", x2 - 292, 5, 40, 40);
+    field_move("MODE", SC(5), SC(5), SC(40), SC(40));
 
-  field_move("IF", x2 - 45, 50, 40, 40);
-  field_move("DRIVE", x2 - 87, 50, 42, 40);
-  field_move("BW", x2 - 127, 50, 40, 40);
-  field_move("AGC", x2 - 170, 50, 42, 40);
-  field_move("SPAN", x2 - 212, 50, 42, 40);
-  field_move("VFO", x2 - 252, 50, 40, 40);
-  field_move("SPLIT", x2 - 292, 50, 40, 40);
+    f_scale = get_field("#band");
+    if (f_scale) { f_scale->x = SC(45); f_scale->y = SC(5); f_scale->width = SC(40); f_scale->height = SC(40); update_field(f_scale); }
 
-  // adjust screen height for keyboard
+    f_scale = get_field("#band_stack_pos");
+    if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
+
+    field_move("REC",  SC(410), SC(5), SC(40), SC(40));
+    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
+    field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
+    field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
+    field_move("RECV", SC(140), SC(50), SC(50), SC(20));
+    field_move("EXCH", SC(190), SC(50), SC(50), SC(20));
+    field_move("NR",   SC(240), SC(50), SC(50), SC(20));
+    field_move("SAVE", SC(290), SC(50), SC(40), SC(40));
+    field_move("WIPE", SC(330), SC(50), SC(40), SC(40));
+    field_move("QRZ",  SC(370), SC(50), SC(40), SC(40));
+    field_move("LOG",  SC(410), SC(50), SC(40), SC(40));
+    field_move("MENU", SC(459), SC(50), SC(40), SC(40));
+    field_move("TEXT", SC(5), SC(70), SC(285), SC(20));
+  }
+
+  field_move("KBD", screen_width - SC(48), screen_height - SC(40), SC(45), SC(37));
+
+  field_move("AUDIO", x2 - SC(45), SC(5), SC(40), SC(40));
+  field_move("FREQ", x2 - SC(212), SC(3), SC(180), SC(40));
+  field_move("STEP", x2 - SC(252), SC(5), SC(40), SC(40));
+  field_move("RIT", x2 - SC(292), SC(5), SC(40), SC(40));
+
+  field_move("IF", x2 - SC(45), SC(50), SC(40), SC(40));
+  field_move("DRIVE", x2 - SC(87), SC(50), SC(42), SC(40));
+  field_move("BW", x2 - SC(127), SC(50), SC(40), SC(40));
+  field_move("AGC", x2 - SC(170), SC(50), SC(42), SC(40));
+  field_move("SPAN", x2 - SC(212), SC(50), SC(42), SC(40));
+  field_move("VFO", x2 - SC(252), SC(50), SC(40), SC(40));
+  field_move("SPLIT", x2 - SC(292), SC(50), SC(40), SC(40));
+
   if (!strcmp(field_str("KBD"), "ON")) {
-    // Use the exact keyboard height to avoid off-by-one layout overlaps
     y2 = screen_height - KEYBOARD_HEIGHT;
     keyboard_display(1);
-	field_move("KBD", screen_width - 48, screen_height - 37, 45, 37);
+	field_move("KBD", screen_width - SC(48), screen_height - SC(37), SC(45), SC(37));
   } else {
     keyboard_display(0);
   }
 
-  // adjust screen height for menu
   if (!strcmp(field_str("MENU"), "1")) {
-    y2 = screen_height - 85;
+    y2 = screen_height - SC(85);
     menu_display(1);
   } else if (!strcmp(field_str("MENU"), "2")) {
-    y2 = screen_height - 85;
+    y2 = screen_height - SC(85);
     menu2_display(1);
   } else {
     menu_display(0);
     menu2_display(0);
   }
 
-  // layout adjustments per mode
   int m_id = mode_id(field_str("MODE"));
-  int waterfall_height = 10; // legacy var (used in default)
+  int waterfall_height = 10; 
   switch (m_id) {
   case MODE_FT4:
   case MODE_FT8:
@@ -4520,42 +4550,42 @@ static void layout_ui()
     // Place buttons and calculate highest Y position for FTx
     {
       int console_w = console_right_x - col_left_x;
-      if (console_w < 40) console_w = 40;
-      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
+      if (console_w < SC(40)) console_w = SC(40);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - SC(55));
     }
     field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
 
     // Two-row layout at 37px height (similar to CW/CWR)
     {
-      const int row_h = 37;
-      const int row_gap = 3;
+      const int row_h = SC(37);
+      const int row_gap = SC(3);
       const int y_top = y2 - (row_h + row_gap) * 2;  // top row
       const int y_bottom = y2 - (row_h + row_gap);               // bottom row (flush to bottom)
 
       // Compute WF height up to the control rows (strict clamp + 1px floor)
       int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, wf_h);
+      field_move("WATERFALL", SC(360), y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - SC(365), wf_h);
 
       // Top row: FTx mode controls
-      field_move("FTX_CQ", 375, y_top, 75, row_h);
-      field_move("FTX_AUTO", 450, y_top, 75, row_h);
-      field_move("FTX_REPEAT", 525, y_top, 75, row_h);
-      field_move("MACRO", 600, y_top, 75, row_h);
-      field_move("TX_PITCH", 675, y_top, 75, row_h);
-      field_move("RULES", 753, y_top, 44, row_h);
+      field_move("FTX_CQ", SC(375), y_top, SC(75), row_h);
+      field_move("FTX_AUTO", SC(450), y_top, SC(75), row_h);
+      field_move("FTX_REPEAT", SC(525), y_top, SC(75), row_h);
+      field_move("MACRO", SC(600), y_top, SC(75), row_h);
+      field_move("TX_PITCH", SC(675), y_top, SC(75), row_h);
+      field_move("RULES", SC(753), y_top, SC(44), row_h);
 
       // Bottom row: function keys and extras
-      field_move("F1", 5, y_bottom, 70, row_h);
-      field_move("F2", 75, y_bottom, 75, row_h);
-      field_move("F3", 150, y_bottom, 75, row_h);
-      field_move("F4", 225, y_bottom, 75, row_h);
-      field_move("F5", 300, y_bottom, 75, row_h);
-      field_move("F6", 375, y_bottom, 75, row_h);
-      field_move("F7", 450, y_bottom, 75, row_h);
-      field_move("F8", 525, y_bottom, 75, row_h);
-      field_move("SIDETONE", 600, y_bottom, 75, row_h);
-      field_move("ESC", 675, y_bottom, 75, row_h);
+      field_move("F1", SC(5), y_bottom, SC(70), row_h);
+      field_move("F2", SC(75), y_bottom, SC(75), row_h);
+      field_move("F3", SC(150), y_bottom, SC(75), row_h);
+      field_move("F4", SC(225), y_bottom, SC(75), row_h);
+      field_move("F5", SC(300), y_bottom, SC(75), row_h);
+      field_move("F6", SC(375), y_bottom, SC(75), row_h);
+      field_move("F7", SC(450), y_bottom, SC(75), row_h);
+      field_move("F8", SC(525), y_bottom, SC(75), row_h);
+      field_move("SIDETONE", SC(600), y_bottom, SC(75), row_h);
+      field_move("ESC", SC(675), y_bottom, SC(75), row_h);
     }
 
     // TUNE control is offscreen in this mode
@@ -4566,8 +4596,8 @@ static void layout_ui()
   case MODE_CWR:
     soft_console_init();
     
-    const int row_h = 37;  // row height since we adopted 4-row keyboard
-    const int row_gap = 3;
+    const int row_h = SC(37);  // row height since we adopted 4-row keyboard
+    const int row_gap = SC(3);
     const int y_top = y2 - ((row_h + row_gap) * 2) - row_gap;
     const int y_bottom = y2 - (row_h + row_gap);
 
@@ -4678,30 +4708,30 @@ static void layout_ui()
     }
 
     // Top row CW controls
-    field_move("ESC", 5, y_top, 70, row_h);
-    field_move("WPM", 75, y_top, 75, row_h);
-    field_move("PITCH", 150, y_top, 75, row_h);
-    field_move("CW_DELAY", 225, y_top, 75, row_h);
-    field_move("CW_INPUT", 300, y_top, 75, row_h);
-    field_move("SIDETONE", 375, y_top, 75, row_h);
-    field_move("MACRO", 450, y_top, 75, row_h);
-    field_move("ZEROBEAT", 600, y_top, 75, row_h);
-    field_move("SPECT", x2 - 48, y_top, 45, row_h);
+    field_move("ESC", SC(5), y_top, SC(70), row_h);
+    field_move("WPM", SC(75), y_top, SC(75), row_h);
+    field_move("PITCH", SC(150), y_top, SC(75), row_h);
+    field_move("CW_DELAY", SC(225), y_top, SC(75), row_h);
+    field_move("CW_INPUT", SC(300), y_top, SC(75), row_h);
+    field_move("SIDETONE", SC(375), y_top, SC(75), row_h);
+    field_move("MACRO", SC(450), y_top, SC(75), row_h);
+    field_move("ZEROBEAT", SC(600), y_top, SC(75), row_h);
+    field_move("SPECT", x2 - SC(48), y_top, SC(45), row_h);
 
     // Bottom row CW function keys
-    field_move("F1", 5, y_bottom, 70, row_h);
-    field_move("F2", 75, y_bottom, 75, row_h);
-    field_move("F3", 150, y_bottom, 75, row_h);
-    field_move("F4", 225, y_bottom, 75, row_h);
-    field_move("F5", 300, y_bottom, 75, row_h);
-    field_move("F6", 375, y_bottom, 75, row_h);
-    field_move("F7", 450, y_bottom, 75, row_h);
-    field_move("F8", 525, y_bottom, 75, row_h);
-    field_move("F9", 600, y_bottom, 75, row_h);
-    field_move("F10", 675, y_bottom, 70, row_h);
+    field_move("F1", SC(5), y_bottom, SC(70), row_h);
+    field_move("F2", SC(75), y_bottom, SC(75), row_h);
+    field_move("F3", SC(150), y_bottom, SC(75), row_h);
+    field_move("F4", SC(225), y_bottom, SC(75), row_h);
+    field_move("F5", SC(300), y_bottom, SC(75), row_h);
+    field_move("F6", SC(375), y_bottom, SC(75), row_h);
+    field_move("F7", SC(450), y_bottom, SC(75), row_h);
+    field_move("F8", SC(525), y_bottom, SC(75), row_h);
+    field_move("F9", SC(600), y_bottom, SC(75), row_h);
+    field_move("F10", SC(675), y_bottom, SC(70), row_h);
 
     // TUNE control is on screen in this mode
-	field_move("TUNE", 460, 5, 40, 40);
+	field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
     break;
 
   case MODE_USB:
@@ -4711,9 +4741,9 @@ static void layout_ui()
   case MODE_2TONE:
   {
     // single bottom row
-    const int row_h   = 37;
-    const int y_top   = y2 - 40;
-    const int y_bottom= y2 - 40;
+    const int row_h   = SC(37);
+    const int y_top   = y2 - SC(40);
+    const int y_bottom= y2 - SC(40);
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
@@ -4723,8 +4753,8 @@ static void layout_ui()
       field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
     } else {
       int console_w = console_right_x - col_left_x;
-      if (console_w < 40) console_w = 40;
-      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
+      if (console_w < SC(40)) console_w = SC(40);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - SC(55));
 
       field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
       int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
@@ -4733,60 +4763,60 @@ static void layout_ui()
     }
 
     // One-row control bar
-    field_move("MIC", 5, y_bottom, 45, row_h);
-    field_move("LOW", 60, y_bottom, 95, row_h);
-    field_move("HIGH", 160, y_bottom, 95, row_h);
-    field_move("TX", 260, y_bottom, 95, row_h);
-    field_move("RX", 360, y_bottom, 95, row_h);
-    field_move("SPECT", x2 - 97, y_bottom, 45, row_h);
+    field_move("MIC", SC(5), y_bottom, SC(45), row_h);
+    field_move("LOW", SC(60), y_bottom, SC(95), row_h);
+    field_move("HIGH", SC(160), y_bottom, SC(95), row_h);
+    field_move("TX", SC(260), y_bottom, SC(95), row_h);
+    field_move("RX", SC(360), y_bottom, SC(95), row_h);
+    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
-    field_move("TUNE", 460, 5, 40, 40);
+    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
   }
   break;
 
   case MODE_DIGITAL:
   {
-    const int row_h   = 37;
-    const int y_top   = y2 - 40;
-    const int y_bottom= y2 - 40;
+    const int row_h   = SC(37);
+    const int y_top   = y2 - SC(40);
+    const int y_bottom= y2 - SC(40);
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      field_move("SPECTRUM", SC(5), y1, x2 - SC(7), default_spectrum_height);
       int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
+      field_move("WATERFALL", SC(5), y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - SC(7), wf_h);
     } else {
       int console_w = console_right_x - col_left_x;
-      if (console_w < 40) console_w = 40;
+      if (console_w < SC(40)) console_w = SC(40);
       field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
 
-      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + SC(5)), default_spectrum_height);
       int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
       if (wf_h <= 0) wf_h = 1;
-      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + SC(5)), wf_h);
     }
 
     // One-row control bar for digital
-    field_move("MIC", 5, y_bottom, 45, row_h);
-    field_move("LOW", 60, y_bottom, 95, row_h);
-    field_move("HIGH", 160, y_bottom, 95, row_h);
-    field_move("TX", 260, y_bottom, 95, row_h);
-    field_move("RX", 360, y_bottom, 95, row_h);
-    field_move("SIDETONE", 460, y_bottom, 95, row_h);
-    field_move("SPECT", x2 - 97, y_bottom, 45, row_h);
+    field_move("MIC", SC(5), y_bottom, SC(45), row_h);
+    field_move("LOW", SC(60), y_bottom, SC(95), row_h);
+    field_move("HIGH", SC(160), y_bottom, SC(95), row_h);
+    field_move("TX", SC(260), y_bottom, SC(95), row_h);
+    field_move("RX", SC(360), y_bottom, SC(95), row_h);
+    field_move("SIDETONE", SC(460), y_bottom, SC(95), row_h);
+    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     // keep TUNE where it lives on top row
-    field_move("TUNE", 460, 5, 40, 40);
+    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
   }
   break;
 
   default:
-    field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-    field_move("SPECTRUM", 360, y1, x2 - 365, default_spectrum_height);
-    waterfall_height = y2 - y1 - (default_spectrum_height + 55) - WATERFALL_Y_OFFSET;
+    field_move("CONSOLE", SC(5), y1, SC(350), y2 - y1 - SC(110));
+    field_move("SPECTRUM", SC(360), y1, x2 - SC(365), default_spectrum_height);
+    waterfall_height = y2 - y1 - (default_spectrum_height + SC(55)) - WATERFALL_Y_OFFSET;
     if (waterfall_height <= 0) waterfall_height = 1; // strict clamp + 1px floor
-    field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, waterfall_height);
+    field_move("WATERFALL", SC(360), y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - SC(365), waterfall_height);
     break;
   }
 
@@ -9588,6 +9618,36 @@ gboolean ui_tick(gpointer gook)
 	return TRUE;
 }
 
+// Apply ui_scale to all font heights in font_table.
+static void apply_ui_scale(void)
+{
+	if (ui_scale_applied || ui_scale <= 0.0f)
+		return;
+	if (ui_scale == 1.0f) {
+		ui_scale_applied = 1;
+		return;
+	}
+	int n = sizeof(font_table) / sizeof(font_table[0]);
+	for (int i = 0; i < n; i++) {
+		font_table[i].height = (int)(font_table[i].height * ui_scale + 0.5f);
+	}
+	// Scale the keyboard key x positions, widths, and heights in main_controls[].
+	for (struct field *f = main_controls; f->cmd[0]; f++) {
+		if (!strncmp(f->cmd, "#kbd", 4)) {
+			f->x      = SC(f->x);
+			f->width  = SC(f->width);
+			f->height = SC(f->height);
+			/* y is set dynamically by keyboard_display(); leave it alone */
+		}
+	}
+	ui_scale_applied = 1;
+	printf("ui_scale=%.2f applied: fonts and layout sizes scaled for display.\n", ui_scale);
+	/* layout_ui() will be called by ui_init() → layout_ui() automatically.
+	 * Only call it here if the display is already up (e.g. runtime re-scale). */
+	if (display_area != NULL)
+		layout_ui();
+}
+
 void ui_init(int argc, char *argv[])
 {
 
@@ -9605,7 +9665,12 @@ void ui_init(int argc, char *argv[])
 	q_init(&q_web, 5000);
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_default_size(GTK_WINDOW(window), 800, 480);
+	/* Set the initial window size to match the target display.
+	 * screen_width/height are set from display_settings.ini before ui_init() is called:
+	 *   display_type=1 → 800×480 (Touch Display, the default)
+	 *   display_type=2 → 1280×720 (Touch Display 2)
+	 * These become the default window size; on_resize() will update them if the
+	 * window is resized or maximized after launch. */
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
@@ -11080,6 +11145,22 @@ void get_print_and_set_values(GtkWidget *freq_sliders[], GtkWidget *gain_sliders
 		}
 	}
 }
+// Handler for display_settings.ini — reads only display_type and ui_scale.
+static int display_settings_handler(void *user, const char *section,
+                                    const char *name, const char *value)
+{
+	(void)user; (void)section;
+	if (!strcmp(name, "display_type")) {
+		int dtype = atoi(value);
+		ui_scale = (dtype == 2) ? 1.6f : 1.0f;
+	} else if (!strcmp(name, "ui_scale")) {
+		float s = (float)atof(value);
+		if (s > 0.1f && s <= 5.0f)
+			ui_scale = s;
+	}
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -11087,6 +11168,22 @@ int main(int argc, char *argv[])
 	active_layout = main_controls;
 
 	// ensure_single_instance();
+
+	// Load display settings (display_type, ui_scale) from display_settings.ini.
+
+	{
+		char disp_path[PATH_MAX];
+		char *hp = getenv("HOME");
+		snprintf(disp_path, sizeof(disp_path), "%s/sbitx/data/display_settings.ini", hp);
+		ini_parse(disp_path, display_settings_handler, NULL);
+		// Set screen dimensions to match the target display before ui_init().
+		if (ui_scale > 1.0f) {
+			screen_width  = (int)(800 * ui_scale + 0.5f);
+			screen_height = (int)(480 * ui_scale + 0.5f);
+		}
+		/* Apply font and keyboard-key scaling immediately, before ui_init() */
+		apply_ui_scale();
+	}
   
 	// Load style configuration
 	char style_path[PATH_MAX];
