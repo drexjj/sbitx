@@ -138,7 +138,7 @@ int get_input_volume()
 
 static int multicast_socket = -1;
 
-#define MUTE_MAX 6
+#define MUTE_MAX 6 
 static int mute_count = 50;
 
 // Queue for browser microphone audio data
@@ -1587,7 +1587,7 @@ void read_power()
 	//	printf("alc: %g\n", alc_level);
 }
 
-static int tx_process_restart = 0;
+static int tx_process_restart = 1;
 
 void tx_process(
 	int32_t *input_rx, int32_t *input_mic,
@@ -2252,6 +2252,7 @@ void tr_switch(int tx_on) {
 	}
     //mute_count = 20;             // number of audio samples to zero out
     mute_count = 1;             // number of audio samples to zero out
+    tx_process_restart = 1;     // added to reset process at tx on - W9JES
 	fft_reset_m_bins();          // fixes burst at start of transmission
     set_tx_power_levels();       // use values for tx_power_watts, tx_gain
     //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
@@ -2273,8 +2274,11 @@ void tr_switch(int tx_on) {
     sound_mixer(audio_card, "Capture", 0);
     fft_reset_m_bins();
     mute_count = MUTE_MAX;
+     
+    rx_list->signal_avg = 0.0;    // reset AGC so level - W9JES
+    
     digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
-    delay(5);
+    delay(5);                                                     
     digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
     check_r1_volume();           // audio codec is back on
     initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
