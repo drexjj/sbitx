@@ -752,6 +752,7 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -800,7 +801,9 @@ struct field main_controls[] = {
 
 	{"#record", do_record, 410, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", do_toggle_option, 460, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	{"#keypad_btn", do_keypad_btn, 135, 5, 40, 40, "PAD", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+	 "", 0, 0, 0, COMMON_CONTROL},
+	{"#tune", do_toggle_option, 500, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
@@ -812,8 +815,6 @@ struct field main_controls[] = {
 	 "", 1, 100, 1, COMMON_CONTROL},
 	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, STYLE_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
-	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 75, 49, "", 0, "", FIELD_STATIC, STYLE_FIELD_VALUE,
-	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
 	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -2469,7 +2470,7 @@ void on_power_down_button_click(GtkWidget *widget, gpointer data)
 		GtkWidget *label = gtk_label_new(NULL);
 
 		gtk_label_set_markup(GTK_LABEL(label),
-							 "<span foreground='red' size='x-large'><b>!!¬† IMPORTANT !!¬†</b></span>\n\n"
+							 "<span foreground='red' size='x-large'><b>!!† IMPORTANT !!†</b></span>\n\n"
 							 "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
 							 "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
 
@@ -4355,10 +4356,7 @@ void menu_display(int show) {
 				field_move("TXMON", SC(535), screen_height - SC(80), SC(45), SC(37));
 				field_move("TNDUR", SC(600), screen_height - SC(80), SC(45), SC(37));
 
-				if (!strcmp(field_str("EPTTOPT"), "ON"))
-				{
-					field_move("ePTT", screen_width - SC(135), screen_height - SC(80), SC(70), SC(37));
-				}
+				// ePTT moved to menu2
 
 				// Line 2
 				field_move("WEB", SC(5), screen_height - SC(40), SC(45), SC(37));
@@ -4369,7 +4367,7 @@ void menu_display(int show) {
 				field_move("GAIN", SC(355), screen_height - SC(40), SC(45), SC(37));
 				field_move("WIDTH", SC(405), screen_height - SC(40), SC(45), SC(37));
 				field_move("BFO", SC(470), screen_height - SC(40), SC(45), SC(37));
-				field_move("VFOLK", SC(535), screen_height - SC(40), SC(45), SC(37));
+				// VFOLK moved to menu2
 				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
 
 			}
@@ -4413,16 +4411,19 @@ void menu2_display(int show) {
 		field_move("TXPANAFAL", SC(320), screen_height - SC(80), SC(70), SC(37)); // Add TXPANAFAL field
 		field_move("INTENSITY", SC(245), screen_height - SC(40), SC(70), SC(37)); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", SC(320), screen_height - SC(40), SC(70), SC(37)); // Add AUTOADJUST spectrum field
-    	field_move("FULLSCREEN", screen_width - SC(197), screen_height - SC(80), SC(95), SC(37)); // Add FULLSCR field
-		field_move("PWR-DWN", screen_width - SC(97), screen_height - SC(80), SC(95), SC(37)); // Add PWR-DWN field
+		if (!strcmp(field_str("EPTTOPT"), "ON"))
+			field_move("ePTT", screen_width - SC(200), screen_height - SC(80), SC(45), SC(37)); // ePTT left of FULLSCREEN
+		field_move("FULLSCREEN", screen_width - SC(150), screen_height - SC(80), SC(70), SC(37)); // Add FULLSCR field
+		field_move("PWR-DWN", screen_width - SC(75), screen_height - SC(80), SC(70), SC(37)); // Add PWR-DWN field
 
 		// Only show WFCALL if option is ON and mode is not FTx, CW, or CWR
 		const char *current_mode = field_str("MODE");
+		field_move("VFOLK", screen_width - SC(200), screen_height - SC(40), SC(45), SC(37)); // VFOLK under ePTT
 		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
 		    strncmp(current_mode, "FT", 2) != 0 &&
 		    strcmp(current_mode, "CW") != 0 != 0 &&
 		    strcmp(current_mode, "CWR") != 0) {
-			field_move("WFCALL", screen_width - SC(197), screen_height - SC(40), SC(95), SC(37)); // Add WFCALL
+			field_move("WFCALL", screen_width - SC(75), screen_height - SC(40), SC(70), SC(37)); // Add WFCALL
 		}
 
 	} else {
@@ -4444,7 +4445,7 @@ static void layout_ui()
   x1 = 0;
   x2 = screen_width;
   y1 = SC(100);  // top 100 pixels (scaled) reserved for main controls at top of screen
-  y2 = screen_height;  // ‚Äúcontent‚Äù bottom that moves up when menu or keyboard are shown
+  y2 = screen_height;  // ìcontentî bottom that moves up when menu or keyboard are shown
 
   // define standard size for spectrum
   int default_spectrum_height = SC(scope_size);
@@ -4491,8 +4492,9 @@ static void layout_ui()
     f_scale = get_field("#band_stack_pos");
     if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
 
-    field_move("REC",  SC(410), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
+    field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
+    field_move("REC",    SC(459), SC(50), SC(40), SC(40));
+    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
     field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
     field_move("RECV", SC(140), SC(50), SC(50), SC(20));
@@ -4502,7 +4504,7 @@ static void layout_ui()
     field_move("WIPE", SC(330), SC(50), SC(40), SC(40));
     field_move("QRZ",  SC(370), SC(50), SC(40), SC(40));
     field_move("LOG",  SC(410), SC(50), SC(40), SC(40));
-    field_move("MENU", SC(459), SC(50), SC(40), SC(40));
+    field_move("MENU", SC(410), SC(5), SC(40), SC(40));
     field_move("TEXT", SC(5), SC(70), SC(285), SC(20));
   }
 
@@ -4510,7 +4512,7 @@ static void layout_ui()
 
   field_move("AUDIO", x2 - SC(45), SC(5), SC(40), SC(40));
   field_move("FREQ", x2 - SC(212), SC(3), SC(180), SC(40));
-  field_move("STEP", x2 - SC(252), SC(5), SC(40), SC(40));
+  field_move("STEP", x2 - SC(252), SC(50), SC(40), SC(40));
   field_move("RIT", x2 - SC(292), SC(5), SC(40), SC(40));
 
   field_move("IF", x2 - SC(45), SC(50), SC(40), SC(40));
@@ -4518,7 +4520,7 @@ static void layout_ui()
   field_move("BW", x2 - SC(127), SC(50), SC(40), SC(40));
   field_move("AGC", x2 - SC(170), SC(50), SC(42), SC(40));
   field_move("SPAN", x2 - SC(212), SC(50), SC(42), SC(40));
-  field_move("VFO", x2 - SC(252), SC(50), SC(40), SC(40));
+  field_move("VFO", x2 - SC(252), SC(5), SC(40), SC(40));
   field_move("SPLIT", x2 - SC(292), SC(50), SC(40), SC(40));
 
   if (!strcmp(field_str("KBD"), "ON")) {
@@ -4590,6 +4592,7 @@ static void layout_ui()
 
     // TUNE control is offscreen in this mode
     field_move("TUNE", 1000, -1000, 40, 40);
+    field_move("PAD", 1000, -1000, 40, 40);
     break;
 
   case MODE_CW:
@@ -4658,7 +4661,7 @@ static void layout_ui()
         // or at the console top for KBD OFF. Clamp with 1px floor.
         int wf_h;
         if (kbd_is_on) {
-          int console_bottom = console_y + console_h;  // ‚â§ y_top - (sep + safety)
+          int console_bottom = console_y + console_h;  // = y_top - (sep + safety)
           wf_h = console_bottom - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
         } else {
           wf_h = console_y - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
@@ -4676,7 +4679,7 @@ static void layout_ui()
     if (wf_h <= 0) wf_h = 1;
     field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
 
-    // Console sizing and placement ‚Äî anchor TOP at y1 (to match voice modes),
+    // Console sizing and placement ó anchor TOP at y1 (to match voice modes),
     // and shrink-to-fit height so its bottom stays above the control row.
     int desired_lines  = kbd_is_on ? 14 : 40;
     const int console_pad_px = 2;
@@ -4731,7 +4734,8 @@ static void layout_ui()
     field_move("F10", SC(675), y_bottom, SC(70), row_h);
 
     // TUNE control is on screen in this mode
-	field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
+	field_move("PAD", SC(135), SC(5), SC(40), SC(40));
+	field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
     break;
 
   case MODE_USB:
@@ -4770,7 +4774,8 @@ static void layout_ui()
     field_move("RX", SC(360), y_bottom, SC(95), row_h);
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
-    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
+    field_move("PAD", SC(135), SC(5), SC(40), SC(40));
+    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -4806,8 +4811,9 @@ static void layout_ui()
     field_move("SIDETONE", SC(460), y_bottom, SC(95), row_h);
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
-    // keep TUNE where it lives on top row
-    field_move("TUNE", SC(460), SC(5), SC(40), SC(40));
+    // keep TUNE and PAD where they live on top row
+    field_move("PAD", SC(135), SC(5), SC(40), SC(40));
+    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -7019,6 +7025,19 @@ int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+// Button handler for the PAD button on the main toolbar.
+// Unlike do_vfo_keypad (which is an invisible overlay), this returns 0
+// on FIELD_DRAW so the framework renders the label normally.
+int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT)
+	{
+		system("/home/pi/sbitx/src/focus_keypad.sh &");
+		return 1;
+	}
+	return 0; // let default drawing run
+}
+
 void open_url(char *url)
 {
 	char temp_line[200];
@@ -8169,7 +8188,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		return FALSE;
 	}
 
-  // F1‚ÄìF12 before text-field early return so macros work in any field
+  // F1ñF12 before text-field early return so macros work in any field
   if (event->keyval >= MIN_KEY_F1 && event->keyval <= MIN_KEY_F12)
   {
     int fn_key = event->keyval - MIN_KEY_F1 + 1;
@@ -9549,7 +9568,7 @@ gboolean ui_tick(gpointer gook)
 		// lock MFK to volume after inactivity AND move UI focus to the volume control
 		mfk_locked_to_volume = 1;
 		struct field *vol_field = get_field("r1:volume");
-		// now simulate the ‚Äúknob press‚Äù focus change so the green highlight updates
+		// now simulate the ìknob pressî focus change so the green highlight updates
 		if (vol_field) {
 			focus_field(vol_field);
 		}
@@ -9642,7 +9661,7 @@ static void apply_ui_scale(void)
 	}
 	ui_scale_applied = 1;
 	printf("ui_scale=%.2f applied: fonts and layout sizes scaled for display.\n", ui_scale);
-	/* layout_ui() will be called by ui_init() ‚Üí layout_ui() automatically.
+	/* layout_ui() will be called by ui_init() ? layout_ui() automatically.
 	 * Only call it here if the display is already up (e.g. runtime re-scale). */
 	if (display_area != NULL)
 		layout_ui();
@@ -9667,8 +9686,8 @@ void ui_init(int argc, char *argv[])
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	/* Set the initial window size to match the target display.
 	 * screen_width/height are set from display_settings.ini before ui_init() is called:
-	 *   display_type=1 ‚Üí 800√ó480 (Touch Display, the default)
-	 *   display_type=2 ‚Üí 1280√ó720 (Touch Display 2)
+	 *   display_type=1 ? 800◊480 (Touch Display, the default)
+	 *   display_type=2 ? 1280◊720 (Touch Display 2)
 	 * These become the default window size; on_resize() will update them if the
 	 * window is resized or maximized after launch. */
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
@@ -10707,7 +10726,7 @@ void cmd_exec(char *cmd)
 
 else if (!strcasecmp(exec, "decode"))
 	{
-		// \decode <on|off> ‚Äì case-insensitive
+		// \decode <on|off> ñ case-insensitive
 		if (strlen(args) == 0)
 		{
 			char msg[80];
@@ -11145,7 +11164,7 @@ void get_print_and_set_values(GtkWidget *freq_sliders[], GtkWidget *gain_sliders
 		}
 	}
 }
-// Handler for display_settings.ini ‚Äî reads only display_type and ui_scale.
+// Handler for display_settings.ini ó reads only display_type and ui_scale.
 static int display_settings_handler(void *user, const char *section,
                                     const char *name, const char *value)
 {

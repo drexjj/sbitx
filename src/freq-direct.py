@@ -26,9 +26,9 @@ class FrequencyKeypad(Gtk.Window):
         main.pack_start(band_box, False, False, 0)
 
         bands = [
-            ("80M", "3750"), ("60M", "5357"), ("40M", "7150"),
-            ("30M", "10136"), ("20M", "14175"), ("17M", "18118"),
-            ("15M", "21225"), ("12M", "24940"), ("10M", "28800")
+            ("BC", "1100"), ("WWV1", "2500"), ("WWV2", "5000"),
+            ("WWV3", "10000"), ("WWV4", "15000"), ("WWV5", "25000"),
+            ("49M", "6000"), ("31M", "9700"), ("25M", "11900")
         ]
         for label, khz in bands:
             b = Gtk.Button(label=label)
