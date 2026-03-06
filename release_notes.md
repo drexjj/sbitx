@@ -1,6 +1,26 @@
 # NEXT RELEASE
 **New Features:**
-- Text console can scroll back to view and work with up to 500 lines of history, in all modes 
+- Text console can scroll back to view and work with up to 500 lines of history, in all modes
+- Audio Cleanup
+	+ Made a small change to cleanup the static between TX to RX
+- GUI Changes
+	+ Moved Direct Frequency Keypad to a new button called PAD and added quick buttons
+	+ Swapped button placement on main display
+	+ Moved eptt & vfolock to menu 2
+	+ Menu 1 is resevered for mostly audio related controls
+- Added support for Touch Display 2 and larger displays
+	+ Makes it easier to touch and see the buttons on a Toouch Display 2 or external display
+	+ New file is read upon sbitx startup called display_settings.ini where you can set the display type or resolution
+	+ display_type=1 is for the original, older 7 inch touch display
+	+ display_type=2 is for the newer 7 inch touch display
+	+ ui_scale can be changed for use with a larger display
+- Added styles option to customize the sBitx application.
+	+ Text size, font, color, and types are now supported.
+	+ Styles templates are stored in the data folder as tpl files.
+	+ If there is a file named `user_style.tpl` in the sbitx data folder, then it will load it on sbitx startup.
+	+ If the `user_style.tpl` file is not found then it will load `default_style.tpl` if it is present.
+	+ If none of these files are located, then it will load the factory style we are all used to.
+	+ There are sample styles in the data folder that can be loaded. Just have to rename one of them to user_style.tpl
 
 # v5.301
 **Bug Fixes:**
