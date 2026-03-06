@@ -11,9 +11,9 @@
 - Added support for Touch Display 2 and larger displays
 	+ Makes it easier to touch and see the buttons on a Toouch Display 2 or external display
 	+ New file is read upon sbitx startup called display_settings.ini where you can set the display type or resolution
-	+ display_type=1 is for the original, older 7 inch touch display
-	+ display_type=2 is for the newer 7 inch touch display
-	+ ui_scale can be changed for use with a larger display
+	+ `display_type=1` is for the original, older 7 inch touch display
+	+ `display_type=2` is for the newer 7 inch touch display
+	+ `ui_scale` can be changed for use with a larger display
 - Added styles option to customize the sBitx application.
 	+ Text size, font, color, and types are now supported.
 	+ Styles templates are stored in the data folder as tpl files.
