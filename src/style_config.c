@@ -211,7 +211,7 @@ void apply_style_config(StyleConfig *config) {
     // Apply color palette
     for (int i = 0; i < config->color_count; i++) {
         ColorConfig *color = &config->colors[i];
-        if (color->index >= 0 && color->index < 18) { // 18 = max palette entries
+        if (color->index >= 0 && color->index < 21) { // 21 = max palette entries
             palette[color->index][0] = color->r;
             palette[color->index][1] = color->g;
             palette[color->index][2] = color->b;
@@ -302,15 +302,16 @@ int save_default_style_config(const char *filename) {
     fprintf(f, "; Format: [color:NAME] then index=N and rgb=r,g,b\n\n");
     
     const char *color_names[] = {
-        "COLOR_SELECTED_TEXT", "COLOR_TEXT", "COLOR_TEXT_MUTED", 
+        "COLOR_SELECTED_TEXT", "COLOR_TEXT", "COLOR_TEXT_MUTED",
         "COLOR_SELECTED_BOX", "COLOR_BACKGROUND", "COLOR_FREQ",
         "COLOR_LABEL", "SPECTRUM_BACKGROUND", "SPECTRUM_GRID",
         "SPECTRUM_PLOT", "SPECTRUM_NEEDLE", "COLOR_CONTROL_BOX",
         "SPECTRUM_BANDWIDTH", "COLOR_RX_PITCH", "SELECTED_LINE",
-        "COLOR_FIELD_SELECTED", "COLOR_TX_PITCH", "COLOR_TOGGLE_ACTIVE"
+        "COLOR_FIELD_SELECTED", "COLOR_TX_PITCH", "COLOR_TOGGLE_ACTIVE",
+        "WATERFALL_LOW", "WATERFALL_MID", "WATERFALL_HIGH"
     };
-    
-    for (int i = 0; i < 18; i++) {
+
+    for (int i = 0; i < 21; i++) {
         fprintf(f, "[color:%s]\n", color_names[i]);
         fprintf(f, "index = %d\n", i);
         fprintf(f, "rgb = %.2f, %.2f, %.2f\n\n", 

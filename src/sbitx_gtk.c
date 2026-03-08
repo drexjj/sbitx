@@ -194,6 +194,9 @@ void tuning_isr(void);
 #define COLOR_FIELD_SELECTED 15
 #define COLOR_TX_PITCH 16
 #define COLOR_TOGGLE_ACTIVE 17
+#define WATERFALL_LOW  18
+#define WATERFALL_MID  19
+#define WATERFALL_HIGH 20
 
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
@@ -215,6 +218,10 @@ float palette[][3] = {
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
 	{0, 0.2, 0},	 // COLOR_TOGGLE_ACTIVE
+	// waterfall / spectrum gradient (also used for spectrum fill gradient)
+	{0, 0, 1},		 // WATERFALL_LOW  - low signal color
+	{0, 1, 0},		 // WATERFALL_MID  - mid signal color
+	{1, 0, 0},		 // WATERFALL_HIGH - peak signal color
 };
 
 char *ui_font = "Sans";
@@ -2470,7 +2477,7 @@ void on_power_down_button_click(GtkWidget *widget, gpointer data)
 		GtkWidget *label = gtk_label_new(NULL);
 
 		gtk_label_set_markup(GTK_LABEL(label),
-							 "<span foreground='red' size='x-large'><b>!!  IMPORTANT !! </b></span>\n\n"
+							 "<span foreground='red' size='x-large'><b>!!ï¿½ IMPORTANT !!ï¿½</b></span>\n\n"
 							 "<span foreground='black' size='large'><b>You must remember to switch off the main power </b></span>\n"
 							 "<span foreground='black' size='large'><b>after all activity has completely halted.</b></span>");
 
@@ -3075,42 +3082,32 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 		int v = (int)(normalized);
 
-		// Gradient mapping logic with smooth transitions
-		if (v < 20)
-		{ // Transition from black to blue
-			float t = v / 20.0;
-			waterfall_map[index++] = 0;				 // Red
-			waterfall_map[index++] = 0;				 // Green
-			waterfall_map[index++] = (int)(t * 255); // Blue
+		// Gradient mapping: black -> WATERFALL_LOW -> WATERFALL_MID -> WATERFALL_HIGH
+		float wr, wg, wb;
+		if (v < 34)
+		{ // black to WATERFALL_LOW
+			float t = v / 33.0;
+			wr = palette[WATERFALL_LOW][0] * t;
+			wg = palette[WATERFALL_LOW][1] * t;
+			wb = palette[WATERFALL_LOW][2] * t;
 		}
-		else if (v < 40)
-		{ // Transition from blue to cyan
-			float t = (v - 20) / 20.0;
-			waterfall_map[index++] = 0;				 // Red
-			waterfall_map[index++] = (int)(t * 255); // Green
-			waterfall_map[index++] = 255;			 // Blue
-		}
-		else if (v < 60)
-		{ // Transition from cyan to green
-			float t = (v - 40) / 20.0;
-			waterfall_map[index++] = 0;						 // Red
-			waterfall_map[index++] = 255;					 // Green
-			waterfall_map[index++] = (int)((1.0 - t) * 255); // Blue
-		}
-		else if (v < 80)
-		{ // Transition from green to yellow
-			float t = (v - 60) / 20.0;
-			waterfall_map[index++] = (int)(t * 255); // Red
-			waterfall_map[index++] = 255;			 // Green
-			waterfall_map[index++] = 0;				 // Blue
+		else if (v < 67)
+		{ // WATERFALL_LOW to WATERFALL_MID
+			float t = (v - 33) / 34.0;
+			wr = palette[WATERFALL_LOW][0] + (palette[WATERFALL_MID][0] - palette[WATERFALL_LOW][0]) * t;
+			wg = palette[WATERFALL_LOW][1] + (palette[WATERFALL_MID][1] - palette[WATERFALL_LOW][1]) * t;
+			wb = palette[WATERFALL_LOW][2] + (palette[WATERFALL_MID][2] - palette[WATERFALL_LOW][2]) * t;
 		}
 		else
-		{ // Transition from yellow to red
-			float t = (v - 80) / 20.0;
-			waterfall_map[index++] = 255;					 // Red
-			waterfall_map[index++] = (int)((1.0 - t) * 255); // Green
-			waterfall_map[index++] = 0;						 // Blue
+		{ // WATERFALL_MID to WATERFALL_HIGH
+			float t = (v - 67) / 33.0;
+			wr = palette[WATERFALL_MID][0] + (palette[WATERFALL_HIGH][0] - palette[WATERFALL_MID][0]) * t;
+			wg = palette[WATERFALL_MID][1] + (palette[WATERFALL_HIGH][1] - palette[WATERFALL_MID][1]) * t;
+			wb = palette[WATERFALL_MID][2] + (palette[WATERFALL_HIGH][2] - palette[WATERFALL_MID][2]) * t;
 		}
+		waterfall_map[index++] = (int)(wr * 255);
+		waterfall_map[index++] = (int)(wg * 255);
+		waterfall_map[index++] = (int)(wb * 255);
 	}
 
 	// Use the same baseline that had been calculated for the spectrum
@@ -3885,13 +3882,16 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// Set antialiasing mode for smoother rendering
 	cairo_set_antialias(gfx, CAIRO_ANTIALIAS_FAST);
 
-	// Add color stops to the gradient (blue -> yellow -> red)
-
-	cairo_pattern_add_color_stop_rgba(gradient, 0.0, 0.1, 0.0, 0.25, 0.5 + scope_alpha_plus); // Dark blue
-	cairo_pattern_add_color_stop_rgba(gradient, 0.25, 0.0, 0.5, 1.0, 0.5 + scope_alpha_plus); // Lighter blue
-	cairo_pattern_add_color_stop_rgba(gradient, 0.5, 0.5, 0.5, 0.0, 0.7 + scope_alpha_plus);  // Greenish-yellow
-	cairo_pattern_add_color_stop_rgba(gradient, 0.75, 1.0, 1.0, 0.0, 0.8 + scope_alpha_plus); // Bright yellow
-	cairo_pattern_add_color_stop_rgba(gradient, 1.0, 1.0, 0.0, 0.0, 0.9 + scope_alpha_plus);  // Red at the top
+	// Add color stops using theme palette (WATERFALL_LOW -> MID -> HIGH)
+	cairo_pattern_add_color_stop_rgba(gradient, 0.0,
+		palette[WATERFALL_LOW][0],  palette[WATERFALL_LOW][1],  palette[WATERFALL_LOW][2],
+		0.5 + scope_alpha_plus);
+	cairo_pattern_add_color_stop_rgba(gradient, 0.5,
+		palette[WATERFALL_MID][0],  palette[WATERFALL_MID][1],  palette[WATERFALL_MID][2],
+		0.7 + scope_alpha_plus);
+	cairo_pattern_add_color_stop_rgba(gradient, 1.0,
+		palette[WATERFALL_HIGH][0], palette[WATERFALL_HIGH][1], palette[WATERFALL_HIGH][2],
+		0.9 + scope_alpha_plus);
 	// Begin a new path for the filled spectrum
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
 
@@ -4445,7 +4445,7 @@ static void layout_ui()
   x1 = 0;
   x2 = screen_width;
   y1 = SC(100);  // top 100 pixels (scaled) reserved for main controls at top of screen
-  y2 = screen_height;  // “content” bottom that moves up when menu or keyboard are shown
+  y2 = screen_height;  // ï¿½contentï¿½ bottom that moves up when menu or keyboard are shown
 
   // define standard size for spectrum
   int default_spectrum_height = SC(scope_size);
@@ -4679,7 +4679,7 @@ static void layout_ui()
     if (wf_h <= 0) wf_h = 1;
     field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
 
-    // Console sizing and placement — anchor TOP at y1 (to match voice modes),
+    // Console sizing and placement ï¿½ anchor TOP at y1 (to match voice modes),
     // and shrink-to-fit height so its bottom stays above the control row.
     int desired_lines  = kbd_is_on ? 14 : 40;
     const int console_pad_px = 2;
@@ -8188,7 +8188,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		return FALSE;
 	}
 
-  // F1–F12 before text-field early return so macros work in any field
+  // F1ï¿½F12 before text-field early return so macros work in any field
   if (event->keyval >= MIN_KEY_F1 && event->keyval <= MIN_KEY_F12)
   {
     int fn_key = event->keyval - MIN_KEY_F1 + 1;
@@ -9568,7 +9568,7 @@ gboolean ui_tick(gpointer gook)
 		// lock MFK to volume after inactivity AND move UI focus to the volume control
 		mfk_locked_to_volume = 1;
 		struct field *vol_field = get_field("r1:volume");
-		// now simulate the “knob press” focus change so the green highlight updates
+		// now simulate the ï¿½knob pressï¿½ focus change so the green highlight updates
 		if (vol_field) {
 			focus_field(vol_field);
 		}
@@ -9686,8 +9686,8 @@ void ui_init(int argc, char *argv[])
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	/* Set the initial window size to match the target display.
 	 * screen_width/height are set from display_settings.ini before ui_init() is called:
-	 *   display_type=1 ? 800×480 (Touch Display, the default)
-	 *   display_type=2 ? 1280×720 (Touch Display 2)
+	 *   display_type=1 ? 800ï¿½480 (Touch Display, the default)
+	 *   display_type=2 ? 1280ï¿½720 (Touch Display 2)
 	 * These become the default window size; on_resize() will update them if the
 	 * window is resized or maximized after launch. */
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
@@ -10726,7 +10726,7 @@ void cmd_exec(char *cmd)
 
 else if (!strcasecmp(exec, "decode"))
 	{
-		// \decode <on|off> – case-insensitive
+		// \decode <on|off> ï¿½ case-insensitive
 		if (strlen(args) == 0)
 		{
 			char msg[80];
@@ -11164,7 +11164,7 @@ void get_print_and_set_values(GtkWidget *freq_sliders[], GtkWidget *gain_sliders
 		}
 	}
 }
-// Handler for display_settings.ini — reads only display_type and ui_scale.
+// Handler for display_settings.ini ï¿½ reads only display_type and ui_scale.
 static int display_settings_handler(void *user, const char *section,
                                     const char *name, const char *value)
 {
@@ -11180,8 +11180,46 @@ static int display_settings_handler(void *user, const char *section,
 	return 1;
 }
 
+/*
+ * Command-line options:
+ *
+ *   -h, --help           Show this help message and exit.
+ *
+ *   -f, --fullscreen     Launch the UI in fullscreen mode.
+ *                        Equivalent to setting #fullscreen=ON in user settings.
+ *
+ *   -t, --theme <name>   Load a named theme at startup.
+ *                        Looks for ~/sbitx/data/<name>_style.tpl.
+ *                        Falls back to user_style.tpl then default_style.tpl
+ *                        if the named theme file cannot be found.
+ *
+ * Examples:
+ *   sbitx -f
+ *   sbitx -t matrix
+ *   sbitx --fullscreen --theme default2
+ */
 int main(int argc, char *argv[])
 {
+
+	// Handle -h/--help before anything else
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf(
+				"Usage: sbitx [OPTIONS]\n"
+				"\n"
+				"Options:\n"
+				"  -h, --help           Show this help message and exit\n"
+				"  -f, --fullscreen     Launch the UI in fullscreen mode\n"
+				"  -t, --theme <name>   Load ~/sbitx/data/<name>_style.tpl at startup\n"
+				"\n"
+				"Examples:\n"
+				"  sbitx -f\n"
+				"  sbitx -t matrix\n"
+				"  sbitx --fullscreen --theme default2\n"
+			);
+			return 0;
+		}
+	}
 
 	puts(VER_STR);
 	active_layout = main_controls;
@@ -11204,17 +11242,36 @@ int main(int argc, char *argv[])
 		apply_ui_scale();
 	}
   
+	// Pre-scan argv for -t/--theme before style loading
+	char *cmdline_theme = NULL;
+	for (int i = 1; i < argc; i++) {
+		if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--theme") == 0) && i + 1 < argc) {
+			cmdline_theme = argv[i + 1];
+			break;
+		}
+	}
+
 	// Load style configuration
 	char style_path[PATH_MAX];
 	char *home_path = getenv("HOME");
-		
-	// Try to load user's custom style first
-	sprintf(style_path, "%s/sbitx/data/user_style.tpl", home_path);
-	if (load_style_config(style_path, &global_style_config) < 0) {
-		// Fall back to default style
-		sprintf(style_path, "%s/sbitx/data/default_style.tpl", home_path);
+
+	if (cmdline_theme != NULL) {
+		snprintf(style_path, sizeof(style_path), "%s/sbitx/data/%s_style.tpl", home_path, cmdline_theme);
 		if (load_style_config(style_path, &global_style_config) < 0) {
-			printf("No style config found, using built-in defaults\n");
+			printf("Could not load theme '%s', falling back to defaults\n", cmdline_theme);
+			cmdline_theme = NULL;
+		}
+	}
+
+	if (cmdline_theme == NULL) {
+		// Try to load user's custom style first
+		sprintf(style_path, "%s/sbitx/data/user_style.tpl", home_path);
+		if (load_style_config(style_path, &global_style_config) < 0) {
+			// Fall back to default style
+			sprintf(style_path, "%s/sbitx/data/default_style.tpl", home_path);
+			if (load_style_config(style_path, &global_style_config) < 0) {
+				printf("No style config found, using built-in defaults\n");
+			}
 		}
 	}
     
@@ -11366,11 +11423,13 @@ int main(int argc, char *argv[])
 	// Register a function to be called when the application exits
 	atexit(cleanup_on_exit);
 
-// Parse command line arguments for fullscreen mode
+// Parse command line arguments
 	int fullscreen = 0;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--fullscreen") == 0) {
 			fullscreen = 1;
+		} else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--theme") == 0) && i + 1 < argc) {
+			i++; // skip the theme name argument
 		}
 	}
 	if( fullscreen ){
