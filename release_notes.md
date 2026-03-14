@@ -36,6 +36,7 @@
 - Audio Cleanup
 	+ Made a small change to cleanup the static between TX to RX 
 - APM sampling improved for better regularity
+- VSWR initialization when user disabled fixed
 
 # v5.301
 **Bug Fixes:**
