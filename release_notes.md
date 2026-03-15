@@ -33,10 +33,12 @@
   
 **Fixes:**
 - APF init Bug
+	+ Fixed a bug where APF would not initialize properly
 - Audio Cleanup
 	+ Made a small change to cleanup the static between TX to RX 
 - APM sampling improved for better regularity
 - VSWR initialization when user disabled fixed
+- Fixed scope intensity where it now loads and restores previous setting
 
 # v5.301
 **Bug Fixes:**
