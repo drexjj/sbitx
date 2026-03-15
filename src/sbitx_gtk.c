@@ -2339,6 +2339,7 @@ static int user_settings_handler(void *user, const char *section,
 		{
 			/* allow float values; 0 or negative => disabled */
 			max_vswr = atof(value);
+			if (max_vswr < 0.1f) vswr=0;
 			return 1;
 		}
 
@@ -3685,7 +3686,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 		// Position on left side of spectrum
 		int swr_text_x = f_spectrum->x + 120; // 9
-		int swr_text_y = f_spectrum->y + 25; // 50
+		int swr_text_y = f_spectrum->y + 30; // 50
 
 		cairo_move_to(gfx, swr_text_x, swr_text_y);
 		char *s = "HIGH VSWR";
