@@ -5696,29 +5696,46 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		return 1;
 	}
 	else if (event == FIELD_DRAW)
-	{
-		if (f_focus == f)
-			fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
-		else
-			fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+{
+    if (f_focus == f)
+        fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_FIELD_SELECTED);
+    else
+        fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
 
-		rect(gfx, f->x, f->y, f->width - 1, f->height, COLOR_CONTROL_BOX, 1);
-		text_length = strlen(f->value);
-		line_start = 0;
-		y = f->y + 1;
-		text_line_width = measure_text(gfx, f->value, f->font_index);
-		if (!strlen(f->value))
-			draw_text(gfx, f->x + 1, y + 1, f->label, STYLE_FIELD_LABEL);
-		else
-			draw_text(gfx, f->x + 1, y + 1, f->value, f->font_index);
-		// draw the text cursor, if there is no text, the text baseline is zero
-		if (f_focus == f)
-		{
-			fill_rect(gfx, f->x + text_line_width + 3, y + 16, 9, 2, COLOR_SELECTED_BOX);
-		}
+    rect(gfx, f->x, f->y, f->width - 1, f->height, COLOR_CONTROL_BOX, 1);
+    text_length = strlen(f->value);
+    line_start = 0;
+    y = f->y + 1;
+    text_line_width = measure_text(gfx, f->value, f->font_index);
 
-		return 1;
-	}
+    // Clip all drawing to the field's bounding box
+    cairo_save(gfx);
+    cairo_rectangle(gfx, f->x + 1, f->y, f->width - 2, f->height);
+    cairo_clip(gfx);
+
+    // If text is wider than the field, scroll so the end of the string is visible
+    int draw_x = f->x + 1;
+    const int field_text_w = f->width - 4;  // 2px padding each side
+    if (text_line_width > field_text_w)
+        draw_x = f->x + 1 + (field_text_w - text_line_width);
+
+    if (!strlen(f->value))
+        draw_text(gfx, f->x + 1, y + 1, f->label, STYLE_FIELD_LABEL);
+    else
+        draw_text(gfx, draw_x, y + 1, f->value, f->font_index);
+
+    // draw the text cursor — clamped to right edge of field
+    if (f_focus == f)
+    {
+        int cursor_x = draw_x + text_line_width + 3;
+        int cursor_max = f->x + f->width - 4;
+        if (cursor_x > cursor_max) cursor_x = cursor_max;
+        fill_rect(gfx, cursor_x, y + 16, 9, 2, COLOR_SELECTED_BOX);
+    }
+
+    cairo_restore(gfx);
+    return 1;
+}
 	return 0;
 }
 
