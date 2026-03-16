@@ -39,6 +39,7 @@
 - APM sampling improved for better regularity
 - VSWR initialization when user disabled fixed
 - Fixed scope intensity where it now loads and restores previous setting
+- Fixed Macro loading and F1-F8 buttons when changing modes
 
 # v5.301
 **Bug Fixes:**

@@ -1025,7 +1025,7 @@ struct field main_controls[] = {
 	{"#scope_autoadj", do_toggle_option, 1000, -1000, 40, 40, "AUTOSCOPE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
-	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	{"#scope_alpha", do_wf_edit, 150, 50, 5, 50, "INTENSITY", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, 0},
 
 	// MACRO Dropdown W9JES W4WHL
@@ -9173,6 +9173,8 @@ void set_radio_mode(char *mode)
 	case MODE_CWR:
 		new_bandwidth = field_int("BW_CW");
 		set_field("#current_macro", "CW1");
+		macro_load("CW1", NULL);  // refresh macro buttons immediately on mode change
+		layout_needs_refresh = true;
 		break;
 	case MODE_LSB:
 	case MODE_USB:
@@ -9185,6 +9187,8 @@ void set_radio_mode(char *mode)
 	case MODE_FT8:
 		new_bandwidth = 4000;
 		set_field("#current_macro", "FT8");
+		macro_load("FT8", NULL);  // refresh macro buttons immediately on mode change
+		layout_needs_refresh = true;
 		break;
 	default:
 		new_bandwidth = field_int("BW_DIGITAL");
@@ -11425,12 +11429,6 @@ int main(int argc, char *argv[])
 		strcpy(directory, path);
 		strcat(directory, "/sbitx/data/default_settings.ini");
 		ini_parse(directory, user_settings_handler, NULL);
-	}
-
-	{
-		struct field *sa = get_field("#scope_alpha");
-		if (sa)
-			scope_alpha_plus = (float)atoi(sa->value) / 10.0f * 1.2f - 0.3f;
 	}
 
 	// Initialize WSJT-X UDP broadcast
