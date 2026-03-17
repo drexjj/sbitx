@@ -15,7 +15,7 @@
 
 // --- AGC Parameters ---
 // Target level for AGC output
-#define AGC_TARGET_LEVEL 1.50f
+#define AGC_TARGET_LEVEL 1.65f
 // Maximum gain boost (40 dB)
 #define AGC_MAX_GAIN 100.0f
 // Maximum gain cut (20 dB)
