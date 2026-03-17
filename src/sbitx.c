@@ -116,7 +116,7 @@ static int rx_pitch = 700; // used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
-static double ssb_val = 1.0;   // W9JES
+static double mode_bal = 1.0;   // RLB
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -1849,12 +1849,6 @@ void tx_process(
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	// adjust USB/CW modulation power factor W9JES
-	for (i = 0; i < MAX_BINS / 2; i++)
-	{
-		__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
-		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
-	}
 
 	// now rotate to the tx_bin
 	// rememeber the AM is already a carrier modulated at 24 KHz
@@ -1878,16 +1872,22 @@ void tx_process(
 	fftw_execute(r->plan_rev);
 	int min = 10000000;
 	int max = -10000000;
-	float scale = volume;
+	float tx_mode_scale = 1.0;
+	float scale = 1.0;
+	
+	if (r->mode == MODE_LSB || r->mode == MODE_CWR) // RLB balance modes here
+		tx_mode_scale = mode_bal; 
+	scale = volume * tx_amp * alc_level * tx_mode_scale; // combine all scale factors
 	for (i = 0; i < MAX_BINS / 2; i++)
 	{
 		double s = creal(r->fft_time[i + (MAX_BINS / 2)]);
-		output_tx[i] = s * scale * tx_amp * alc_level;
-		if (min > output_tx[i])
+		output_tx[i] = s * scale;
+/*		if (min > output_tx[i])
 			min = output_tx[i];
 		if (max < output_tx[i])
 			max = output_tx[i];
-		// output_tx[i] = 0;
+		 output_tx[i] = 0;
+*/
 	}
 	//	printf("min %d, max %d\n", min, max);
 
@@ -2110,8 +2110,8 @@ static int hw_settings_handler(void *user, const char *section,
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
-		ssb_val = atof(value);
+	if (!strcmp(name, "mode_bal"))
+		mode_bal = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
@@ -2376,11 +2376,11 @@ void setup()
 
 	modem_init();
 
-	add_rx(7000000, MODE_LSB, -3000, -300);
-	add_tx(7000000, MODE_LSB, -3000, -300);
+	add_rx(7000000, MODE_LSB, -3000, -200);  // RLB made all edges 200
+	add_tx(7000000, MODE_LSB, -3000, -200);
 	rx_list->tuned_bin = 512;
 	tx_list->tuned_bin = 512;
-	tx_init(7000000, MODE_LSB, -3000, -150);
+	tx_init(7000000, MODE_LSB, -3000, -200);
 
 	// detect the version of sbitx
 	uint8_t response[4];
@@ -2478,24 +2478,24 @@ void sdr_request(char *request, char *response)
 		else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
 		{
 			// puts("\n\n\ntx LSB filter ");
-			filter_tune(tx_list->filter,
+			filter_tune(tx_list->filter,  // RLB set all edges to 200
 						(1.0 * -3500) / 96000.0,
-						(1.0 * -100) / 96000.0,
+						(1.0 * -200) / 96000.0,
 						5);
 			filter_tune(tx_filter,
 						(1.0 * -3500) / 96000.0,
-						(1.0 * -100) / 96000.0,
+						(1.0 * -200) / 96000.0,
 						5);
 		}
 		else
 		{
 			// puts("\n\n\ntx USB filter ");
 			filter_tune(tx_list->filter,
-						(1.0 * 300) / 96000.0,
+						(1.0 * 200) / 96000.0,
 						(1.0 * 3500) / 96000.0,
 						5);
 			filter_tune(tx_filter,
-						(1.0 * 300) / 96000.0,
+						(1.0 * 200) / 96000.0,
 						(1.0 * 3500) / 96000.0,
 						5);
 		}
@@ -2514,10 +2514,10 @@ void sdr_request(char *request, char *response)
 	else if (!strcmp(cmd, "txmode"))
 	{
 		puts("\n\n\n\n###### tx filter #######");
-		if (!strcmp(value, "LSB") || !strcmp(value, "CWR"))
-			filter_tune(tx_filter, (1.0 * -3000) / 96000.0, (1.0 * -300) / 96000.0, 5);
+		if (!strcmp(value, "LSB") || !strcmp(value, "CWR"))  // RLB changed to 200
+			filter_tune(tx_filter, (1.0 * -3000) / 96000.0, (1.0 * -200) / 96000.0, 5);
 		else
-			filter_tune(tx_filter, (1.0 * 300) / 96000.0, (1.0 * 3000) / 96000.0, 5);
+			filter_tune(tx_filter, (1.0 * 200) / 96000.0, (1.0 * 3000) / 96000.0, 5);
 	}
 	else if (!strcmp(cmd, "record"))
 	{

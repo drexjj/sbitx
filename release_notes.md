@@ -14,7 +14,10 @@
 	+ If the `user_style.tpl` file is not found then it will load `default_style.tpl` if it is present.
 	+ If none of these files are located, then it will load the factory style we are all used to.
 	+ There are sample styles in the data folder that can be loaded. Just have to rename one of them to user_style.tpl
-  
+ - Added mode_bal to hw_settings.ini to balance LSB and CWR to USB and CW. 
+	+ 0.8 is a reasonable value. 
+	+ Also harmonized filter band edges.
+	+ removed old ssb_val 
 **Changes:**
 - GUI
 	+ Moved Direct Frequency Keypad to a new button called PAD and added quick buttons
