@@ -1,9 +1,3 @@
-# added to 'dev' baseline for next release
-**New Features:**
-- Controlled Envelope Single Sideband (CESSB)
-	+ enable via '\cessb on' command
-**Changes:**
-
 # v5.4
 **New Features:**
 - Text console can scroll back to view and work with up to 500 lines of history, in all modes
