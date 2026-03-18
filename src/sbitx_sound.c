@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ctype.h>
 #include <alsa/asoundlib.h>
 #include <pthread.h>
 #include <complex.h>
@@ -148,8 +149,10 @@ static int n_periods_per_buffer = 2;       /* Number of periods */
 
 static snd_pcm_t *pcm_play_handle=0;   	//handle for the pcm device
 static snd_pcm_t *pcm_capture_handle=0;   	//handle for the pcm device
-static snd_pcm_t *loopback_play_handle=0;   	//handle for the pcm device
-static snd_pcm_t *loopback_capture_handle=0;   	//handle for the pcm device
+static snd_pcm_t *loopback_play_handle=0;       //handle for the pcm device
+static snd_pcm_t *loopback_capture_handle=0;    //handle for the pcm device
+static snd_pcm_t *usb_audio_play_handle=0;      //optional USB audio out speaker
+static snd_pcm_t *usb_audio_cap_handle=0;       //optional USB audio mic
 
 static snd_pcm_stream_t play_stream = SND_PCM_STREAM_PLAYBACK;	//playback stream
 static snd_pcm_stream_t capture_stream = SND_PCM_STREAM_CAPTURE;	//playback stream
@@ -173,6 +176,16 @@ static int result = 0;							// scratch variable for storing function call resul
 // Note: Error messages appear when the sbitx program is started from the command line
 
 int use_virtual_cable = 0;
+
+// Writable device names -- override before calling sound_thread_start() or
+// sound_restart().  Defaults match the original hardcoded values so that
+// existing installations without user_settings.ini entries keep working.
+char pcm_device_name[64]        = "plughw:CARD=audioinjectorpi,DEV=0";
+char loopback_play_device[64]   = "plughw:CARD=1,DEV=0";
+char loopback_capture_device[64]= "plughw:CARD=2,DEV=1";
+// Optional USB audio device -- empty string means "not configured, use WM8731 only"
+char usb_audio_play_device[64]  = "";
+char usb_audio_cap_device[64]   = "";
 unsigned long sound_millis = 0;
 
 struct Queue qloop;
@@ -521,6 +534,370 @@ int sound_start_capture(char *device){
 	return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Scan ALSA PCM devices and find the first USB audio device.
+//
+// Fills out_play with the first plughw: playback device whose description
+// contains "USB", and out_cap with the matching capture device on the same
+// card.  Returns 1 if a USB device was found, 0 if none.
+//
+// The WM8731 audioinjector card is explicitly excluded -- we never want to
+// "auto-detect" the RF codec as a USB headset.
+// ---------------------------------------------------------------------------
+int sound_find_usb_audio(char *out_play, char *out_cap, int maxlen)
+{
+    if (!out_play || !out_cap || maxlen < 1) return 0;
+    out_play[0] = out_cap[0] = '\0';
+
+    void **hints = NULL;
+    if (snd_device_name_hint(-1, "pcm", &hints) < 0) return 0;
+
+    int found_play = 0, found_cap = 0;
+
+    for (void **h = hints; *h && (!found_play || !found_cap); h++) {
+        char *name = snd_device_name_get_hint(*h, "NAME");
+        char *desc = snd_device_name_get_hint(*h, "DESC");
+        char *ioid = snd_device_name_get_hint(*h, "IOID"); // "Input","Output", or NULL=both
+
+        if (name && desc && !strncmp(name, "plughw:", 7)) {
+            // Check description contains "USB" (case-insensitive)
+            int is_usb = 0;
+            char desc_lower[256] = "";
+            strncpy(desc_lower, desc, sizeof(desc_lower) - 1);
+            for (char *p = desc_lower; *p; p++) *p = tolower((unsigned char)*p);
+            if (strstr(desc_lower, "usb")) is_usb = 1;
+
+            // Exclude the WM8731 / audioinjector RF codec
+            if (strstr(name, "audioinjectorpi")) is_usb = 0;
+            if (strstr(desc_lower, "audioinjector")) is_usb = 0;
+
+            if (is_usb) {
+                int is_output = (!ioid || strcmp(ioid, "Input")  != 0);
+                int is_input  = (!ioid || strcmp(ioid, "Output") != 0);
+
+                if (!found_play && is_output) {
+                    strncpy(out_play, name, maxlen - 1);
+                    out_play[maxlen - 1] = '\0';
+                    found_play = 1;
+                    fprintf(stderr, "USB audio out detected: %s (%s)\n", name, desc);
+                }
+                if (!found_cap && is_input) {
+                    strncpy(out_cap, name, maxlen - 1);
+                    out_cap[maxlen - 1] = '\0';
+                    found_cap = 1;
+                    fprintf(stderr, "USB audio in  detected: %s (%s)\n", name, desc);
+                }
+            }
+        }
+        if (name) free(name);
+        if (desc) free(desc);
+        if (ioid) free(ioid);
+    }
+    snd_device_name_free_hint(hints);
+    return (found_play || found_cap) ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Headset speaker output -- 48kHz stereo, non-blocking, best-effort.
+// Returns 0 on success, -1 on failure (headset simply won't be used).
+// ---------------------------------------------------------------------------
+static int sound_start_usb_audio_play(const char *device)
+{
+    snd_pcm_hw_params_t *hp;
+    snd_pcm_hw_params_alloca(&hp);
+
+    int e = snd_pcm_open(&usb_audio_play_handle, device, SND_PCM_STREAM_PLAYBACK, 0);
+    if (e < 0) {
+        fprintf(stderr, "USB audio out: cannot open %s: %s\n", device, snd_strerror(e));
+        usb_audio_play_handle = 0;
+        return -1;
+    }
+    snd_pcm_hw_params_any(usb_audio_play_handle, hp);
+    snd_pcm_hw_params_set_access(usb_audio_play_handle, hp, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(usb_audio_play_handle, hp, SND_PCM_FORMAT_S32_LE);
+    unsigned int rate = 48000;
+    snd_pcm_hw_params_set_rate_near(usb_audio_play_handle, hp, &rate, 0);
+    snd_pcm_hw_params_set_channels(usb_audio_play_handle, hp, 2);
+    snd_pcm_uframes_t frames = 1024;
+    snd_pcm_hw_params_set_period_size_near(usb_audio_play_handle, hp, &frames, 0);
+    if (snd_pcm_hw_params(usb_audio_play_handle, hp) < 0) {
+        fprintf(stderr, "USB audio out: hw params failed for %s\n", device);
+        snd_pcm_close(usb_audio_play_handle);
+        usb_audio_play_handle = 0;
+        return -1;
+    }
+    snd_pcm_prepare(usb_audio_play_handle);
+    fprintf(stderr, "USB audio out opened: %s @ 48kHz\n", device);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Headset mic capture -- 48kHz stereo, non-blocking.
+// ---------------------------------------------------------------------------
+static int sound_start_usb_audio_capture(const char *device)
+{
+    snd_pcm_hw_params_t *hp;
+    snd_pcm_hw_params_alloca(&hp);
+
+    // Open non-blocking so the main audio loop never stalls waiting for
+    // headset mic frames -- if none are ready we simply keep the WM8731 audio.
+    int e = snd_pcm_open(&usb_audio_cap_handle, device, SND_PCM_STREAM_CAPTURE,
+                         SND_PCM_NONBLOCK);
+    if (e < 0) {
+        fprintf(stderr, "USB audio mic: cannot open %s: %s\n", device, snd_strerror(e));
+        usb_audio_cap_handle = 0;
+        return -1;
+    }
+    snd_pcm_hw_params_any(usb_audio_cap_handle, hp);
+    snd_pcm_hw_params_set_access(usb_audio_cap_handle, hp, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(usb_audio_cap_handle, hp, SND_PCM_FORMAT_S32_LE);
+    unsigned int rate = 48000;
+    snd_pcm_hw_params_set_rate_near(usb_audio_cap_handle, hp, &rate, 0);
+    snd_pcm_hw_params_set_channels(usb_audio_cap_handle, hp, 2);
+    snd_pcm_uframes_t frames = 1024;
+    snd_pcm_hw_params_set_period_size_near(usb_audio_cap_handle, hp, &frames, 0);
+    if (snd_pcm_hw_params(usb_audio_cap_handle, hp) < 0) {
+        fprintf(stderr, "USB audio mic: hw params failed for %s\n", device);
+        snd_pcm_close(usb_audio_cap_handle);
+        usb_audio_cap_handle = 0;
+        return -1;
+    }
+    snd_pcm_prepare(usb_audio_cap_handle);
+    fprintf(stderr, "USB audio mic opened: %s @ 48kHz\n", device);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Set the playback volume on a USB audio device.
+//
+// USB audio devices expose their volume under different mixer element names
+// depending on the chipset ("PCM", "Speaker", "Headphone", "Master").
+// This function derives the hw: mixer card name from the plughw: PCM device
+// name (e.g. "plughw:CARD=Headset,DEV=0" -> "hw:CARD=Headset"), then tries
+// each common element name until one succeeds.  Failures are silent so the
+// WM8731 volume path is never disrupted.
+//
+// volume_pct: 0-100
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Internal helper: derive "hw:CARD=X" from "plughw:CARD=X,DEV=N"
+// ---------------------------------------------------------------------------
+static void usb_derive_hw_card(const char *plughw_device, char *hw_card, int hw_card_len)
+{
+    hw_card[0] = '\0';
+    if (!plughw_device || !plughw_device[0]) return;
+    const char *p = plughw_device;
+    if      (!strncmp(p, "plughw:", 7)) p += 7;
+    else if (!strncmp(p, "hw:", 3))    p += 3;
+    char card_spec[48] = "";
+    const char *comma = strchr(p, ',');
+    if (comma)
+        snprintf(card_spec, sizeof(card_spec), "%.*s", (int)(comma - p), p);
+    else
+        snprintf(card_spec, sizeof(card_spec), "%s", p);
+    snprintf(hw_card, hw_card_len, "hw:%s", card_spec);
+}
+
+// ---------------------------------------------------------------------------
+// Set the playback volume on a USB audio device.
+//
+// Enumerates all mixer elements and scores them by name to find the speaker
+// output rather than the mic sidetone (Mic Playback Volume).
+// Scoring for playback:
+//   "Speaker"   in name  ->  3  (GeneralPlus "Speaker Playback Volume")
+//   "Headphone" in name  ->  2
+//   "PCM"       in name  ->  1
+//   "Mic"       in name  -> -1  (reject: this is mic sidetone, not speaker)
+//   anything else        ->  0
+//
+// volume_pct: 0-100
+// ---------------------------------------------------------------------------
+void sound_usb_set_volume(const char *plughw_device, int volume_pct)
+{
+    if (!plughw_device || !plughw_device[0]) return;
+
+    char hw_card[64];
+    usb_derive_hw_card(plughw_device, hw_card, sizeof(hw_card));
+
+    snd_mixer_t *handle = NULL;
+    if (snd_mixer_open(&handle, 0) < 0) return;
+    if (snd_mixer_attach(handle, hw_card) < 0) {
+        snd_mixer_close(handle);
+        return;
+    }
+    snd_mixer_selem_register(handle, NULL, NULL);
+    snd_mixer_load(handle);
+
+    snd_mixer_elem_t *best = NULL;
+    int best_score = -99;
+
+    for (snd_mixer_elem_t *e = snd_mixer_first_elem(handle); e;
+         e = snd_mixer_elem_next(e))
+    {
+        if (snd_mixer_elem_get_type(e) != SND_MIXER_ELEM_SIMPLE) continue;
+        if (!snd_mixer_selem_has_playback_volume(e)) continue;
+        long mn, mx;
+        snd_mixer_selem_get_playback_volume_range(e, &mn, &mx);
+        if (mn == mx) continue;
+
+        snd_mixer_selem_id_t *sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_get_id(e, sid);
+        const char *nm = snd_mixer_selem_id_get_name(sid);
+
+        int score = 0;
+        if (strstr(nm, "Mic") || strstr(nm, "mic"))          score = -1;
+        else if (strstr(nm, "Speaker") || strstr(nm, "speaker")) score =  3;
+        else if (strstr(nm, "Headphone"))                    score =  2;
+        else if (strstr(nm, "PCM"))                          score =  1;
+
+        if (score > best_score) { best_score = score; best = e; }
+    }
+
+    if (best) {
+        snd_mixer_selem_id_t *sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_get_id(best, sid);
+        long mn, mx;
+        snd_mixer_selem_get_playback_volume_range(best, &mn, &mx);
+        long val = mn + (long)(volume_pct * (mx - mn) / 100);
+        snd_mixer_selem_set_playback_volume_all(best, val);
+        static int logged = 0;
+        if (!logged) {
+            fprintf(stderr, "USB playback vol: %s[%s] range %ld..%ld\n",
+                    hw_card, snd_mixer_selem_id_get_name(sid), mn, mx);
+            logged = 1;
+        }
+    }
+    snd_mixer_close(handle);
+}
+
+// ---------------------------------------------------------------------------
+// Set the capture (mic) gain on a USB audio device.
+//
+// Scoring for capture:
+//   "Mic"+"Capture" in name  ->  3  (GeneralPlus "Mic Capture Volume")
+//   "Mic"           in name  ->  2
+//   "Capture"       in name  ->  1
+//   "Playback"      in name  -> -1  (reject: playback element)
+//   anything else            ->  0
+//
+// gain_pct: 0-100
+// ---------------------------------------------------------------------------
+void sound_usb_set_capture(const char *plughw_device, int gain_pct)
+{
+    if (!plughw_device || !plughw_device[0]) return;
+
+    char hw_card[64];
+    usb_derive_hw_card(plughw_device, hw_card, sizeof(hw_card));
+
+    snd_mixer_t *handle = NULL;
+    if (snd_mixer_open(&handle, 0) < 0) return;
+    if (snd_mixer_attach(handle, hw_card) < 0) {
+        snd_mixer_close(handle);
+        return;
+    }
+    snd_mixer_selem_register(handle, NULL, NULL);
+    snd_mixer_load(handle);
+
+    snd_mixer_elem_t *best = NULL;
+    int best_score = -99;
+
+    for (snd_mixer_elem_t *e = snd_mixer_first_elem(handle); e;
+         e = snd_mixer_elem_next(e))
+    {
+        if (snd_mixer_elem_get_type(e) != SND_MIXER_ELEM_SIMPLE) continue;
+        if (!snd_mixer_selem_has_capture_volume(e)) continue;
+        long mn, mx;
+        snd_mixer_selem_get_capture_volume_range(e, &mn, &mx);
+        if (mn == mx) continue;
+
+        snd_mixer_selem_id_t *sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_get_id(e, sid);
+        const char *nm = snd_mixer_selem_id_get_name(sid);
+
+        int has_mic     = (strstr(nm, "Mic")     || strstr(nm, "mic"))     ? 1 : 0;
+        int has_cap     = (strstr(nm, "Capture") || strstr(nm, "capture")) ? 1 : 0;
+        int has_play    = (strstr(nm, "Playback")|| strstr(nm, "playback"))? 1 : 0;
+
+        int score = 0;
+        if (has_play && !has_cap)       score = -1;
+        else if (has_mic && has_cap)    score =  3;
+        else if (has_mic)               score =  2;
+        else if (has_cap)               score =  1;
+
+        if (score > best_score) { best_score = score; best = e; }
+    }
+
+    if (best) {
+        snd_mixer_selem_id_t *sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_get_id(best, sid);
+        long mn, mx;
+        snd_mixer_selem_get_capture_volume_range(best, &mn, &mx);
+        long val = mn + (long)(gain_pct * (mx - mn) / 100);
+        snd_mixer_selem_set_capture_volume_all(best, val);
+        static int logged = 0;
+        if (!logged) {
+            fprintf(stderr, "USB capture gain: %s[%s] range %ld..%ld\n",
+                    hw_card, snd_mixer_selem_id_get_name(sid), mn, mx);
+            logged = 1;
+        }
+    }
+    snd_mixer_close(handle);
+}
+
+// ---------------------------------------------------------------------------
+// Enable or disable the USB mic capture switch.
+// enable=1 turns the mic on; enable=0 mutes it at the hardware switch level.
+// Uses the same element-enumeration approach as set/capture to find the
+// capture switch regardless of what the firmware calls it.
+// ---------------------------------------------------------------------------
+void sound_usb_enable_capture(const char *plughw_device, int enable)
+{
+    if (!plughw_device || !plughw_device[0]) return;
+
+    char hw_card[64];
+    usb_derive_hw_card(plughw_device, hw_card, sizeof(hw_card));
+
+    snd_mixer_t *handle = NULL;
+    if (snd_mixer_open(&handle, 0) < 0) return;
+    if (snd_mixer_attach(handle, hw_card) < 0) {
+        snd_mixer_close(handle);
+        return;
+    }
+    snd_mixer_selem_register(handle, NULL, NULL);
+    snd_mixer_load(handle);
+
+    /* Find and set every capture switch element on the card.
+       This catches "Mic Capture Switch" and any other capture
+       enable controls the device exposes. */
+    for (snd_mixer_elem_t *e = snd_mixer_first_elem(handle); e;
+         e = snd_mixer_elem_next(e))
+    {
+        if (snd_mixer_elem_get_type(e) != SND_MIXER_ELEM_SIMPLE) continue;
+        if (!snd_mixer_selem_has_capture_switch(e)) continue;
+
+        snd_mixer_selem_id_t *sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_get_id(e, sid);
+        const char *nm = snd_mixer_selem_id_get_name(sid);
+
+        /* Only touch mic/capture switches, not playback switches */
+        int is_cap = (strstr(nm, "Capture") || strstr(nm, "capture") ||
+                      strstr(nm, "Mic")     || strstr(nm, "mic"));
+        if (!is_cap) continue;
+
+        snd_mixer_selem_set_capture_switch_all(e, enable);
+#if DEBUG > 0
+        fprintf(stderr, "USB capture switch '%s' -> %s\n",
+                nm, enable ? "on" : "off");
+#endif
+    }
+    snd_mixer_close(handle);
+}
+
 int sound_start_loopback_play(char *device){
 	//found out the correct device through aplay -L (for pcm devices)
 
@@ -707,8 +1084,8 @@ int sound_loop(){
   frames = buff_size / 8;
 
 
-  snd_pcm_prepare(pcm_play_handle);
-  snd_pcm_prepare(loopback_play_handle);
+  if (pcm_play_handle)      snd_pcm_prepare(pcm_play_handle);
+  if (loopback_play_handle) snd_pcm_prepare(loopback_play_handle);
 
 /*  
   pcmreturn = snd_pcm_writei(pcm_play_handle, data_out, frames*2);		// Get a head start on filling the queue
@@ -748,8 +1125,14 @@ int sound_loop(){
 		pcm_read_old_time = pcm_read_new_time;
 #endif
 		
+		// Safety: if the handle was closed during sound_restart(), exit the loop
+		if (!pcm_capture_handle) break;
+
 		while ((pcmreturn = snd_pcm_readi(pcm_capture_handle, data_in, frames)) < 0)
 		{
+			// Exit immediately if handle was closed or thread told to stop
+			if (!sound_thread_continue || !pcm_capture_handle) goto sound_loop_exit;
+			if (pcmreturn == -ENODEV || pcmreturn == -EBADF) goto sound_loop_exit;
 			result = snd_pcm_prepare(pcm_capture_handle);
 #if DEBUG > 0
 			printf("**** PCM Capture Error: %s  count = %d\n",snd_strerror(pcmreturn), pcm_capture_error++);
@@ -805,6 +1188,37 @@ int sound_loop(){
 		sound_millis = (gettime_now.tv_sec * 1000) + (gettime_now.tv_nsec/1000000);
 		// printf("\n-%d %ld %d\n", count++, nsamples, pcmreturn);
 
+		// ---- Optional USB mic input ----
+		// Only replace input_q[] with USB mic samples when NOT in virtual-cable
+		// (loopback) mode.  In DIGI/PSK/RTTY modes use_virtual_cable=1 and
+		// input_q[] is already sourced from the fldigi loopback queue -- the
+		// USB mic must not overwrite it or those modes will stop working.
+		if (usb_audio_cap_handle && !use_virtual_cable) {
+			static int32_t hcap_buf[2048]; // stereo 48kHz frame buffer
+			int hframes = ret_card / 2;    // half the SDR frame count
+			if (hframes > 1024) hframes = 1024;
+			int hr = snd_pcm_readi(usb_audio_cap_handle, hcap_buf, hframes);
+			if (hr == -EAGAIN) {
+				// No data ready yet (non-blocking) -- keep WM8731 audio in input_q
+				hr = 0;
+			} else if (hr < 0) {
+				// Recover from xrun or suspend
+				snd_pcm_recover(usb_audio_cap_handle, hr, 1);
+				hr = 0;
+			}
+			if (hr > 0) {
+				// Upsample 48kHz -> 96kHz: each 48kHz sample s becomes two
+				// consecutive 96kHz samples in input_q[] (flat mono array).
+				// hcap_buf is stereo interleaved: [L0,R0, L1,R1, ...]
+				// We use left channel only.
+				for (int s = 0; s < hr; s++) {
+					int32_t v = hcap_buf[s * 2]; // left channel of stereo pair
+					input_q[s * 2]     = v;      // 96kHz sample n
+					input_q[s * 2 + 1] = v;      // 96kHz sample n+1 (held)
+				}
+			}
+		}
+
 		sound_process(input_i, input_q, output_i, output_q, ret_card);
 
 		i = 0; 
@@ -821,6 +1235,7 @@ int sound_loop(){
 			//if (p < ret_card/2)
 			//	line_out[p*2] =line_out[p*2+1] = output_i[p*2];
 		}
+	if (!pcm_play_handle) goto sound_loop_exit;
 	int framesize = ret_card;
 	int offset = 0;
 	int play_write_errors = 0;
@@ -899,8 +1314,48 @@ int sound_loop(){
 	}
 	// End of new pcm play write routine
 
+		// ---- Optional USB headset speaker output ----
+		// The headset has no TX/RX relay, so it uses its own short 3-block
+		// mute (32ms) on TX->RX rather than the full MUTE_MAX relay-settling
+		// mute that sbitx.c applies to output_i[].  This means the headset
+		// returns to RX audio faster than the WM8731 speaker.
+		if (usb_audio_play_handle) {
+			static int32_t hplay_buf[2048];
+			static int usb_play_mute = 0;
+			static int usb_prev_tx = 0;
+			int usb_cur_tx = is_in_tx();
+			int hframes = ret_card / 2;
+			if (hframes > 1024) hframes = 1024;
+
+			/* Arm short mute on TX->RX edge */
+			if (usb_prev_tx && !usb_cur_tx)
+				usb_play_mute = 3;
+			usb_prev_tx = usb_cur_tx;
+
+			if (!usb_cur_tx && !use_virtual_cable && usb_play_mute == 0) {
+				/* Normal RX -- send demodulated audio */
+				for (int s = 0; s < hframes; s++) {
+					int32_t v = output_i[s * 2];
+					hplay_buf[s * 2]     = v;
+					hplay_buf[s * 2 + 1] = v;
+				}
+			} else {
+				/* TX, DIGI, or post-TX mute -- silence */
+				memset(hplay_buf, 0, hframes * 2 * sizeof(int32_t));
+				if (!usb_cur_tx && usb_play_mute > 0)
+					usb_play_mute--;
+			}
+
+			int hw = snd_pcm_writei(usb_audio_play_handle, hplay_buf, hframes);
+			if (hw < 0 && hw != -EAGAIN) {
+				snd_pcm_recover(usb_audio_play_handle, hw, 1);
+				snd_pcm_writei(usb_audio_play_handle, hplay_buf, hframes);
+			}
+		}
+
 #if DISABLE_LOOPBACK == 0
 
+	if (loopback_play_handle) { // guard: handle may be NULL if loopback device absent
 	//decimate the line out to half, ie from 96000 to 48000
 	//play the received data (from left channel) to both of line out
 
@@ -965,7 +1420,8 @@ int sound_loop(){
 #endif
 		}
 	}
-	// End of new pcm loopback write routine	
+	// End of new pcm loopback write routine
+	} // end loopback_play_handle guard
     
 #endif
     
@@ -974,6 +1430,7 @@ int sound_loop(){
 	loop_counter++;		
 #endif
   } // End of while (sound_thread_continue) loop
+sound_loop_exit:
 	//fclose(pf);
   printf("********Ending sound thread\n");
 }
@@ -989,7 +1446,7 @@ int loopback_loop(){
 	//we allocate enough for two channels of int32_t sized samples	
   data_in = (int32_t *)malloc(buff_size * 2);
   frames = buff_size / 8;
-  snd_pcm_prepare(loopback_capture_handle);
+  if (loopback_capture_handle) snd_pcm_prepare(loopback_capture_handle);
 	i = 0; 
 	j = 0;
   while(sound_thread_continue) {
@@ -999,10 +1456,18 @@ int loopback_loop(){
 
 		//last_time = gettime_now.tv_nsec/1000;
 
+		// Safety: if the handle was closed (e.g. during sound_restart), exit cleanly
+		if (!loopback_capture_handle) goto loopback_exit;
+
 		while ((pcmreturn = snd_pcm_readi(loopback_capture_handle, data_in, frames/2)) < 0){
-			snd_pcm_prepare(loopback_capture_handle);
+			// If the thread has been told to stop (e.g. during sound_restart),
+			// exit immediately rather than spinning on a closed/dead handle.
+			if (!sound_thread_continue) goto loopback_exit;
+			if (pcmreturn == -ENODEV || pcmreturn == -EBADF) goto loopback_exit;
+			if (loopback_capture_handle) snd_pcm_prepare(loopback_capture_handle);
 			//putchar('=');
 		}
+		if (!sound_thread_continue) break;
 		// int ret_card = pcmreturn;
 
 		//fill up a local buffer, take only the left channel	
@@ -1031,6 +1496,7 @@ int loopback_loop(){
 		}
 
   }
+loopback_exit:
   printf("********Ending loopback thread\n");
 }
 
@@ -1081,7 +1547,7 @@ void *sound_thread_function(void *ptr){
 //  printf("opening loopback on plughw:CARD=Loopback,DEV=0 sound card\n");
 
 	for (i = 0; i < 10; i++){
-		if(sound_start_loopback_play("plughw:CARD=1,DEV=0") == 0)
+		if(sound_start_loopback_play(loopback_play_device) == 0)
 			break;
 		fprintf(stderr, "*Error opening Loopback Play device");
 		delay(1000);
@@ -1092,6 +1558,12 @@ void *sound_thread_function(void *ptr){
 		return NULL;
 	}
 	
+	// Open optional headset devices if configured
+	if (usb_audio_play_device[0])
+		sound_start_usb_audio_play(usb_audio_play_device);
+	if (usb_audio_cap_device[0])
+		sound_start_usb_audio_capture(usb_audio_cap_device);
+
 	sound_thread_continue = 1;
 	sound_loop();
 	sound_stop();
@@ -1108,7 +1580,7 @@ void *loopback_thread_function(void *ptr){
 
 	int i = 0;
 	for (i = 0; i < 10; i++){
-		if (sound_start_loopback_capture("plughw:CARD=2,DEV=1") == 0)
+		if (sound_start_loopback_capture(loopback_capture_device) == 0)
 			break;
 		fprintf(stderr, "*Error opening Loopback Capture device");
 		delay(1000);
@@ -1146,6 +1618,7 @@ void sound_input(int loop){
     use_virtual_cable = 0;
 	}
 }
+
 
 //demo, uncomment it to test it out
 /*

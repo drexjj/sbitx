@@ -34,6 +34,13 @@ static int tx_shift = 512;
 parametriceq tx_eq;
 parametriceq rx_eq;
 
+/* USB audio device name globals -- declared in sbitx_sound.c, set from
+   the #usb_audio_out / #usb_audio_in fields before sound_thread_start().
+   Non-empty string means a USB headset is active; used to route volume
+   and gain controls away from the WM8731 mixer. */
+extern char usb_audio_play_device[64];
+extern char usb_audio_cap_device[64];
+
 FILE *pf_debug = NULL;
 
 // this is for processing FT8 decodes
@@ -138,7 +145,7 @@ int get_input_volume()
 
 static int multicast_socket = -1;
 
-#define MUTE_MAX 6 
+#define MUTE_MAX 6
 static int mute_count = 50;
 
 // Queue for browser microphone audio data
@@ -2127,7 +2134,10 @@ void set_tx_power_levels()
 		}
 	}
 	//	printf("tx_amp is set to %g for %d drive\n", tx_amp, tx_drive);
-	// we keep the audio card output 'volume' constant'
+	// Always set Master=95 during TX -- the WM8731 right-channel DAC feeds the
+	// RF PA via the Master output.  Muting Master also mutes the PA, killing TX
+	// power regardless of the DRIVE setting.  The USB headset guard must NOT
+	// apply here: USB only affects the speaker (RX audio), not the PA output.
 	sound_mixer(audio_card, "Master", 95);
 	sound_mixer(audio_card, "Capture", tx_gain);
 	alc_level = 1.0;
@@ -2252,49 +2262,79 @@ void tr_switch_v2(int tx_on) {
 // transmit-receive switch for both sbitx DE and V2 and newer
 void tr_switch(int tx_on) {
   if (tx_on) {                   // switch to transmit
-    in_tx = 1;                   // raise a flag so functions see we are in transmit mode
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
-    sound_mixer(audio_card, "Capture", 0);
-		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
-		delay(20);
-	}
-    //mute_count = 20;             // number of audio samples to zero out
-    mute_count = 1;             // number of audio samples to zero out
-    tx_process_restart = 1;     // added to reset process at tx on - W9JES
-	fft_reset_m_bins();          // fixes burst at start of transmission
-    set_tx_power_levels();       // use values for tx_power_watts, tx_gain
-    //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
-			if (ext_ptt_enable == 1) {
-				digitalWrite(EXT_PTT, HIGH);
-				delay(20); //this delay gives time for ext device to settle before tx
-			}
-    digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
-    spectrum_reset();
+    in_tx = 1;                   // set first so audio thread stops rx_linear()
+    tx_process_restart = 1;      // reset FFT state on first tx_process call
+    mute_count = 1;
 
-    // Also reset the hold counter for showing the output power
+    fft_reset_m_bins();
+
+    if (!usb_audio_play_device[0])
+        sound_mixer(audio_card, "Master", 0);
+    sound_mixer(audio_card, "Capture", 0);
+
+    if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR)
+        delay(20);
+
+    set_tx_power_levels();
+
+    if (ext_ptt_enable == 1) {
+        digitalWrite(EXT_PTT, HIGH);
+        delay(20);
+    }
+    digitalWrite(TX_LINE, HIGH);
+    spectrum_reset();
     fwdpower_cnt = 0;
     fwdpower_calc = 0;
     fwdpower = 0;
 
   } else {                       // switch to receive
-    in_tx = 0;                   // lower the transmit flag
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
-    sound_mixer(audio_card, "Capture", 0);
+    /* ── T/R relay sequence ─────────────────────────────────────────────
+     * Order matters:
+     * 1. Mute the WM8731 output and zero Capture BEFORE clearing in_tx
+     *    so the DSP never sees antenna signal while the relay is still TX.
+     * 2. Switch the relay hardware.
+     * 3. THEN clear in_tx so rx_linear() starts on clean, muted samples.
+     * 4. mute_count blanks output_speaker for MUTE_MAX blocks while the
+     *    relay contacts settle, RF decays, and the WM8731 ADC resettles.
+     *    MUTE_MAX * 1024 samples / 96000 = MUTE_MAX * 10.67ms of blanking.
+     * 5. Restore Capture (ADC input) only after the relay has settled --
+     *    not before, or RF transients flow straight into the DSP chain.
+     */
+    sound_mixer(audio_card, "Master", 0);
+    sound_mixer(audio_card, "Capture", 0);   // kill ADC input immediately
     fft_reset_m_bins();
-    mute_count = MUTE_MAX;
-     
-    rx_list->signal_avg = 0.0;    // reset AGC so level - W9JES
-    
-    digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
-    delay(5);                                                     
-    digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
-    check_r1_volume();           // audio codec is back on
-    initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
-    sound_mixer(audio_card, "Master", rx_vol);
+
+    digitalWrite(EXT_PTT, LOW);              // external PTT off first
+    delay(5);
+    digitalWrite(TX_LINE, LOW);             // physically switch T/R relay
+
+    in_tx = 0;                              // NOW safe to start RX processing
+    mute_count = MUTE_MAX;                  // blank output for settling period
+
+    rx_list->signal_avg = 0.0;             // reset AGC level - W9JES
+
+    check_r1_volume();
+    initialize_rx_vol();
+
+    if (usb_audio_play_device[0])
+    {
+        sound_usb_set_volume(usb_audio_play_device, rx_vol);
+        if (rx_list->mode == MODE_LSB
+            || rx_list->mode == MODE_USB
+            || rx_list->mode == MODE_AM)
+            sound_usb_set_capture(usb_audio_play_device, tx_gain);
+    }
+    else
+    {
+        sound_mixer(audio_card, "Master", rx_vol);
+    }
+    /* Restore ADC input AFTER relay has settled and mute is armed.
+       The mute_count will zero output_speaker for MUTE_MAX more blocks
+       even though Capture is now open -- input_q[] fills with real signal
+       but output is suppressed until the DSP chain has stabilised. */
     sound_mixer(audio_card, "Capture", rx_gain);
     spectrum_reset();
 
-    // Also reset the hold counter for showing the output power
     fwdpower_cnt = 0;
     fwdpower_calc = 0;
     fwdpower = 0;
@@ -2359,9 +2399,13 @@ void setup()
 		sbitx_version = SBITX_V2;
 
 	setup_audio_codec();
-	sound_thread_start("plughw:CARD=audioinjectorpi,DEV=0");
-
-	sleep(1); // why? to allow the aloop to initialize?
+	/*
+	 * sound_thread_start() has been moved to sound_start_with_usb() in
+	 * sbitx_gtk.c main(), which is called AFTER ini_parse() so that the
+	 * #usb_audio_out / #usb_audio_in field values are available.
+	 * We still call setup_audio_codec() here so the WM8731 mixer is
+	 * configured before the loopback device probing.
+	 */
 
 	vfo_start(&tone_a, 700, 0);
 	vfo_start(&tone_b, 1900, 0);
@@ -2478,6 +2522,17 @@ void sdr_request(char *request, char *response)
 		set_rx1(f - 10);
 		set_rx1(f);
 
+		/* Enable USB mic only in voice modes; mute it for everything else.
+		   This operates at the hardware capture switch level so the mic
+		   is fully silenced regardless of gain settings. */
+		if (usb_audio_play_device[0])
+		{
+			int voice_mode = (rx_list->mode == MODE_LSB
+			               || rx_list->mode == MODE_USB
+			               || rx_list->mode == MODE_AM);
+			sound_usb_enable_capture(usb_audio_play_device, voice_mode);
+		}
+
 		// printf("mode set to %d\n", rx_list->mode);
 		strcpy(response, "ok");
 	}
@@ -2518,6 +2573,14 @@ void sdr_request(char *request, char *response)
 		tx_gain = atoi(value);
 		if (in_tx)
 			set_tx_power_levels();
+		/* USB mic is only active in voice modes (LSB, USB, AM).
+		   All other modes — CW, CWR, FT8, FT4, DIGI, RTTY, 2TONE, NBFM —
+		   either use the loopback, keyer, or no mic at all. */
+		if (usb_audio_play_device[0]
+		    && (rx_list->mode == MODE_LSB
+		        || rx_list->mode == MODE_USB
+		        || rx_list->mode == MODE_AM))
+			sound_usb_set_capture(usb_audio_play_device, tx_gain);
 	}
 	else if (!strcmp(cmd, "tx_power"))
 	{
@@ -2542,17 +2605,16 @@ void sdr_request(char *request, char *response)
 		int rx_vol;
 
 		if (input_volume == 0)
-		{
 			rx_vol = 0;
-		}
 		else
-		{
 			rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
-		}
 
 		if (!in_tx)
 		{
-			sound_mixer(audio_card, "Master", rx_vol);
+			if (usb_audio_play_device[0])
+				sound_usb_set_volume(usb_audio_play_device, rx_vol);
+			else
+				sound_mixer(audio_card, "Master", rx_vol);
 		}
 	}
 	//

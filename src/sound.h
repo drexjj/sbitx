@@ -55,3 +55,23 @@ void apply_fixed_compression(float *input, int num_samples, int compression_cont
 
 // TX Monitor tool
 extern int txmon_control_level;
+
+// Audio device name globals -- set before sound_thread_start() or sound_restart()
+// All three default to the original hardcoded values so existing setups
+// work without any user_settings.ini changes.
+extern char pcm_device_name[64];         // main PCM capture + playback (WM8731)
+extern char loopback_play_device[64];    // loopback play  (to fldigi / digimodes)
+extern char loopback_capture_device[64]; // loopback capture (from fldigi / digimodes)
+// Optional USB audio devices.  Leave empty string to use WM8731 only.
+extern char usb_audio_play_device[64];   // USB audio out speaker (48kHz)
+extern char usb_audio_cap_device[64];    // USB audio mic input (48kHz)
+// Set USB playback volume (0-100); derives hw: card from plughw: device name
+void sound_usb_set_volume(const char *plughw_device, int volume_pct);
+// Set USB capture (mic) gain (0-100); same card derivation as above
+void sound_usb_set_capture(const char *plughw_device, int gain_pct);
+// Enable (1) or disable (0) the USB mic capture switch at hardware level.
+// Call with enable=0 in non-voice modes to fully silence the USB mic.
+void sound_usb_enable_capture(const char *plughw_device, int enable);
+// Scan ALSA and fill out_play/out_cap with the first USB audio device found.
+// Returns 1 if found, 0 if no USB audio hardware is present.
+int  sound_find_usb_audio(char *out_play, char *out_cap, int maxlen);
