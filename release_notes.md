@@ -2,7 +2,7 @@
 **New Features:**
 - Text console can scroll back to view and work with up to 500 lines of history, in all modes
 - Added support for Touch Display 2 and larger displays
-	+ Makes it easier to touch and see the buttons on a Toouch Display 2 or external display
+	+ Makes it easier to touch and see the buttons on a Touch Display 2 or external display
 	+ New file is read upon sbitx startup called display_settings.ini where you can set the display type or resolution
 	+ `display_type=1` is for the original, older 7 inch touch display
 	+ `display_type=2` is for the newer 7 inch touch display
@@ -14,7 +14,9 @@
 	+ If the `user_style.tpl` file is not found then it will load `default_style.tpl` if it is present.
 	+ If none of these files are located, then it will load the factory style we are all used to.
 	+ There are sample styles in the data folder that can be loaded. Just have to rename one of them to user_style.tpl
-  
+- Controlled Envelope Single Sideband (CESSB)
+	+ enable via '\cessb on' command
+
 **Changes:**
 - GUI
 	+ Moved Direct Frequency Keypad to a new button called PAD and added quick buttons
