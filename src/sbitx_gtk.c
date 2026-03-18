@@ -1130,6 +1130,17 @@ struct field main_controls[] = {
 	{"#xota", NULL, 1000, -1000, 400, 149, "xOTA", 40, "", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "NONE/IOTA/SOTA/POTA", 0, 0, 0, COMMON_CONTROL},
 
+	/*
+	 * USB headset device names.  Hidden fields (off-screen at x=1000,y=-1000)
+	 * so they round-trip through save_user_settings() / user_settings_handler()
+	 * without appearing in the UI.  The settings dialog reads/writes them via
+	 * field_str("usb_audio_out") / field_set("usb_audio_out", ...).
+	 */
+	{"#usb_audio_out", NULL, 1000, -1000, 400, 149, "usb_audio_out", 64, "", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 63, 1, 0},
+	{"#usb_audio_in",  NULL, 1000, -1000, 400, 149, "usb_audio_in",  64, "", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 63, 1, 0},
+
 	// moving global variables into fields
 	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 500000, 30000000, 1, 0},
@@ -2236,6 +2247,138 @@ void save_user_settings(int forced)
 	fclose(f);
 	last_save_at = now; // As proposed by Dave N1AI
 	settings_updated = 0;
+}
+
+/*
+ * sound_start_with_usb()
+ *
+ * Called from main() AFTER ini_parse() so the #usb_audio_out / #usb_audio_in
+ * fields have been loaded from user_settings.ini.
+ *
+ * 1. If both USB fields are empty this is a first-run scenario: call
+ *    sound_find_usb_audio() to auto-detect any connected USB audio device.
+ *    The function writes results back into the fields and we immediately
+ *    save settings so the detected values survive the next restart.
+ *
+ * 2. Copy the field values into the sbitx_sound.c globals
+ *    (usb_audio_play_device / usb_audio_cap_device) so sound_thread_function()
+ *    can open the handles.
+ *
+ * 3. Start the WM8731 and loopback audio threads.
+ */
+void sound_start_with_usb(void)
+{
+	/* declared in sound.h */
+	extern char usb_audio_play_device[64];
+	extern char usb_audio_cap_device[64];
+
+	const char *out_val = field_str("usb_audio_out");
+	const char *in_val  = field_str("usb_audio_in");
+
+	/*
+	 * First-run detection: if NEITHER field was present in the INI file
+	 * (both are still the empty-string default set by the field table),
+	 * auto-scan for USB audio hardware.  The scan fills found_play/found_cap,
+	 * we push the results into the fields via field_set(), and save immediately
+	 * so the result persists on the next launch.
+	 *
+	 * To record "user chose no USB": the Disable button in settings_ui.c
+	 * saves the literal string "none" so we can distinguish it from the
+	 * field-default empty string.  (See settings_ui.c.)
+	 */
+	int out_empty = (!out_val || out_val[0] == '\0');
+	int in_empty  = (!in_val  || in_val[0]  == '\0');
+
+	if (out_empty && in_empty)
+	{
+		char found_play[64] = "", found_cap[64] = "";
+		printf("sound_start_with_usb: no USB audio config found – auto-detecting\n");
+		if (sound_find_usb_audio(found_play, found_cap, sizeof(found_play)))
+		{
+			if (found_play[0]) field_set("usb_audio_out", found_play);
+			if (found_cap[0])  field_set("usb_audio_in",  found_cap);
+		}
+		save_user_settings(1);       /* persist whatever was found */
+		out_val = field_str("usb_audio_out");
+		in_val  = field_str("usb_audio_in");
+	}
+
+	/* Copy into the sbitx_sound.c globals before starting the thread. */
+	if (out_val && out_val[0] && strcmp(out_val, "none") != 0)
+		snprintf(usb_audio_play_device, 64, "%s", out_val);
+	else
+		usb_audio_play_device[0] = '\0';
+
+	if (in_val && in_val[0] && strcmp(in_val, "none") != 0)
+		snprintf(usb_audio_cap_device, 64, "%s", in_val);
+	else
+		usb_audio_cap_device[0] = '\0';
+
+	/*
+	 * If a USB headset is active, mute the WM8731 Master output now so the
+	 * operator hears audio only through the headset.
+	 * setup_audio_codec() already ran and set Master=10; we override that here
+	 * once we know USB is in use.  All subsequent Master changes in sbitx.c
+	 * (tr_switch, set_tx_power_levels, r1:volume) are guarded by
+	 * usb_audio_play_device[0] so they will not re-enable the WM8731 speaker.
+	 *
+	 * We also set the initial USB playback volume and disable Auto Gain Control
+	 * on the USB mic so the IF knob has full manual control of capture gain.
+	 */
+	if (usb_audio_play_device[0])
+	{
+		/* Mute WM8731 speaker */
+		extern char audio_card[32];
+		sound_mixer(audio_card, "Master", 0);
+		//printf("WM8731 Master muted – USB headset active (%s)\n",
+		       //usb_audio_play_device);
+
+		/* Disable USB Auto Gain Control so the IF knob works */
+		{
+			char hw_card[64] = "";
+			const char *p = usb_audio_play_device;
+			if (!strncmp(p, "plughw:", 7)) p += 7;
+			const char *comma = strchr(p, ',');
+			if (comma)
+				snprintf(hw_card, sizeof(hw_card), "hw:%.*s", (int)(comma - p), p);
+			else
+				snprintf(hw_card, sizeof(hw_card), "hw:%s", p);
+
+			sound_mixer(hw_card, "Auto Gain Control", 0);
+		}
+
+		/* Set initial volume and capture gain from saved field values */
+		{
+			char vol_buf[8] = "60";
+			get_field_value("r1:volume", vol_buf);
+			int iv = atoi(vol_buf);
+			int rx_vol = (iv <= 0) ? 0
+			           : (int)(log10(1 + 9.0 * iv) * 100 / log10(1 + 900.0));
+			sound_usb_set_volume(usb_audio_play_device, rx_vol);
+
+			char gain_buf[8] = "30";
+			get_field_value("tx_gain", gain_buf);
+			int ig = atoi(gain_buf);
+			sound_usb_set_capture(usb_audio_play_device, ig);
+
+			/* Mute or enable the USB mic capture switch based on the
+			   current mode -- voice modes only. */
+			{
+				char mode_buf[16] = "LSB";
+				get_field_value("r1:mode", mode_buf);
+				int voice = (!strcmp(mode_buf, "LSB")
+				          || !strcmp(mode_buf, "USB")
+				          || !strcmp(mode_buf, "AM"));
+				sound_usb_enable_capture(usb_audio_play_device, voice);
+			}
+
+			//printf("USB headset init: vol=%d%% (knob=%s)  mic_gain=%d%% (MIC knob=%s)\n",
+			       //rx_vol, vol_buf, ig, gain_buf);
+		}
+	}
+
+	/* Start the WM8731 PCM thread and the fldigi loopback thread. */
+	sound_thread_start("plughw:CARD=audioinjectorpi,DEV=0");
 }
 
 void enter_qso()
@@ -4867,6 +5010,8 @@ static void layout_ui()
     const int row_h   = SC(37);
     const int y_top   = y2 - SC(40);
     const int y_bottom= y2 - SC(40);
+    /* reserve row_h + a small scaled gap below the console */
+    const int bottom_clearance = row_h + SC(5);
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
@@ -4877,7 +5022,7 @@ static void layout_ui()
     } else {
       int console_w = console_right_x - col_left_x;
       if (console_w < SC(40)) console_w = SC(40);
-      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - 55);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - bottom_clearance);
 
       field_move("SPECTRUM", split_x, y1, x2 - (split_x + SC(5)), default_spectrum_height);
       int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
@@ -11446,6 +11591,51 @@ int main(int argc, char *argv[])
 		strcpy(directory, path);
 		strcat(directory, "/sbitx/data/default_settings.ini");
 		ini_parse(directory, user_settings_handler, NULL);
+	}
+
+	/*
+	 * Start audio threads now that user_settings.ini has been loaded.
+	 * sound_start_with_usb() copies the #usb_audio_out / #usb_audio_in
+	 * field values into the sbitx_sound.c globals, then calls
+	 * sound_thread_start().  On the very first run (no USB keys in the
+	 * INI) it auto-detects USB hardware and saves the result.
+	 */
+	sound_start_with_usb();
+	sleep(1); /* allow audio threads to settle before gtk_main() */
+
+	/*
+	 * Re-apply saved knob values to the SDR backend now that the audio
+	 * threads are running and (if USB) the headset is active.
+	 *
+	 * ini_parse() loads field values via set_field() but does NOT call
+	 * sdr_request(), so the C variables in sbitx.c (tx_drive, tx_gain,
+	 * rx_vol) still hold their compile-time defaults after ini_parse.
+	 * Without this re-fire, DRIVE has no effect until the user moves the
+	 * knob, and the WM8731/USB volume is wrong until the first knob move.
+	 *
+	 * Order matters: tx_power must come before tx_gain because
+	 * set_tx_power_levels() (called from the tx_gain handler when in TX)
+	 * uses both tx_drive and tx_gain.
+	 */
+	{
+		char re_buf[16];
+		char re_cmd[32];
+		char re_resp[32];
+
+		/* TX drive (DRIVE knob -> tx_power cmd -> tx_drive in sbitx.c) */
+		get_field_value("tx_power", re_buf);
+		snprintf(re_cmd, sizeof(re_cmd), "tx_power=%s", re_buf[0] ? re_buf : "40");
+		sdr_request(re_cmd, re_resp);
+
+		/* TX/mic gain (MIC knob -> tx_gain cmd -> tx_gain in sbitx.c) */
+		get_field_value("tx_gain", re_buf);
+		snprintf(re_cmd, sizeof(re_cmd), "tx_gain=%s", re_buf[0] ? re_buf : "30");
+		sdr_request(re_cmd, re_resp);
+
+		/* RX volume (AUDIO knob -> r1:volume -> WM8731 Master or USB vol) */
+		get_field_value("r1:volume", re_buf);
+		snprintf(re_cmd, sizeof(re_cmd), "r1:volume=%s", re_buf[0] ? re_buf : "60");
+		sdr_request(re_cmd, re_resp);
 	}
 
 	// Initialize WSJT-X UDP broadcast
