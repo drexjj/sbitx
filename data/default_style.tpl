@@ -315,7 +315,7 @@ slant = normal
 [font:STYLE_LARGE_VALUE]
 index = 27
 family = Arial
-size = 24
+size = 23
 color = 1.00, 1.00, 1.00
 weight = normal
 slant = normal
