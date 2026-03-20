@@ -7251,14 +7251,18 @@ int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int 
 
 int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (event == GDK_BUTTON_PRESS)
-	{
-		set_field("#toggle_kbd", "OFF");
-		focus_field(f_last_text); // this will prevent the controls from bouncing
+    if (event == GDK_BUTTON_PRESS)
+    {
+        set_field("#toggle_kbd", "OFF");
+        focus_field(f_last_text);
 
-		return 1;
-	}
-	return 0;
+        // fullscreen check
+        if (f && strcmp(f->cmd, "#fullscreen") == 0)
+            on_fullscreen_toggle(strcmp(f->value, "ON") == 0 ? 1 : 0);
+
+        return 1;
+    }
+    return 0;
 }
 
 // Function to launch freq-direct.py keypad when VFO area is touched
