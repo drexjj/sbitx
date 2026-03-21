@@ -32,7 +32,7 @@ static uint32_t delayTicks;
 int i2c_started = 0;
 
 /* 0=silent 1=errors 2=transactions 3=verbose+pin state */
-static int i2cbb_debug_level = 0;
+static int i2cbb_debug_level = 3;
 
 void i2cbb_set_debug(int level) {
     i2cbb_debug_level = level;
