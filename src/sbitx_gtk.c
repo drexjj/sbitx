@@ -61,6 +61,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "swr_monitor.h"
 #include <time.h>
 #include "cessb.h"
+#include "freq_keypad.h"
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -7265,46 +7266,34 @@ int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int
     return 0;
 }
 
-// Function to launch freq-direct.py keypad when VFO area is touched
+// VFO overlay: transparent on draw, opens integrated keypad on tap.
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
+	(void)gfx; (void)a; (void)b; (void)c;
 	if (event == FIELD_DRAW)
-	{
-		// Don't draw anything - make it completely transparent
-		// This ensures the VFO display remains visible
-		return 1; // Return 1 to indicate we've handled the drawing
-	}
-	else if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT)
-	{
-		// Use the focus_keypad.sh script to either focus the existing keypad
-		// or launch a new one if it's not running
-		system("/home/pi/sbitx/src/focus_keypad.sh &");
+		return 1; /* transparent — let r1:freq render beneath */
 
-		// Force a redraw of the VFO area to prevent black background
+	if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT) {
+		open_freq_keypad();
 		invalidate_rect(f->x, f->y, f->width, f->height);
-
-		// Also redraw the r1:freq field which is underneath
 		struct field *freq_field = get_field("r1:freq");
-		if (freq_field) {
-			invalidate_rect(freq_field->x, freq_field->y, freq_field->width, freq_field->height);
-		}
-
+		if (freq_field)
+			invalidate_rect(freq_field->x, freq_field->y,
+			                freq_field->width, freq_field->height);
 		return 1;
 	}
 	return 0;
 }
 
-// Button handler for the PAD button on the main toolbar.
-// Unlike do_vfo_keypad (which is an invisible overlay), this returns 0
-// on FIELD_DRAW so the framework renders the label normally.
+// PAD toolbar button: opens the integrated keypad.
 int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT)
-	{
-		system("/home/pi/sbitx/src/focus_keypad.sh &");
+	(void)f; (void)gfx; (void)a; (void)b; (void)c;
+	if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT) {
+		open_freq_keypad();
 		return 1;
 	}
-	return 0; // let default drawing run
+	return 0; /* let default drawing run */
 }
 
 void open_url(char *url)
@@ -11770,8 +11759,6 @@ int main(int argc, char *argv[])
 
 // Function to clean up resources when the application exits
 void cleanup_on_exit() {
-	// Close the frequency keypad if it's running
-	system("/home/pi/sbitx/src/cleanup_keypad.sh");
 
 	// Add any other cleanup tasks here
 	printf("Cleaning up resources before exit\n");
