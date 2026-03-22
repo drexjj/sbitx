@@ -10393,12 +10393,27 @@ void do_control_action(char *cmd)
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
 		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
-			tune_key = 1;  // fake straight key down
+			// CW/CWR: set tune_key so key_poll() returns CW_DOWN and
+			// modem_poll() drives the T/R switch + carrier each tick.
+			tune_key = 1;
 			delay(100);
+		} else if (mode_id(modestore) == MODE_FT8 || mode_id(modestore) == MODE_FT4) {
+			// FT8/FT4: abort the modem frame, then switch to CW using
+			// set_radio_mode() — this is the only call that updates BOTH
+			// tx_list->mode in sbitx.c (so the audio thread generates a
+			// CW carrier) AND the GTK r1:mode field (so ui_tick calls
+			// modem_poll(MODE_CW) each ms and the keyer sees tune_key=1).
+			// modestore still holds "FT8"/"FT4" so TUNE OFF restores it.
+			modem_abort(false);
+			delay(50);
+			set_radio_mode("CW");
+			delay(50);
+			tune_key = 1;
 		} else {
-		sdr_request("r1:mode=TUNE", response);				
-		delay(100);
-		tx_on(TX_SOFT);	
+			// All other modes: CALIBRATE carrier
+			sdr_request("r1:mode=TUNE", response);
+			delay(100);
+			tx_on(TX_SOFT);
 		}
 	}  // end tune on
 	 if (!strcmp(request, "TUNE OFF"))
@@ -10406,11 +10421,11 @@ void do_control_action(char *cmd)
 		if (tune_on_invoked)
 		{
 			// printf("TUNE OFF command received.\n");
-			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
+			tune_on_invoked = false;
 			do_control_action("RX");
-			abort_tx(); // added to terminate tune duration - W9JES
-			tune_key=0; // for CW/CWR
-			field_set("MODE", modestore);
+			abort_tx();
+			tune_key = 0;
+			set_radio_mode(modestore);  // restores FT8/FT4/CW in both sbitx.c and GTK
 			field_set("DRIVE", powerstore);
 		}
 	}
@@ -10418,19 +10433,13 @@ void do_control_action(char *cmd)
 	if (tune_on_invoked)
 	{
 		time_t current_time = time(NULL);
-		// Check if the tune duration has elapsed
 		if (difftime(current_time, tune_on_start_time) >= tune_duration)
 		{
-			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
-			// printf("TUNE ON timed out. Turning OFF after %d seconds.\n", tune_duration);
-			//  Perform TUNE OFF actions safely
+			tune_on_invoked = false;
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			tune_key=0;  // for CW/CWR
-			// if (modestore != NULL) // Check for null before accessing or modifying
-			field_set("MODE", modestore);
-
-			// if (powerstore != NULL) // Check for null before accessing or modifying
+			tune_key = 0;
+			set_radio_mode(modestore);  // restores FT8/FT4/CW in both sbitx.c and GTK
 			field_set("DRIVE", powerstore);
 		}
 	}
