@@ -1,0 +1,661 @@
+#sBitx Reference
+
+Welcome to the sBitx software-defined transceiver. This reference covers controls,
+commands, and keyboard shortcuts available in the sBitx interface.
+
+HOW TO ENTER COMMANDS
+  The sBitx has a built-in command system. To enter a command, click in the TEXT field
+  on the main screen and type your command, then press Enter.
+  On the sBitx built-in touchscreen keyboard, the CMD prefix key is the backslash \ key.
+  On an external USB keyboard you can also type \ directly.
+  Commands that begin with \ are typed directly into the text field.
+  Menu controls (AGC, BW, DRIVE, etc.) are clickable buttons on screen -- you do not
+  need to type those unless you prefer to.
+
+FIRST TIME SETUP
+  Before operating, open SET from Menu 1 and configure:
+    - CALLSIGN  Your amateur radio callsign (e.g. W1AW)
+    - MYGRID    Your 6-character Maidenhead grid locator (e.g. FN31pr)
+    - PIN       A password to protect the web interface
+    - xOTA      Set to IOTA, SOTA, POTA, or NONE depending on your activity
+
+#Backslash Commands  (\cmd)
+
+These commands are typed into the TEXT field. On the built-in keyboard press \
+first; on an external keyboard type \ directly. Press Enter to execute.
+
+* \bfo [offset in Hz]
+  The Beat Frequency Oscillator offset shifts the receive passband slightly up or down
+  in frequency. This is useful for moving a "birdie" (an unwanted internal noise spike)
+  out of the audio passband so it does not interfere with copy.
+  Range: approximately -3000 to +3000 Hz. Default: 0
+  Example: \bfo 500   (shifts passband up 500 Hz)
+  Example: \bfo -800  (shifts passband down 800 Hz)
+
+* \bigfont <number>
+  CW mode only. Sets the size of the large CW decode text displayed on screen.
+  Choose a size that is comfortable to read on your display.
+  Range: 10 to 40. Default: 10
+  Example: \bigfont 24
+
+* \bs [+ | - | 0-9]
+  Adjusts the band power scale -- the calibration table that maps drive level to
+  output power on the current band. Use + to increase and - to decrease one step,
+  or enter a digit 0-9 to set a specific value.
+  See commands.txt in the sBitx data folder for full details on power calibration.
+
+* \cal
+  Runs the interactive power calibration routine for the current band.
+  You must have an external Power/SWR meter connected to measure actual output.
+  Follow the on-screen prompts to step through power levels and record readings.
+  Run \cal on each band you wish to calibrate accurately.
+
+* \cessb on|off
+  Enables or disables controlled envelope single sideband mode
+
+* \cwdelay [50-1000]
+  Sets the CW TX/RX switching delay in milliseconds -- the time the radio waits
+  after your last keyed character before switching back to receive.
+  A longer delay prevents the radio switching to RX before your last dit/dah finishes.
+  Too short and you will clip your last character; too long and you miss fast replies.
+  Typical values: 200-400 ms for most operators.
+  Example: \cwdelay 300
+
+* \cwinput [mode]
+  Selects the type of Morse key connected to the sBitx key input jack.
+  Options:
+    Straight  -- Single-contact straight key or bug (manual timing)
+    Bug       -- Semi-automatic bug key (auto dits, manual dahs)
+    Ultimatic -- Ultimatic paddle (last-pressed element repeats)
+    Iambic    -- Iambic Mode A paddle (squeeze sends alternating dit/dah)
+    IambicB   -- Iambic Mode B paddle (squeeze sends extra element on release)
+  Example: \cwinput Iambic
+
+* \cwreverse
+  If your CW paddle is wired with dot and dash reversed (common when using
+  left-handed paddles or some homebrew connectors), this command swaps them
+  in software so the keyer responds correctly without rewiring.
+  Run \cwreverse again to toggle back to normal.
+
+* \decode on|off
+  Enables or disables the real-time CW decoder display.
+  ON  -- decoded text appears on screen as you receive CW signals.
+  OFF -- decoder runs silently in the background (quiet mode); no text displayed.
+  Turning it off can reduce screen clutter during casual CW operation.
+  Default: on
+
+* \epttopt on|off
+  Shows or hides the external PTT (Push-To-Talk) option button in Menu 2.
+  This option requires a hardware modification to the sBitx to add an external
+  PTT control line. Only enable this if you have made that modification.
+  Default: off
+
+* \f [frequency in Hz or kHz]
+  Short form of \freq. Sets the VFO to the specified frequency.
+  If the number is less than 100000 it is treated as kHz; otherwise as Hz.
+  Example: \f 7050     sets 7.050 MHz
+  Example: \f 14225000 sets 14.225 MHz
+
+* \freq [frequency in Hz or kHz]
+  Sets the VFO frequency. Same behaviour as \f but the full command name.
+  Useful in macros where clarity is preferred over brevity.
+  Example: \freq 7050    (interpreted as 7050 kHz = 7.050 MHz)
+  Example: \freq 3573000 (sets 3.573 MHz for FT8 on 80m)
+
+* \m [mode]
+  Short form of \mode. Sets the operating mode.
+  Example: \m USB
+  Example: \m FT8
+
+* \macro list
+  Displays the list of macro files available in the sBitx web folder.
+  Macros automate common sequences such as a CQ call or contest exchange.
+  To load a macro by name: \macro <filename>
+  Example: \macro CQ     (loads the CQ macro)
+  Macro files are plain text and can be edited in any text editor.
+
+* \maxvswr <number>
+  Sets the SWR level at which the sBitx automatically reduces transmit power
+  to protect the finals from a high-impedance or mismatched antenna load.
+  If the measured SWR exceeds this value, drive is reduced automatically.
+  Default: 3  (meaning 3:1 SWR). Set to 0 to disable SWR protection entirely.
+  Example: \maxvswr 2.3   (triggers protection at 2.3:1 SWR -- more conservative)
+
+* \mode [mode]
+  Sets the operating mode. Available modes:
+    USB    -- Upper Sideband (standard for HF voice above 10 MHz)
+    LSB    -- Lower Sideband (standard for HF voice below 10 MHz)
+    AM     -- Amplitude Modulation
+    CW     -- Continuous Wave Morse (standard keying)
+    CWR    -- CW Reverse (mirror-image CW, shifts audio tone to opposite side)
+    FT8    -- FT8 weak-signal digital mode (15-second periods)
+    FT4    -- FT4 weak-signal digital mode (7.5-second periods, faster than FT8)
+    DIGI   -- General digital / data mode (for RTTY, JS8Call, etc.)
+    2TONE  -- Two-tone test signal for SSB amplifier linearity testing
+  Example: \mode LSB
+
+* \r
+  Immediately switches the radio to receive mode.
+  In FT8/FT4 mode, you can also press Ctrl+R to interrupt an active transmission
+  and return to receive before the current slot finishes.
+
+* \rs on|off
+  Reverses the direction of mouse wheel scrolling on the VFO frequency display.
+  If scrolling up increases frequency when you expect it to decrease (or vice versa),
+  use \rs on to swap the direction.
+  Default: off
+
+* \savestyle
+  Saves the currently active display style/theme to the file current_style.tpl
+  in the sBitx data folder. The saved style will be reloaded automatically next
+  time the sBitx software starts.
+
+* \smeteropt on|off
+  Shows or hides the S-meter bar on the main display.
+  The S-meter reading is derived from the IF gain setting. For accurate and
+  meaningful S-meter readings, set IF gain above 51.
+  Example: \smeteropt on
+
+* \snap
+  Captures a screenshot of the current sBitx display and saves it as a PNG image
+  in the screenshots folder inside your sBitx directory.
+  Useful for reporting display issues or sharing your setup.
+
+* \t
+  Immediately switches the radio to transmit mode.
+  You can also press Ctrl+T on an external keyboard for the same effect.
+  Use \r or Ctrl+R to return to receive.
+
+* \ta on|off
+  Tuning acceleration controls how fast the VFO changes when you spin the
+  tuning encoder quickly.
+  ON  -- turning the knob slowly moves in small steps; spinning fast jumps
+         through frequency much more quickly (3 speed levels).
+  OFF -- encoder steps are always the same size regardless of spin speed.
+  Default: off
+
+* \tclose
+  Closes the currently open telnet connection to an RBN or DX cluster server.
+  Always close a session before opening a new one with \topen.
+
+* \topen [server]:[port]
+  Opens a telnet connection to a Reverse Beacon Network (RBN) or DX cluster
+  server. Once connected, spots and announcements will appear in the console.
+  Works with both domain names and IP addresses.
+  Use \tclose to disconnect, and \w to send commands to the server.
+  Example: \topen dxc.g3lrs.org.uk:7300
+  Example: \topen 44.0.0.1:7300
+
+* \txpanafall on|off
+  Controls whether the waterfall display continues to update while transmitting.
+  ON  -- waterfall remains visible during TX (useful for monitoring your signal).
+  OFF -- waterfall freezes during TX.
+  Important: AUTOSCOPE (in Menu 2) cannot be enabled at the same time as TXPANAFALL.
+  Default: off
+
+* \w [text]
+  Sends a line of text to the currently open telnet server session.
+  The space immediately after \w is stripped; everything following it is sent.
+  Use this to send DX cluster commands, set your callsign on the cluster, etc.
+  Example: \w SH/DX 20       (show last 20 DX spots)
+  Example: \w SET/NOBEACON   (suppress beacon announcements)
+
+* \wfcallopt on|off
+  Shows or hides the WFCALL button on the main display.
+  WFCALL lets you click directly on a signal in the waterfall to call that station.
+  Not available in FT8, FT4, CW, or CWR modes.
+  Default: off
+
+* \zerobeat on|off
+  Toggles the zero-beat helper window for CW operation.
+  When ON, a small visual indicator helps you tune your transmit frequency to
+  exactly match an incoming CW signal -- useful for simplex CW contacts.
+
+#Main Screen Controls
+
+These controls are always visible on the main screen regardless of which menu
+is open. They cover the most frequently adjusted operating parameters.
+
+* AGC [OFF | FAST | MED | SLOW]
+  Automatic Gain Control reduces the audio volume automatically when strong
+  signals are received, preventing them from overloading your ears or speakers.
+  OFF  -- no gain control; audio level stays fixed (good for weak signal work).
+  FAST -- gain reduces and recovers quickly (good for contest pile-ups).
+  MED  -- medium response time (good general-purpose setting).
+  SLOW -- gain reduces and recovers slowly (good for SSB DX, reduces pumping).
+  Recommended starting point: MED for general use, SLOW for DX SSB.
+
+* AUDIO [0-100]
+  Sets the overall receiver audio output volume sent to the speaker or headphones.
+  This is the main volume control. Adjust to a comfortable listening level.
+  Does not affect the transmit signal. Default: 50
+
+* BAND [band name]
+  Switches the sBitx to the selected amateur band and restores the last used
+  frequency, mode, and settings for that band from the band stack memory.
+  Available bands: 10M / 12M / 15M / 17M / 20M / 30M / 40M / 60M / 80M
+  Example: clicking the 20M button restores your last 20m frequency and mode.
+
+* BW [50-5000 Hz]
+  Sets the receive audio bandwidth. Narrower bandwidths reduce QRM from adjacent
+  signals but also cut high-frequency audio detail.
+  Suggested settings by mode:
+    CW       -- 200 to 500 Hz (narrow enough to reject adjacent signals)
+    SSB      -- 2400 to 2800 Hz (standard voice bandwidth)
+    AM       -- 4000 to 5000 Hz (wider for AM fidelity)
+    Digital  -- 4000 Hz (to pass the full FT8/FT4 audio spectrum)
+
+* DRIVE [1-100]
+  Controls the RF output power by setting the transmitter drive level.
+  Higher values = more output power. Do not run higher than needed for the contact.
+  Start low (20-30), check your SWR, then increase gradually.
+  The actual watts out depends on the band, antenna, and power calibration.
+  Note: TNPWR (tuner power) is a separate setting used only during TUNE mode.
+
+* IF [1-100]
+  Sets the IF (Intermediate Frequency) amplifier gain, which controls receiver
+  sensitivity. Higher values make the receiver more sensitive to weak signals,
+  but can also increase noise and cause overload on strong signals.
+  Recommended range: 50-75 for most HF bands.
+  The S-meter works best when IF is set above 51.
+
+* KBD
+  Toggle the sBitx on-screen touchscreen keyboard on and off.
+  The keyboard also reveals the TEXT command entry field and logger controls.
+
+* MIC [0-50]
+  Sets the microphone input gain level for SSB voice operation.
+  Too low and your audio will be weak; too high causes audio distortion and
+  splatter that will interfere with stations on adjacent frequencies.
+  Speak at a normal level and adjust MIC until the ALC or drive meter peaks
+  cleanly without clipping. Typical starting point: 20-30.
+
+* MODE [mode]
+  Sets the operating mode. See the \mode command entry above for full descriptions
+  of each mode. This is the on-screen button equivalent of typing \mode.
+
+* PAD
+  Opens the numeric keypad overlay so you can type a frequency directly using
+  on-screen digit buttons. Also provides quick access to preset frequencies.
+  Useful on the touchscreen when the external keyboard is not connected.
+
+* REC [on|off]
+  Starts or stops audio recording of received audio to a file.
+  Recordings are saved to the Audio folder inside your sBitx directory.
+  Useful for reviewing a contact later or for contest logging verification.
+
+* RIT [on|off]
+  Receiver Incremental Tuning. When ON, allows you to offset the receive frequency
+  from the transmit frequency without changing the main VFO.
+  Range: -25000 to +25000 Hz offset.
+  Useful when a station is slightly off your transmit frequency -- you can tune
+  them in without moving your TX frequency. The split is shown on the display.
+  Turn RIT off to return RX to the main VFO frequency.
+
+* SPAN [2.5K | 6K | 8K | 10K | 25K]
+  Sets the frequency span of the panadapter (spectrum display).
+  Narrower spans show more detail around your current frequency.
+  Wider spans let you see more of the band at once to spot activity.
+  Recommended: 10K for general SSB, 2.5K for CW contesting, 25K for band survey.
+
+* SPLIT [on|off]
+  Split frequency operation. When ON, the radio receives on VFO-A and transmits
+  on VFO-B. This is standard practice for working DX stations that listen
+  on a different frequency from their transmit frequency.
+  Set VFO-A to the DX station's transmit frequency, VFO-B to your transmit frequency,
+  then enable SPLIT. The display shows both frequencies.
+
+* STEP [10H | 100H | 500H | 1K | 10K]
+  Sets the tuning step size when using the VFO encoder or mouse wheel.
+  H = Hz, K = kHz.
+  Recommended steps by activity:
+    10H  -- fine BFO/RIT tweaking
+    100H -- CW and SSB fine tuning
+    1K   -- general band scanning
+    10K  -- rapid band traversal
+
+* TUNE [on|off]
+  Activates a continuous carrier for external antenna tuner adjustment. The carrier is
+  transmitted at the TNPWR level for the TNDUR duration, then stops automatically.
+  Always set TNPWR and TNDUR in Menu 1 before pressing TUNE.
+  Do not transmit a tune carrier into a badly mismatched antenna for long periods.
+
+* VFO
+  The VFO (Variable Frequency Oscillator) display shows your current operating
+  frequency. You can select VFO-A or VFO-B.
+  You can also scroll the mouse wheel to tune up/down in the current STEP size.
+
+#Menu 1 Controls
+
+Open Menu 1 by pressing the MENU button on the main toolbar. These controls
+adjust core operating parameters. Click a control to change its value, or
+scroll the mouse wheel over it for fine adjustment.
+
+* ANR [on|off]
+  Audio Noise Reducer. Uses DSP to identify and cancel broadband background noise
+  such as static crashes, mains hum, or fan noise in the received audio.
+  Effective on weak signals buried in noise. May slightly degrade audio quality
+  on very strong clean signals. Try it on and off to hear the difference.
+
+* APF [gain] [width]
+  Audio Peak Filter. A narrow bandpass filter centred on the CW sidetone pitch
+  that sharply attenuates all audio except a narrow slice around the CW tone.
+  This dramatically improves CW copy in a noisy band by cutting QRM.
+  Gain: 0 to 20 dB (how much the target frequency is boosted)
+  Width: 10 to 500 Hz (how wide the passband is -- narrower = more selective)
+  Recommended for CW: APF 10 100
+  Example: apf 6 100
+
+* BFO [+/-3000 Hz]
+  Beat Frequency Oscillator offset (same as the \bfo command, accessible from the menu).
+  Nudge this to move a birdie or unwanted signal spike out of your passband.
+  Start at 0 and increase or decrease until the interference disappears.
+
+* CESSB [on|off]
+  CESSB stands for Controlled Envelope Single Sideband, a modulation technique designed
+  to improve traditional SSB voice transmission in amateur radio. 
+  It works by reshaping the audio signal before modulation to control the peak envelope
+  level, significantly reducing the peak-to-average power ratio compared to standard SSB.
+  This allows radios to transmit at higher average power without clipping or causing
+  distortion, resulting in a clearer, stronger signal that can be heard farther away,
+  even with low power.
+
+* COMP [0-10]
+  Speech compression increases average transmit power on SSB by reducing the
+  dynamic range of your voice -- loud peaks are limited and quieter parts boosted.
+  This makes your signal punch harder on SSB phone contacts.
+  Range: 0 (no compression) to 10 (maximum compression).
+  WARNING: Do NOT use compression in FT8, FT4, DIGI, or CW modes -- it will
+  distort the digital waveform and cause decoding failures at the other end.
+  Recommended for phone: 3 to 5. Start low and increase until the signal sounds full.
+
+* DSP [on|off]
+  Enables the Digital Signal Processing engine that enhances the received audio.
+  When ON, the DSP applies filters to highlight the desired signal and suppress
+  background noise, making weak signals easier to copy.
+  Try toggling it to hear the difference on a marginal signal. Default: off
+
+* NOTCH [on|off]
+  A tuneable notch filter that places a sharp null at a specific frequency
+  within the passband to cancel an interfering carrier or CW tone.
+  Once enabled, set the notch frequency (60-3000 Hz) and bandwidth (60-1000 Hz)
+  using the associated controls.
+  Most useful in CW, USB, and LSB modes to eliminate a single strong interferer
+  while leaving the rest of the passband open.
+
+* PIN [password]
+  Sets the password required to access the sBitx web interface from a browser.
+  Choose something memorable but not trivially guessable if your network is shared.
+  Can also be set via SET in Menu 1.
+  Default is 123
+
+* RXEQ [on|off]
+  Receive audio equalizer. When ON, apply per-band gain adjustments to the
+  received audio to compensate for your speaker/headphone frequency response
+  or personal preference.
+  Hover the mouse over the RXEQ control and scroll to adjust each band.
+  Range per band: -16 to +16 dB in small steps.
+
+* SET
+  Opens the main settings panel where you configure your station identity:
+    CALLSIGN -- Your amateur radio callsign (required for FT8 and logging).
+    MYGRID   -- Your 6-digit Maidenhead grid locator (required for FT8).
+    xOTA     -- Activator mode: NONE, IOTA, SOTA, or POTA.
+                Setting this displays the relevant PEAK/PARK/IS field in FT8.
+    PIN      -- Web interface login password.
+    USB Out  -- Routes audio to external, USB audio output
+    USB Mic  -- Routes audio to external, USB audio input
+  Always configure CALLSIGN and MYGRID before attempting FT8 or FT4 operation.
+
+* SPEC [NORM | FULL]
+  Controls how the spectrum and waterfall are displayed:
+  NORM -- spectrum occupies the left portion of the screen alongside the console.
+  FULL -- spectrum expands to fill the entire screen width for maximum detail.
+  In FULL mode the text console is hidden. Press SPEC NORM to restore it.
+
+* TNDUR [2-30 seconds]
+  Tuner duration -- how long the tuning carrier is transmitted when you press TUNE.
+  Set long enough for your antenna tuner to complete its tuning cycle.
+  Most automatic tuners complete in 5-10 seconds. Default: 10 s.
+
+* TNPWR [1-100]
+  Tuner power -- the drive level used during the TUNE carrier transmission.
+  Most automatic antenna tuners work best with 5-20 watts.
+  Set TNPWR low enough to protect the tuner, then press TUNE.
+  This is independent of the main DRIVE level used during normal operation.
+
+* TXEQ [on|off]
+  Transmit audio equalizer. When ON, apply per-band gain adjustments to your
+  transmitted audio to tailor your voice sound or compensate for microphone response.
+  Hover the mouse over the TXEQ control and scroll to adjust each band.
+  Range per band: -16 to +16 dB. Do not use in digital or CW modes.
+
+* TXMON [0-10]
+  TX monitor level -- feeds a portion of your transmitted audio back to your
+  headphones so you can hear how you sound on air in real time.
+  0 = silent monitoring. 10 = loudest. Start at 3-5.
+  This is the monitor of the actual transmitted signal, not the microphone input.
+
+#Menu 2 Controls
+
+Open Menu 2 by pressing the MENU button a second time. These controls adjust
+the spectrum display, waterfall appearance, and advanced hardware options.
+
+* AUTOSCOPE [on|off]
+  When enabled, the sBitx continuously and automatically adjusts the vertical
+  position of the spectrum trace and the baseline level of the waterfall to keep
+  the display well-centred and visible regardless of band noise level.
+  Convenient for casual operation. Turn off for a fixed reference display.
+  Note: Cannot be used at the same time as TXPANAFALL.
+
+* EPTTOPT [on|off]
+  Enables or disables the external PTT (Push-To-Talk) hardware option button
+  in Menu 2. Only relevant if you have installed the external PTT hardware mod.
+  Hiding it keeps the Menu 2 layout clean for standard installations.
+
+* FULLSCREEN [on|off]
+  Toggles the sBitx application window between windowed and full-screen mode.
+  Full screen removes window borders and maximises the display area.
+  Equivalent to pressing the F11 key in most window managers.
+
+* INTENSITY [1-10]
+  Controls the brightness/contrast of the spectrum and waterfall colours on screen.
+  Increase if the display looks washed out; decrease if colours are too harsh.
+  Adjust to suit your display and ambient lighting conditions. Default: 5.
+
+* SCOPEAVG [1-15]
+  Sets the number of FFT frames averaged together to produce each line of the
+  spectrum display. Higher values smooth out noise and produce a cleaner trace
+  but reduce the time resolution (fast signals may be missed).
+  Lower values are more responsive but noisier.
+  Recommended: 5-10 for general use. Default: 10.
+
+* SCOPEGAIN [1-25]
+  Sets the vertical sensitivity (amplitude scale) of the spectrum display.
+  Increase to make weak signals more visible. Decrease if strong signals
+  are clipping the top of the display. Default: 10.
+
+* SCOPESIZE [50-150 pixels]
+  Sets the height of the spectrum window in pixels. Increase for a taller
+  spectrum trace at the expense of waterfall height, or decrease to give
+  more space to the waterfall. Adjust to your personal preference.
+
+* TXPANAFAL [on|off]
+  Same as \txpanafall -- controls whether the waterfall updates during transmit.
+  ON  -- waterfall scrolls during TX so you can see your own signal.
+  OFF -- waterfall freezes while transmitting.
+  Cannot be enabled simultaneously with AUTOSCOPE.
+
+* VFOLK [on|off]
+  VFO Lock. When ON, the VFO frequency is locked and cannot be changed by
+  accidentally turning the encoder knob or scrolling the mouse wheel.
+  Use this during a net or when you need to stay exactly on frequency.
+  Unlock by pressing VFOLK again or typing \vfolk off in the command field.
+
+* WFCALLOPT [on|off]
+  Shows or hides the WFCALL button. When visible, clicking a signal in the
+  waterfall automatically tunes to it and initiates a call.
+  Not available in FT8, FT4, CW, or CWR modes.
+
+* WFMAX [0-200]
+  Sets the upper end of the waterfall colour scale (the noise floor ceiling).
+  Signals at or above WFMAX are shown at maximum brightness.
+  If the waterfall looks mostly white/bright, lower WFMAX.
+  Default: 120. Typical useful range: 100-140.
+
+* WFMIN [0-200]
+  Sets the lower end of the waterfall colour scale (the noise floor floor).
+  Signals at or below WFMIN are shown as the darkest colour.
+  If the waterfall looks mostly dark/black, raise WFMIN.
+  Default: 80. Typical useful range: 60-100.
+  Tip: set WFMIN just below the band noise floor for best contrast.
+
+* WFSPD [20-150]
+  Controls how fast the waterfall scrolls -- the number of lines per second.
+  Faster speeds are better for high-traffic bands where signals appear briefly.
+  Slower speeds spread signals out vertically and are easier to read.
+  Default: 100. Recommended: 50-100 for SSB/CW, 100+ for digital modes.
+
+#Mode-Specific Controls
+
+These controls only appear on the main display when a particular mode is active.
+They are not found in Menu 1 or Menu 2 -- they become visible automatically
+when you switch to the relevant mode.
+
+CW Mode Controls
+  These controls appear when CW or CWR mode is selected.
+
+* CWDELAY [50-1000 ms]
+  The time in milliseconds the radio waits after your last CW character before
+  switching from transmit back to receive. Same as the \cwdelay command.
+  Set long enough that the last dit/dah is fully sent before RX kicks in.
+  Typical: 200-400 ms.
+
+* CWINPUT [mode]
+  Selects the mechanical type of Morse key connected to the sBitx key jack.
+  Same as the \cwinput command. See that entry for full descriptions of each type.
+
+* REPEAT [1-10]
+  Sets how many times a macro or message is transmitted consecutively without
+  operator intervention before stopping. Useful for calling CQ repeatedly.
+  Set to 1 for a single transmission. Also active in digital modes.
+
+* RX_PITCH [100-3000 Hz]
+  Sets the CW receive audio pitch -- the tone frequency you hear for incoming CW.
+  When the green frequency marker is active, it snaps to the received station's
+  audio pitch automatically. Adjust to your preferred listening pitch.
+  Typical value: 600-800 Hz. Default: 700 Hz.
+
+* WPM [1-50]
+  Sets the CW keyer speed in words per minute when using a paddle or bug.
+  Standard contest speeds: 25-35 WPM. Casual ragchew: 12-20 WPM.
+  The sBitx CW decoder also attempts to track the incoming signal speed automatically.
+
+CW / FT8 / FT4 / DIGI Mode Controls
+  These controls appear when CW, CWR, FT8, FT4, or DIGI mode is selected.
+  SIDETONE is not available in SSB or AM modes.
+
+* SIDETONE [0-100]
+  Sets the volume of the locally monitored tone played through your speaker or
+  headphones while transmitting in CW, FT8, FT4, or DIGI modes.
+  In CW mode this is the sidetone you hear as you key -- adjust it to a
+  comfortable level so you can monitor your sending without fatigue.
+  In FT8/FT4/DIGI modes it lets you hear the digital tones being transmitted.
+  Does not apply to SSB or AM modes.
+  Range: 0 (silent) to 100 (loudest). Steps of 5 or 10 are typical.
+
+FT8 / FT4 Mode Controls
+  These controls appear when FT8 or FT4 mode is selected.
+
+* FTX_AUTO [mode]
+  Controls the sBitx FT8/FT4 auto-operating behaviour:
+  OFF      -- fully manual; use macros to send each transmission.
+  CQRESP   -- automatically answers CQ calls heard on the waterfall.
+  ANS      -- automatically answers replies to your own CQ call.
+  New operators should start with OFF to learn the FT8 sequence manually.
+
+* FTX_CQ [slot]
+  Sets which 15-second time slot the sBitx uses to transmit CQ in FT8.
+  ODD      -- transmit in odd-numbered slots (1, 3, 5...). Standard for DX.
+  EVEN     -- transmit in even-numbered slots (2, 4, 6...). Standard for DX.
+  XOTA     -- IOTA/SOTA/POTA activator slot (displays the xOTA field reference).
+  ALT_EVEN -- calls CQ every 4th slot, leaving gaps for replies. Less aggressive.
+  If unsure, match the slot of the station you are trying to work.
+
+* REPEAT [1-10]
+  Sets how many times a macro or CQ message is transmitted consecutively.
+  Set to 1 for a single transmission. Also active in CW mode.
+
+* TX_PITCH [300-3000 Hz]
+  Sets the audio frequency of your transmitted FT8/FT4 signal within the SSB
+  passband. The red marker on the waterfall shows this frequency.
+  Keep TX_PITCH between 1000 and 2000 Hz for best results and to stay within
+  the standard FT8 sub-band. Default: 1500 Hz.
+
+#Logger Controls
+
+The logger fields appear at the bottom of the screen when the keyboard is open.
+Use the TAB key to move between fields quickly during a QSO.
+
+* CALL [text]
+  Enter the callsign of the station you are working.
+  In FT8 mode this is filled automatically when you click a decoded call.
+  You can also type directly: click the CALL field and type the callsign.
+
+* EXCH [text]
+  Exchange field. In FT8/FT4 this holds the received gridsquare.
+  In contest operation, enter the received contest exchange here.
+
+* LOG
+  Opens the logbook viewer to review, edit, or export past contacts.
+  The sBitx logs contacts in ADIF format compatible with most logging software.
+
+* NR [text]
+  Number field. In FT8, holds your own Maidenhead gridsquare sent during the QSO.
+  In contest mode, holds your sent serial number.
+
+* QRZ
+  Looks up the callsign currently in the CALL field on the qrz.com database
+  and displays available information such as operator name, location, and DXCC entity.
+  Requires an active internet connection.
+
+* RECV [text]
+  The signal report received from the other station.
+  In SSB: RS format (e.g. 59). In CW: RST format (e.g. 599).
+  In FT8: signal level in dB (e.g. -07), filled automatically from the decoded message.
+
+* SAVE
+  Manually saves the current log window data to the logbook.
+  In FT8 mode contacts are logged automatically on completion. In other modes
+  press SAVE after the QSO is complete to commit the contact to the log.
+
+* SENT [text]
+  The signal report you sent to the other station.
+  Enter your sent report here for the log record.
+  In FT8 this is filled automatically.
+
+* TEXT
+  The free-text command and message entry field at the bottom of the screen.
+  Type \ here to enter the CMD mode for backslash commands.
+  Use TAB to cycle focus through the LOG fields (CALL, SENT, RECV, EXCH, NR, TEXT).
+  In CW mode, text typed here is sent as Morse when you press Enter.
+
+* WIPE
+  Clears all data from the logger fields (CALL, SENT, RECV, EXCH, NR) at once.
+  Use between contacts to start fresh. Does not delete the saved logbook.
+
+#Keyboard Shortcuts
+
+These shortcuts work on an external USB keyboard connected to the sBitx.
+
+* \        CMD prefix key -- type this in the TEXT field before a command (e.g. \freq 7050)
+* Ctrl+T   Switch to transmit mode immediately.
+* Ctrl+R   Return to receive mode. In FT8, interrupts and cancels the current TX slot.
+* Ctrl+Q   Exit the sBitx application completely. Unsaved log data will be lost.
+* ESC      First press: immediately halts transmission and returns to receive.
+           Second press: clears all data from the LOG window fields.
+* F1-F10   Trigger macro buttons 1 through 10 if assigned.
+* KBD      Toggle the sBitx on-screen touchscreen keyboard on and off.
+* MENU     Cycles through Menu 1 -> Menu 2 -> no menu (close).
+* TAB      Moves focus between the logger entry fields (CALL, SENT, RECV, EXCH, NR, TEXT).
+           Use this to step quickly through the log fields during a fast QSO.
