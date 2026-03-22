@@ -4839,8 +4839,7 @@ static void layout_ui()
       field_move("ESC", SC(675), y_bottom, SC(75), row_h);
     }
 
-    // TUNE control is offscreen in this mode
-    field_move("TUNE", 1000, -1000, 40, 40);
+    // TUNE stays in the header bar at SC(459), SC(5) — placed by default above the switch
     break;
 
   case MODE_CW:
@@ -7758,7 +7757,10 @@ int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
   if (!cessb_field)
       return 0;
 
-
+  // Guard: only act and log when the state actually changes.
+  // do_cessb_edit is called multiple times per toggle (field handler,
+  // do_control_action label lookup, set_field recursion), so without
+  // this guard every toggle produces 3-4 duplicate console messages.
   if (!strcasecmp(cessb_field, "ON")) {
       if (!cessb_enabled) {
           cessb_enabled = 1;
