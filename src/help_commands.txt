@@ -312,7 +312,7 @@ is open. They cover the most frequently adjusted operating parameters.
     10K  -- rapid band traversal
 
 * TUNE [on|off]
-  Activates a continuous carrier for antenna tuner adjustment. The carrier is
+  Activates a continuous carrier for external antenna tuner adjustment. The carrier is
   transmitted at the TNPWR level for the TNDUR duration, then stops automatically.
   Always set TNPWR and TNDUR in Menu 1 before pressing TUNE.
   Do not transmit a tune carrier into a badly mismatched antenna for long periods.
@@ -320,9 +320,7 @@ is open. They cover the most frequently adjusted operating parameters.
 * VFO
   The VFO (Variable Frequency Oscillator) display shows your current operating
   frequency. You can select VFO-A or VFO-B.
-  Interact with the VFO display in two ways:
-    Left side  -- click to open the numeric keypad and type a frequency directly.
-    Right side -- scroll the mouse wheel to tune up/down in the current STEP size.
+  You can also scroll the mouse wheel to tune up/down in the current STEP size.
 
 #Menu 1 Controls
 
@@ -349,6 +347,15 @@ scroll the mouse wheel over it for fine adjustment.
   Beat Frequency Oscillator offset (same as the \bfo command, accessible from the menu).
   Nudge this to move a birdie or unwanted signal spike out of your passband.
   Start at 0 and increase or decrease until the interference disappears.
+
+* CESSB [on|off]
+  CESSB stands for Controlled Envelope Single Sideband, a modulation technique designed
+  to improve traditional SSB voice transmission in amateur radio. 
+  It works by reshaping the audio signal before modulation to control the peak envelope
+  level, significantly reducing the peak-to-average power ratio compared to standard SSB.
+  This allows radios to transmit at higher average power without clipping or causing
+  distortion, resulting in a clearer, stronger signal that can be heard farther away,
+  even with low power.
 
 * COMP [0-10]
   Speech compression increases average transmit power on SSB by reducing the
@@ -393,6 +400,8 @@ scroll the mouse wheel over it for fine adjustment.
     xOTA     -- Activator mode: NONE, IOTA, SOTA, or POTA.
                 Setting this displays the relevant PEAK/PARK/IS field in FT8.
     PIN      -- Web interface login password.
+    USB Out  -- Routes audio to external, USB audio output
+    USB Mic  -- Routes audio to external, USB audio input
   Always configure CALLSIGN and MYGRID before attempting FT8 or FT4 operation.
 
 * SPEC [NORM | FULL]

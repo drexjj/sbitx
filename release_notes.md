@@ -19,7 +19,10 @@
 	+ Also harmonized filter band edges.
 	+ removed old ssb_val 
 - Controlled Envelope Single Sideband (CESSB)
-	+ enable via '\cessb on' command
+	+ enable via the button in menu 1 or the '\cessb on' command
+- Added Tune function to FTx modes
+- Added option to use USB audio devices for sound routing (speaker/phones and mic input)
+    + The options are in the Set dialog box in Menu 1
 
 **Changes:**
 - GUI
@@ -36,6 +39,7 @@
 	+ Replaced viterbi with simpler classifier
 	+ Simplified code of own TX decode process
 	+ Set BW to `50` when using decoder is recommended
+- Added more controls to the Web interface
   
 **Fixes:**
 - APF init Bug

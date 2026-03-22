@@ -2615,17 +2615,17 @@ static int user_settings_handler(void *user, const char *section,
 }
 
 // Function to show the sBitx command reference help dialog.
-// Help text is loaded from ~/sbitx/data/help_commands.txt so it can be
+// Help text is loaded from ~/sbitx/src/help_commands.txt so it can be
 // edited at any time without recompiling. The file is plain text; one
 // command per line. Lines starting with '#' are treated as section
 // headers and rendered bold; all other lines are rendered normally.
 void show_help_dialog()
 {
-	// Build path to help file: ~/sbitx/data/help_commands.txt
+	// Build path to help file: ~/sbitx/src/help_commands.txt
 	char help_path[512];
 	const char *home = getenv("HOME");
 	if (!home) home = "/home/pi";
-	snprintf(help_path, sizeof(help_path), "%s/sbitx/data/help_commands.txt", home);
+	snprintf(help_path, sizeof(help_path), "%s/sbitx/src/help_commands.txt", home);
 
 	// Read the file into a GString, rendering '#' lines as bold headers
 	GString *markup = g_string_new(NULL);
