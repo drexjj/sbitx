@@ -4614,6 +4614,7 @@ void menu_display(int show) {
 				field_move("GAIN", SC(355), screen_height - SC(40), SC(45), SC(37));
 				field_move("WIDTH", SC(405), screen_height - SC(40), SC(45), SC(37));
 				field_move("BFO", SC(470), screen_height - SC(40), SC(45), SC(37));
+				field_move("CESSB", SC(535), screen_height - SC(40), SC(45), SC(37));
 				// VFOLK moved to menu2
 				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
 
@@ -4838,7 +4839,8 @@ static void layout_ui()
       field_move("ESC", SC(675), y_bottom, SC(75), row_h);
     }
 
-    // TUNE stays in the header bar at SC(459), SC(5) — placed by default above the switch
+    // TUNE control is offscreen in this mode
+    field_move("TUNE", 1000, -1000, 40, 40);
     break;
 
   case MODE_CW:
@@ -7753,23 +7755,24 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_cessb_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *cessb_field = field_str("CESSB");
- // report current status if ON or OFF not specified
-  if (!cessb_field) {
-      printf("CESSB is currently %s\n", cessb_enabled ? "ON" : "OFF");
+  if (!cessb_field)
       return 0;
-  }
+
+
   if (!strcasecmp(cessb_field, "ON")) {
-      cessb_enabled = 1;
-      cessb_set_enabled(&cessb_processor, 1);
-      printf("CESSB enabled\n");
-      write_console(STYLE_LOG, "CESSB enabled\n");
+      if (!cessb_enabled) {
+          cessb_enabled = 1;
+          cessb_set_enabled(&cessb_processor, 1);
+          printf("CESSB enabled\n");
+          write_console(STYLE_LOG, "CESSB enabled\n");
+      }
   } else if (!strcasecmp(cessb_field, "OFF")) {
-      cessb_enabled = 0;
-      cessb_set_enabled(&cessb_processor, 0);
-      printf("CESSB disabled\n");
-      write_console(STYLE_LOG, "CESSB disabled\n");
-  } else {
-      printf("do_cessb_edit: ignored unknown CESSB value '%s'\n", cessb_field);
+      if (cessb_enabled) {
+          cessb_enabled = 0;
+          cessb_set_enabled(&cessb_processor, 0);
+          printf("CESSB disabled\n");
+          write_console(STYLE_LOG, "CESSB disabled\n");
+      }
   }
   return 0;
 }
@@ -10388,22 +10391,12 @@ void do_control_action(char *cmd)
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
 		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
-			// CW/CWR: set tune_key so key_poll() returns CW_DOWN and the CW
-			// modem handles the T/R switch and carrier each poll tick.
-			tune_key = 1;
+			tune_key = 1;  // fake straight key down
 			delay(100);
-		} else if (mode_id(modestore) == MODE_FT8 || mode_id(modestore) == MODE_FT4) {
-			// FT8/FT4 tune:
-			modem_abort(false);
-			delay(50);
-			set_radio_mode("CW");
-			delay(50);
-			tune_key = 1;
 		} else {
-			// All other modes (USB/LSB/AM/DIGI/etc.): CALIBRATE tone carrier
-			sdr_request("r1:mode=TUNE", response);
-			delay(100);
-			tx_on(TX_SOFT);
+		sdr_request("r1:mode=TUNE", response);				
+		delay(100);
+		tx_on(TX_SOFT);	
 		}
 	}  // end tune on
 	 if (!strcmp(request, "TUNE OFF"))
@@ -10414,8 +10407,8 @@ void do_control_action(char *cmd)
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
-			tune_key = 0;
-			set_radio_mode(modestore);  // restores FT8/FT4/CW/etc in both sbitx.c and GTK
+			tune_key=0; // for CW/CWR
+			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 		}
 	}
@@ -10431,8 +10424,9 @@ void do_control_action(char *cmd)
 			//  Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			tune_key = 0;
-			set_radio_mode(modestore);  // restores FT8/FT4/CW/etc in both sbitx.c and GTK
+			tune_key=0;  // for CW/CWR
+			// if (modestore != NULL) // Check for null before accessing or modifying
+			field_set("MODE", modestore);
 
 			// if (powerstore != NULL) // Check for null before accessing or modifying
 			field_set("DRIVE", powerstore);
