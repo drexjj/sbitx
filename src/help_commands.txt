@@ -50,6 +50,9 @@ first; on an external keyboard type \ directly. Press Enter to execute.
   Follow the on-screen prompts to step through power levels and record readings.
   Run \cal on each band you wish to calibrate accurately.
 
+* \cessb on|off
+  Enables or disables controlled envelope single sideband mode
+
 * \cwdelay [50-1000]
   Sets the CW TX/RX switching delay in milliseconds -- the time the radio waits
   after your last keyed character before switching back to receive.
