@@ -4838,8 +4838,7 @@ static void layout_ui()
       field_move("ESC", SC(675), y_bottom, SC(75), row_h);
     }
 
-    // TUNE control is offscreen in this mode
-    field_move("TUNE", 1000, -1000, 40, 40);
+    // TUNE stays in the header bar at SC(459), SC(5) — placed by default above the switch
     break;
 
   case MODE_CW:
@@ -10389,12 +10388,22 @@ void do_control_action(char *cmd)
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
 		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
-			tune_key = 1;  // fake straight key down
+			// CW/CWR: set tune_key so key_poll() returns CW_DOWN and the CW
+			// modem handles the T/R switch and carrier each poll tick.
+			tune_key = 1;
 			delay(100);
+		} else if (mode_id(modestore) == MODE_FT8 || mode_id(modestore) == MODE_FT4) {
+			// FT8/FT4 tune:
+			modem_abort(false);
+			delay(50);
+			set_radio_mode("CW");
+			delay(50);
+			tune_key = 1;
 		} else {
-		sdr_request("r1:mode=TUNE", response);				
-		delay(100);
-		tx_on(TX_SOFT);	
+			// All other modes (USB/LSB/AM/DIGI/etc.): CALIBRATE tone carrier
+			sdr_request("r1:mode=TUNE", response);
+			delay(100);
+			tx_on(TX_SOFT);
 		}
 	}  // end tune on
 	 if (!strcmp(request, "TUNE OFF"))
@@ -10405,8 +10414,8 @@ void do_control_action(char *cmd)
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
-			tune_key=0; // for CW/CWR
-			field_set("MODE", modestore);
+			tune_key = 0;
+			set_radio_mode(modestore);  // restores FT8/FT4/CW/etc in both sbitx.c and GTK
 			field_set("DRIVE", powerstore);
 		}
 	}
@@ -10422,9 +10431,8 @@ void do_control_action(char *cmd)
 			//  Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
-			tune_key=0;  // for CW/CWR
-			// if (modestore != NULL) // Check for null before accessing or modifying
-			field_set("MODE", modestore);
+			tune_key = 0;
+			set_radio_mode(modestore);  // restores FT8/FT4/CW/etc in both sbitx.c and GTK
 
 			// if (powerstore != NULL) // Check for null before accessing or modifying
 			field_set("DRIVE", powerstore);
