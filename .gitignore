@@ -6,7 +6,6 @@ data/user_settings.ini
 data/sbitx.db
 data/display_settings.ini
 data/user_style.tpl
-web/*.mc
 sbitx
 sbitx-fast
 sbitx_wisdom.wis
