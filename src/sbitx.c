@@ -1477,19 +1477,21 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   // Only the second half of the IFFT is valid (first half is
   // overlap-and-save artifact).
   if (rx_list->output == 0) {
-    if (r->mode == MODE_AM) {
-      // envelope AM detection
-      static double am_env_dc = 0.0;
-      for (i = 0; i < MAX_BINS / 2; i++) {
-        double re = creal(r->fft_time[i + (MAX_BINS / 2)]);
-        double im = cimag(r->fft_time[i + (MAX_BINS / 2)]);
-        double env = hypot(re, im);
-        am_env_dc = 0.995 * am_env_dc + 0.005 * env;
-        double audio = env - am_env_dc;
-        output_speaker[i] = (int32_t)(audio * 10000000.0);
-        output_tx[i] = 0;
-      }
-    } else {
+    if (r->mode == MODE_AM)
+		{
+			static double am_dc_offset = 0.0;
+			for (i = 0; i < MAX_BINS / 2; i++)
+			{
+				double mag = cabs(r->fft_time[i + (MAX_BINS / 2)]);
+				
+				// Track the DC offset (carrier amplitude) using a simple low-pass filter
+				am_dc_offset = (am_dc_offset * 0.999) + (mag * 0.001);
+				
+				// Subtract the DC carrier to yield the AC audio waveform
+				output_speaker[i] = (int32_t)(mag - am_dc_offset);
+				output_tx[i] = 0;
+			}
+		} else {
       // SSB / CW / Digital: demodulated audio is in the imaginary part
       // USB/CW (upper bins kept):  audio = -imag
       // LSB/CWR (lower bins kept): audio = +imag
