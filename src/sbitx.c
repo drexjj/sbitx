@@ -2073,13 +2073,13 @@ void sound_process(int32_t *input_rx, int32_t *input_mic, int32_t *output_speake
 // Existing set_rx_filter function
 void set_rx_filter()
 {
-	// on AM filter at the IF level, instead of the baseband
+	// AM filter at baseband (since IQ mixing centers it at 0 Hz)
 	if (rx_list->mode == MODE_AM)
 	{
 		printf("Setting AM filter\n");
 		filter_tune(rx_list->filter,
-					(1.0 * (24000 - rx_list->high_hz)) / 96000.0,
-					(1.0 * (24000 + rx_list->high_hz)) / 96000.0,
+					(1.0 * -rx_list->high_hz) / 96000.0,
+					(1.0 * rx_list->high_hz) / 96000.0,
 					5);
 	}
 	else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
