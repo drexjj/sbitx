@@ -890,7 +890,7 @@ double agc2(struct rx *r) {
   int n_samples = MAX_BINS / 2;
 
   // AGC OFF: apply a moderate fixed gain
-  #define AGC_OFF_FIXED_GAIN 100.0
+  #define AGC_OFF_FIXED_GAIN 10.0
   if (r->agc_speed == -1) {
     for (i = 0; i < n_samples; i++) {
       __real__(r->fft_time[i + n_samples]) *= AGC_OFF_FIXED_GAIN;
