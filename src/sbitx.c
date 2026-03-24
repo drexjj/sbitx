@@ -1469,9 +1469,7 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   my_fftw_execute(r->plan_rev);
 
   // AGC (operates on the valid second half of the overlap-and-save output)
-  if (r->mode != MODE_AM) {
-    agc2(r);
-  }
+  agc2(r);
 
   // Demodulate and produce audio output.
   // Only the second half of the IFFT is valid (first half is
@@ -1488,7 +1486,7 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
 				am_dc_offset = (am_dc_offset * 0.999) + (mag * 0.001);
 				
 				// Subtract the DC carrier to yield the AC audio waveform
-				output_speaker[i] = (int32_t)(mag - am_dc_offset);
+				output_speaker[i] = (int32_t)((mag - am_dc_offset) * 10000000.0;
 				output_tx[i] = 0;
 			}
 		} else {
