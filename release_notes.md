@@ -1,5 +1,9 @@
 # v5.4
 **New Features:**
+-sBitx I and Q improvements
+-- enhanced VFO, complex mixing and down-converting
+-- improved processing of I and Q data in the sBitx receiving pipeline
+-- AGC function and AM detector changes to work in updated pipeline
 - Text console can scroll back to view and work with up to 500 lines of history, in all modes
 - Added support for Touch Display 2 and larger displays
 	+ Makes it easier to touch and see the buttons on a Touch Display 2 or external display
