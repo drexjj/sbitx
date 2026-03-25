@@ -4183,7 +4183,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			enhanced_y = 0;
 
 		// Add the spectrum line point to the path
-		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
+		// shift by half a bin width to align with waterfall:
+        cairo_line_to(gfx, f->x + f->width - (int)x + x_step / 2.0, f->y + grid_height - enhanced_y);
 
 		// Fill the waterfall with the original (unchanged) y value
 		for (int k = 0; k <= 1 + (int)x_step; k++)
