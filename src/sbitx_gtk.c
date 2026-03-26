@@ -657,7 +657,7 @@ static int tx_mod_max = 0;
 
 // must be in sync with enum _mode in sdr.h
 char *mode_name[MAX_MODES] = {
-	"USB", "LSB", "CW", "CWR", "NBFM", "AM", "FT8", "FT4", "PSK31", "RTTY",
+	"USB", "LSB", "CW", "CWR", "FM", "AM", "FT8", "FT4", "PSK31", "RTTY",
 	"DIGI", "2TONE"};
 
 static int serial_fd = -1;
@@ -811,7 +811,7 @@ struct field main_controls[] = {
 
 	// Band Stuff.
 	{"r1:mode", do_mode_dropdown, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
-	 "USB/LSB/AM/CW/CWR/FT8/FT4/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
+	 "USB/LSB/AM/FM/CW/CWR/FT8/FT4/DIGI/2TONE", 0, 0, 0, COMMON_CONTROL},
 	{"#band", do_band_dropdown, 45, 5, 40, 40, "80M", 40, "=---", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "80M/60M/40M/30M/20M/17M/15M/12M/10M", 0, 0, 0, COMMON_CONTROL},
 	{"#band_stack_pos", do_band_stack_position, 85, 5, 45, 40, "", 1, "USB\n14200", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -888,6 +888,13 @@ struct field main_controls[] = {
 
 	{"#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "RX/TX", 0, 0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
+
+	// FM squelch level (0 = open/disabled, 1–20 = gate threshold).
+	// Parked off-screen by default; field_move() brings it on-screen in FM only.
+	// The cmd "squelch" maps directly to sdr_request("squelch=N") via the
+	// generic label→cmd dispatch in do_control_action().
+	{"squelch", NULL, 1000, -1000, 50, 50, "SQL", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 20, 1, 0},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
@@ -2196,8 +2203,8 @@ static int mode_id(const char *mode_str)
 		return MODE_PSK31;
 	else if (!strcmp(mode_str, "RTTY"))
 		return MODE_RTTY;
-	else if (!strcmp(mode_str, "NBFM"))
-		return MODE_NBFM;
+	else if (!strcmp(mode_str, "FM"))
+		return MODE_FM;
 	else if (!strcmp(mode_str, "AM"))
 		return MODE_AM;
 	else if (!strcmp(mode_str, "2TONE"))
@@ -2389,7 +2396,8 @@ void sound_start_with_usb(void)
 				get_field_value("r1:mode", mode_buf);
 				int voice = (!strcmp(mode_buf, "LSB")
 				          || !strcmp(mode_buf, "USB")
-				          || !strcmp(mode_buf, "AM"));
+				          || !strcmp(mode_buf, "AM")
+				          || !strcmp(mode_buf, "FM"));
 				sound_usb_enable_capture(usb_audio_play_device, voice);
 			}
 
@@ -3008,7 +3016,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	cairo_stroke(gfx);
 		
 	struct field *mode_f = get_field("r1:mode");   //  VU meter
-	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
+	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 		{
 		const char *vu_text = "APM";
 		cairo_set_font_size(gfx, STYLE_SMALL);	
@@ -3291,9 +3299,9 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			return;
 		}
 
-		// Otherwise, only draw TX meters in waterfall area for modes other than USB/LSB/AM
+		// Otherwise, only draw TX meters in waterfall area for modes other than USB/LSB/AM/FM
 		struct field *mode_f = get_field("r1:mode");
-		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0 && strcmp(mode_f->value, "FM") != 0)
 		{
 			draw_tx_meters(f, gfx);
 			return;
@@ -3485,9 +3493,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			return;
 		}
 
-		// Otherwise, only draw modulation for modes other than USB/LSB/AM
+		// Otherwise, only draw modulation for modes other than USB/LSB/AM/FM
 		struct field *mode_f = get_field("r1:mode");
-		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0)
+		if (strcmp(mode_f->value, "USB") != 0 && strcmp(mode_f->value, "LSB") != 0 && strcmp(mode_f->value, "AM") != 0 && strcmp(mode_f->value, "FM") != 0)
 		{
 			draw_modulation(f_spectrum, gfx);
 			return;
@@ -3571,10 +3579,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// Display TX meters in the top left corner of the spectrum grid during transmission
 	if (in_tx) {
 		struct field *mode_f = get_field("r1:mode");
-		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
+		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 		{
 		// Create a semi-transparent black background for the TX meters
-		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.1);
 		cairo_rectangle(gfx, f->x + 1, f->y + 1, 210, 30);
 		cairo_fill(gfx);
 
@@ -3999,7 +4006,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	//--- S-Meter test W2JON
 	// Only show S-meter if we're not transmitting in LSB, USB, or AM modes
-	if ( is_s_meter_on && !(in_tx && (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))))
+	if ( is_s_meter_on && !(in_tx && (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))))
 	{
 		int s_meter_value = 0;
 		struct rx *current_rx = rx_list;
@@ -4989,7 +4996,6 @@ static void layout_ui()
   case MODE_USB:
   case MODE_LSB:
   case MODE_AM:
-  case MODE_NBFM:
   case MODE_2TONE:
   {
     // single bottom row
@@ -5024,6 +5030,47 @@ static void layout_ui()
 
     field_move("PAD", SC(135), SC(5), SC(40), SC(40));
     field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+  }
+  break;
+
+  case MODE_FM:
+  {
+    // FM bottom row — same as voice modes but with SQL squelch knob
+    // inserted between RX and SPECT.
+    const int row_h   = SC(37);
+    const int y_top   = y2 - SC(40);
+    const int y_bottom= y2 - SC(40);
+
+    if (!strcmp(field_str("SPECT"), "FULL")) {
+      field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
+    } else {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < SC(40)) console_w = SC(40);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - SC(55));
+
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
+    }
+
+    // One-row control bar: MIC LOW HIGH TX RX [SQL] SPECT
+    // SQL sits between RX and SPECT — turn the knob to set squelch threshold.
+    // Setting SQL to 0 disables the squelch (gate always open).
+    field_move("MIC",  SC(5),   y_bottom, SC(45), row_h);
+    field_move("LOW",  SC(60),  y_bottom, SC(95), row_h);
+    field_move("HIGH", SC(160), y_bottom, SC(95), row_h);
+    field_move("TX",   SC(260), y_bottom, SC(95), row_h);
+    field_move("RX",   SC(360), y_bottom, SC(95), row_h);
+    field_move("SQL",  SC(460), y_bottom, SC(95), row_h);
+    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
+
+    field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
+    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5710,7 +5757,7 @@ void save_bandwidth(int hz)
 		break;
 	case MODE_USB:
 	case MODE_LSB:
-	case MODE_NBFM:
+	case MODE_FM:
 		field_set("BW_VOICE", bw);
 		break;
 	case MODE_AM:
@@ -5749,6 +5796,7 @@ void set_filter_high_low(int hz)
 		high = hz;
 		break;
 	case MODE_AM:
+	case MODE_FM:
 		//	low = 50;
 		low = hz;
 		high = hz;
@@ -7937,8 +7985,8 @@ void tx_on(int trigger)
 			tx_mode = MODE_USB;
 		else if (!strcmp(f->value, "LSB"))
 			tx_mode = MODE_LSB;
-		else if (!strcmp(f->value, "NBFM"))
-			tx_mode = MODE_NBFM;
+		else if (!strcmp(f->value, "FM"))
+			tx_mode = MODE_FM;
 		else if (!strcmp(f->value, "AM"))
 			tx_mode = MODE_AM;
 		else if (!strcmp(f->value, "2TONE"))
@@ -9199,7 +9247,7 @@ int get_passband_bw()
 		break;
 	case MODE_USB:
 	case MODE_LSB:
-	case MODE_NBFM:
+	case MODE_FM:
 		return field_int("BW_VOICE");
 		break;
 	case MODE_AM:
@@ -9220,7 +9268,7 @@ int get_default_passband_bw()
 		break;
 	case MODE_USB:
 	case MODE_LSB:
-	case MODE_NBFM:
+	case MODE_FM:
 		return 2400;
 		break;
 	case MODE_AM:
@@ -9729,7 +9777,7 @@ gboolean ui_tick(gpointer gook)
 
 	f = get_field("r1:mode");
 	// straight key in CW
-	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") || !strcmp(f->value, "AM") || !strcmp(f->value, "USB")))
+	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") || !strcmp(f->value, "AM") || !strcmp(f->value, "USB") || !strcmp(f->value, "FM")))
 	{
 		if (digitalRead(PTT) == LOW && in_tx == 0)
 			tx_on(TX_PTT);
@@ -10001,7 +10049,7 @@ int get_tx_data_byte(char *c)
 	case MODE_LSB:
 	case MODE_USB:
 	case MODE_AM:
-	case MODE_NBFM:
+	case MODE_FM:
 		return 0;
 		break;
 	}

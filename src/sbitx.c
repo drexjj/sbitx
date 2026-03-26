@@ -25,6 +25,7 @@
 #include "swr_monitor.h"
 #include "cessb.h"
 #include "hpsdr_p1.h"  // demonstrates using I and Q for other uses
+#include "squelch.h"   // FM squelch gate
 
 #define DEBUG 0
 
@@ -1422,6 +1423,7 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
     }
     break;
   case MODE_AM:
+  case MODE_FM:   // FM spectrum is symmetric — keep both halves intact
     break;
   default:
     for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
@@ -1471,6 +1473,12 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   // AGC (operates on the valid second half of the overlap-and-save output)
   agc2(r);
 
+  // Update the FM squelch gate with the AGC's signal strength estimate.
+  // squelch_update() is cheap (no-op when squelch is off or mode is not FM)
+  // and must be called every block so the hang timer counts correctly.
+  if (r->mode == MODE_FM)
+    squelch_update(r->signal_avg);
+
   // Demodulate and produce audio output.
   // Only the second half of the IFFT is valid (first half is
   // overlap-and-save artifact).
@@ -1487,6 +1495,41 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
 				output_speaker[i] = (int32_t)((mag - am_dc_offset) * 10000000.0);
 				output_tx[i] = 0;
 			}
+    } else if (r->mode == MODE_FM) {
+      // --- FM phase-difference discriminator ---
+      // disc[n] = Im( conj(z[n-1]) * z[n] )
+      //         = |z[n-1]||z[n]| * sin(Δφ)  ≈  |z|² * Δφ   for small Δφ
+      // With AGC keeping |z| roughly constant this is gain-independent.
+      //
+      // 75 µs de-emphasis IIR: α = exp(-1 / (Fs * τ))
+      //   Fs = 96000, τ = 75e-6  →  α ≈ 0.8702
+      // Cuts high-frequency hiss added by the transmitter's pre-emphasis.
+      //
+      // Output scaling:
+      //   At 2.5 kHz deviation and Fs=96000 → Δφ_max = 2π·2500/96000 ≈ 0.164 rad
+      //   AGC target keeps |z|≈30 (see AGC_TARGET_OUTPUT / 1000)
+      //   disc_max ≈ 30² · sin(0.164) ≈ 900 · 0.163 ≈ 147
+      //   Scale factor 2e6 → 147 · 2e6 ≈ 294e6, matching the SSB ~300M range.
+      static fftw_complex fm_rx_prev  = 0.0;
+      static double       fm_deemph   = 0.0;
+      const  double       DEEMPH_ALPHA  = 0.8702;
+      const  double       FM_RX_SCALE = 2000000.0;
+      // squelch_is_open() returns 1 when squelch is off or signal is above threshold
+      int sq_open = squelch_is_open();
+      for (i = 0; i < MAX_BINS / 2; i++) {
+        fftw_complex cur = r->fft_time[i + (MAX_BINS / 2)];
+        // Phase-difference discriminator — always run to keep prev/deemph state current
+        double disc = cimag(conj(fm_rx_prev) * cur);
+        fm_rx_prev = cur;
+        // 75 µs de-emphasis low-pass
+        fm_deemph = DEEMPH_ALPHA * fm_deemph +
+                      (1.0 - DEEMPH_ALPHA) * disc;
+        // Gate the speaker: output 0 when squelch is closed
+        output_speaker[i] = sq_open
+                             ? (int32_t)(fm_deemph * FM_RX_SCALE)
+                             : 0;
+        output_tx[i] = 0;
+      }
 		} else {
       // SSB / CW / Digital: demodulated audio is in the imaginary part
       // USB/CW (upper bins kept):  audio = -imag
@@ -1701,7 +1744,7 @@ void tx_process(
     }
   }
 
-	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM))
+	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_FM))
 	{
 		memset(input_mic, 0, n_samples * sizeof(int32_t));
 		if (use_browser_mic) {
@@ -1742,6 +1785,71 @@ void tx_process(
 			i_carrier = (1.0 * vfo_read(&am_carrier)) / 50000000000.0;
 			i_sample = (1.0 + modulation) * i_carrier;
 		}
+		else if (r->mode == MODE_FM)
+		{
+			// --- FM FM modulator ---
+			// Reads microphone, applies 75 µs pre-emphasis, integrates
+			// instantaneous frequency to phase, then outputs a complex
+			// exponential so that both I and Q carry the FM signal.
+			// The TX pipeline uses only creal(fft_time[…]) for the final
+			// RF output, but the complex form drives the FFT/filter chain
+			// correctly so the spectrum stays symmetric around the carrier.
+			//
+			// 75 µs pre-emphasis: y[n] = x[n] - α·x[n-1]
+			//   α = exp(-1/(Fs·τ)) = exp(-1/(96000·75e-6)) ≈ 0.8702
+			//   This mirrors the RX de-emphasis so the net response is flat.
+			//
+			// Max deviation 2.5 kHz at Fs=96000:
+			//   Δφ_max = 2π · 2500 / 96000 ≈ 0.164 rad per sample
+			static double fm_tx_phase        = 0.0;
+			static double fm_tx_prev_mic      = 0.0;
+			const  double FM_PRE_ALPHA        = 0.8702;
+			const  double FM_DEV_SCALE        = 2.0 * M_PI * 2500.0 / 96000.0;
+
+			// Amplitude calibration:
+			// AM puts a real 24 kHz cosine of amplitude A_c into the FFT → energy
+			// splits to bin 512 and bin 1536 (N/2 * A_c each); the TX filter passes
+			// only bin 512, so IFFT amplitude ≈ N/2 * A_c = 1024 * 0.02147 ≈ 21.98.
+			// FM puts a complex DC signal of amplitude 1.0 → all N energy at bin 0,
+			// shifted to bin 512 → IFFT amplitude ≈ N * 1.0 = 2048 (≈ 93× too loud).
+			// Scale factor: AM_carrier_amp / 2 = (1073741824 / 50e9) / 2 ≈ 0.01074.
+			const double FM_AMP = 1073741824.0 / 100000000000.0;
+
+			double mic_val;
+			if (use_browser_mic)
+				mic_val = (1.0 * browser_mic_samples[j]) / 2000000000.0;
+			else
+				mic_val = (1.0 * input_mic[j]) / 2000000000.0;
+
+			// 75 µs pre-emphasis: exact inverse of the RX de-emphasis IIR.
+			// RX de-emphasis:  H_de(z) = (1-α) / (1 - α·z⁻¹)
+			// TX pre-emphasis: H_pre(z) = (1 - α·z⁻¹) / (1-α)
+			// This gives unity gain at DC and progressive boost above the
+			// corner frequency (f_c = 1/(2π·75µs) ≈ 2122 Hz), for flat
+			// end-to-end voice response through the TX/RX chain.
+			double pe = (mic_val - FM_PRE_ALPHA * fm_tx_prev_mic)
+			            / (1.0 - FM_PRE_ALPHA);
+			fm_tx_prev_mic = mic_val;
+
+			// Clip pre-emphasised signal to prevent deviation runaway.
+			// The pre-emphasis boosts highs up to ~14× near Nyquist, so
+			// hard-limiting is needed to keep deviation ≤ 2.5 kHz.
+			if (pe >  1.0) pe =  1.0;
+			if (pe < -1.0) pe = -1.0;
+
+			// FM: integrate instantaneous frequency into instantaneous phase
+			fm_tx_phase += pe * FM_DEV_SCALE;
+			// Wrap to [-π, π] to prevent floating-point accumulation drift
+			if (fm_tx_phase >  M_PI) fm_tx_phase -= 2.0 * M_PI;
+			if (fm_tx_phase < -M_PI) fm_tx_phase += 2.0 * M_PI;
+
+			// Complex analytic FM signal e^(jφ), scaled to AM carrier level.
+			// q_sample is NOT zeroed below — it is essential for the complex
+			// FFT input so that the baseband FM spectrum stays single-sided
+			// before the tx_shift rotation moves it to the 24 kHz IF.
+			i_sample = cos(fm_tx_phase) * FM_AMP;
+			q_sample = sin(fm_tx_phase) * FM_AMP;
+		}
 		else
 		{
 			if (use_browser_mic) {
@@ -1765,7 +1873,7 @@ void tx_process(
 		}
 
 		// Don't echo the voice modes
-		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_NBFM)
+		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_FM)
 		{
 			// Unless of course you want to use the txmon control
 			if (txmon_control_level >= 1 && txmon_control_level <= 10)
@@ -1776,7 +1884,10 @@ void tx_process(
 			{
 				output_speaker[j] = 0;
 			}
-			q_sample = 0;
+			// FM: q_sample already set by the FM modulator above — do not
+			// overwrite it with 0 or the complex analytic signal is destroyed.
+			if (r->mode != MODE_FM)
+				q_sample = 0;
 		}
 		else
 		{
@@ -1828,8 +1939,8 @@ void tx_process(
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	else if (r->mode != MODE_AM)
-		// zero out the USB
+	else if (r->mode != MODE_AM && r->mode != MODE_FM)
+		// zero out the USB (not for AM or FM which use both halves)
 		for (i = MAX_BINS / 2; i < MAX_BINS; i++)
 		{
 			__real__ fft_out[i] = 0;
@@ -2083,6 +2194,17 @@ void set_rx_filter()
 		filter_tune(rx_list->filter,
 					(1.0 * -rx_list->high_hz) / 96000.0,
 					(1.0 * rx_list->high_hz) / 96000.0,
+					5);
+	}
+	else if (rx_list->mode == MODE_FM)
+	{
+		// FM: symmetric BPF centred at baseband DC (like AM).
+		// high_hz is the user-selected bandwidth half-width (typically 2500 Hz
+		// for 5 kHz channel, matching ±2.5 kHz max deviation).
+		printf("Setting FM filter\n");
+		filter_tune(rx_list->filter,
+					(1.0 * -rx_list->high_hz) / 96000.0,
+					(1.0 *  rx_list->high_hz) / 96000.0,
 					5);
 	}
 	else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
@@ -2403,7 +2525,8 @@ void tr_switch(int tx_on) {
         sound_usb_set_volume(usb_audio_play_device, rx_vol);
         if (rx_list->mode == MODE_LSB
             || rx_list->mode == MODE_USB
-            || rx_list->mode == MODE_AM)
+            || rx_list->mode == MODE_AM
+            || rx_list->mode == MODE_FM)
             sound_usb_set_capture(usb_audio_play_device, tx_gain);
     }
     else
@@ -2466,6 +2589,7 @@ void setup()
 
 	modem_init();
   cessb_init(&cessb_processor, 96000.0f);  // initialize CESSB processor
+  init_squelch();                           // initialize FM squelch gate
 
 	add_rx(7000000, MODE_LSB, -3000, -200);  // RLB made all edges 200
 	add_tx(7000000, MODE_LSB, -3000, -200);
@@ -2547,6 +2671,8 @@ void sdr_request(char *request, char *response)
 			rx_list->mode = MODE_FT4;
 		else if (!strcmp(value, "AM"))
 			rx_list->mode = MODE_AM;
+		else if (!strcmp(value, "FM"))
+			rx_list->mode = MODE_FM;
 		else if (!strcmp(value, "DIGI"))
 			rx_list->mode = MODE_DIGITAL;
 		else
@@ -2575,6 +2701,21 @@ void sdr_request(char *request, char *response)
 			filter_tune(tx_filter,
 						(1.0 * 19000) / 96000.0,
 						(1.0 * 29000) / 96000.0,
+						5);
+		}
+
+		else if (rx_list->mode == MODE_FM)
+		{
+			// FM TX: symmetric BPF around DC (baseband FM signal).
+			// ±3000 Hz passes the full ±2.5 kHz deviation plus guard band.
+			// The tx_shift rotation later moves it to the 24 kHz IF centre.
+			filter_tune(tx_list->filter,
+						(1.0 * -3000) / 96000.0,
+						(1.0 *  3000) / 96000.0,
+						5);
+			filter_tune(tx_filter,
+						(1.0 * -3000) / 96000.0,
+						(1.0 *  3000) / 96000.0,
 						5);
 		}
 
@@ -2618,7 +2759,8 @@ void sdr_request(char *request, char *response)
 		{
 			int voice_mode = (rx_list->mode == MODE_LSB
 			               || rx_list->mode == MODE_USB
-			               || rx_list->mode == MODE_AM);
+			               || rx_list->mode == MODE_AM
+			               || rx_list->mode == MODE_FM);
 			sound_usb_enable_capture(usb_audio_play_device, voice_mode);
 		}
 
@@ -2663,12 +2805,13 @@ void sdr_request(char *request, char *response)
 		if (in_tx)
 			set_tx_power_levels();
 		/* USB mic is only active in voice modes (LSB, USB, AM).
-		   All other modes — CW, CWR, FT8, FT4, DIGI, RTTY, 2TONE, NBFM —
+		   All other modes — CW, CWR, FT8, FT4, DIGI, RTTY, 2TONE, FM —
 		   either use the loopback, keyer, or no mic at all. */
 		if (usb_audio_play_device[0]
 		    && (rx_list->mode == MODE_LSB
 		        || rx_list->mode == MODE_USB
-		        || rx_list->mode == MODE_AM))
+		        || rx_list->mode == MODE_AM
+		        || rx_list->mode == MODE_FM))
 			sound_usb_set_capture(usb_audio_play_device, tx_gain);
 	}
 	else if (!strcmp(cmd, "tx_power"))
@@ -2733,6 +2876,18 @@ void sdr_request(char *request, char *response)
 		float t_sidetone = atof(value);
 		if (0 <= t_sidetone && t_sidetone <= 100)
 			sidetone = atof(value) * 20000000;
+	}
+	else if (!strcmp(cmd, "squelch"))
+	{
+		// squelch=N  : set squelch level 0–20 (0 = always open / disabled)
+		// The squelch gate is only applied in FM mode (squelch_update() is
+		// only called in the FM demodulator branch of rx_linear()).
+		int level = atoi(value);
+		squelch_set_level(level);
+		// Enable the feature for any level > 0; disable at level 0 so the
+		// gate is always open and there is zero CPU overhead.
+		squelch_on = (level > 0) ? 1 : 0;
+		strcpy(response, "ok");
 	}
 	else if (!strcmp(cmd, "mod"))
 	{

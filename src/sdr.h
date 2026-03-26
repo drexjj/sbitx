@@ -152,7 +152,7 @@ enum _mode {
 	MODE_LSB,
 	MODE_CW,
 	MODE_CWR,
-	MODE_NBFM,
+	MODE_FM,
 	MODE_AM,
 	MODE_FT8,
 	MODE_FT4,
