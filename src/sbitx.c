@@ -2056,13 +2056,16 @@ void sound_process(int32_t *input_rx, int32_t *input_mic, int32_t *output_speake
 
         // pass filtered I and Q data to receive pipeline
         rx_linear(filt_i, filt_q, output_speaker, output_tx, n_samples);
+        
+        // no pass filtered I and Q data to receive pipeline
+        //rx_linear(iq_i, iq_q, output_speaker, output_tx, n_samples);
 
     // EXTERNAL USERS OF I&Q DATA GET IT HERE
     // THEY SHOULD CREATE THEIR OWN COPY OF THE DATA
     // AND NEVER CHANGE THE ORIGINAL SIGNAL
     // this is an example showing data being passed to an
     // experimental HPSDR Protocol 1 interface
-    hpsdr_send_iq(filt_i, filt_q, MAX_BINS / 2);
+    hpsdr_send_iq(filt_q, filt_i, MAX_BINS / 2);
   }
 
 	if (pf_record) {
