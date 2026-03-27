@@ -27,6 +27,107 @@
 #include "hpsdr_p1.h"  // demonstrates using I and Q for other uses
 #include "squelch.h"   // FM squelch gate
 
+// ---------------------------------------------------------------------------
+// CTCSS (sub-audible tone) for FM mode
+// ---------------------------------------------------------------------------
+// Standard 38-tone EIA/TIA-603 CTCSS table.  Index 0 = OFF; 1–38 = tone.
+static const double ctcss_tones[39] = {
+    0.0,    // 0 = off
+   67.0,  71.9,  74.4,  77.0,  79.7,  82.5,  85.4,  88.5,  91.5,  94.8,
+   97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
+  136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2,
+  192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3
+};
+
+// Current CTCSS settings (0 = off)
+static int    ctcss_tx_index  = 0;   // tone index for TX encoding
+static int    ctcss_rx_index  = 0;   // tone index for RX tone-squelch
+
+// TX tone generator phase accumulator
+static double ctcss_tx_phase  = 0.0;
+
+// RX notch filter state (2nd-order IIR notch at ctcss_rx frequency)
+// Coefficients are recomputed whenever ctcss_rx_index changes.
+static double ctcss_notch_b0 = 1.0, ctcss_notch_b1 = 0.0, ctcss_notch_b2 = 1.0;
+static double ctcss_notch_a1 = 0.0, ctcss_notch_a2 = 0.0;
+static double ctcss_notch_x1 = 0.0, ctcss_notch_x2 = 0.0;
+static double ctcss_notch_y1 = 0.0, ctcss_notch_y2 = 0.0;
+
+// Goertzel tone-detector state for RX CTCSS squelch
+// Runs over CTCSS_GOERTZEL_N samples at 96 kHz.
+//
+// N=24000 → 250 ms window, frequency resolution = Fs/N = 4 Hz.
+// Minimum adjacent-tone spacing in the EIA table is 8.5 Hz (241.8→250.3),
+// so the main-lobe half-width of 4 Hz cleanly separates all 38 tones.
+// The old N=2048 (47 Hz half-width) made adjacent tones indistinguishable.
+#define CTCSS_GOERTZEL_N      24000   // 250 ms at 96 kHz
+// Number of consecutive missed blocks before the gate closes.
+// 2 blocks × 250 ms = 500 ms of audio tail after the tone disappears.
+// This prevents chattering when the tone briefly dips during voice peaks.
+#define CTCSS_HANG_BLOCKS     2
+static double ctcss_goertzel_s0 = 0.0, ctcss_goertzel_s1 = 0.0;
+static int    ctcss_goertzel_n  = 0;
+static double ctcss_goertzel_coeff = 0.0;   // 2*cos(2π*f/Fs), recomputed on index change
+static int    ctcss_tone_detected = 0;       // 1 if gate should be open (includes hang)
+static int    ctcss_hang_ctr      = 0;       // counts down after tone disappears
+static double ctcss_detect_threshold = 0.0; // set in ctcss_update_notch()
+
+// CTCSS deviation: 200 Hz sub-audible deviation (≈8% of 2.5 kHz max dev)
+// This matches the FM_DEV_SCALE unit: radians per sample at 96 kHz
+#define CTCSS_DEV_SCALE   (2.0 * M_PI * 200.0 / 96000.0)
+
+// Recompute the RX notch IIR coefficients for the current ctcss_rx_index.
+// Uses a 2nd-order IIR notch: notch bandwidth ≈ 30 Hz (Q ≈ 5).
+static void ctcss_update_notch(void)
+{
+    if (ctcss_rx_index <= 0) return;
+    double fn = ctcss_tones[ctcss_rx_index];
+    double w0 = 2.0 * M_PI * fn / 96000.0;
+    double Q  = 5.0;
+    double r  = 1.0 - M_PI * fn / (Q * 96000.0); // single-pole approx
+    ctcss_notch_b0 =  1.0;
+    ctcss_notch_b1 = -2.0 * cos(w0);
+    ctcss_notch_b2 =  1.0;
+    ctcss_notch_a1 = -2.0 * r * cos(w0);
+    ctcss_notch_a2 =  r * r;
+    // Reset state
+    ctcss_notch_x1 = ctcss_notch_x2 = 0.0;
+    ctcss_notch_y1 = ctcss_notch_y2 = 0.0;
+    // Goertzel coefficient for tone detection
+    ctcss_goertzel_coeff = 2.0 * cos(w0);
+    ctcss_goertzel_s0 = ctcss_goertzel_s1 = 0.0;
+    ctcss_goertzel_n  = 0;
+    ctcss_tone_detected = 0;
+    ctcss_hang_ctr      = 0;
+    // Detection threshold calibration:
+    // The Goertzel power for a pure CTCSS sinusoid of amplitude A over N samples
+    // is approximately (N/2 * A)².  With the phase-difference discriminator,
+    // A ≈ |z|² * sin(2π*f/Fs).  AGC keeps |z| ≈ 30 (AGC_TARGET_OUTPUT/1000),
+    // so for a 200 Hz tone: A ≈ 900 * sin(2π*200/96000) ≈ 900 * 0.01309 ≈ 11.78.
+    // Expected peak power: (24000/2 * 11.78)² ≈ (141360)² ≈ 2e10.
+    // Threshold at 10% of peak catches real tones while rejecting noise and
+    // adjacent-tone leakage (which falls to <0.5% of peak at N=24000 for
+    // the closest pair 241.8/250.3 Hz, 8.5 Hz apart).
+    ctcss_detect_threshold = 2e9;
+}
+
+void ctcss_set_tx(int index)
+{
+    if (index < 0 || index > 38) index = 0;
+    ctcss_tx_index = index;
+    ctcss_tx_phase = 0.0;
+}
+
+void ctcss_set_rx(int index)
+{
+    if (index < 0 || index > 38) index = 0;
+    ctcss_rx_index = index;
+    ctcss_update_notch();
+}
+
+int ctcss_get_tx(void) { return ctcss_tx_index; }
+int ctcss_get_rx(void) { return ctcss_rx_index; }
+
 #define DEBUG 0
 
 int bandtweak = 4;		// Band power array index the \bs command will target -n1qm
@@ -1518,15 +1619,66 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
       int sq_open = squelch_is_open();
       for (i = 0; i < MAX_BINS / 2; i++) {
         fftw_complex cur = r->fft_time[i + (MAX_BINS / 2)];
-        // Phase-difference discriminator — always run to keep prev/deemph state current
+        // Phase-difference discriminator — always run to keep state current
         double disc = cimag(conj(fm_rx_prev) * cur);
         fm_rx_prev = cur;
         // 75 µs de-emphasis low-pass
         fm_deemph = DEEMPH_ALPHA * fm_deemph +
                       (1.0 - DEEMPH_ALPHA) * disc;
-        // Gate the speaker: output 0 when squelch is closed
-        output_speaker[i] = sq_open
-                             ? (int32_t)(fm_deemph * FM_RX_SCALE)
+
+        double audio = fm_deemph;
+
+        // CTCSS RX notch: strip sub-audible tone from speaker audio.
+        // Applied whenever ctcss_rx_index > 0, even on open squelch,
+        // so the tone is never audible in the speaker.
+        if (ctcss_rx_index > 0) {
+          double xn = audio;
+          double yn = ctcss_notch_b0 * xn
+                    + ctcss_notch_b1 * ctcss_notch_x1
+                    + ctcss_notch_b2 * ctcss_notch_x2
+                    - ctcss_notch_a1 * ctcss_notch_y1
+                    - ctcss_notch_a2 * ctcss_notch_y2;
+          ctcss_notch_x2 = ctcss_notch_x1; ctcss_notch_x1 = xn;
+          ctcss_notch_y2 = ctcss_notch_y1; ctcss_notch_y1 = yn;
+          audio = yn;
+
+          // Goertzel tone detector: accumulate on pre-notch discriminator
+          // output so the notch doesn't affect detection.
+          double s = ctcss_goertzel_coeff * ctcss_goertzel_s0
+                   - ctcss_goertzel_s1 + disc;
+          ctcss_goertzel_s1 = ctcss_goertzel_s0;
+          ctcss_goertzel_s0 = s;
+          ctcss_goertzel_n++;
+          if (ctcss_goertzel_n >= CTCSS_GOERTZEL_N) {
+            double power = ctcss_goertzel_s0 * ctcss_goertzel_s0
+                         + ctcss_goertzel_s1 * ctcss_goertzel_s1
+                         - ctcss_goertzel_coeff
+                           * ctcss_goertzel_s0 * ctcss_goertzel_s1;
+            if (power > ctcss_detect_threshold) {
+              // Tone present — reload the hang timer and open the gate.
+              ctcss_hang_ctr      = CTCSS_HANG_BLOCKS;
+              ctcss_tone_detected = 1;
+            } else {
+              // Tone absent — count down the hang timer.
+              // Gate stays open until the hang expires, preventing
+              // chatter during brief tone dips under voice peaks.
+              if (ctcss_hang_ctr > 0)
+                ctcss_hang_ctr--;
+              else
+                ctcss_tone_detected = 0;
+            }
+            ctcss_goertzel_s0 = ctcss_goertzel_s1 = 0.0;
+            ctcss_goertzel_n  = 0;
+          }
+        }
+
+        // Gate the speaker:
+        //  - RF squelch closed  → silence
+        //  - CTCSS tone squelch active and tone absent → silence
+        //  - Otherwise → pass de-emphasised, notch-filtered audio
+        int tone_sq_open = (ctcss_rx_index == 0) || ctcss_tone_detected;
+        output_speaker[i] = (sq_open && tone_sq_open)
+                             ? (int32_t)(audio * FM_RX_SCALE)
                              : 0;
         output_tx[i] = 0;
       }
@@ -1836,6 +1988,23 @@ void tx_process(
 			// hard-limiting is needed to keep deviation ≤ 2.5 kHz.
 			if (pe >  1.0) pe =  1.0;
 			if (pe < -1.0) pe = -1.0;
+
+			// Add CTCSS sub-audible tone into the FM deviation.
+			// The tone is mixed BEFORE the phase integrator so it adds
+			// directly to instantaneous frequency (proper FM encoding).
+			// Tone deviation is ±200 Hz (CTCSS_DEV_SCALE), which is about
+			// 8% of the 2.5 kHz max voice deviation — standard practice.
+			// The tone amplitude is normalised relative to FM_DEV_SCALE so
+			// the combined deviation never exceeds ±2.7 kHz at full voice.
+			if (ctcss_tx_index > 0) {
+				double tone_freq = ctcss_tones[ctcss_tx_index];
+				ctcss_tx_phase += 2.0 * M_PI * tone_freq / 96000.0;
+				if (ctcss_tx_phase >  M_PI) ctcss_tx_phase -= 2.0 * M_PI;
+				if (ctcss_tx_phase < -M_PI) ctcss_tx_phase += 2.0 * M_PI;
+				// Scale: CTCSS_DEV_SCALE / FM_DEV_SCALE normalises the
+				// sine amplitude so the integrator step matches ±200 Hz dev.
+				pe += sin(ctcss_tx_phase) * (CTCSS_DEV_SCALE / FM_DEV_SCALE);
+			}
 
 			// FM: integrate instantaneous frequency into instantaneous phase
 			fm_tx_phase += pe * FM_DEV_SCALE;
@@ -2593,6 +2762,8 @@ void setup()
 	modem_init();
   cessb_init(&cessb_processor, 96000.0f);  // initialize CESSB processor
   init_squelch();                           // initialize FM squelch gate
+  ctcss_set_tx(0);                          // CTCSS TX off
+  ctcss_set_rx(0);                          // CTCSS RX tone-squelch off
 
 	add_rx(7000000, MODE_LSB, -3000, -200);  // RLB made all edges 200
 	add_tx(7000000, MODE_LSB, -3000, -200);
@@ -2890,6 +3061,34 @@ void sdr_request(char *request, char *response)
 		// Enable the feature for any level > 0; disable at level 0 so the
 		// gate is always open and there is zero CPU overhead.
 		squelch_on = (level > 0) ? 1 : 0;
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "ctcss_tx"))
+	{
+		// ctcss_tx=OFF   → disable TX tone
+		// ctcss_tx=67.0  → find matching entry in tone table and encode that tone
+		int idx = 0;
+		if (strcasecmp(value, "OFF") != 0) {
+			double freq = atof(value);
+			for (int ti = 1; ti <= 38; ti++) {
+				if (fabs(ctcss_tones[ti] - freq) < 0.1) { idx = ti; break; }
+			}
+		}
+		ctcss_set_tx(idx);
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "ctcss_rx"))
+	{
+		// ctcss_rx=OFF   → disable RX tone-squelch
+		// ctcss_rx=67.0  → gate audio on that tone; strip it from speaker
+		int idx = 0;
+		if (strcasecmp(value, "OFF") != 0) {
+			double freq = atof(value);
+			for (int ti = 1; ti <= 38; ti++) {
+				if (fabs(ctcss_tones[ti] - freq) < 0.1) { idx = ti; break; }
+			}
+		}
+		ctcss_set_rx(idx);
 		strcpy(response, "ok");
 	}
 	else if (!strcmp(cmd, "mod"))

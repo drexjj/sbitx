@@ -896,6 +896,21 @@ struct field main_controls[] = {
 	{"squelch", NULL, 1000, -1000, 50, 50, "SQL", 40, "0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 20, 1, 0},
 
+	// CTCSS TX — 38-tone EIA dropdown.  "OFF" disables TX tone encoding.
+	// edit_field dispatches "CTCSS_TX 67.0" → get_field_by_label("CTCSS_TX")
+	// → sdr_request("ctcss_tx=67.0") → ctcss_set_tx(index) in sbitx.c.
+	// Label must be a single word (no spaces) for the generic dispatch to work.
+	{"ctcss_tx", NULL, 1000, -1000, 60, 50, "CTCSS_TX", 40, "OFF", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/67.0/71.9/74.4/77.0/79.7/82.5/85.4/88.5/91.5/94.8/97.4/100.0/103.5/107.2/110.9/114.8/118.8/123.0/127.3/131.8/136.5/141.3/146.2/151.4/156.7/162.2/167.9/173.8/179.9/186.2/192.8/203.5/210.7/218.1/225.7/233.6/241.8/250.3",
+	 0, 0, 0, 0},
+
+	// CTCSS RX — same tone list.  When non-OFF: notch strips the tone from
+	// the speaker AND the audio gate only opens when that tone is detected.
+	// Single-word label "CTCSS_RX" required for generic dispatch.
+	{"ctcss_rx", NULL, 1000, -1000, 60, 50, "CTCSS_RX", 40, "OFF", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/67.0/71.9/74.4/77.0/79.7/82.5/85.4/88.5/91.5/94.8/97.4/100.0/103.5/107.2/110.9/114.8/118.8/123.0/127.3/131.8/136.5/141.3/146.2/151.4/156.7/162.2/167.9/173.8/179.9/186.2/192.8/203.5/210.7/218.1/225.7/233.6/241.8/250.3",
+	 0, 0, 0, 0},
+
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -5035,11 +5050,11 @@ static void layout_ui()
 
   case MODE_FM:
   {
-    // FM bottom row — same as voice modes but with SQL squelch knob
-    // inserted between RX and SPECT.
-    const int row_h   = SC(37);
-    const int y_top   = y2 - SC(40);
-    const int y_bottom= y2 - SC(40);
+    // FM layout: single-row control bar.
+    // Single control row: MIC LOW HIGH TX RX SQL CTCSS_TX CTCSS_RX SPECT
+    const int row_h    = SC(37);
+    const int y_top    = y2 - SC(40);
+    const int y_bottom = y2 - SC(40);
 
     if (!strcmp(field_str("SPECT"), "FULL")) {
       field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
@@ -5058,16 +5073,16 @@ static void layout_ui()
       field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
     }
 
-    // One-row control bar: MIC LOW HIGH TX RX [SQL] SPECT
-    // SQL sits between RX and SPECT — turn the knob to set squelch threshold.
-    // Setting SQL to 0 disables the squelch (gate always open).
-    field_move("MIC",  SC(5),   y_bottom, SC(45), row_h);
-    field_move("LOW",  SC(60),  y_bottom, SC(95), row_h);
-    field_move("HIGH", SC(160), y_bottom, SC(95), row_h);
-    field_move("TX",   SC(260), y_bottom, SC(95), row_h);
-    field_move("RX",   SC(360), y_bottom, SC(95), row_h);
-    field_move("SQL",  SC(460), y_bottom, SC(95), row_h);
-    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
+    // Single control row: MIC LOW HIGH TX RX SQL CTCSS-TX CTCSS-RX SPECT
+    field_move("MIC",      SC(5),   y_bottom, SC(45),  row_h);
+    field_move("LOW",      SC(60),  y_bottom, SC(95),  row_h);
+    field_move("HIGH",     SC(160), y_bottom, SC(95),  row_h);
+    field_move("TX",       SC(260), y_bottom, SC(95),  row_h);
+    field_move("RX",       SC(360), y_bottom, SC(95),  row_h);
+    field_move("SQL",      SC(460), y_bottom, SC(60),  row_h);
+    field_move("CTCSS_TX", SC(525), y_bottom, SC(60), row_h);
+    field_move("CTCSS_RX", SC(590), y_bottom, SC(60), row_h);
+    field_move("SPECT",    x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
     field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
