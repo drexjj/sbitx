@@ -1224,6 +1224,8 @@ struct field main_controls[] = {
 	 "", 300, 3000, 50, 0},
 	{"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 6000, 50, 0},
+	{"#bw_fm", NULL, 1000, -1000, 50, 50, "BW_FM", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 300, 6000, 50, 0},
 
 	// FTx controls
 	{"#ftx_auto", do_dropdown, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -3554,9 +3556,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		pitch = f_spectrum->x + (f_spectrum->width / 2) -
 				((f_spectrum->width * pitch) / (span * 1000));
 	}
-	else if (!strcmp(mode_f->value, "AM"))
+	else if (!strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 	{
-		// For AM mode, cover both sidebands
+		// For AM/FM mode, cover both sidebands
 		filter_start = f_spectrum->x + (f_spectrum->width / 2) -
 					   ((f_spectrum->width * bw_high) / (span * 1000));
 		if (filter_start < f_spectrum->x)
@@ -3564,7 +3566,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		filter_width = (f_spectrum->width * (bw_high + bw_low)) / (span * 1000);
 		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
 			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2); // Center pitch for AM
+		pitch = f_spectrum->x + (f_spectrum->width / 2); // Center pitch for AM/FM
 	}
 	else
 	{
@@ -5773,7 +5775,7 @@ void save_bandwidth(int hz)
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_FM:
-		field_set("BW_VOICE", bw);
+		field_set("BW_FM", bw);
 		break;
 	case MODE_AM:
 		field_set("BW_AM", bw);
@@ -6006,6 +6008,9 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			break;
 		case MODE_AM:
 			bw = field_int("BW_AM");
+			break;
+		case MODE_FM:
+			bw = field_int("BW_FM");
 			break;
 		case MODE_FT4:
 		case MODE_FT8:
@@ -9263,7 +9268,7 @@ int get_passband_bw()
 	case MODE_USB:
 	case MODE_LSB:
 	case MODE_FM:
-		return field_int("BW_VOICE");
+		return field_int("BW_FM");
 		break;
 	case MODE_AM:
 		return field_int("BW_AM");
@@ -9394,6 +9399,9 @@ void set_radio_mode(char *mode)
 		break;
 	case MODE_AM:
 		new_bandwidth = field_int("BW_AM");
+		break;
+	case MODE_FM:
+		new_bandwidth = field_int("BW_FM");
 		break;
 	case MODE_FT4:
 	case MODE_FT8:
