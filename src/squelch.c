@@ -73,14 +73,21 @@ static int    squelch_hang_ctr  = 0;   /* hang countdown (blocks)      */
  * ------------------------------------------------------------------ */
 
 /*
- * Map a user squelch_level (1–20) to an opening signal threshold.
+ * Map a user squelch_level (1-20) to an opening signal threshold.
  * Returns 0.0 when level == 0 (always open).
  *
- * Formula: 10 ^ (3 + level * 0.35)
- *   level  1 → 10^3.35 ≈     2,239
- *   level  5 → 10^4.75 ≈    56,234
- *   level 10 → 10^6.5  ≈ 3,162,278
- *   level 20 → 10^10   =  1.0e10   (effectively closed)
+ * signal_avg is bounded by AGC_TARGET_OUTPUT (30,000) at the top --
+ * that is when the AGC gain hits AGC_MINIMUM_GAIN = 1.0 on the
+ * strongest possible signal.  The formula is anchored so that level 20
+ * sits at that physical ceiling, giving the full 1-20 range useful
+ * coverage rather than making levels 5-20 unreachable.
+ *
+ * Formula: 10 ^ (3.0 + level * 0.074)
+ *   level  1 -> 10^3.074 ~   1,186  (opens on light signals)
+ *   level  5 -> 10^3.370 ~   2,344
+ *   level 10 -> 10^3.740 ~   5,495
+ *   level 15 -> 10^4.110 ~  12,882
+ *   level 20 -> 10^4.480 ~  30,200  (strong signals only)
  */
 static double level_to_open_threshold(int level)
 {
@@ -88,7 +95,7 @@ static double level_to_open_threshold(int level)
         return 0.0;
     if (level > SQUELCH_LEVEL_MAX)
         level = SQUELCH_LEVEL_MAX;
-    return pow(10.0, 3.0 + level * 0.35);
+    return pow(10.0, 3.0 + level * 0.074);
 }
 
 /* ------------------------------------------------------------------

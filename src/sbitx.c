@@ -159,6 +159,23 @@ FILE *pf_debug = NULL;
 #define SBITX_DE (0)
 #define SBITX_V2 (1)
 
+/*
+ * ADC_SCALE normalises raw 32-bit ADC samples to the [-1, 1] floating-point
+ * range that the FFT pipeline expects.
+ *
+ * The old real-only path used 200000000.  The new IQ path passes each sample
+ * through a quadrature mixer, which introduces an implicit ×0.5 from the
+ * trig product-to-sum identity (cos·cos = ½cos(A-B) + ½cos(A+B)).  That ½
+ * factor, combined with the energy now concentrating into one sideband instead
+ * of being split across ±f, gives the new path an inherent +6 dB advantage
+ * over the old path at equal divisor.  Doubling the divisor compensates exactly.
+ *
+ * Tune this value if the waterfall/spectrum level still does not match the
+ * old code — increase to lower the display level, decrease to raise it.
+ */
+//#define ADC_SCALE  400000000.0
+#define ADC_SCALE  200000000.0
+
 int sbitx_version = SBITX_V2;
 int fwdpower, vswr;
 int fwdpower_calc;
@@ -990,16 +1007,38 @@ double agc2(struct rx *r) {
   int i;
   int n_samples = MAX_BINS / 2;
 
-  // AGC OFF: apply the same fixed gain as the original code (1e7 on imaginary).
-  // This keeps AGC-OFF volume consistent with moderate-signal AGC-ON volume.
-  #define AGC_OFF_FIXED_GAIN 10000000.0   // 1e7 (was 10.0 — was 1M× too quiet)
+  // AGC OFF: measure the instantaneous block level and apply the same
+  // gain formula as AGC ON (AGC_TARGET_OUTPUT / block_peak), but with
+  // no smoothing, hang time, or slew rate limiting.
+  //
+  // This ensures the output volume matches AGC ON for a given signal
+  // level. The difference from AGC ON is purely temporal: there is no
+  // attack/decay envelope, so gain changes are instantaneous rather
+  // than smoothed. The per-mode output paths (SSB *1e7, AM, FM) see
+  // the same scaled fft_time as they do with AGC ON, so levels match.
   if (r->agc_speed == -1) {
+    double block_peak = 0.0;
     for (i = 0; i < n_samples; i++) {
-      __real__(r->fft_time[i + n_samples]) *= AGC_OFF_FIXED_GAIN;
-      __imag__(r->fft_time[i + n_samples]) *= AGC_OFF_FIXED_GAIN;
+      double s = cabs(r->fft_time[i + n_samples]) * 1000.0;
+      if (s > block_peak)
+        block_peak = s;
     }
+    double gain;
+    if (block_peak < 1e-12)
+      gain = AGC_MAXIMUM_GAIN;
+    else
+      gain = AGC_TARGET_OUTPUT / block_peak;
+    if (gain > AGC_MAXIMUM_GAIN) gain = AGC_MAXIMUM_GAIN;
+    if (gain < AGC_MINIMUM_GAIN) gain = AGC_MINIMUM_GAIN;
+    for (i = 0; i < n_samples; i++) {
+      __real__(r->fft_time[i + n_samples]) *= gain;
+      __imag__(r->fft_time[i + n_samples]) *= gain;
+    }
+    // Update signal_avg so squelch_update() gets a valid signal level.
+    // Without this, squelch always sees 0 when AGC is off and can never open.
+    r->signal_avg = block_peak;
     r->signal_strength = 0;
-    return AGC_MAXIMUM_GAIN;
+    return gain;
   }
 
   // Measure the peak amplitude in this block
@@ -1115,7 +1154,7 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
 	{
-		i_sample = (1.0 * input_rx[j]) / 200000000.0;
+		i_sample = (1.0 * input_rx[j]) / ADC_SCALE;
 		q_sample = 0;
 
 		j++;
@@ -2327,14 +2366,14 @@ void sound_process(int32_t *input_rx, int32_t *input_mic, int32_t *output_speake
         double filt_q[MAX_BINS / 2];
 
         for (int m = 0; m < MAX_BINS / 2; m++) {
-            double rx_sample = (1.0 * input_rx[m]) / 200000000.0;
+            double rx_sample = (1.0 * input_rx[m]) / ADC_SCALE;
 
             int osc_i, osc_q;
             vfo_read_iq(&rx_osc, &osc_i, &osc_q);
 
             static const double VFO_SCALE = 1.0 / 1073741824.0;  // 2^30
-            iq_i[m] = 2.0 * rx_sample * (osc_i * VFO_SCALE);
-            iq_q[m] = 2.0 * rx_sample * (-osc_q * VFO_SCALE);
+            iq_i[m] = rx_sample * (osc_i * VFO_SCALE);
+            iq_q[m] = rx_sample * (-osc_q * VFO_SCALE);
         }
 
         // FIR low-pass filter after the mixer
