@@ -27,6 +27,8 @@
 - Controlled Envelope Single Sideband (CESSB)
 	+ enable via the button in menu 1 or the '\cessb on' command
 - Added Tune function to FTx modes
+- Added NBFM mode with CTCSS and Squelch
+    + Added squelch control to AM mode
 - Added option to use USB audio devices for sound routing (speaker/phones and mic input)
     + The options are in the Set dialog box in Menu 1
 

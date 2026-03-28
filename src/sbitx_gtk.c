@@ -913,7 +913,7 @@ struct field main_controls[] = {
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "100", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
-	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
 
 	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
@@ -5012,8 +5012,6 @@ static void layout_ui()
 
   case MODE_USB:
   case MODE_LSB:
-  case MODE_AM:
-  case MODE_2TONE:
   {
     // single bottom row
     const int row_h   = SC(37);
@@ -5050,10 +5048,79 @@ static void layout_ui()
   }
   break;
 
+  case MODE_2TONE:
+  {
+    // 2TONE: no LOW/HIGH filter controls; TX/RX at original positions
+    const int row_h   = SC(37);
+    const int y_top   = y2 - SC(40);
+    const int y_bottom= y2 - SC(40);
+
+    if (!strcmp(field_str("SPECT"), "FULL")) {
+      field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
+    } else {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < SC(40)) console_w = SC(40);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - SC(55));
+
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
+    }
+
+    field_move("MIC",  SC(5),   y_bottom, SC(45), row_h);
+    field_move("TX",   SC(260), y_bottom, SC(95), row_h);
+    field_move("RX",   SC(360), y_bottom, SC(95), row_h);
+    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
+
+    field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
+    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+  }
+  break;
+
+  case MODE_AM:
+  {
+    // AM: no LOW/HIGH filter controls (fixed envelope detection bandwidth)
+    const int row_h   = SC(37);
+    const int y_top   = y2 - SC(40);
+    const int y_bottom= y2 - SC(40);
+
+    if (!strcmp(field_str("SPECT"), "FULL")) {
+      field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", 5, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 7, wf_h);
+    } else {
+      int console_w = console_right_x - col_left_x;
+      if (console_w < SC(40)) console_w = SC(40);
+      field_move("CONSOLE", col_left_x, y1, console_w, y2 - y1 - SC(55));
+
+      field_move("SPECTRUM", split_x, y1, x2 - (split_x + 5), default_spectrum_height);
+      int wf_h = y_top - (y1 + default_spectrum_height) - WATERFALL_Y_OFFSET;
+      if (wf_h <= 0) wf_h = 1;
+      field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
+    }
+
+    field_move("MIC", SC(5),   y_bottom, SC(45), row_h);
+    field_move("TX",  SC(260), y_bottom, SC(95), row_h);
+    field_move("RX",  SC(360), y_bottom, SC(95), row_h);
+    field_move("SQL", SC(460), y_bottom, SC(60), row_h);
+    field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
+
+    field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
+    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+  }
+  break;
+
   case MODE_FM:
   {
     // FM layout: single-row control bar.
-    // Single control row: MIC LOW HIGH TX RX SQL CTCSS_TX CTCSS_RX SPECT
+    // Single control row: MIC TX RX SQL CTCSS_TX CTCSS_RX SPECT
     const int row_h    = SC(37);
     const int y_top    = y2 - SC(40);
     const int y_bottom = y2 - SC(40);
@@ -5075,15 +5142,13 @@ static void layout_ui()
       field_move("WATERFALL", split_x, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - (split_x + 5), wf_h);
     }
 
-    // Single control row: MIC LOW HIGH TX RX SQL CTCSS-TX CTCSS-RX SPECT
+    // Single control row: MIC TX RX SQL CTCSS_TX CTCSS_RX SPECT
     field_move("MIC",      SC(5),   y_bottom, SC(45),  row_h);
-    field_move("LOW",      SC(60),  y_bottom, SC(95),  row_h);
-    field_move("HIGH",     SC(160), y_bottom, SC(95),  row_h);
     field_move("TX",       SC(260), y_bottom, SC(95),  row_h);
     field_move("RX",       SC(360), y_bottom, SC(95),  row_h);
     field_move("SQL",      SC(460), y_bottom, SC(60),  row_h);
-    field_move("CTCSS_TX", SC(525), y_bottom, SC(60), row_h);
-    field_move("CTCSS_RX", SC(590), y_bottom, SC(60), row_h);
+    field_move("CTCSS_TX", SC(525), y_bottom, SC(60),  row_h);
+    field_move("CTCSS_RX", SC(590), y_bottom, SC(60),  row_h);
     field_move("SPECT",    x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
@@ -5774,6 +5839,8 @@ void save_bandwidth(int hz)
 		break;
 	case MODE_USB:
 	case MODE_LSB:
+		field_set("BW_VOICE", bw);
+		break;
 	case MODE_FM:
 		field_set("BW_FM", bw);
 		break;
@@ -5830,8 +5897,8 @@ void set_filter_high_low(int hz)
 
 	if (low < 50)
 		low = 50;
-	if (high > 5000)
-		high = 5000;
+	if (high > 8000)
+		high = 8000;
 
 	// now set the bandwidth
 	sprintf(buff, "%d", low);
@@ -9267,6 +9334,8 @@ int get_passband_bw()
 		break;
 	case MODE_USB:
 	case MODE_LSB:
+		return field_int("BW_VOICE");
+		break;
 	case MODE_FM:
 		return field_int("BW_FM");
 		break;
@@ -9288,8 +9357,10 @@ int get_default_passband_bw()
 		break;
 	case MODE_USB:
 	case MODE_LSB:
-	case MODE_FM:
 		return 2400;
+		break;
+	case MODE_FM:
+		return 5000;
 		break;
 	case MODE_AM:
 		return 5000;

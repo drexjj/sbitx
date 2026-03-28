@@ -106,8 +106,7 @@ static void ctcss_update_notch(void)
     // so for a 200 Hz tone: A ≈ 900 * sin(2π*200/96000) ≈ 900 * 0.01309 ≈ 11.78.
     // Expected peak power: (24000/2 * 11.78)² ≈ (141360)² ≈ 2e10.
     // Threshold at 10% of peak catches real tones while rejecting noise and
-    // adjacent-tone leakage (which falls to <0.5% of peak at N=24000 for
-    // the closest pair 241.8/250.3 Hz, 8.5 Hz apart).
+    // adjacent-tone leakage.
     ctcss_detect_threshold = 2e9;
 }
 
@@ -991,8 +990,9 @@ double agc2(struct rx *r) {
   int i;
   int n_samples = MAX_BINS / 2;
 
-  // AGC OFF: apply a moderate fixed gain
-  #define AGC_OFF_FIXED_GAIN 10.0
+  // AGC OFF: apply the same fixed gain as the original code (1e7 on imaginary).
+  // This keeps AGC-OFF volume consistent with moderate-signal AGC-ON volume.
+  #define AGC_OFF_FIXED_GAIN 10000000.0   // 1e7 (was 10.0 — was 1M× too quiet)
   if (r->agc_speed == -1) {
     for (i = 0; i < n_samples; i++) {
       __real__(r->fft_time[i + n_samples]) *= AGC_OFF_FIXED_GAIN;
@@ -1085,10 +1085,10 @@ double agc2(struct rx *r) {
   // Store the final gain for the next block
   r->agc_gain = current_gain;
 
-  // Return signal strength indicator (compatible with old return value)
+  // Return signal strength estimate for S-meter and squelch.
   if (r->agc_gain < AGC_MINIMUM_GAIN)
     return AGC_MAXIMUM_GAIN;
-  return AGC_TARGET_OUTPUT * 1000000.0 / r->agc_gain;
+  return AGC_TARGET_OUTPUT / r->agc_gain;
 }
 
 void my_fftw_execute(fftw_plan f)
@@ -1574,10 +1574,9 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   // AGC (operates on the valid second half of the overlap-and-save output)
   agc2(r);
 
-  // Update the FM squelch gate with the AGC's signal strength estimate.
-  // squelch_update() is cheap (no-op when squelch is off or mode is not FM)
-  // and must be called every block so the hang timer counts correctly.
-  if (r->mode == MODE_FM)
+  // Update the squelch gate with the AGC's signal strength estimate.
+  // Called for both AM and FM so the hang timer counts correctly every block.
+  if (r->mode == MODE_FM || r->mode == MODE_AM)
     squelch_update(r->signal_avg);
 
   // Demodulate and produce audio output.
@@ -1586,6 +1585,7 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   if (rx_list->output == 0) {
     if (r->mode == MODE_AM) {
 			static double am_dc_offset = 0.0;
+			int sq_open = squelch_is_open();
 			for (i = 0; i < MAX_BINS / 2; i++) {
 				double mag = cabs(r->fft_time[i + (MAX_BINS / 2)]);
 				
@@ -1593,7 +1593,10 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
 				am_dc_offset = (am_dc_offset * 0.999) + (mag * 0.001);
 				
 				// Subtract the DC carrier to yield the AC audio waveform
-				output_speaker[i] = (int32_t)((mag - am_dc_offset) * 10000000.0);
+				// Gate through squelch — always run mag/offset to keep state current
+				output_speaker[i] = sq_open
+				    ? (int32_t)((mag - am_dc_offset) * 10000000.0)
+				    : 0;
 				output_tx[i] = 0;
 			}
     } else if (r->mode == MODE_FM) {
@@ -1608,7 +1611,7 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
       //
       // Output scaling:
       //   At 2.5 kHz deviation and Fs=96000 → Δφ_max = 2π·2500/96000 ≈ 0.164 rad
-      //   AGC target keeps |z|≈30 (see AGC_TARGET_OUTPUT / 1000)
+      //   AGC target keeps |z|≈30 (AGC_TARGET_OUTPUT/1000),
       //   disc_max ≈ 30² · sin(0.164) ≈ 900 · 0.163 ≈ 147
       //   Scale factor 2e6 → 147 · 2e6 ≈ 294e6, matching the SSB ~300M range.
       static fftw_complex fm_rx_prev  = 0.0;
