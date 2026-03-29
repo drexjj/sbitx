@@ -11459,6 +11459,9 @@ else if (!strcasecmp(exec, "decode"))
 		if (token == NULL) {   // apf alone turns off
 			apf1.ison=0;
 			sprintf(output,"apf off\n");
+			/* Sync field so check_plugin_controls() doesn't re-enable it. */
+			struct field *apf_f = get_field_by_label("APF");
+			if (apf_f) { strcpy(apf_f->value, "OFF"); update_field(apf_f); }
 		} else {              // token != NULL
 			 if ( (temp = atof(token)) > 0.0) {
 				 apf1.gain = temp;
@@ -11468,6 +11471,9 @@ else if (!strcasecmp(exec, "decode"))
 					apf1.ison=1;
 					sprintf(output,"apf gain %.2f width %.2f\n", apf1.gain, apf1.width);
 					init_apf();
+					/* Sync field so check_plugin_controls() keeps it enabled. */
+					struct field *apf_f = get_field_by_label("APF");
+					if (apf_f) { strcpy(apf_f->value, "ON"); update_field(apf_f); }
 					} else
 						sprintf(output,"usage: apf (gain dB) (width parameter)\n");
 				} else
@@ -11490,6 +11496,49 @@ else if (!strcasecmp(exec, "decode"))
 		// macro_exec(atoi(exec+1), buff);
 		// if (strlen(buff))
 		//	set_field("#text_in", buff);
+	}
+	else if (!strcasecmp(exec, "notch"))
+	{
+		/*
+		 * Web UI sends "NOTCH ON" or "NOTCH OFF".
+		 *
+		 * check_plugin_controls() (500 ms timer) sets notch_enabled from
+		 * the #notch_plugin field — that part works fine via set_field.
+		 * But notch_freq and notch_bandwidth are only loaded by
+		 * do_notch_edit(), which only fires when NFREQ or BNDWTH are
+		 * edited.  If neither has been touched since startup those globals
+		 * are zero and the notch filter has no effect.
+		 *
+		 * Fix: update the field directly, then call do_notch_edit() so
+		 * it reads the current NFREQ/BNDWTH field values into the DSP
+		 * globals immediately — regardless of whether the GTK menu has
+		 * ever been used.
+		 */
+		struct field *f = get_field_by_label("NOTCH");
+		if (f) {
+			for (char *p = args; *p; p++) *p = toupper(*p);
+			strncpy(f->value, args, sizeof(f->value) - 1);
+			f->value[sizeof(f->value) - 1] = '\0';
+			update_field(f);
+		}
+		do_notch_edit(NULL, NULL, FIELD_EDIT, 0, 0, 0);
+	}
+	else if (!strcasecmp(exec, "dsp"))
+	{
+		/*
+		 * Same pattern as NOTCH: check_plugin_controls() handles the
+		 * dsp_enabled flag, but noise_threshold and noise_update_interval
+		 * are only loaded by do_dsp_edit() when THSHLD/INTVL are edited.
+		 * Call it directly here so the DSP globals are always current.
+		 */
+		struct field *f = get_field_by_label("DSP");
+		if (f) {
+			for (char *p = args; *p; p++) *p = toupper(*p);
+			strncpy(f->value, args, sizeof(f->value) - 1);
+			f->value[sizeof(f->value) - 1] = '\0';
+			update_field(f);
+		}
+		do_dsp_edit(NULL, NULL, FIELD_EDIT, 0, 0, 0);
 	}
 	else if( strstr("80M60M40M30M20M17M15M12M10M", exec) != NULL ||
 		     strstr("80m60m40m30m20m17m15m12m10m", exec) != NULL){

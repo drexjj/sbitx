@@ -364,6 +364,7 @@
                 <select class="sbitxv3-selection sbitx-selection" id="SPAN">
                     <option value="25K">25K</option>
                     <option value="10K">10K</option>
+                    <option value="8K">8K</option>
                     <option value="6K">6K</option>
                     <option value="2.5K">2.5K</option>
                 </select>
@@ -3157,6 +3158,21 @@
             websocket_send("rit" + " " + "on"); // Original behavior for other selects
         } else if (e.id === "RIT" && e.value == "OFF") {
             websocket_send("rit" + " " + "off"); // Original behavior for other selects
+        } else if (e.id === "APF") {
+            if (e.value === "ON") {
+                // The existing cmd_exec "apf" handler expects: apf <gain> <width>
+                // Sending that format directly calls init_apf() immediately.
+                var gain  = el("GAIN")  ? el("GAIN").value  : "6";
+                var width = el("WIDTH") ? el("WIDTH").value : "100";
+                websocket_send("apf " + gain + " " + width);
+            } else {
+                // No args → existing handler sets apf1.ison=0 (off)
+                websocket_send("apf");
+            }
+        } else if (e.id === "NOTCH") {
+            websocket_send("NOTCH " + e.value);
+        } else if (e.id === "DSP") {
+            websocket_send("DSP " + e.value);
         } else {
             log("Sending command: " + e.id + " " + e.value); // Debug log
             websocket_send(e.id + " " + e.value); // Original behavior for other selects
