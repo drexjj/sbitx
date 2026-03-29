@@ -243,6 +243,7 @@
                     <option value="DIGI">DIGI</option>
                     <option value="2TONE">2TONE</option>
                     <option value="AM">AM</option>
+                    <option value="FM">FM</option>
                 </select>
             </div>
             <div class="sbitxv3-VFO" id="dial">
@@ -628,6 +629,161 @@
                 <div class="bottom-bar">
                    <button class="sbitxv3-btn" id="xpra_launch_voice" type="button">Apps</button>
                     <button class="sbitxv3-btn" id="menu-open3">Menu</button>
+                </div>
+            </section>
+
+            <!-- AM mode pane — Voice_ui layout plus squelch level -->
+            <section id="AM_ui" class="sbitx-panel mode-panel">
+
+                <div class="linear" id="linear_MIC_am">
+                    <label class="linear-label" for="MIC_am">MIC</label>
+                    <input type="number" id="MIC_am" min="0" max="100" class="linear-value" value="50">
+                    <div class="linear-dropdown">
+                        <input type="range" id="slider_MIC_am" max="100" min="0" step="1" value="50">
+                    </div>
+                </div>
+
+                <!-- Squelch level — 0 disables, 1-20 sets threshold -->
+                <div class="linear" id="linear_SQL_am">
+                    <label class="linear-label" for="SQL_am">SQL</label>
+                    <input type="number" id="SQL_am" min="0" max="20" class="linear-value" value="0">
+                    <div class="linear-dropdown">
+                        <input type="range" id="slider_SQL_am" max="20" min="0" step="1" value="0">
+                    </div>
+                </div>
+
+                <button id="ptt_tx_am">TX</button>
+                <button id="ptt_rx_am">RX</button>
+                <button class="sbitxv3-btn" id="browser_mic_am" type="button" onclick="toggleBrowserMic()">Browser Mic<br>OFF</button>
+
+                <div class="bottom-bar">
+                    <button class="sbitxv3-btn" id="xpra_launch_am" type="button">Apps</button>
+                    <button class="sbitxv3-btn" id="menu-open6">Menu</button>
+                </div>
+            </section>
+
+            <!-- FM mode pane — layout mirrors Voice_ui, adds SQL + CTCSS controls -->
+            <section id="FM_ui" class="sbitx-panel mode-panel">
+
+                <!-- MIC gain — identical widget to Voice_ui, own ID so it doesn't
+                     collide with the hidden MIC element; sends "MIC" to backend -->
+                <div class="linear" id="linear_MIC_fm">
+                    <label class="linear-label" for="MIC_fm">MIC</label>
+                    <input type="number" id="MIC_fm" min="0" max="100" class="linear-value" value="50">
+                    <div class="linear-dropdown">
+                        <input type="range" class="linear-slider" id="slider_MIC_fm" max="100" min="0" step="1" value="50">
+                    </div>
+                </div>
+
+                <!-- Squelch level — 0 disables, 1-20 sets threshold -->
+                <div class="linear" id="linear_SQL">
+                    <label class="linear-label" for="SQL">SQL</label>
+                    <input type="number" id="SQL" min="0" max="20" class="linear-value" value="0">
+                    <div class="linear-dropdown">
+                        <input type="range" class="linear-slider" id="slider_SQL" max="20" min="0" step="1" value="0">
+                    </div>
+                </div>
+
+                <!-- CTCSS TX — tone encoded on transmit; same select pattern as TXEQ / CESSB -->
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="CTCSS_TX_sel">CTCSS TX</label>
+                    <select class="sbitxv3-selection" id="CTCSS_TX_sel">
+                        <option value="0">OFF</option>
+                        <option value="67.0">67.0</option>
+                        <option value="71.9">71.9</option>
+                        <option value="74.4">74.4</option>
+                        <option value="77.0">77.0</option>
+                        <option value="79.7">79.7</option>
+                        <option value="82.5">82.5</option>
+                        <option value="85.4">85.4</option>
+                        <option value="88.5">88.5</option>
+                        <option value="91.5">91.5</option>
+                        <option value="94.8">94.8</option>
+                        <option value="97.4">97.4</option>
+                        <option value="100.0">100.0</option>
+                        <option value="103.5">103.5</option>
+                        <option value="107.2">107.2</option>
+                        <option value="110.9">110.9</option>
+                        <option value="114.8">114.8</option>
+                        <option value="118.8">118.8</option>
+                        <option value="123.0">123.0</option>
+                        <option value="127.3">127.3</option>
+                        <option value="131.8">131.8</option>
+                        <option value="136.5">136.5</option>
+                        <option value="141.3">141.3</option>
+                        <option value="146.2">146.2</option>
+                        <option value="151.4">151.4</option>
+                        <option value="156.7">156.7</option>
+                        <option value="162.2">162.2</option>
+                        <option value="167.9">167.9</option>
+                        <option value="173.8">173.8</option>
+                        <option value="179.9">179.9</option>
+                        <option value="186.2">186.2</option>
+                        <option value="192.8">192.8</option>
+                        <option value="203.5">203.5</option>
+                        <option value="210.7">210.7</option>
+                        <option value="218.1">218.1</option>
+                        <option value="225.7">225.7</option>
+                        <option value="233.6">233.6</option>
+                        <option value="241.8">241.8</option>
+                        <option value="250.3">250.3</option>
+                    </select>
+                </div>
+
+                <!-- CTCSS RX — squelch opens only when this sub-tone is detected -->
+                <div class="sbitxv3-control">
+                    <label class="sbitxv3-label" for="CTCSS_RX_sel">CTCSS RX</label>
+                    <select class="sbitxv3-selection" id="CTCSS_RX_sel">
+                        <option value="0">OFF</option>
+                        <option value="67.0">67.0</option>
+                        <option value="71.9">71.9</option>
+                        <option value="74.4">74.4</option>
+                        <option value="77.0">77.0</option>
+                        <option value="79.7">79.7</option>
+                        <option value="82.5">82.5</option>
+                        <option value="85.4">85.4</option>
+                        <option value="88.5">88.5</option>
+                        <option value="91.5">91.5</option>
+                        <option value="94.8">94.8</option>
+                        <option value="97.4">97.4</option>
+                        <option value="100.0">100.0</option>
+                        <option value="103.5">103.5</option>
+                        <option value="107.2">107.2</option>
+                        <option value="110.9">110.9</option>
+                        <option value="114.8">114.8</option>
+                        <option value="118.8">118.8</option>
+                        <option value="123.0">123.0</option>
+                        <option value="127.3">127.3</option>
+                        <option value="131.8">131.8</option>
+                        <option value="136.5">136.5</option>
+                        <option value="141.3">141.3</option>
+                        <option value="146.2">146.2</option>
+                        <option value="151.4">151.4</option>
+                        <option value="156.7">156.7</option>
+                        <option value="162.2">162.2</option>
+                        <option value="167.9">167.9</option>
+                        <option value="173.8">173.8</option>
+                        <option value="179.9">179.9</option>
+                        <option value="186.2">186.2</option>
+                        <option value="192.8">192.8</option>
+                        <option value="203.5">203.5</option>
+                        <option value="210.7">210.7</option>
+                        <option value="218.1">218.1</option>
+                        <option value="225.7">225.7</option>
+                        <option value="233.6">233.6</option>
+                        <option value="241.8">241.8</option>
+                        <option value="250.3">250.3</option>
+                    </select>
+                </div>
+
+                <!-- PTT + browser mic — identical to Voice_ui -->
+                <button id="ptt_tx_fm">TX</button>
+                <button id="ptt_rx_fm">RX</button>
+                <button class="sbitxv3-btn" id="browser_mic_fm" type="button" onclick="toggleBrowserMic()">Browser Mic<br>OFF</button>
+
+                <div class="bottom-bar">
+                    <button class="sbitxv3-btn" id="xpra_launch_fm" type="button">Apps</button>
+                    <button class="sbitxv3-btn" id="menu-open5">Menu</button>
                 </div>
             </section>
 
@@ -1517,7 +1673,7 @@
         if (mode === "LSB" || mode === "CWR") {
             filterLeftX = half_width - hz_per_pixel * high;
             filterRightX = half_width - hz_per_pixel * low;
-        } else if (mode === "AM") {
+        } else if (mode === "AM" || mode === "FM") {
             const blockWidth = bw * hz_per_pixel * 2;
             filterLeftX = half_width - blockWidth / 2;
             filterRightX = half_width + blockWidth / 2;
@@ -1613,12 +1769,12 @@
                 websocket_send(`LOW=${low}`);
                 console.log(`Updated low to ${low}`);
             }
-        } else if (mode === "AM") {
-            // For AM, both edges move symmetrically to adjust bandwidth
+        } else if (mode === "AM" || mode === "FM") {
+            // For AM/FM, both edges move symmetrically to adjust bandwidth
             if (filterDragEdge === 'left' || filterDragEdge === 'right') {
                 let newBw = bw + (hzChange / (filterDragEdge === 'left' ? -1 : 1));
-                // Limit bandwidth to reasonable values
-                newBw = Math.min(Math.max(newBw, 1000), 6000);
+                // Limit bandwidth: AM/FM typically wider than SSB
+                newBw = Math.min(Math.max(newBw, 1000), 15000);
                 websocket_send(`BW=${newBw}`);
                 console.log(`Updated BW to ${newBw}`);
             }
@@ -2146,7 +2302,7 @@
             filterLeftX = half_width - hz_per_pixel * high;
             filterRightX = half_width - hz_per_pixel * low;
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
-        } else if (mode === "AM") {
+        } else if (mode === "AM" || mode === "FM") {
             const blockWidth = bw * hz_per_pixel * 2;
             filterLeftX = half_width - blockWidth / 2;
             filterRightX = half_width + blockWidth / 2;
@@ -2326,7 +2482,7 @@
         ctx.font = "12px Sans";
         let rx_x;
 
-        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM") {
+        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
             rx_x = half_width;
         } else if (mode === "CWR") {
             rx_x = half_width - rx_pitch * hz_per_pixel;
@@ -2474,7 +2630,7 @@
 
         // Simplify rx_spot calculation
         let rx_spot;
-        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM") {
+        if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
             rx_spot = Math.round(half_width);
         } else if (mode === "CWR") {
             rx_spot = Math.round(half_width - rx_pitch * hz_per_pixel);
@@ -2645,10 +2801,16 @@
     function toggleBrowserMic() {
         // Toggle mic state using the global object
         window.sbitxMic.enabled = !window.sbitxMic.enabled;
-        var micBtn = document.getElementById('browser_mic');
+        var micBtn    = document.getElementById('browser_mic');
+        var micBtnFm  = document.getElementById('browser_mic_fm');
+        var micBtnAm  = document.getElementById('browser_mic_am');
+        var label     = window.sbitxMic.enabled ? "Browser Mic\nON" : "Browser Mic\nOFF";
+
+        if (micBtn)   micBtn.textContent   = label;
+        if (micBtnFm) micBtnFm.textContent = label;
+        if (micBtnAm) micBtnAm.textContent = label;
 
         if (window.sbitxMic.enabled) {
-            micBtn.textContent = "Browser Mic\nON";
             //micBtn.style.backgroundColor = "yellow";
             console.log("Browser microphone enabled");
 
@@ -2668,8 +2830,9 @@
                 console.log("Browser microphone not supported");
             }
         } else {
-            micBtn.textContent = "Browser Mic\nOFF";
-            micBtn.style.backgroundColor = "";
+            if (micBtn)   micBtn.style.backgroundColor   = "";
+            if (micBtnFm) micBtnFm.style.backgroundColor = "";
+            if (micBtnAm) micBtnAm.style.backgroundColor = "";
             console.log("Browser microphone disabled");
 
             // Clear the audio buffer when mic is disabled
@@ -3493,6 +3656,31 @@
         //	el("waterfall").height = 150;
     }
 
+    /* FM functionality */
+    function fm_open() {
+        // Mirror the current MIC level into the FM panel on mode entry
+        var micVal = el("MIC") ? el("MIC").value : 50;
+        var fmNum    = el("MIC_fm");
+        var fmSlider = el("slider_MIC_fm");
+        if (fmNum)    fmNum.value    = micVal;
+        if (fmSlider) fmSlider.value = micVal;
+    }
+
+    function am_open() {
+        // Mirror the current MIC level and SQL level into the AM panel on mode entry
+        var micVal = el("MIC") ? el("MIC").value : 50;
+        var amNum    = el("MIC_am");
+        var amSlider = el("slider_MIC_am");
+        if (amNum)    amNum.value    = micVal;
+        if (amSlider) amSlider.value = micVal;
+        var sqlVal = el("SQL_am");
+        var sqlSlider = el("slider_SQL_am");
+        // Read current squelch level from FM panel if set, default 0
+        var curSql = el("SQL") ? el("SQL").value : 0;
+        if (sqlVal)    sqlVal.value    = curSql;
+        if (sqlSlider) sqlSlider.value = curSql;
+    }
+
     function ptt_tx(event) {
         websocket_send("t ");
     }
@@ -3943,12 +4131,25 @@
                 logger_set_macro("CW1");
                 break;
             case "AM":
+                wf.height = 225;
+                sp.height = 125;
+                am_open();
+                $("#AM_ui").show();
+                $("#more_keys").hide();
+                break;
             case "LSB":
             case "USB":
             case "2TONE":
                 wf.height = 225;
                 sp.height = 125;
                 $("#Voice_ui").show();
+                $("#more_keys").hide();
+                break;
+            case "FM":
+                wf.height = 225;
+                sp.height = 125;
+                fm_open();
+                $("#FM_ui").show();
                 $("#more_keys").hide();
                 break;
             case "DIGI":
@@ -4233,6 +4434,51 @@
                     el("STORE").style.display = "none";
                 }
                 break;
+            case 'SQL':
+                // Backend sends: SQL <level 0-20> — sync both FM and AM panels
+                if (el("SQL"))          el("SQL").value          = args;
+                if (el("slider_SQL"))   el("slider_SQL").value   = args;
+                if (el("SQL_am"))       el("SQL_am").value       = args;
+                if (el("slider_SQL_am")) el("slider_SQL_am").value = args;
+                break;
+            case 'CTCSS_TX':
+                // Backend sends: CTCSS_TX <freq|0>
+                el("CTCSS").value = args;
+                if (el("CTCSS_TX_sel")) {
+                    var t = parseFloat(args);
+                    var s = el("CTCSS_TX_sel");
+                    var best = 0, bd = Infinity;
+                    for (var ci = 0; ci < s.options.length; ci++) {
+                        var d = Math.abs(parseFloat(s.options[ci].value) - t);
+                        if (d < bd) { bd = d; best = ci; }
+                    }
+                    s.selectedIndex = best;
+                }
+                break;
+            case 'CTCSS_RX':
+                // Backend sends: CTCSS_RX <freq|0>
+                if (el("CTCSS_RX_sel")) {
+                    var t = parseFloat(args);
+                    var s = el("CTCSS_RX_sel");
+                    var best = 0, bd = Infinity;
+                    for (var ci = 0; ci < s.options.length; ci++) {
+                        var d = Math.abs(parseFloat(s.options[ci].value) - t);
+                        if (d < bd) { bd = d; best = ci; }
+                    }
+                    s.selectedIndex = best;
+                }
+                break;
+            case 'CTCSS':
+                // Legacy combined CTCSS message — sync both selectors
+                if (el("CTCSS_TX_sel")) {
+                    var t = parseFloat(args);
+                    var s = el("CTCSS_TX_sel");
+                    for (var ci = 0; ci < s.options.length; ci++)
+                        if (Math.abs(parseFloat(s.options[ci].value) - t) < 0.1)
+                            { s.selectedIndex = ci; break; }
+                }
+                el("CTCSS").value = args;
+                break;
             case 'MODE':
                 mode_set(args);
             //There is no break statement here, MODE continues to default case
@@ -4243,8 +4489,16 @@
                         e.value = args;
                         if (e.classList.contains('knob-value'))
                             knob_update(e);
-                        else if (e.classList.contains('linear-value'))
+                        else if (e.classList.contains('linear-value')) {
                             update_linear(e);
+                            // Keep the FM panel MIC slider in sync
+                            if (cmd === "MIC") {
+                                if (el("MIC_fm"))        el("MIC_fm").value        = args;
+                                if (el("slider_MIC_fm")) el("slider_MIC_fm").value = args;
+                                if (el("MIC_am"))        el("MIC_am").value        = args;
+                                if (el("slider_MIC_am")) el("slider_MIC_am").value = args;
+                            }
+                        }
                         else if (e.classList.contains('sbitx-update-toggle'))
                             sbitx_toggle_update(e);
                         else if (cmd == "MYCALLSIGN" && args == "NOBODY")
@@ -4369,6 +4623,98 @@
     });
     $("#ptt_tx").on("click", ptt_tx);
     $("#ptt_rx").on("click", ptt_rx);
+
+    // FM panel PTT
+    $("#ptt_tx_fm").on("click", ptt_tx);
+    $("#ptt_rx_fm").on("click", ptt_rx);
+
+    // AM panel PTT
+    $("#ptt_tx_am").on("click", ptt_tx);
+    $("#ptt_rx_am").on("click", ptt_rx);
+
+    // FM MIC slider — own ID, sends same "MIC" command as the voice panel
+    $("#slider_MIC_fm").on("input", function() {
+        var v = this.value;
+        el("MIC_fm").value = v;
+        // Keep the voice-panel MIC in sync so switching modes is seamless
+        if (el("MIC"))        el("MIC").value       = v;
+        if (el("slider_MIC")) el("slider_MIC").value = v;
+        if (el("MIC_am"))        el("MIC_am").value        = v;
+        if (el("slider_MIC_am")) el("slider_MIC_am").value = v;
+        websocket_send("MIC " + v);
+    });
+    $("#MIC_fm").on("change", function() {
+        var v = this.value;
+        el("slider_MIC_fm").value = v;
+        if (el("MIC"))        el("MIC").value       = v;
+        if (el("slider_MIC")) el("slider_MIC").value = v;
+        if (el("MIC_am"))        el("MIC_am").value        = v;
+        if (el("slider_MIC_am")) el("slider_MIC_am").value = v;
+        websocket_send("MIC " + v);
+    });
+
+    // AM MIC slider — mirrors FM and voice panels
+    $("#slider_MIC_am").on("input", function() {
+        var v = this.value;
+        el("MIC_am").value = v;
+        if (el("MIC"))        el("MIC").value       = v;
+        if (el("slider_MIC")) el("slider_MIC").value = v;
+        if (el("MIC_fm"))        el("MIC_fm").value        = v;
+        if (el("slider_MIC_fm")) el("slider_MIC_fm").value = v;
+        websocket_send("MIC " + v);
+    });
+    $("#MIC_am").on("change", function() {
+        var v = this.value;
+        el("slider_MIC_am").value = v;
+        if (el("MIC"))        el("MIC").value       = v;
+        if (el("slider_MIC")) el("slider_MIC").value = v;
+        if (el("MIC_fm"))        el("MIC_fm").value        = v;
+        if (el("slider_MIC_fm")) el("slider_MIC_fm").value = v;
+        websocket_send("MIC " + v);
+    });
+
+    // AM SQL slider — same squelch backend as FM, keep both panels in sync
+    // on_linear_moved fires automatically via .linear-slider class and sends "SQL_am N"
+    // which won't route correctly, so use a dedicated handler sending "SQL N" instead.
+    // Strip linear-slider class is NOT done — we use the id-specific handler.
+    $("#slider_SQL_am").on("input", function() {
+        var v = parseInt(this.value);
+        el("SQL_am").value = v;
+        if (el("SQL"))        el("SQL").value        = v;
+        if (el("slider_SQL")) el("slider_SQL").value = v;
+        websocket_send("SQL " + v);
+    });
+    $("#SQL_am").on("change", function() {
+        var v = parseInt(this.value);
+        el("slider_SQL_am").value = v;
+        if (el("SQL"))        el("SQL").value        = v;
+        if (el("slider_SQL")) el("slider_SQL").value = v;
+        websocket_send("SQL " + v);
+    });
+
+    // Squelch ON/OFF toggle
+    // CTCSS TX selector — "ctcss_tx=freq" → sdr_request → ctcss_set_tx()
+    $("#CTCSS_TX_sel").on("change", function() {
+        el("CTCSS").value = this.value;
+        websocket_send("ctcss_tx=" + this.value);
+    });
+
+    // CTCSS RX selector — "ctcss_rx=freq" → sdr_request → ctcss_set_rx()
+    $("#CTCSS_RX_sel").on("change", function() {
+        websocket_send("ctcss_rx=" + this.value);
+    });
+
+    // Menu / Apps buttons in FM panel
+    $("#menu-open5").on("click", open_menu);
+    $("#xpra_launch_fm").on("click", function() {
+        window.open("apps.html", "_blank");
+    });
+
+    // Menu / Apps buttons in AM panel
+    $("#menu-open6").on("click", open_menu);
+    $("#xpra_launch_am").on("click", function() {
+        window.open("apps.html", "_blank");
+    });
 
     //logbook buttons
     $("#logbook-open").on("click", logbook_open);
@@ -4599,6 +4945,11 @@
         } else {
             zerobeatContainer.style.display = 'none';
             document.querySelectorAll('.cw-control').forEach(control => control.style.display = 'none');
+        }
+
+        // Keep FM panel MIC in sync when switching to FM
+        if (currentMode === 'FM') {
+            fm_open();
         }
     }
 

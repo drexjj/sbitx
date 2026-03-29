@@ -1034,8 +1034,10 @@ double agc2(struct rx *r) {
       __real__(r->fft_time[i + n_samples]) *= gain;
       __imag__(r->fft_time[i + n_samples]) *= gain;
     }
-    // Update signal_avg so squelch_update() gets a valid signal level.
-    // Without this, squelch always sees 0 when AGC is off and can never open.
+    // Update signal_avg so the S-meter and other consumers get a valid level
+    // even when AGC is off.  Note: squelch_update() receives the agc2() *return
+    // value* (AGC_TARGET_OUTPUT / agc_gain), not signal_avg directly — that
+    // normalised value matches the thresholds in squelch.c.
     r->signal_avg = block_peak;
     r->signal_strength = 0;
     return gain;
@@ -1610,13 +1612,22 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
     
   my_fftw_execute(r->plan_rev);
 
-  // AGC (operates on the valid second half of the overlap-and-save output)
-  agc2(r);
+  // AGC (operates on the valid second half of the overlap-and-save output).
+  // agc2() returns AGC_TARGET_OUTPUT / agc_gain — a normalised signal-strength
+  // estimate that is bounded to roughly [1, AGC_TARGET_OUTPUT (30,000)].
+  // This is the value the squelch thresholds in squelch.c are calibrated against:
+  //   noise floor  → ~2,000    (below level-1 threshold of ~1,186 after AGC)
+  //   S9 signal    → ~30,000   (matches level-20 threshold of 30,200)
+  //
+  // r->signal_avg, by contrast, is the raw pre-gain block_peak (cabs * 1000)
+  // which can reach tens of millions for a normal signal — far above every
+  // squelch threshold, so the gate was permanently open regardless of level.
+  double agc_signal_strength = agc2(r);
 
-  // Update the squelch gate with the AGC's signal strength estimate.
+  // Update the squelch gate with the normalised signal-strength estimate.
   // Called for both AM and FM so the hang timer counts correctly every block.
   if (r->mode == MODE_FM || r->mode == MODE_AM)
-    squelch_update(r->signal_avg);
+    squelch_update(agc_signal_strength);
 
   // Demodulate and produce audio output.
   // Only the second half of the IFFT is valid (first half is

@@ -285,7 +285,11 @@ input {
 #data_chat_tx,
 #data_chat_rx,
 #ptt_tx,
-#ptt_rx {
+#ptt_rx,
+#ptt_tx_fm,
+#ptt_rx_fm,
+#ptt_tx_am,
+#ptt_rx_am {
     width: 150px;
     height: 30px;
     color: var(--primary-text);
@@ -301,20 +305,26 @@ input {
     padding-left: 20px;
 }
 
-#ptt_tx {
+#ptt_tx,
+#ptt_tx_fm,
+#ptt_tx_am {
     background-color: red;
     padding-right: 20px;
     height: 45px;
 }
 
-#ptt_rx {
+#ptt_rx,
+#ptt_rx_fm,
+#ptt_rx_am {
     background-color: blue;
     padding-left: 20px;
     height: 45px;
 }
 
 /* Voice panel */
-#Voice_ui {
+#Voice_ui,
+#FM_ui,
+#AM_ui {
     text-align: center;
     padding-bottom: var(--spacing-md);
     background-color: var(--primary-bg);
@@ -950,7 +960,7 @@ input {
 }
 
 
-#digi_ui, #menu_panel, #keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
+#digi_ui, #menu_panel, #keybd, #logbook_table, #logbook-toolbar, #maincontrols, #FT8_ui, #more_keys, #CW_ui, #Voice_ui, #FM_ui, #AM_ui, #console_panel, #telnet_panel, #settings_panel, #recorder_panel, #logger-controls {
     clear: both;
     width: 100%;
     box-sizing: border-box;
@@ -1027,9 +1037,11 @@ input {
     text-decoration: underline;
 }
 
-#browser_mic {
-    white-space: pre-line;  /* This respects newlines and wraps text */
-    text-align: center;    /* Center the text if desired */
+#browser_mic,
+#browser_mic_fm,
+#browser_mic_am {
+    white-space: pre-line;
+    text-align: center;
 }
 
 #keypad_panel {
@@ -1123,7 +1135,7 @@ input {
     padding: 4px 8px;
 }
 
-#menu-open, #menu-open2, #menu-open3, #menu-open4 {
+#menu-open, #menu-open2, #menu-open3, #menu-open4, #menu-open5, #menu-open6 {
   float: right;
   margin-right: 30px;
 }
@@ -1141,4 +1153,19 @@ input {
                 0 4px 12px rgba(0, 0, 0, 0.5);
     vertical-align: top;
     overflow-x: hidden
+}
+
+/* ── FM mode panel ─────────────────────────────────────────────────── */
+
+/* CTCSS selectors need more room than the default 50px max-width */
+#linear_CTCSS_TX,
+#linear_CTCSS_RX {
+    min-width: 70px;
+    max-width: 90px;
+}
+
+#CTCSS_TX_sel,
+#CTCSS_RX_sel {
+    min-width: 60px;
+    font-size: 11px;
 }
