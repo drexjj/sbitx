@@ -2360,6 +2360,21 @@ void sound_start_with_usb(void)
 		usb_audio_cap_device[0] = '\0';
 
 	/*
+	 * Verify that the saved USB device is actually present before trying to
+	 * use it.  If the USB dongle was saved in user_settings.ini but is not
+	 * plugged in at this boot, sound_usb_device_present() will return 0 and
+	 * we clear both globals so the rest of the startup path falls through to
+	 * the default WM8731 audio, avoiding:
+	 *   ALSA lib confmisc.c: Cannot get card index for <Device>
+	 *   snd_mixer_selem_has_capture_switch: Assertion `elem' failed
+	 */
+	if (usb_audio_play_device[0] && !sound_usb_device_present(usb_audio_play_device))
+	{
+		usb_audio_play_device[0] = '\0';
+		usb_audio_cap_device[0]  = '\0';
+	}
+
+	/*
 	 * If a USB headset is active, mute the WM8731 Master output now so the
 	 * operator hears audio only through the headset.
 	 * setup_audio_codec() already ran and set Master=10; we override that here

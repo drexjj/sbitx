@@ -75,3 +75,6 @@ void sound_usb_enable_capture(const char *plughw_device, int enable);
 // Scan ALSA and fill out_play/out_cap with the first USB audio device found.
 // Returns 1 if found, 0 if no USB audio hardware is present.
 int  sound_find_usb_audio(char *out_play, char *out_cap, int maxlen);
+// Probe whether a named ALSA PCM playback device is actually present.
+// Returns 1 if the device opens successfully, 0 if not (e.g. unplugged).
+int  sound_usb_device_present(const char *device);

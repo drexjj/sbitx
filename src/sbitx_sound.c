@@ -111,9 +111,14 @@ void sound_mixer(char *card_name, char *element, int make_on)
     snd_mixer_selem_id_set_name(sid, element);
     snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
 
-/*		if (elem)
-			puts("Element found.");	
-	*/
+    /* Guard against a missing element (e.g. card present but element name
+       doesn't exist, or card wasn't found at all).  Without this check,
+       snd_mixer_selem_has_capture_switch(NULL) triggers an assertion abort. */
+    if (!elem) {
+        snd_mixer_close(handle);
+        return;
+    }
+
     //find out if the his element is capture side or plaback
     if(snd_mixer_selem_has_capture_switch(elem)){
 			//puts("this is a capture switch.");  
@@ -595,6 +600,30 @@ int sound_find_usb_audio(char *out_play, char *out_cap, int maxlen)
     }
     snd_device_name_free_hint(hints);
     return (found_play || found_cap) ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Probe whether a named ALSA PCM playback device is actually available.
+// Returns 1 if the device opens successfully, 0 if it cannot be opened
+// (e.g. the USB dongle is not plugged in).
+// Used by sbitx_gtk.c at startup to avoid assertion crashes from ALSA
+// mixer calls against a card that has no card index.
+// ---------------------------------------------------------------------------
+int sound_usb_device_present(const char *device)
+{
+    if (!device || !device[0]) return 0;
+    snd_pcm_t *handle = NULL;
+    int err = snd_pcm_open(&handle, device, SND_PCM_STREAM_PLAYBACK,
+                           SND_PCM_NONBLOCK);
+    if (err < 0) {
+        fprintf(stderr,
+                "USB audio device '%s' not available at startup "
+                "(err %d: %s) – falling back to default audio\n",
+                device, err, snd_strerror(err));
+        return 0;
+    }
+    snd_pcm_close(handle);
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
