@@ -1108,14 +1108,14 @@
         }
         // Validate input: must be a number, optionally with one decimal point
         if (!/^\d+(\.\d{0,3})?$/.test(input)) {
-            alert("Please enter a valid frequency in kHz (e.g., 7.040 or 14.0745)");
+            alert("Please enter a valid frequency in kHz (e.g., 7040 or 140745)");
             return;
         }
         // Convert kHz to Hz (multiply by 1000)
         var freqHz = Math.round(parseFloat(input) * 1000);
         // Basic validation: ensure frequency is within a reasonable range (e.g., 1 MHz to 30 MHz)
         if (freqHz < 1000000 || freqHz > 30000000) {
-            alert("Frequency must be between 1 MHz and 30 MHz.");
+            alert("Frequency entered is out of range and should be in kHz.");
             return;
         }
         // Update the frequency using the existing update_freq function
