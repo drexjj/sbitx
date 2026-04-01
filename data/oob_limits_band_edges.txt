@@ -1,0 +1,27 @@
+# oob_limits_band_edges.txt — Amateur band edges only
+#
+# Place this file at:  ~/sbitx/data/oob_limits.txt  (rename as needed)
+#
+# This file marks the full outer edges of each amateur band allocation.
+# No license class sub-divisions — just the band boundaries.
+# Any frequency outside these ranges will trigger the OOB indicator.
+#
+# Format (one range per line):
+#   label, start_hz, stop_hz, class
+#
+# Lines starting with '#' and blank lines are ignored.
+# Reload requires a restart of the sbitx application.
+#
+# -----------------------------------------------------------------------
+# US Amateur Band Edges (FCC Part 97, as of 2024)
+# -----------------------------------------------------------------------
+
+80M,    3500000,   4000000, ALL
+60M,    5330500,   5403500, ALL
+40M,    7000000,   7300000, ALL
+30M,   10100000,  10150000, ALL
+20M,   14000000,  14350000, ALL
+17M,   18068000,  18168000, ALL
+15M,   21000000,  21450000, ALL
+12M,   24890000,  24990000, ALL
+10M,   28000000,  29700000, ALL

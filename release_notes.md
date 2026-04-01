@@ -31,6 +31,10 @@
     + Added squelch control to AM mode
 - Added option to use USB audio devices for sound routing (speaker/phones and mic input)
     + The options are in the Set dialog box in Menu 1
+- Added Out-Of-Band and license class indicators
+    + Shows color strips or shading for bands edges and US license class
+	+ Each file can be customized outside the USA
+	+ More details and instructions in the oob_limits files in the data folder
 
 **Changes:**
 - GUI

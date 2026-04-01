@@ -1,0 +1,54 @@
+# oob_limits_extra.txt — Allowed frequency ranges for the scope OOB indicator
+#
+# Place this file at:  ~/sbitx/data/oob_limits.txt  (rename as needed)
+#
+# Format (one range per line):
+#   label, start_hz, stop_hz, class
+#
+# class is one of: TECH | GENERAL | EXTRA | ALL
+#   TECH    = Technician and above (shown in cyan-blue)
+#   GENERAL = General and above    (shown in green)
+#   EXTRA   = Amateur Extra only   (shown in amber/gold)
+#
+# Lines starting with '#' and blank lines are ignored.
+# Reload requires a restart of the sbitx application.
+#
+# -----------------------------------------------------------------------
+# US Amateur Extra Class HF/VHF/UHF privileges (FCC Part 97, as of 2024)
+# -----------------------------------------------------------------------
+
+# 80 Meters
+80M CW/Data,      3500000,  3600000, EXTRA
+80M Phone/Image,  3600000,  4000000, EXTRA
+
+# 60 Meters
+60M Ch1,          5330500,  5330500, EXTRA
+60M Ch2,          5346500,  5346500, EXTRA
+60M Ch3,          5357000,  5357000, EXTRA
+60M Ch4,          5371500,  5371500, EXTRA
+60M Ch5,          5403500,  5403500, EXTRA
+
+# 40 Meters
+40M CW/Data,      7000000,  7125000, EXTRA
+40M Phone/Image,  7125000,  7300000, EXTRA
+
+# 30 Meters
+30M CW/Data,     10100000, 10150000, EXTRA
+
+# 20 Meters
+20M CW/Data,     14000000, 14150000, EXTRA
+20M Phone/Image, 14150000, 14350000, EXTRA
+
+# 17 Meters
+17M All modes,   18068000, 18168000, EXTRA
+
+# 15 Meters
+15M CW/Data,     21000000, 21200000, EXTRA
+15M Phone/Image, 21200000, 21450000, EXTRA
+
+# 12 Meters
+12M All modes,   24890000, 24990000, EXTRA
+
+# 10 Meters
+10M CW/Data,     28000000, 28300000, EXTRA
+10M Phone/Image, 28300000, 29700000, EXTRA

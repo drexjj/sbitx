@@ -1,0 +1,100 @@
+# oob_limits_all_classes.txt — All US amateur license class privileges combined
+#
+# Place this file at:  ~/sbitx/data/oob_limits.txt  (rename as needed)
+#
+# This file shows ALL THREE license classes simultaneously on the band strip,
+# color-coded so you can see at a glance who has privileges where:
+#
+#   TECH    (cyan-blue)  = Technician exclusive HF segments
+#   GENERAL (green)      = General exclusive segments (above Technician)
+#   EXTRA   (amber/gold) = Extra exclusive segments (bottom of each band)
+#
+# OOB flag behavior: triggers when the VFO is NOT in ANY listed range.
+#
+# Format (one range per line):
+#   label, start_hz, stop_hz, class
+#
+# Lines starting with '#' and blank lines are ignored.
+# Reload requires a restart of the sbitx application.
+#
+# -----------------------------------------------------------------------
+# 80 Meters  (3.5 – 4.0 MHz)
+# -----------------------------------------------------------------------
+# Extra only CW — 3.500–3.525
+80M Extra CW,         3500000,  3525000, EXTRA
+# Technician CW — 3.525–3.600 (Tech shares with General/Extra)
+80M Tech/Gen CW,      3525000,  3600000, TECH
+# Extra/General phone — 3.600–3.700 (Extra has full; General starts 3.800)
+80M Extra Phone,      3600000,  3800000, EXTRA
+# General phone — 3.800–4.000
+80M General Phone,    3800000,  4000000, GENERAL
+
+# -----------------------------------------------------------------------
+# 60 Meters  (channelized — 5 channels, General/Extra/Advanced only)
+# -----------------------------------------------------------------------
+60M Ch1,              5330500,  5330500, GENERAL
+60M Ch2,              5346500,  5346500, GENERAL
+60M Ch3,              5357000,  5357000, GENERAL
+60M Ch4,              5371500,  5371500, GENERAL
+60M Ch5,              5403500,  5403500, GENERAL
+
+# -----------------------------------------------------------------------
+# 40 Meters  (7.0 – 7.3 MHz)
+# -----------------------------------------------------------------------
+# Extra only CW — 7.000–7.025
+40M Extra CW,         7000000,  7025000, EXTRA
+# Tech/General CW — 7.025–7.125
+40M Tech/Gen CW,      7025000,  7125000, TECH
+# Extra phone — 7.125–7.175 (Extra only)
+40M Extra Phone,      7125000,  7175000, EXTRA
+# General phone — 7.175–7.300
+40M General Phone,    7175000,  7300000, GENERAL
+
+# -----------------------------------------------------------------------
+# 30 Meters  (10.1 – 10.15 MHz)  CW/Data only, no Technician
+# -----------------------------------------------------------------------
+30M General CW/Data, 10100000, 10150000, GENERAL
+
+# -----------------------------------------------------------------------
+# 20 Meters  (14.0 – 14.35 MHz)
+# -----------------------------------------------------------------------
+# Extra only CW — 14.000–14.025
+20M Extra CW,        14000000, 14025000, EXTRA
+# General CW — 14.025–14.150
+20M General CW,      14025000, 14150000, GENERAL
+# Extra phone — 14.150–14.225
+20M Extra Phone,     14150000, 14225000, EXTRA
+# General phone — 14.225–14.350
+20M General Phone,   14225000, 14350000, GENERAL
+
+# -----------------------------------------------------------------------
+# 17 Meters  (18.068 – 18.168 MHz)  No Technician HF here
+# -----------------------------------------------------------------------
+17M General/Extra,   18068000, 18168000, GENERAL
+
+# -----------------------------------------------------------------------
+# 15 Meters  (21.0 – 21.45 MHz)
+# -----------------------------------------------------------------------
+# Extra only CW — 21.000–21.025
+15M Extra CW,        21000000, 21025000, EXTRA
+# Tech/General CW — 21.025–21.200
+15M Tech/Gen CW,     21025000, 21200000, TECH
+# Extra phone — 21.200–21.275
+15M Extra Phone,     21200000, 21275000, EXTRA
+# General phone — 21.275–21.450
+15M General Phone,   21275000, 21450000, GENERAL
+
+# -----------------------------------------------------------------------
+# 12 Meters  (24.89 – 24.99 MHz)  No Technician HF here
+# -----------------------------------------------------------------------
+12M General/Extra,   24890000, 24990000, GENERAL
+
+# -----------------------------------------------------------------------
+# 10 Meters  (28.0 – 29.7 MHz)
+# -----------------------------------------------------------------------
+# Tech/General/Extra CW — 28.000–28.300
+10M Tech CW,         28000000, 28300000, TECH
+# Tech phone — 28.300–28.500  (Technician limit)
+10M Tech Phone,      28300000, 28500000, TECH
+# General/Extra phone — 28.500–29.700
+10M General Phone,   28500000, 29700000, GENERAL

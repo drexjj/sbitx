@@ -1,0 +1,34 @@
+# oob_limits_technician.txt — Allowed frequency ranges for the scope OOB indicator
+#
+# Place this file at:  ~/sbitx/data/oob_limits.txt  (rename as needed)
+#
+# Format (one range per line):
+#   label, start_hz, stop_hz, class
+#
+# class is one of: TECH | GENERAL | EXTRA | ALL
+#   TECH    = Technician and above (shown in cyan-blue)
+#   GENERAL = General and above    (shown in green)
+#   EXTRA   = Amateur Extra only   (shown in amber/gold)
+#
+# Lines starting with '#' and blank lines are ignored.
+# Reload requires a restart of the sbitx application.
+#
+# -----------------------------------------------------------------------
+# US Technician Class HF/VHF/UHF privileges (FCC Part 97, as of 2024)
+# -----------------------------------------------------------------------
+
+# 80 Meters — CW only
+80M CW,           3525000,  3600000, TECH
+
+# 40 Meters — CW only
+40M CW,           7025000,  7125000, TECH
+
+# 15 Meters — CW only
+15M CW,          21025000, 21200000, TECH
+
+# 10 Meters — CW sub-band
+10M CW,          28000000, 28300000, TECH
+
+# 10 Meters — Phone/Image
+10M Phone/Image, 28300000, 28500000, TECH
+

@@ -82,6 +82,125 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
+int freq_out_of_band = 0;  // Set when VFO frequency is outside all band ranges
+
+// ---------------------------------------------------------------------------
+// OOB (out-of-band) privilege limits loaded from ~/sbitx/data/oob_limits.txt
+// ---------------------------------------------------------------------------
+#define MAX_OOB_RANGES 128
+
+// License class identifiers used for color-coding the band strip
+typedef enum {
+	OOB_CLASS_ALL = 0,  // all license classes (VHF/UHF shared, or unspecified)
+	OOB_CLASS_TECH,     // Technician and above
+	OOB_CLASS_GENERAL,  // General and above
+	OOB_CLASS_EXTRA,    // Amateur Extra only
+} oob_class_t;
+
+struct oob_range {
+	char        label[32];    // e.g. "80M CW"
+	long        start;        // Hz
+	long        stop;         // Hz
+	oob_class_t lic_class;    // license class for color coding
+};
+static struct oob_range oob_ranges[MAX_OOB_RANGES];
+static int              oob_range_count = 0;
+
+// Parse a class token string into an oob_class_t value.
+static oob_class_t parse_oob_class(const char *token)
+{
+	if (!token || *token == '\0') return OOB_CLASS_ALL;
+	if (strncasecmp(token, "TECH",    4) == 0) return OOB_CLASS_TECH;
+	if (strncasecmp(token, "GENERAL", 7) == 0) return OOB_CLASS_GENERAL;
+	if (strncasecmp(token, "EXTRA",   5) == 0) return OOB_CLASS_EXTRA;
+	return OOB_CLASS_ALL;
+}
+
+// Load (or reload) OOB ranges from the text file.
+// File format — one range per line:
+//   label, start_hz, stop_hz, class
+// 'class' is one of: TECH | GENERAL | EXTRA | ALL  (optional, default ALL)
+// Lines beginning with '#' or blank are ignored.
+static void load_oob_limits(void)
+{
+	char path[256];
+	const char *home = getenv("HOME");
+	if (!home) home = "/home/pi";
+	snprintf(path, sizeof(path), "%s/sbitx/data/oob_limits.txt", home);
+
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		printf("OOB limits: cannot open %s — OOB display disabled\n", path);
+		oob_range_count = 0;
+		return;
+	}
+
+	oob_range_count = 0;
+	char line[160];
+	while (fgets(line, sizeof(line), f)) {
+		// Skip blank lines and comments
+		char *p = line;
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0')
+			continue;
+
+		if (oob_range_count >= MAX_OOB_RANGES) {
+			printf("OOB limits: too many entries (max %d), ignoring rest\n", MAX_OOB_RANGES);
+			break;
+		}
+
+		struct oob_range *r = &oob_ranges[oob_range_count];
+		long start = 0, stop = 0;
+		char class_tok[16] = "";
+		int  fields = sscanf(line, " %31[^,], %ld , %ld , %15s",
+							  r->label, &start, &stop, class_tok);
+		if (fields >= 3) {
+			r->start     = start;
+			r->stop      = stop;
+			r->lic_class = parse_oob_class(class_tok);
+			oob_range_count++;
+		} else {
+			printf("OOB limits: skipping malformed line: %s", line);
+		}
+	}
+	fclose(f);
+	printf("OOB limits: loaded %d range(s) from %s\n", oob_range_count, path);
+}
+
+// Returns 1 if 'frequency' falls inside at least one OOB privilege range.
+static int freq_in_oob_range(long frequency)
+{
+	if (oob_range_count == 0)
+		return 0;   // no file loaded — never flag OOB on the scope
+	for (int i = 0; i < oob_range_count; i++) {
+		if (frequency >= oob_ranges[i].start && frequency <= oob_ranges[i].stop)
+			return 1;
+	}
+	return 0;
+}
+
+// Return RGBA color for each license class (used by the band strip).
+static void oob_class_color(oob_class_t cls,
+							double *r, double *g, double *b, double *a)
+{
+	switch (cls) {
+		case OOB_CLASS_TECH:
+			// Cyan-blue — Technician
+			*r = 0.0; *g = 0.6; *b = 1.0; *a = 0.75; break;
+		case OOB_CLASS_GENERAL:
+			// Green — General
+			*r = 0.0; *g = 0.9; *b = 0.2; *a = 0.75; break;
+		case OOB_CLASS_EXTRA:
+			// Amber/gold — Extra
+			*r = 1.0; *g = 0.75; *b = 0.0; *a = 0.75; break;
+		default:
+			// Light grey — all classes / unspecified
+			*r = 0.7; *g = 0.7; *b = 0.7; *a = 0.55; break;
+	}
+}
+
+// Draw a color-coded privilege band strip at the bottom of the spectrum grid.
+// Each OOB range that overlaps the visible span gets a 5-pixel tall colored bar.
 int cw_decode_enabled = 1;   // default ON for CW decode
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
@@ -3474,6 +3593,47 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 	}
 }
 
+static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
+								long center_freq, float span_khz, int grid_height)
+{
+	if (oob_range_count == 0) return;
+
+	// If every range is OOB_CLASS_ALL (e.g. band-edges-only file), skip the strip —
+	// there are no license class sub-divisions worth colour-coding.
+	int all_class_only = 1;
+	for (int i = 0; i < oob_range_count; i++)
+		if (oob_ranges[i].lic_class != OOB_CLASS_ALL) { all_class_only = 0; break; }
+	if (all_class_only) return;
+
+	const int   STRIP_H = 5;
+	const long  half_span = (long)(span_khz * 500.0f);  // half span in Hz
+	const long  vis_start = center_freq - half_span;
+	const long  vis_stop  = center_freq + half_span;
+	const float hz_per_px = (float)f->width / (span_khz * 1000.0f);
+	const int   strip_y   = f->y + (grid_height / 2) - (STRIP_H / 2);  // vertically centered
+
+	for (int i = 0; i < oob_range_count; i++) {
+		struct oob_range *r = &oob_ranges[i];
+
+		// Skip ranges entirely outside the visible span
+		if (r->stop < vis_start || r->start > vis_stop) continue;
+
+		// Clamp to visible area and convert to pixel coords
+		long  clamp_start = r->start > vis_start ? r->start : vis_start;
+		long  clamp_stop  = r->stop  < vis_stop  ? r->stop  : vis_stop;
+		int   px_start = f->x + (int)((clamp_start - vis_start) * hz_per_px);
+		int   px_stop  = f->x + (int)((clamp_stop  - vis_start) * hz_per_px);
+		int   px_width = px_stop - px_start;
+		if (px_width < 1) px_width = 1;
+
+		double cr, cg, cb, ca;
+		oob_class_color(r->lic_class, &cr, &cg, &cb, &ca);
+
+		cairo_set_source_rgba(gfx, cr, cg, cb, ca);
+		cairo_rectangle(gfx, px_start, strip_y, px_width, STRIP_H);
+		cairo_fill(gfx);
+	}
+}
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
@@ -3606,6 +3766,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	cairo_stroke(gfx);
 
 	draw_spectrum_grid(f_spectrum, gfx);
+	// Draw color-coded license privilege band strip along the bottom of the grid
+	draw_oob_band_strip(f_spectrum, gfx, freq, span, grid_height);
 	f = f_spectrum;
 
 	// Display TX meters in the top left corner of the spectrum grid during transmission
@@ -4371,6 +4533,38 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 				cairo_fill(gfx);
 			}
 		}
+	}
+
+	// --- Out-of-Band (OOB) overlay
+	if (freq_out_of_band)
+	{
+		// Semi-transparent yellow shading over the entire spectrum area
+		cairo_set_source_rgba(gfx, 1.0, 1.0, 0.0, 0.10);
+		cairo_rectangle(gfx, f_spectrum->x, f_spectrum->y,
+				f_spectrum->width, grid_height);
+		cairo_fill(gfx);
+
+		// "OOB" label — large, left side, beneath the S-meter
+		cairo_select_font_face(gfx, "Sans",
+				CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 32);
+
+		const char *oob_label = "OOB";
+		// Align with the left edge of the S-meter (x+5), below its label row (~y+22)
+		int oob_x = f_spectrum->x + 5;
+		int oob_y = f_spectrum->y + 22 + 32;  // S-meter bottom + font height
+
+		// Dark shadow for legibility
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.7);
+		cairo_move_to(gfx, oob_x + 1, oob_y + 1);
+		cairo_show_text(gfx, oob_label);
+
+		// Bright red label
+		cairo_set_source_rgba(gfx, 1.0, 0.2, 0.2, 1.0);
+		cairo_move_to(gfx, oob_x, oob_y);
+		cairo_show_text(gfx, oob_label);
+
+		cairo_stroke(gfx);
 	}
 }
 
@@ -5590,6 +5784,9 @@ void apply_band_settings(long frequency)
 
 	if (new_band != -1)
 	{
+		// Frequency is within a valid band — clear the OOB flag
+		freq_out_of_band = 0;
+
 		// Check the TUNE
 		if (in_tx)
 		{
@@ -5622,9 +5819,16 @@ void apply_band_settings(long frequency)
 	}
 	else
 	{
-		// Handle frequency outside all band ranges
+		// Frequency is outside the radio's band stack — console log only
 		printf("Error: Frequency %ld is outside all band ranges.\n", frequency);
 	}
+
+	// Scope OOB indicator is driven independently by the privilege file:
+	// in-range = at least one oob_limits.txt entry covers this frequency.
+	if (oob_range_count > 0)
+		freq_out_of_band = freq_in_oob_range(frequency) ? 0 : 1;
+	else
+		freq_out_of_band = 0;  // no file loaded — never show OOB overlay
 }
 
 // setting the frequency is complicated by having to take care of the
@@ -11770,6 +11974,7 @@ int main(int argc, char *argv[])
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
 
+	load_oob_limits();   // load ~/sbitx/data/oob_limits.txt for scope OOB display
 	ui_init(argc, argv);
 	hw_init();
 	console_init();
