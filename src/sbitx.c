@@ -321,7 +321,7 @@ struct power_settings band_power[] = {
 #define MDS_LEVEL (-135)
 
 // AGC defines
-#define AGC_TARGET_OUTPUT 30000.0
+#define AGC_TARGET_OUTPUT 10000.0
 #define AGC_MAXIMUM_GAIN 10000000.0
 #define AGC_MINIMUM_GAIN 1.0
 #define AGC_ATTACK_ALPHA 0.5
@@ -1413,11 +1413,12 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   my_fftw_execute(plan_fwd);
 
   // Spectrum / waterfall display path
-  // Use a separate scratch copy so the RX processing buffer stays clean
-  // and applying spectrum window does not affect signal processing
+  // plan_spectrum was bound to fft_in as its input at creation time, so we
+  // apply the Hann window directly to fft_in before executing it.
+  // plan_fwd has already run at this point so fft_in is safe to modify.
   for (i = 0; i < MAX_BINS; i++) {
-    __real__ fft_spectrum[i] = __real__ fft_in[i] * spectrum_window[i];
-    __imag__ fft_spectrum[i] = __imag__ fft_in[i] * spectrum_window[i];
+    __real__ fft_in[i] *= spectrum_window[i];
+    __imag__ fft_in[i] *= spectrum_window[i];
   }
   my_fftw_execute(plan_spectrum);
   spectrum_update();
