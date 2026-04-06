@@ -567,6 +567,11 @@ input {
 
 .ftx-grid {
 	font-weight: bold;
+    color: rgba(0, 255, 162, 0.495);
+}
+
+.ftx-grid-not-logged {
+	font-weight: bold;
     color: rgb(255, 204, 0);
 }
 

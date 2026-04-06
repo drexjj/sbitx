@@ -3352,6 +3352,7 @@
 	const STYLE_LOG = 'F'; // generic; also several FTX-specific fields
 	const STYLE_MYCALL = 'Q';
 	const STYLE_CALLER = 'R';
+	const STYLE_EXISTING_GRID = 'W';
 	const STYLE_GRID = 'S';
 	const STYLE_DISTANCE = 'U';
 	const STYLE_AZIMUTH = 'V';
@@ -3383,17 +3384,21 @@
 			case STYLE_CALLER:
 				jclass = "ftx-caller";
 				break;
-			case STYLE_GRID:
+            case STYLE_EXISTING_GRID:
 				jclass = "ftx-grid";
+				GRIDMAP.gridIdLogged(text.substring(2));
+				break;
+			case STYLE_GRID:
+				jclass = "ftx-grid-not-logged";
 				GRIDMAP.gridIdNotLogged(text.substring(2));
 				break;
 			case STYLE_DISTANCE:
 				jclass = "ftx-distance";
-				GRIDMAP.gridIdNotLogged(text.substring(2));
+				//GRIDMAP.gridIdNotLogged(text.substring(2));
 				break;
 			case STYLE_AZIMUTH:
 				jclass = "ftx-azimuth";
-				GRIDMAP.gridIdNotLogged(text.substring(2));
+				//GRIDMAP.gridIdNotLogged(text.substring(2));
 				break;
 			case STYLE_FTX_QUEUED:
 				jclass = "ftx-queued";
@@ -4062,11 +4067,12 @@
             var data = xml.getElementsByTagName("LOG");
             for (var i = 0; i < data.length; i++) {
                 let s = data[i].innerHTML;
-                write_console(s);
+                console_update(s);  // write_console(s);
                 // Extract qso grid from message e.g.
-                // "Logged: F4VTG -05-JO65 -14-JN12\n;"
-                if (s.startsWith("Logged:")) { // String ends width \n
-                    s = s.substring(s.length - 5, s.length - 1);
+                // "Logged: UR3HC KN69 s -10 r -12 pwr 0.9 swr 1.3\n"
+                if (s.startsWith("Logged:")) {
+                    const fields = s.split(" ");
+                    s = fields[2] || "";
                     GRIDMAP.gridIdJustLogged(s);
                 }
             }

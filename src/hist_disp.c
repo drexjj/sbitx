@@ -81,8 +81,9 @@ char ff_char(int style) {
 			return 'A' + 17;
 		case STYLE_CALLEE:
 		case STYLE_RECENT_CALLER:
+		    return 'A' + 5;
 		case STYLE_EXISTING_GRID:
-			return 'A' + 5;
+			return 'A' + 22;
 		case STYLE_GRID:
 			return 'A' + 18;
 		case STYLE_TIME:
