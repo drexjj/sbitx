@@ -2662,7 +2662,11 @@ static int user_settings_handler(void *user, const char *section,
 		{
 			/* allow float values; 0 or negative => disabled */
 			max_vswr = atof(value);
-			if (max_vswr < 0.1f) vswr=0;
+			if (max_vswr < 0.1f) 
+            {           
+              vswr=0;
+              vswr_on = 0;  // turn off protection
+            }
 			return 1;
 		}
 
