@@ -51,7 +51,9 @@
 	+ Replaced viterbi with simpler classifier
 	+ Simplified code of own TX decode process
 	+ Set BW to `50` when using decoder is recommended
-- Added more controls to the Web interface
+- Web interface
+  + Added more controls
+  + Gridmap new options: Square or round Grid dots; Seen Grids; Unlogged Grids;
   
 **Fixes:**
 - APF init Bug
@@ -60,8 +62,10 @@
 	+ Made a small change to cleanup the static between TX to RX 
 - APM sampling improved for better regularity
 - VSWR initialization when user disabled fixed
+- max_vswr=0 now restored as no max vswr protection at startup
 - Fixed scope intensity where it now loads and restores previous setting
 - Fixed Macro loading and F1-F8 buttons when changing modes
+- Web Gridmap red Grid dots now shown when QSO is logged
 
 # v5.301
 **Bug Fixes:**

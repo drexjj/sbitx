@@ -28,8 +28,8 @@ const GRIDMAP = (function gridmap() {
   img.crossOrigin = "anonymous";
   img.src = "./Web_maps_Mercator_projection_SW.jpg";
 
-  const kx = projection.forward([180, 0])[0]; // x-coordinate at (180°, 0°) in meters
-  const ky = projection.forward([0, 85])[1];  // y-coordinate at (0°, 85°) in meters
+  const kx = projection.forward([180, 0])[0]; // x-coordinate at (180ï¿½, 0ï¿½) in meters
+  const ky = projection.forward([0, 85])[1];  // y-coordinate at (0ï¿½, 85ï¿½) in meters
 
   const scaleMin = 25;
   const scaleMax = 200;
@@ -44,9 +44,15 @@ const GRIDMAP = (function gridmap() {
   const gridsSeenLogged = new Set();
   const gridsSeenNotLogged = new Set();
   const gridsSeenJustLogged = new Set();
-  let showGridsSeen = true;
+  let showGridsSeen = false;
+  let showGridsUnlogged = true;
+ 
+  const btnGridsUnLogged = document.createElement("button");
 
-  var viewOffsetX = 0; // Tracks panning offset (replaces scrollLeft)
+  const btnShowRoundDots = document.createElement("button");
+  var use_square_dots = true;
+  
+  var viewOffsetX = 0; // Tracks panning offset (replaces scrollLeft)  
   var viewOffsetY = 0; // Tracks panning offset (replaces scrollTop)
 
   function setToolTip(elt, tip) {
@@ -62,6 +68,10 @@ const GRIDMAP = (function gridmap() {
     btnGridsSeen.enabled = b;
     btnGridsLogged.className = showGridsLogged ? "gm_btn_on" : "gm_btn_off";
     btnGridsLogged.enabled = b;
+    btnGridsUnLogged.className = showGridsUnlogged ? "gm_btn_on" : "gm_btn_off";
+    btnGridsUnLogged.enabled = b;
+    btnShowRoundDots.className = use_square_dots ? "gm_btn_off" : "gm_btn_on";
+    btnShowRoundDots.enabled = b;
   }
 
   function gmBuildHtml() {
@@ -80,23 +90,31 @@ const GRIDMAP = (function gridmap() {
 
     zoomSpan.style = "width: 45px; display: inline-flex;";
     const sliderDiv = document.createElement("div");
+    btnShowRoundDots.innerText = "Round";
+    btnShowRoundDots.title = "Show big round dots";
+    sliderDiv.appendChild(btnShowRoundDots);
     slider.type = "range";
     slider.min = scaleMin;
     slider.max = scaleMax;
     slider.value = scaleCur; // Reflects initial scaleCur = 30
     slider.step = scaleStep;
     slider.id = "gridzoom";
-    slider.style = "width: 150px;";
+    slider.style = "width: 120px;";
     sliderDiv.appendChild(zoomSpan);
     sliderDiv.appendChild(slider);
     btnGridsLogged.innerText = "Logged";
+    btnGridsLogged.title = "Show all logged grids";
     sliderDiv.appendChild(btnGridsLogged);
     btnGridsSeen.innerText = "Seen";
+    btnGridsSeen.title = "Show all grids seen during this session";
     sliderDiv.appendChild(btnGridsSeen);
+    btnGridsUnLogged.innerText ="Unlogged";
+    btnGridsUnLogged.title = "Show all unlogged grids seen during this session";
+    sliderDiv.appendChild(btnGridsUnLogged);
     setBtnsStateEnable(false);
     sliderDiv.appendChild(infoDiv);
     infoDiv.appendChild(infoSpan);
-    infoSpan.style = "width: 200px; text-align: center; display: inline-flex;";
+    infoSpan.style = "font-size: 12px; width: 120px; text-align: center; display: inline-flex;";
     setToolTip(infoDiv, "(longitude,latitude) GridId");
     containerDiv.appendChild(canvasDiv);
     containerDiv.appendChild(sliderDiv);
@@ -175,7 +193,7 @@ const GRIDMAP = (function gridmap() {
     if (gmIsValidGridId(gridId)) {
       point[0] = (gridId.charCodeAt(0) - 'A'.charCodeAt(0)) * 10 + (gridId.charCodeAt(2) - '0'.charCodeAt(0));
       point[1] = (gridId.charCodeAt(1) - 'A'.charCodeAt(0)) * 10 + (gridId.charCodeAt(3) - '0'.charCodeAt(0));
-    }
+    }                          
     return point;
   }
 
@@ -197,19 +215,32 @@ const GRIDMAP = (function gridmap() {
   // Replace gmSetGridMark:
   function gmSetGridMark(col, row, clr) {
     const f = 150.0;
-    const sx = Math.round(ofsCanvas.width / f);
-    const sy = Math.round(ofsCanvas.height / f);
-    const radius = Math.min(sx, sy) / 2; // Radius for circles
-
     const longitude = col * 2 - 180 + 0.0;
     const latitude = row - 90 + 1.0;
 
     const point = gmToMercatorPoint(longitude, latitude);
-
-    ofsCtx.fillStyle = clr;
-    ofsCtx.beginPath();
-    ofsCtx.arc(point[0] + radius, point[1] + radius, radius, 0, 2 * Math.PI);
-    ofsCtx.fill();
+    
+    if (use_square_dots) {
+      // const sx = Math.round(ofsCanvas.width / f);
+      const sy = Math.round(ofsCanvas.height / f);
+      // const oldMode = ofsCtx.globalCompositeOperation;
+      // ofsCtx.globalCompositeOperation = 'difference';
+      ofsCtx.fillStyle = "PowderBlue";
+      ofsCtx.fillRect(point[0], point[1], sy/2+1, sy/2+1);
+      // ofsCtx.globalCompositeOperation = oldMode;
+      ofsCtx.fillStyle = clr;
+      ofsCtx.fillRect(point[0]+1, point[1]+1, sy/2-1, sy/2-1);
+    }
+    else {
+      const sx = Math.round(ofsCanvas.width / f);
+      const sy = Math.round(ofsCanvas.height / f);
+      const radius = Math.min(sx, sy) / 2; // Radius for circles
+      ofsCtx.fillStyle = clr;
+      ofsCtx.beginPath();
+      ofsCtx.arc(point[0] + radius, point[1] + radius, radius, 0, 2 * Math.PI);
+      ofsCtx.fill();
+    }    
+    
   }
   function gmShowGridId(gridId, clr) {
     const point = gmGridIdToPoint(gridId);
@@ -336,7 +367,7 @@ const GRIDMAP = (function gridmap() {
 
   function gmGridIdNotLogged(gridId) {
     gridsSeenNotLogged.add(gridId);
-    if (showGridsSeen) {
+    if (showGridsUnlogged) {
       gmShowGridId(gridId, "rgb(247, 247, 38)");
       gmDelayedRefresh();
     }
@@ -351,6 +382,12 @@ const GRIDMAP = (function gridmap() {
     }
   }
 
+  function clickShowRoundDots() {
+    use_square_dots = !use_square_dots;
+    setBtnsStateEnable(false);
+    reloadGridMap();
+  }
+
   function clickGridsLogged() {
     showGridsLogged = !showGridsLogged;
     setBtnsStateEnable(false);
@@ -359,6 +396,15 @@ const GRIDMAP = (function gridmap() {
 
   function clickGridsSeen() {
     showGridsSeen = !showGridsSeen;
+    if(showGridsSeen) {
+      showGridsUnlogged = true;
+    }
+    setBtnsStateEnable(false);
+    reloadGridMap();
+  }
+
+  function clickGridsUnlogged() {
+    showGridsUnlogged = !showGridsUnlogged;
     setBtnsStateEnable(false);
     reloadGridMap();
   }
@@ -368,7 +414,14 @@ const GRIDMAP = (function gridmap() {
     for (const gridId of setIterator) {
       gmShowGridId(gridId[0], "darkgreen");
     }
-    setIterator = gridsSeenNotLogged.entries();
+    setIterator = gridsSeenJustLogged.entries();
+    for (const gridId of setIterator) {
+      gmShowGridId(gridId[0], "red");
+    }
+  }
+
+  function gmMarkUnloggedGridIds() {
+    let setIterator = gridsSeenNotLogged.entries();
     for (const gridId of setIterator) {
       gmShowGridId(gridId[0], "rgb(250, 250, 38)");
     }
@@ -399,24 +452,29 @@ const GRIDMAP = (function gridmap() {
     }
   }
 
-  function reloadGridMap() {
+  function reloadGridMap(do_center) {
     ofsCanvas.width = img.width;
     ofsCanvas.height = img.height;
     ofsCtx.drawImage(img, 0, 0);
     img.style.display = "none";
     console.log(`Map dimensions: ${img.width}x${img.height}`); // Debug
 
-    // Center map horizontally at 30% scale
-    const fScale = scaleCur / 100; 
-    const scaledWidth = ofsCanvas.width * fScale;
-    viewOffsetX = (scaledWidth - fixedWidth) / 2; // Center horizontally
-    viewOffsetY = 0; // Top-aligned, as in original
+    if (do_center) {
+      // Center map horizontally at 30% scale
+      const fScale = scaleCur / 100; 
+      const scaledWidth = ofsCanvas.width * fScale;
+      viewOffsetX = (scaledWidth - fixedWidth) / 2; // Center horizontally
+      viewOffsetY = 0; // Top-aligned, as in original
+    }
 
     if (showGridsLogged) {
       gmMarkLoggedGridIds();
     }
     if (showGridsSeen) {
       gmMarkSeenGridIds();
+    }
+    if (showGridsUnlogged) {
+      gmMarkUnloggedGridIds();
     }
     gmDrawScaledCanvas(scaleCur);
     setBtnsStateEnable(true);
@@ -438,7 +496,7 @@ const GRIDMAP = (function gridmap() {
       }
       gridIdsLoaded = true;
       if (worldMapLoaded) {
-        reloadGridMap();
+        reloadGridMap(true);
       }
     });
   }
@@ -447,13 +505,15 @@ const GRIDMAP = (function gridmap() {
   img.addEventListener("load", () => {
     worldMapLoaded = true;
     if (gridIdsLoaded) {
-      reloadGridMap();
+      reloadGridMap(true);
     }
   });
 
+  btnShowRoundDots.addEventListener("click", clickShowRoundDots);
   slider.addEventListener('change', gmSliderZoom, false);
   btnGridsLogged.addEventListener("click", clickGridsLogged);
   btnGridsSeen.addEventListener("click", clickGridsSeen);
+  btnGridsUnLogged.addEventListener("click", clickGridsUnlogged);
   canvasDiv.addEventListener("wheel", gmMouseZoom, { passive: false });
   canvasDiv.addEventListener("mousemove", (event) => gmMouseMove(event));
   canvasDiv.addEventListener("mousedown", (event) => gmPick(event));
