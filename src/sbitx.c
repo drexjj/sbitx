@@ -176,10 +176,9 @@ FILE *pf_debug = NULL;
 //#define ADC_SCALE  400000000.0
 #define ADC_SCALE  200000000.0
 
-int sbitx_version = SBITX_V2;
-int fwdpower, vswr;
-int fwdpower_calc;
-int fwdpower_cnt;
+int sbitx_version = SBITX_V2;  // never used
+int fwdpower = 0;
+int vswr = 10;
 
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -227,13 +226,14 @@ struct rx *rx_list = NULL;
 struct rx *tx_list = NULL;
 struct filter *tx_filter; // convolution filter
 static double tx_amp = 0.0;
-static double alc_level = 1.0;
+float alc_level = 1.0;
 static int tr_relay = 0;
 static int rx_pitch = 700; // used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
 static double mode_bal = 1.0;   // RLB
+float allband_max = 41.7;  // RLB
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -1796,63 +1796,67 @@ void read_power()
 {
 	uint8_t response[4];
 	int16_t vfwd, vref;
-	int fwdpw;
-
-	char buff[20];
+	float fwdpw;
+	static int last_vfwd = 0;  // check for change
 
 	if (!in_tx)
 		return;
 	if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
 		return;
 
-	vfwd = vref = 0;
-
-	memcpy(&vfwd, response, 2);
+	vfwd = vref = 0;  
+	memcpy(&vfwd, response, 2);  // bridge voltage values 0-1023
 	memcpy(&vref, response + 2, 2);
-	//	printf("%d:%d\n", vfwd, vref);
-
+	
+	if ( vfwd == last_vfwd) {
+		return;  // no change so do nothing	
+	}
+	last_vfwd = vfwd;
+	
+	if (vfwd < 20 ) {  // approx 0, clean up drop to zero power while still in transmit
+		fwdpower = 0;  // Immediate zeroing smmothed power 
+		vswr = 10;
+		alc_level=1.0;
+		return;
+	}
+	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
 	// Better not to calculate the swr at all if the measured power is under a very minimal level
-	if (vfwd > 3) {
+	// vfwd 0-1023, limit changed from 3 to 50 ~.1 watt   RLB
+	vswr=10;  // farham x10 integers
+	if (vfwd > 50) {   // don't calculate if < .1 watt
 		if (vref >= vfwd)
 			vswr = 100;
 		else
-			vswr = (10 * (vfwd + vref)) / (vfwd - vref);
+			vswr = round((10 * (vfwd + vref)) / (vfwd - vref));
 	}
 
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
-	int fwdvoltage = (vfwd * 40) / bridge_compensation;
+	float fwdvoltage = (vfwd * 40.0) / bridge_compensation;
+	fwdpw = (fwdvoltage * fwdvoltage) / 400.0;
+	// replace report once per 100 ticks (~1 s) with every vfrd update (~100 ms) RLB
+	if ( fwdpower > 0 ) {  // fwdpower is displayed power, expoential smoothing a=.5 
+	fwdpower = round((5.0*fwdpw + 5*fwdpower)/10.0);  
+	}	else  {
+		fwdpower = round(fwdpw);  // start history
+	}
 
-	// Implement a simple "hold" algorithm in order to show
-	// readable and meaningful power readings that should be the pep power
-	fwdpw = (fwdvoltage * fwdvoltage) / 400;
+	float cpower;
+	cpower=(float)fwdpower/10.0;
 	
-	if (fwdpw > fwdpower_calc) {
-		fwdpower_calc = fwdpw;
+	if (cpower > allband_max) {   // check power  against allband_max
+		alc_level = alc_level * allband_max/cpower; // scale alc_limit
+		return;
 	}
-	if (!fwdpower_cnt) {
-		fwdpower = fwdpower_calc;
-		fwdpower_calc = fwdpw;
+	
+	if (alc_level < 1.0 ) {  // restore alc_level
+		alc_level = alc_level + (1.0-alc_level)/2.0;
 	}
-	if (!fwdpower)
-		fwdpower = fwdpw;
-	fwdpower_cnt = ++fwdpower_cnt % 100;
-
-	int rf_v_p2p = (fwdvoltage * 126) / 400;
-	//	printf("rf volts: %d, alc %g, %d watts ", rf_v_p2p, alc_level, fwdpower/10);
-	if (rf_v_p2p > 135 && !in_calibration)
-	{
-		alc_level *= 135.0 / (1.0 * rf_v_p2p);
-		printf("ALC tripped, to %d percent\n", (int)(100 * alc_level));
-	}
-	/*	else if (alc_level < 0.95){
-			printf("alc releasing to ");
-			alc_level *= 1.02;
-		}
-	*/
-	//	printf("alc: %g\n", alc_level);
+	
+	return;		
 }
+
 
 static int tx_process_restart = 1;
 
@@ -2517,6 +2521,8 @@ static int hw_settings_handler(void *user, const char *section,
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
 	if (!strcmp(name, "mode_bal"))
 		mode_bal = atof(value);
+	if (!strcmp(name, "allband_max"))
+		allband_max = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
@@ -2713,9 +2719,9 @@ void tr_switch(int tx_on) {
     }
     digitalWrite(TX_LINE, HIGH);
     spectrum_reset();
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
+ 
     fwdpower = 0;
+    alc_level=1.0;
 
   } else {                       // switch to receive
     /* ── T/R relay sequence ─────────────────────────────────────────────
@@ -2766,8 +2772,7 @@ void tr_switch(int tx_on) {
     sound_mixer(audio_card, "Capture", rx_gain);
     spectrum_reset();
 
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
+
     fwdpower = 0;
   }
 }
