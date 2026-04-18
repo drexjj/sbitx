@@ -69,6 +69,7 @@ extern char *cw_get_stats(char *buf, size_t len);
 /* VSWR trip flag Clear on band change so previous trips don't persist. */
 extern int vswr_tripped;
 extern float alc_level;
+extern int cur_band;
 extern float vmax; // vlevel meter, now with log voltage levels - not power
 float vlevels[12]= {.1, .126, .158, .2, .25, .316, .398, .5, .631, .794, 1.0, 1.26};
 void change_band(char *request);
@@ -5711,6 +5712,7 @@ struct band *get_band_by_frequency(int frequency)
 		// Use the start and stop fields to define the band edges
 		if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
 		{
+			cur_band = i;  // save band for ALC
 			return &band_stack[i]; // Return a pointer to the matching band
 		}
 	}

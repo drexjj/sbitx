@@ -179,6 +179,7 @@ FILE *pf_debug = NULL;
 int sbitx_version = SBITX_V2;  // never used
 int fwdpower = 0;
 int vswr = 10;
+int cur_band;
 
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -233,7 +234,6 @@ static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
 static double mode_bal = 1.0;   // RLB
-float allband_max = 41.7;  // RLB
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -305,15 +305,15 @@ struct power_settings
 };
 
 struct power_settings band_power[] = {
-	{3500000, 4000000, 37, 0.002},
-	{5251500, 5360000, 40, 0.0015},
-	{7000000, 7300009, 40, 0.0015},
-	{10000000, 10200000, 35, 0.0019},
-	{14000000, 14300000, 35, 0.0025},
-	{18000000, 18200000, 20, 0.0023},
-	{21000000, 21450000, 20, 0.003},
-	{24800000, 25000000, 20, 0.0034},
-	{28000000, 29700000, 20, 0.0037}};
+	{3500000, 4000000, 0, 0.002},
+	{5251500, 5360000, 0, 0.0015},
+	{7000000, 7300009, 0, 0.0015},
+	{10000000, 10200000, 0, 0.0019},
+	{14000000, 14300000, 0, 0.0025},
+	{18000000, 18200000, 0, 0.0023},
+	{21000000, 21450000, 0, 0.003},
+	{24800000, 25000000, 0, 0.0034},
+	{28000000, 29700000, 0, 0.0037}};
 
 #define CMD_TX (2)
 #define CMD_RX (3)
@@ -1842,14 +1842,15 @@ void read_power()
 		fwdpower = round(fwdpw);  // start history
 	}
 
-	float cpower;
-	cpower=(float)fwdpower/10.0;
-	
-	if (cpower > allband_max) {   // check power  against allband_max
-		alc_level = alc_level * allband_max/cpower; // scale alc_limit
-		return;
-	}
-	
+	float cpower=(float)fwdpw/10.0;;
+	float climit = band_power[cur_band].max_watts;
+
+	if ( climit > 0.1 && in_calibration) {  // check limits
+		if (cpower > climit) {   // check power  against band_max
+			alc_level = alc_level * climit/cpower; // scale alc_limit
+			return;
+		}
+	}	
 	if (alc_level < 1.0 ) {  // restore alc_level
 		alc_level = alc_level + (1.0-alc_level)/2.0;
 	}
@@ -2513,7 +2514,9 @@ static int hw_settings_handler(void *user, const char *section,
 	if (!strcmp(name, "f_start"))
 		band_power[hw_init_index].f_start = atoi(value);
 	if (!strcmp(name, "f_stop"))
-		band_power[hw_init_index].f_stop = atoi(value);
+		band_power[hw_init_index].f_stop = atoi(value);	
+	if (!strcmp(name, "max_watts"))
+		band_power[hw_init_index].max_watts = atof(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
 	if (!strcmp(name, "bfo_freq"))
@@ -2521,8 +2524,6 @@ static int hw_settings_handler(void *user, const char *section,
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
 	if (!strcmp(name, "mode_bal"))
 		mode_bal = atof(value);
-	if (!strcmp(name, "allband_max"))
-		allband_max = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
