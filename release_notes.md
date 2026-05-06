@@ -35,6 +35,10 @@
     + Shows color strips or shading for bands edges and US license class
 	+ Each file can be customized outside the USA
 	+ More details and instructions in the oob_limits files in the data folder
+ - Added ALC power limits by band, if RF power exceeds limit it is folded back to limit
+ 	+ Default is off until a limit is set in hw_settings.ini by adding line max_watts=nn to band data after f_stop
+	+ When activated message is given in spectrum between Power and VSWR
+  	+ Power reduction is released when RF power drops below bamd limit 
 
 **Changes:**
 - GUI
@@ -54,6 +58,9 @@
 - Web interface
   + Added more controls
   + Gridmap new options: Square or round Grid dots; Seen Grids; Unlogged Grids;
+- Power and VSWR readings updated 10 more often, from every second to every 100 ms
+  + Updates are now as fast as bridge reads allow
+- Minimum power for VSWR calculation increased to help eliminate invalid reads at very low powers
   
 **Fixes:**
 - APF init Bug
