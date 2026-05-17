@@ -29,7 +29,7 @@ Internally vswr_tripped tracks whether max_vswr was exceeded
   and vswr_on tracks whether enabled or disabled  
     
 */
-
+extern int           set_field(const char *id, const char *value);
 // Maximum VSWR threshold (default 3.0)
 float max_vswr = 3.0f;
 
@@ -57,21 +57,17 @@ void check_and_handle_vswr(int vswr)
 		// Set tripped flag
 		vswr_tripped = 1;
 //		printf(" tripped %d\n",vswr_tripped);  //				
-
-			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", 1);
-			sdr_request(sdr_cmd, response);
-			
-			// Update DRIVE field in GUI to reflect reduced power
-			char drive_buff[32];
-			snprintf(drive_buff, sizeof(drive_buff), "%d", 1);
-			field_set("DRIVE", drive_buff);
-						
-			// Write warning to console
-			char warning_msg[128];
-			snprintf(warning_msg, sizeof(warning_msg), 
-			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
-			         swr, max_vswr, 1);
-			write_console(STYLE_LOG, warning_msg);
+//  Code trashed by change somewhere else :(
+//			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", 1);
+//			sdr_request(sdr_cmd, response);
+		set_field("tx_power", "1"); //  repair
+					
+		// Write warning to console
+		char warning_msg[128];
+		snprintf(warning_msg, sizeof(warning_msg), 
+			 "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
+			 swr, max_vswr, 1);
+		write_console(STYLE_LOG, warning_msg);
 		}
 	// Check if VSWR has fallen below threshold and was previously tripped
 	else if (swr <= max_vswr && vswr_tripped == 1) {
