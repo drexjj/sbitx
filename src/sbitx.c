@@ -178,6 +178,8 @@ FILE *pf_debug = NULL;
 
 int sbitx_version = SBITX_V2;  // never used
 int fwdpower = 0;
+int fwdpower_calc = 0;
+int fwdpower_cnt = 0;
 int vswr = 10;
 int cur_band;
 
@@ -1808,16 +1810,13 @@ void read_power()
 	memcpy(&vfwd, response, 2);  // bridge voltage values 0-1023
 	memcpy(&vref, response + 2, 2);
 	
-	if ( vfwd == last_vfwd) {
-		return;  // no change so do nothing	
-	}
 	last_vfwd = vfwd;
+
 	
 	if (vfwd < 20 ) {  // approx 0, clean up drop to zero power while still in transmit
-		fwdpower = 0;  // Immediate zeroing smmothed power 
+		fwdpw = 0;  
 		vswr = 10;
 		alc_level=1.0;
-		return;
 	}
 	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
@@ -1835,12 +1834,17 @@ void read_power()
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
 	float fwdvoltage = (vfwd * 40.0) / bridge_compensation;
 	fwdpw = (fwdvoltage * fwdvoltage) / 400.0;
-	// replace report once per 100 ticks (~1 s) with every vfrd update (~100 ms) RLB
-	if ( fwdpower > 0 ) {  // fwdpower is displayed power, expoential smoothing a=.5 
-	fwdpower = round((5.0*fwdpw + 5*fwdpower)/10.0);  
-	}	else  {
-		fwdpower = round(fwdpw);  // start history
+	
+	if (fwdpw > fwdpower_calc) {
+		fwdpower_calc = fwdpw;
 	}
+	if (!fwdpower_cnt) {
+		fwdpower = fwdpower_calc;
+		fwdpower_calc = fwdpw;
+	}
+	if (!fwdpower)
+		fwdpower = fwdpw;
+	fwdpower_cnt = ++fwdpower_cnt % 50; // 100
 
 	float cpower=(float)fwdpw/10.0;;
 	float climit = band_power[cur_band].max_watts;
@@ -2773,7 +2777,7 @@ void tr_switch(int tx_on) {
     sound_mixer(audio_card, "Capture", rx_gain);
     spectrum_reset();
 
-
+    // item fpr read_power
     fwdpower = 0;
   }
 }
