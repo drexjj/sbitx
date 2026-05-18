@@ -38,7 +38,12 @@
  - Added ALC power limits by band, if RF power exceeds limit it is folded back to limit
  	+ Default is off until a limit is set in hw_settings.ini by adding line max_watts=nn to band data after f_stop
 	+ When activated message is given in spectrum between Power and VSWR
-  	+ Power reduction is released when RF power drops below bamd limit 
+  	+ Power reduction is released when RF power drops below bamd limit
+ - Added swrsweep
+    + usage select a bnnd, then enter cmd \swrsweep n, n where n is the number of sample frequencies
+    + uses TNPWR to sample vswr at the n sample points evenly spaced between band limits
+    + displays results in console
+    + esc key cancels sweep
 
 **Changes:**
 - GUI
