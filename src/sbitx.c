@@ -178,8 +178,11 @@ FILE *pf_debug = NULL;
 
 int sbitx_version = SBITX_V2;  // never used
 int fwdpower = 0;
+int fwdpower_calc = 0;
+int fwdpower_cnt = 0;
 int vswr = 10;
 int cur_band;
+
 
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -1835,12 +1838,17 @@ void read_power()
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
 	float fwdvoltage = (vfwd * 40.0) / bridge_compensation;
 	fwdpw = (fwdvoltage * fwdvoltage) / 400.0;
-	// replace report once per 100 ticks (~1 s) with every vfrd update (~100 ms) RLB
-	if ( fwdpower > 0 ) {  // fwdpower is displayed power, expoential smoothing a=.5 
-	fwdpower = round((5.0*fwdpw + 5*fwdpower)/10.0);  
-	}	else  {
-		fwdpower = round(fwdpw);  // start history
+	
+	if (fwdpw > fwdpower_calc) {
+		fwdpower_calc = fwdpw;
 	}
+	if (!fwdpower_cnt) {
+		fwdpower = fwdpower_calc;
+		fwdpower_calc = fwdpw;
+	}
+	if (!fwdpower)
+		fwdpower = fwdpw;
+	fwdpower_cnt = ++fwdpower_cnt % 50; // display new value every 1/2 s
 
 	float cpower=(float)fwdpw/10.0;;
 	float climit = band_power[cur_band].max_watts;

@@ -34,7 +34,7 @@ Internally vswr_tripped tracks whether max_vswr was exceeded
   and vswr_on tracks whether enabled or disabled  
     
 */
-
+extern int           set_field(const char *id, const char *value);
 // Maximum VSWR threshold (default 3.0)
 float max_vswr = 3.0f;
 
@@ -64,15 +64,6 @@ void check_and_handle_vswr(int vswr)
 		// Set tripped flag
 		vswr_tripped = 1;
 //		printf(" tripped %d\n",vswr_tripped);  //				
-
-//			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", 1);
-//			sdr_request(sdr_cmd, response);
-			
-			// Update DRIVE field in GUI to reflect reduced power
-//			char drive_buff[32];
-//			snprintf(drive_buff, sizeof(drive_buff), "%d", 1);
-//			field_set("DRIVE", drive_buff);
-//			sdr_request("tx_power=1", response);
 			set_field("tx_power", "1");			
 			// Write warning to console
 			char warning_msg[128];
@@ -233,7 +224,7 @@ void swr_sweep(int steps)
 	stop = band_power[band_idx].f_stop;
 
 	snprintf(msg, sizeof(msg),
-		"SWR sweep on %s: %d to %d Hz in %d steps, %d ms per step. Press ESC to cancel.\n",
+		"\nSWR sweep on %s: %d to %d Hz in %d steps, %d ms per step. Press ESC to cancel.\n",
 		swr_sweep_band_names[band_idx], start, stop, steps, settle_ms);
 	write_console(STYLE_LOG, msg);
 
