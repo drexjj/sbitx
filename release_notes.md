@@ -58,7 +58,7 @@
 - Web interface
   + Added more controls
   + Gridmap new options: Square or round Grid dots; Seen Grids; Unlogged Grids;
-- Power and VSWR readings updated 10 more often, from every second to every 100 ms
+- Power and VSWR readings updated more often, from every second to every 1/2 second
   + Updates are now as fast as bridge reads allow
 - Minimum power for VSWR calculation increased to help eliminate invalid reads at very low powers
   
