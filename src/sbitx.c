@@ -1811,16 +1811,13 @@ void read_power()
 	memcpy(&vfwd, response, 2);  // bridge voltage values 0-1023
 	memcpy(&vref, response + 2, 2);
 	
-	if ( vfwd == last_vfwd) {
-		return;  // no change so do nothing	
-	}
 	last_vfwd = vfwd;
+
 	
 	if (vfwd < 20 ) {  // approx 0, clean up drop to zero power while still in transmit
-		fwdpower = 0;  // Immediate zeroing smmothed power 
+		fwdpw = 0;  
 		vswr = 10;
 		alc_level=1.0;
-		return;
 	}
 	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
@@ -2781,7 +2778,7 @@ void tr_switch(int tx_on) {
     sound_mixer(audio_card, "Capture", rx_gain);
     spectrum_reset();
 
-
+    // item fpr read_power
     fwdpower = 0;
   }
 }

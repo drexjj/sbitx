@@ -10021,7 +10021,7 @@ gboolean ui_tick(gpointer gook)
     } else {
         if ( tx_flag == 1) {
         pw_avg = pw_avg/pw_ctr;
-        printf("count %d: min %.2f  max %.2f  avg %.2f\n", pw_ctr, pw_min, pw_max, pw_avg);
+ //       printf("count %d: min %.2f  max %.2f  avg %.2f\n", pw_ctr, pw_min, pw_max, pw_avg);
         }
         tx_flag=0;
     }
