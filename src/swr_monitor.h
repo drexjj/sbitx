@@ -19,4 +19,8 @@ void check_and_handle_vswr(int vswr);
 // Reset VSWR tripped state and clear UI
 void reset_vswr_tripped(void);
 
+void swr_sweep(int steps); // sweep functions
+void swr_sweep_cancel(void);
+int swr_sweep_is_running(void);
+
 #endif // SWR_MONITOR_H

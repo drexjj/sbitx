@@ -183,6 +183,7 @@ int fwdpower_cnt = 0;
 int vswr = 10;
 int cur_band;
 
+
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
 int spectrum_plot[MAX_BINS];
@@ -1844,7 +1845,7 @@ void read_power()
 	}
 	if (!fwdpower)
 		fwdpower = fwdpw;
-	fwdpower_cnt = ++fwdpower_cnt % 50; // 100
+	fwdpower_cnt = ++fwdpower_cnt % 50; // display new value every 1/2 s
 
 	float cpower=(float)fwdpw/10.0;;
 	float climit = band_power[cur_band].max_watts;

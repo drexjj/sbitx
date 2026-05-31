@@ -8806,6 +8806,10 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 	{
 	case MIN_KEY_ESC:
 		// TODO we could do a 2-stage esc: call it with false the first time, true the second
+		if (swr_sweep_is_running())
+		{
+			swr_sweep_cancel();
+		}
 		modem_abort(true);
 		tx_off();
 		call_wipe();
@@ -11695,6 +11699,24 @@ else if (!strcasecmp(exec, "decode"))
 		}
 		write_console(STYLE_LOG, output);
 	}
+
+	else if (!strcasecmp(exec, "swrsweep"))
+	{
+		int steps = 10;
+
+		if (strlen(args) > 0)
+			steps = atoi(args);
+
+		if (steps < 2)
+		{
+			write_console(STYLE_LOG, "Usage: \\swrsweep <steps>, steps must be >= 2\n");
+		}
+		else
+		{
+			swr_sweep(steps);
+		}
+	}		
+	
 	/*	else if (!strcasecmp(exec, "PITCH")){
 			struct field *f = get_field_by_label(exec);
 			field_set("PITCH", args);
