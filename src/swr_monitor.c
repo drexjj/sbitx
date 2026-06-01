@@ -84,7 +84,7 @@ void check_and_handle_vswr(int vswr)
 			 "\n *VSWR: SWR %.1f back below threshold %.1f, UI cleared\n",
 			 swr, max_vswr);
 		write_console(STYLE_LOG, info_msg);
-		printf("off %.1f  %d\n", swr, call_count);
+//		printf("off %.1f  %d\n", swr, call_count);
 		// Do NOT restore the drive value - leave it reduced for safety
 	}
 }
