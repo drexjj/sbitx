@@ -44,6 +44,10 @@
     + uses TNPWR to sample vswr at the n sample points evenly spaced between band limits
     + displays results in console
     + esc key cancels sweep
+ - Added HPSDR 'Protocol 1' support to provide sbitx I and Q data to external SDR apps over WiFi or ethernet
+    + Starts when sbitx starts, console will show "hpsdr: streaming STARTED" when SDR app discovers and connects
+    + Good support for SDR app receiver functions
+    + XMIT not yet supported, will require CAT/Hamlib connection
 
 **Changes:**
 - GUI
@@ -78,6 +82,7 @@
 - Fixed scope intensity where it now loads and restores previous setting
 - Fixed Macro loading and F1-F8 buttons when changing modes
 - Web Gridmap red Grid dots now shown when QSO is logged
+- Fixed expansion of SENTRSTCUT in macros
 
 # v5.301
 **Bug Fixes:**
