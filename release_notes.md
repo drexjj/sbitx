@@ -40,7 +40,9 @@
 	+ When activated message is given in spectrum between Power and VSWR
   	+ Power reduction is released when RF power drops below bamd limit
  - Added swrsweep
-    + usage select a band, then enter cmd \swrsweep n, n where n is the number of sample frequencies
+    + usage: select a band then either
+       + enter cmd \swrsweep n, n where n is the number of sample frequencies or
+       + in menu 1 set SWRSTEP to the number of samples and click on SWRSWP
     + uses TNPWR to sample vswr at the n sample points evenly spaced between band limits
     + displays results in console
     + esc key cancels sweep

@@ -1270,6 +1270,12 @@ struct field main_controls[] = {
 	 "", 1, 100, 1, 0},
 	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 2, 30, 1, 0},
+	 
+	// SWR sweep controls
+	{"#swrsweep_steps", NULL, 1000, -1000, 50, 40, "SWRSTEP", 80, "10", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 2, 50, 1, 0},
+	{"#swrsweep", NULL, 1000, -1000, 50, 40, "SWRSWP", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+	 "", 0, 0, 0, 0},
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, STYLE_SMALL,
@@ -4845,7 +4851,7 @@ void menu_display(int show) {
 				field_move("COMP", SC(470), screen_height - SC(80), SC(45), SC(37));
 				field_move("TXMON", SC(535), screen_height - SC(80), SC(45), SC(37));
 				field_move("TNDUR", SC(600), screen_height - SC(80), SC(45), SC(37));
-
+				field_move("SWRSWP", SC(650), screen_height - SC(80), SC(55), SC(37));
 				// ePTT moved to menu2
 
 				// Line 2
@@ -4860,7 +4866,7 @@ void menu_display(int show) {
 				field_move("CESSB", SC(535), screen_height - SC(40), SC(45), SC(37));
 				// VFOLK moved to menu2
 				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
-
+				field_move("SWRSTEP", SC(650), screen_height - SC(40), SC(55), SC(37));
 			}
 
 			else {
@@ -8400,11 +8406,25 @@ gboolean check_plugin_controls(gpointer data)
   }
   
   if (apf_stat) {
-    if (!strcmp(apf_stat->value, "ON")) {
-      apf1.ison = 1;
-    } else if (!strcmp(apf_stat->value, "OFF")) {
-      apf1.ison = 0;
-    }
+   if (!strcmp(apf_stat->value, "ON"))
+	{
+	// printf(" apf_stat \n");
+	struct field *apf_gain_field = get_field("#apf_gain");
+	struct field *apf_width_field = get_field("#apf_width");
+	if ( ((abs(apf1.gain - (float)atoi(apf_gain_field->value))) > 1e-9) || // only if changed
+		((abs(apf1.width - (float)atoi(apf_width_field->value))) > 1.e-9) )
+	{
+	apf1.gain = (float)atoi(apf_gain_field->value);
+	apf1.width = (float)atoi(apf_width_field->value);
+	apf1.ison = 1;
+	}
+	init_apf();
+	apf1.ison = 1;
+	}
+	else if (!strcmp(apf_stat->value, "OFF"))
+	{
+	apf1.ison = 0;
+	} 
   }
   
 	if (dsp_stat) {
@@ -10003,8 +10023,8 @@ gboolean ui_tick(gpointer gook)
 		f = get_field("waterfall");
 		update_field(f);
 
-    // DEBUG CODE FOR CESSB
-    // power measurement for cessb
+ // DEBUG CODE FOR CESSB
+ /* power measurement for cessb
         if ( in_tx != 0) {
             if (tx_flag == 0 ) {  // initialize
                  tx_flag=1;
@@ -10021,12 +10041,12 @@ gboolean ui_tick(gpointer gook)
     } else {
         if ( tx_flag == 1) {
         pw_avg = pw_avg/pw_ctr;
- //       printf("count %d: min %.2f  max %.2f  avg %.2f\n", pw_ctr, pw_min, pw_max, pw_avg);
+        printf("count %d: min %.2f  max %.2f  avg %.2f\n", pw_ctr, pw_min, pw_max, pw_avg);
         }
         tx_flag=0;
     }
     // END OF DEBUG CODE FOR CESSB
-
+*/
 		update_titlebar();
 		/*		f = get_field("#status");
 				update_field(f);
@@ -10839,6 +10859,23 @@ void do_control_action(char *cmd)
 	{
 		on_power_down_button_click(NULL, NULL);
 	}
+	else if (!strcmp(request, "SWRSWP"))
+	{
+		struct field *steps_f = get_field("#swrsweep_steps");
+		int steps = 10;
+
+		if (steps_f && steps_f->value && strlen(steps_f->value))
+			steps = atoi(steps_f->value);
+
+		if (steps < 2)
+		{
+			write_console(STYLE_LOG, "SWR sweep steps must be >= 2\n");
+		}
+		else
+		{
+			swr_sweep(steps);
+		}
+	}	
 	else if (!strcmp(request, "WFCALL"))
 	{
 		on_wf_call_button_click(NULL, NULL);
