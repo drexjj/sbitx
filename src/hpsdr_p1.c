@@ -235,16 +235,15 @@ void hpsdr_send_iq(double *i_samples, double *q_samples, int n) {
                              q_samples[k], q_samples[k + 1]);
     }
   } else {
-    // 96 kHz pass-through: stage samples directly, no filtering
+    // 96k, 192k, or 384k: pass through at native sBitx rate
     for (int k = 0; k < n; k++) {
-      iq_buf_i[iq_buf_count] = i_samples[k] * hpsdr_iq_gain;
-      iq_buf_q[iq_buf_count] = q_samples[k] * hpsdr_iq_gain;
-      iq_buf_count++;
-
-      if (iq_buf_count >= SAMPLES_PER_PKT) {
-        build_and_send_packet();
-        iq_buf_count = 0;
-      }
+        iq_buf_i[iq_buf_count] = i_samples[k] * hpsdr_iq_gain;
+        iq_buf_q[iq_buf_count] = q_samples[k] * hpsdr_iq_gain;
+        iq_buf_count++;
+        if (iq_buf_count >= SAMPLES_PER_PKT) {
+            build_and_send_packet();
+            iq_buf_count = 0;
+        }
     }
   }
 }
@@ -457,9 +456,10 @@ static int hpsdr_unpack_ep2(const uint8_t *buf, int len, hpsdr_ep2_result_t *res
     switch (addr) {
       case 0x00: { // General Settings: sample rate in C1 bits 1:0
         uint8_t rate_bits = ptr[4] & 0x03;
-        if      (rate_bits == 0) hpsdr_sample_rate = 48000;
-        else if (rate_bits == 1) hpsdr_sample_rate = 96000;
-        // rates above 96k are not supported
+        if      (rate_bits == 0) hpsdr_sample_rate =  48000;
+        else if (rate_bits == 1) hpsdr_sample_rate =  96000;
+        else if (rate_bits == 2) hpsdr_sample_rate = 192000;
+        else if (rate_bits == 3) hpsdr_sample_rate = 384000;
         break;
       }
       case 0x01: // TX VFO frequency
