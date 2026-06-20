@@ -47,17 +47,18 @@ int vswr_on=1;
  * Check VSWR and handle reduction/recovery
  * vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
  */
-
+ int call_count = 0;
 void check_and_handle_vswr(int vswr)
 {
 	// Convert from integer representation to float (vswr / 10.0)
 	float swr = vswr / 10.0f;
 	// Check if VSWR exceeds threshold and not already tripped
-
+	call_count++;
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
 
 		char response[100];
 		char drive_str[32];
+//		char tnpwr_str[32];
 		char sdr_cmd[64];
 		
 		// Set tripped flag
@@ -70,7 +71,7 @@ void check_and_handle_vswr(int vswr)
 			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
 			         swr, max_vswr, 1);
 			write_console(STYLE_LOG, warning_msg);
-
+			printf("on %.1f %d\n", swr, call_count);
 		}
 	// Check if VSWR has fallen below threshold and was previously tripped
 	else if (swr <= max_vswr && vswr_tripped == 1) {
