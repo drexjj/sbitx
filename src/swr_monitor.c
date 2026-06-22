@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <gtk/gtk.h>
-
+#include <time.h>
 
 /*
 define a default maxv_swr of 3
@@ -34,7 +34,8 @@ Internally vswr_tripped tracks whether max_vswr was exceeded
   and vswr_on tracks whether enabled or disabled  
     
 */
-extern int           set_field(const char *id, const char *value);
+extern int set_field(const char *id, const char *value);
+extern int vswr;
 // Maximum VSWR threshold (default 3.0)
 float max_vswr = 3.0f;
 
@@ -42,6 +43,8 @@ float max_vswr = 3.0f;
 int vswr_tripped = 0;
 // Flag indicating if feature enabled (0 = disabled, 1 = enabled)
 int vswr_on=1;
+#define SWR_ALERT_TIMEOUT_SECS 10
+static time_t vswr_trip_time = 0;
 
 /**
  * Check VSWR and handle reduction/recovery
@@ -52,8 +55,23 @@ void check_and_handle_vswr(int vswr)
 {
 	// Convert from integer representation to float (vswr / 10.0)
 	float swr = vswr / 10.0f;
+	
 	// Check if VSWR exceeds threshold and not already tripped
-
+//	call_count++;
+	if (vswr_tripped == 1) {
+		if (vswr_trip_time == 0)
+			vswr_trip_time = time(NULL);
+		else {
+			time_t now = time(NULL);
+			if (difftime(now, vswr_trip_time) >= SWR_ALERT_TIMEOUT_SECS) {
+				vswr_tripped = 0;
+				vswr_trip_time = 0;
+				write_console(STYLE_LOG, "\n *SWR alert timed out\n");
+			}
+		}
+	}
+	
+	// Check if VSWR exceeds threshold and not already tripped
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
 
 		char response[100];
@@ -62,21 +80,21 @@ void check_and_handle_vswr(int vswr)
 		
 		// Set tripped flag
 		vswr_tripped = 1;
-//		printf(" tripped %d\n",vswr_tripped);  //				
-			set_field("tx_power", "1");			
-			// Write warning to console
-			char warning_msg[128];
-			snprintf(warning_msg, sizeof(warning_msg), 
-			         "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
-			         swr, max_vswr, 1);
-			write_console(STYLE_LOG, warning_msg);
+		vswr_trip_time = time(NULL);		
+		set_field("tx_power", "1");			
+		// Write warning to console
+		char warning_msg[128];
+		snprintf(warning_msg, sizeof(warning_msg), 
+			 "\n *VSWR WARNING: SWR %.1f exceeds threshold %.1f\n",
+			 swr, max_vswr, 1);
+		write_console(STYLE_LOG, warning_msg);
 
 		}
 	// Check if VSWR has fallen below threshold and was previously tripped
 	else if (swr <= max_vswr && vswr_tripped == 1) {
 		// Clear tripped flag
 		vswr_tripped = 0;
-		
+		vswr_trip_time = 0;
 		// Write info to console
 		char info_msg[128];
 		snprintf(info_msg, sizeof(info_msg), 
@@ -93,8 +111,39 @@ void init_vswr_monitor(void)
 {
 	// Ensure tripped flag is off, feature activated
 	vswr_tripped = 0;
+	vswr_trip_time = 0;
 	vswr_on=1;
 }
+
+static void clear_vswr_trip(const char *message)
+{
+	vswr_tripped = 0;
+	vswr_trip_time = 0;
+	vswr = 10; 
+	if (message)
+		write_console(STYLE_LOG, message);
+}
+
+int poll_vswr_alert_timeout(void)
+{
+	time_t now;
+
+	if (vswr_tripped == 0) {
+		vswr_trip_time = 0;
+		return 0;
+	}
+
+	if (vswr_trip_time == 0)
+		return 0;
+
+	now = time(NULL);
+	if (difftime(now, vswr_trip_time) < SWR_ALERT_TIMEOUT_SECS)
+		return 0;
+
+	clear_vswr_trip("\n *SWR alert timed out\n");
+	return 1;
+}
+
 
 /* SWR sweep
   Power and VSWR update every 100 ms, so each step must be >= 200 ms.
