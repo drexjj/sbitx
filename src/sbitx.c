@@ -1800,7 +1800,7 @@ void read_power()
 	uint8_t response[4];
 	int16_t vfwd, vref;
 	float fwdpw;
-
+	static int last_vfwd = 0;  // check for change
 
 	if (!in_tx)
 		return;
@@ -1810,12 +1810,20 @@ void read_power()
 	vfwd = vref = 0;  
 	memcpy(&vfwd, response, 2);  // bridge voltage values 0-1023
 	memcpy(&vref, response + 2, 2);
+	
+	last_vfwd = vfwd;
 
+	
+	if (vfwd < 20 ) {  // approx 0, clean up drop to zero power while still in transmit
+		fwdpw = 0;  
+		vswr = 10;
+		alc_level=1.0;
+	}
 	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
 	// Better not to calculate the swr at all if the measured power is under a very minimal level
 	// vfwd 0-1023, limit changed from 3 to 50 ~.1 watt   RLB
-
+	vswr=10;  // farham x10 integers
 	if (vfwd > 50) {   // don't calculate if < .1 watt
 		if (vref >= vfwd)
 			vswr = 100;
