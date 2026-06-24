@@ -9893,9 +9893,7 @@ gboolean ui_tick(gpointer gook)
 	poll_vswr_alert_timeout();
 	if (in_tx && (ticks % vswr_check_tick_interval) == 0)
  		check_and_handle_vswr(vswr);
- 	if (last_vswr_tripped != vswr_tripped) 
- 		update_field(get_field("spectrum"));
-
+ 
 	while (q_length(&q_remote_commands) > 0)
 	{
 		// read each command until the
