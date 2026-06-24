@@ -46,8 +46,6 @@
     + uses TNPWR to sample vswr at the n sample points evenly spaced between band limits
     + displays results in console
     + esc key cancels sweep
- - Added time out feature to SWR alert
-    + SWR alert ends after 10 seconds without needing to first transmit with SWR less than max_vswr
  - Added HPSDR 'Protocol 1' support to provide sbitx I and Q data to external SDR apps over WiFi or ethernet
     + Starts when sbitx starts, console will show "hpsdr: streaming STARTED" when SDR app discovers and connects
     + Good support for SDR app receiver functions
