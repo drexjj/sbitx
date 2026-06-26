@@ -9885,9 +9885,15 @@ void handleButton2Press()
 gboolean ui_tick(gpointer gook)
 {
 	int static ticks = 0;
-
+ 	/* Start at -1 so the first tick forces one overlay redraw sync. */
+ 	static int last_vswr_tripped = -1;
+	const int vswr_check_tick_interval = 10;
 	ticks++;
-
+	
+	poll_vswr_alert_timeout();
+	if (in_tx && (ticks % vswr_check_tick_interval) == 0)
+ 		check_and_handle_vswr(vswr);
+ 
 	while (q_length(&q_remote_commands) > 0)
 	{
 		// read each command until the
