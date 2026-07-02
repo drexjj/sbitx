@@ -161,6 +161,11 @@ first; on an external keyboard type \ directly. Press Enter to execute.
   in the screenshots folder inside your sBitx directory.
   Useful for reporting display issues or sharing your setup.
 
+* \swrsweep [n]
+  Performs a SWR sweep and prints results in the console.
+  n is the number of frequencies to sample in band
+  Example: \swrsweep 8
+
 * \t
   Immediately switches the radio to transmit mode.
   You can also press Ctrl+T on an external keyboard for the same effect.
@@ -406,6 +411,15 @@ scroll the mouse wheel over it for fine adjustment.
     USB Out  -- Routes audio to external, USB audio output
     USB Mic  -- Routes audio to external, USB audio input
   Always configure CALLSIGN and MYGRID before attempting FT8 or FT4 operation.
+
+* SWSWP
+  Performs a SWR sweep and prints results in the console.
+  n is the number of frequencies to sample in band
+  Example: \swrsweep 8
+
+* SWRSTEP [2-50]
+  Part of the SWRSWP Command.
+  Set the number of frequencies to sample in band
 
 * SPEC [NORM | FULL]
   Controls how the spectrum and waterfall are displayed:
