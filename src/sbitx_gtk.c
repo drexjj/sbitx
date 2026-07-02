@@ -3384,7 +3384,7 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	draw_text(gfx, f->x + 20, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	if (alc_level <.999) {
 		sprintf(meter_str, "ALC");
-		draw_text(gfx, f->x + 140, f->y + 5, meter_str, STYLE_FIELD_LABEL);
+		draw_text(gfx, f->x + 20, f->y + 25, meter_str, STYLE_FIELD_LABEL);
 	}		
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
 	draw_text(gfx, f->x + 200, f->y + 5, meter_str, STYLE_FIELD_LABEL);
