@@ -4776,6 +4776,18 @@ void invalidate_rect(int x, int y, int width, int height)
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
 }
 
+// This new function allows for the thickness of a border around a rectangle.
+// The border around a rectangle is centered on the path, so a thickness-1 border
+// extends ~0.5px outside that rectangle on every edge.  
+// The extra overhang lingers until something unrelated redraws over it, 
+// this is why the CW_INPUT/MACRO drop-up frame was staying visible briefly after closing.
+#define INVALIDATE_BORDER_MARGIN 2  // allow for fattter borders that may be used
+static void invalidate_rect_bordered(int x, int y, int width, int height)
+{
+	invalidate_rect(x - INVALIDATE_BORDER_MARGIN, y - INVALIDATE_BORDER_MARGIN,
+					 width + 2 * INVALIDATE_BORDER_MARGIN, height + 2 * INVALIDATE_BORDER_MARGIN);
+}
+
 #define KEYBOARD_HEIGHT_BASE 148
 #define KEYBOARD_HEIGHT SC(KEYBOARD_HEIGHT_BASE)
 void keyboard_display(int show) {
@@ -5470,7 +5482,7 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 	fill_rect(gfx, x1, y1, x2 - x1, y2 - y1, COLOR_BACKGROUND);
 	for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
-		double cx1, cx2, cy1, cy2;
+		int cx1, cx2, cy1, cy2;
 		struct field *f = active_layout + i;
 
 		// Skip the expanded dropdown in the normal loop - it will be drawn last
@@ -5481,7 +5493,12 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 		cx2 = cx1 + f->width;
 		cy1 = f->y;
 		cy2 = cy1 + f->height;
-		if (cairo_in_clip(gfx, cx1, cy1) || cairo_in_clip(gfx, cx2, cy2))
+		// The old corner-only test missed fields (e.g. CONSOLE) that are
+		// larger than the invalidated rect and so don't have either of
+		// their own corners inside it, even though they clearly overlap
+		// it (this is what caused the console area to stay blank after a
+		// drop-up menu like CW_INPUT closed over it).
+		if (cx1 < x2 && cx2 > x1 && cy1 < y2 && cy2 > y1)
 			draw_field(widget, gfx, active_layout + i);
 		// else if (f->label[0] == 'F')
 		//	printf("skipping %s\n", active_layout[i].label);
@@ -6803,9 +6820,20 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Was dropped down
 				invalidate_y = f->y + f->height;
 			}
-			invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
-			// Also invalidate the button itself to ensure clean redraw
-			invalidate_rect(f->x, f->y, f->width, f->height);
+			
+			// CW_INPUT and MACRO are drop-up menus where the border overhang from
+			// rect()'s centered stroke is most noticeable; pad their erase area only.
+			if (!strcmp(f->cmd, "#cwinput") || !strcmp(f->cmd, "#current_macro"))
+			{
+				invalidate_rect_bordered(f->x, invalidate_y, invalidate_width, expanded_height);
+				invalidate_rect_bordered(f->x, f->y, f->width, f->height);
+			}
+			else
+			{
+				invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
+				// Also invalidate the button itself to ensure clean redraw
+				invalidate_rect(f->x, f->y, f->width, f->height);
+			}
 
 			// Only call update_field if the value actually changed
 			if (value_changed)
@@ -9061,8 +9089,18 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 
 				// Only invalidate the areas that need redrawing (button and dropdown area)
 				// Don't call update_field since nothing changed - this avoids unnecessary redraws
-				invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
-				invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				// CW_INPUT and MACRO are drop-up menus near the bottom of the screen where the
+				// border overhang is most noticeable; pad their erase area, leave other dropdowns as-is.
+				if (!strcmp(closing_dropdown->cmd, "#cwinput") || !strcmp(closing_dropdown->cmd, "#current_macro"))
+				{
+					invalidate_rect_bordered(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+					invalidate_rect_bordered(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				}
+				else
+				{
+					invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+					invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				}
 
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
