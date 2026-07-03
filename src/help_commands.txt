@@ -666,10 +666,7 @@ These shortcuts work on an external USB keyboard connected to the sBitx.
 * Ctrl+T   Switch to transmit mode immediately.
 * Ctrl+R   Return to receive mode. In FT8, interrupts and cancels the current TX slot.
 * Ctrl+Q   Exit the sBitx application completely. Unsaved log data will be lost.
-* ESC      First press: immediately halts transmission and returns to receive.
-           Second press: clears all data from the LOG window fields.
+* ESC      Immediately halts transmission and returns to receive if in FTx or CW.
 * F1-F10   Trigger macro buttons 1 through 10 if assigned.
-* KBD      Toggle the sBitx on-screen touchscreen keyboard on and off.
-* MENU     Cycles through Menu 1 -> Menu 2 -> no menu (close).
 * TAB      Moves focus between the logger entry fields (CALL, SENT, RECV, EXCH, NR, TEXT).
            Use this to step quickly through the log fields during a fast QSO.
