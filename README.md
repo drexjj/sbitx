@@ -1,5 +1,5 @@
 # sBitx - 64-Bit Version
-![sBitx image](sb53.jpg)
+![sBitx image](sb54.png)
 
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64-bit Raspberry Pi image, which can be downloaded [here](https://github.com/drexjj/sbitx/releases).
@@ -9,9 +9,9 @@ An improved version of the sBitx application designed for the sBitx hardware. Th
 We have an incredible development team collaborating on improvements for the sBitx platform:
 
 - **JJ - W9JES**
-- **Jared - KJ5DTK**
 - **Mike - KB2ML**
 - **Bob - KD8CGH**
+- **Jared - KJ5DTK**
 - **Shawn - K7IHZ**
 
 A huge thank you to everyone who contributes their time and expertise to this project!

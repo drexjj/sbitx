@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,6 +23,109 @@
 #include "ini.h"
 #include "para_eq.h"
 #include "swr_monitor.h"
+#include "cessb.h"
+#include "hpsdr_p1.h"  // demonstrates using I and Q for other uses
+#include "squelch.h"   // FM squelch gate
+
+// ---------------------------------------------------------------------------
+// CTCSS (sub-audible tone) for FM mode
+// ---------------------------------------------------------------------------
+// Standard 38-tone EIA/TIA-603 CTCSS table.  Index 0 = OFF; 1–38 = tone.
+static const double ctcss_tones[39] = {
+    0.0,    // 0 = off
+   67.0,  71.9,  74.4,  77.0,  79.7,  82.5,  85.4,  88.5,  91.5,  94.8,
+   97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
+  136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2,
+  192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3
+};
+
+// Current CTCSS settings (0 = off)
+static int    ctcss_tx_index  = 0;   // tone index for TX encoding
+static int    ctcss_rx_index  = 0;   // tone index for RX tone-squelch
+
+// TX tone generator phase accumulator
+static double ctcss_tx_phase  = 0.0;
+
+// RX notch filter state (2nd-order IIR notch at ctcss_rx frequency)
+// Coefficients are recomputed whenever ctcss_rx_index changes.
+static double ctcss_notch_b0 = 1.0, ctcss_notch_b1 = 0.0, ctcss_notch_b2 = 1.0;
+static double ctcss_notch_a1 = 0.0, ctcss_notch_a2 = 0.0;
+static double ctcss_notch_x1 = 0.0, ctcss_notch_x2 = 0.0;
+static double ctcss_notch_y1 = 0.0, ctcss_notch_y2 = 0.0;
+
+// Goertzel tone-detector state for RX CTCSS squelch
+// Runs over CTCSS_GOERTZEL_N samples at 96 kHz.
+//
+// N=24000 → 250 ms window, frequency resolution = Fs/N = 4 Hz.
+// Minimum adjacent-tone spacing in the EIA table is 8.5 Hz (241.8→250.3),
+// so the main-lobe half-width of 4 Hz cleanly separates all 38 tones.
+// The old N=2048 (47 Hz half-width) made adjacent tones indistinguishable.
+#define CTCSS_GOERTZEL_N      24000   // 250 ms at 96 kHz
+// Number of consecutive missed blocks before the gate closes.
+// 2 blocks × 250 ms = 500 ms of audio tail after the tone disappears.
+// This prevents chattering when the tone briefly dips during voice peaks.
+#define CTCSS_HANG_BLOCKS     2
+static double ctcss_goertzel_s0 = 0.0, ctcss_goertzel_s1 = 0.0;
+static int    ctcss_goertzel_n  = 0;
+static double ctcss_goertzel_coeff = 0.0;   // 2*cos(2π*f/Fs), recomputed on index change
+static int    ctcss_tone_detected = 0;       // 1 if gate should be open (includes hang)
+static int    ctcss_hang_ctr      = 0;       // counts down after tone disappears
+static double ctcss_detect_threshold = 0.0; // set in ctcss_update_notch()
+
+// CTCSS deviation: 200 Hz sub-audible deviation (≈8% of 2.5 kHz max dev)
+// This matches the FM_DEV_SCALE unit: radians per sample at 96 kHz
+#define CTCSS_DEV_SCALE   (2.0 * M_PI * 200.0 / 96000.0)
+
+// Recompute the RX notch IIR coefficients for the current ctcss_rx_index.
+// Uses a 2nd-order IIR notch: notch bandwidth ≈ 30 Hz (Q ≈ 5).
+static void ctcss_update_notch(void)
+{
+    if (ctcss_rx_index <= 0) return;
+    double fn = ctcss_tones[ctcss_rx_index];
+    double w0 = 2.0 * M_PI * fn / 96000.0;
+    double Q  = 5.0;
+    double r  = 1.0 - M_PI * fn / (Q * 96000.0); // single-pole approx
+    ctcss_notch_b0 =  1.0;
+    ctcss_notch_b1 = -2.0 * cos(w0);
+    ctcss_notch_b2 =  1.0;
+    ctcss_notch_a1 = -2.0 * r * cos(w0);
+    ctcss_notch_a2 =  r * r;
+    // Reset state
+    ctcss_notch_x1 = ctcss_notch_x2 = 0.0;
+    ctcss_notch_y1 = ctcss_notch_y2 = 0.0;
+    // Goertzel coefficient for tone detection
+    ctcss_goertzel_coeff = 2.0 * cos(w0);
+    ctcss_goertzel_s0 = ctcss_goertzel_s1 = 0.0;
+    ctcss_goertzel_n  = 0;
+    ctcss_tone_detected = 0;
+    ctcss_hang_ctr      = 0;
+    // Detection threshold calibration:
+    // The Goertzel power for a pure CTCSS sinusoid of amplitude A over N samples
+    // is approximately (N/2 * A)².  With the phase-difference discriminator,
+    // A ≈ |z|² * sin(2π*f/Fs).  AGC keeps |z| ≈ 30 (AGC_TARGET_OUTPUT/1000),
+    // so for a 200 Hz tone: A ≈ 900 * sin(2π*200/96000) ≈ 900 * 0.01309 ≈ 11.78.
+    // Expected peak power: (24000/2 * 11.78)² ≈ (141360)² ≈ 2e10.
+    // Threshold at 10% of peak catches real tones while rejecting noise and
+    // adjacent-tone leakage.
+    ctcss_detect_threshold = 2e9;
+}
+
+void ctcss_set_tx(int index)
+{
+    if (index < 0 || index > 38) index = 0;
+    ctcss_tx_index = index;
+    ctcss_tx_phase = 0.0;
+}
+
+void ctcss_set_rx(int index)
+{
+    if (index < 0 || index > 38) index = 0;
+    ctcss_rx_index = index;
+    ctcss_update_notch();
+}
+
+int ctcss_get_tx(void) { return ctcss_tx_index; }
+int ctcss_get_rx(void) { return ctcss_rx_index; }
 
 #define DEBUG 0
 
@@ -33,6 +135,13 @@ char audio_card[32];
 static int tx_shift = 512;
 parametriceq tx_eq;
 parametriceq rx_eq;
+
+/* USB audio device name globals -- declared in sbitx_sound.c, set from
+   the #usb_audio_out / #usb_audio_in fields before sound_thread_start().
+   Non-empty string means a USB headset is active; used to route volume
+   and gain controls away from the WM8731 mixer. */
+extern char usb_audio_play_device[64];
+extern char usb_audio_cap_device[64];
 
 FILE *pf_debug = NULL;
 
@@ -50,10 +159,30 @@ FILE *pf_debug = NULL;
 #define SBITX_DE (0)
 #define SBITX_V2 (1)
 
-int sbitx_version = SBITX_V2;
-int fwdpower, vswr;
-int fwdpower_calc;
-int fwdpower_cnt;
+/*
+ * ADC_SCALE normalises raw 32-bit ADC samples to the [-1, 1] floating-point
+ * range that the FFT pipeline expects.
+ *
+ * The old real-only path used 200000000.  The new IQ path passes each sample
+ * through a quadrature mixer, which introduces an implicit ×0.5 from the
+ * trig product-to-sum identity (cos·cos = ½cos(A-B) + ½cos(A+B)).  That ½
+ * factor, combined with the energy now concentrating into one sideband instead
+ * of being split across ±f, gives the new path an inherent +6 dB advantage
+ * over the old path at equal divisor.  Doubling the divisor compensates exactly.
+ *
+ * Tune this value if the waterfall/spectrum level still does not match the
+ * old code — increase to lower the display level, decrease to raise it.
+ */
+//#define ADC_SCALE  400000000.0
+#define ADC_SCALE  200000000.0
+
+int sbitx_version = SBITX_V2;  // never used
+int fwdpower = 0;
+int fwdpower_calc = 0;
+int fwdpower_cnt = 0;
+int vswr = 10;
+int cur_band;
+
 
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -95,18 +224,19 @@ static int in_tx = 0;
 static int rx_tx_ramp = 0;
 static int sidetone = 2000000000;
 struct vfo tone_a, tone_b, am_carrier; // these are audio tone generators
+struct vfo rx_osc; // RX IQ oscillator for complex mixing
 static int tx_use_line = 0;
 struct rx *rx_list = NULL;
 struct rx *tx_list = NULL;
 struct filter *tx_filter; // convolution filter
 static double tx_amp = 0.0;
-static double alc_level = 1.0;
+float alc_level = 1.0;
 static int tr_relay = 0;
 static int rx_pitch = 700; // used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
-static double ssb_val = 1.0;   // W9JES
+static double mode_bal = 1.0;   // RLB
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -114,6 +244,7 @@ double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
 int txmon_control_level;	   // TX Monitor level W2JON
+float vmax=0.0;   // vu meter
 int get_rx_gain(void)
 {
 	// printf("rx_gain %d\n", rx_gain);
@@ -177,24 +308,53 @@ struct power_settings
 };
 
 struct power_settings band_power[] = {
-	{3500000, 4000000, 37, 0.002},
-	{5251500, 5360000, 40, 0.0015},
-	{7000000, 7300009, 40, 0.0015},
-	{10000000, 10200000, 35, 0.0019},
-	{14000000, 14300000, 35, 0.0025},
-	{18000000, 18200000, 20, 0.0023},
-	{21000000, 21450000, 20, 0.003},
-	{24800000, 25000000, 20, 0.0034},
-	{28000000, 29700000, 20, 0.0037}};
+	{3500000, 4000000, 0, 0.002},
+	{5251500, 5360000, 0, 0.0015},
+	{7000000, 7300009, 0, 0.0015},
+	{10000000, 10200000, 0, 0.0019},
+	{14000000, 14300000, 0, 0.0025},
+	{18000000, 18200000, 0, 0.0023},
+	{21000000, 21450000, 0, 0.003},
+	{24800000, 25000000, 0, 0.0034},
+	{28000000, 29700000, 0, 0.0037}};
 
 #define CMD_TX (2)
 #define CMD_RX (3)
 #define TUNING_SHIFT (0)
 #define MDS_LEVEL (-135)
 
+// AGC defines
+#define AGC_TARGET_OUTPUT 10000.0
+#define AGC_MAXIMUM_GAIN 10000000.0
+#define AGC_MINIMUM_GAIN 1.0
+#define AGC_ATTACK_ALPHA 0.5
+#define AGC_DECAY_ALPHA 0.95
+#define AGC_SLEW_RATE 20000.0
+
 struct Queue qremote;
 
 extern struct apf apf1; // added for apf by RLB
+
+// compute the rx_osc frequency for the current mode.
+// This centralizes the IQ mixing offset so it stays in sync with tuning.
+// The IF center is at 24000 Hz (tuned_bin 512 × 46.875 Hz/bin).
+// We always mix at +24000 Hz to bring the IF down to baseband.
+// Sideband selection is handled by the existing filter + bin zeroing in Steps 5/6.
+// CW modes offset by rx_pitch so the beat note lands at the right audio frequency.
+// AM uses 0 Hz (passthrough) since it needs both sidebands symmetrically.
+static int rx_osc_freq_for_mode(int mode) {
+	switch (mode) {
+		case MODE_CW:       return  24000 - rx_pitch;  // beat note in positive bins
+		case MODE_CWR:      return  24000 + rx_pitch;  // beat note in negative bins
+		case MODE_AM:       return  24000;      // passthrough, keep both sidebands
+		default:            return  24000;  // USB, LSB, DIGITAL, FT8, FT4, 2TONE, etc.
+	}
+}
+
+// Update rx_osc to match the current mode.  Call after mode or pitch changes.
+void update_rx_osc(void) {
+	vfo_start(&rx_osc, rx_osc_freq_for_mode(rx_list->mode), rx_osc.phase);
+}
 
 void radio_tune_to(u_int32_t f)
 {
@@ -256,6 +416,7 @@ void fft_init()
 	}
 
 	make_hann_window(spectrum_window, MAX_BINS);
+	//make_kaiser(spectrum_window, MAX_BINS, 6.0);
 }
 
 void fft_reset_m_bins()
@@ -308,16 +469,19 @@ void spectrum_update()
 	struct rx *r = rx_list;
 	for (int i = 1269; i < 1803; i++)
 	{
-		// Shift bins by 1 (or -1) to correct off-by-one error
-		int bin = i - 1; // or i - 1, depending on direction of error
-		if (bin >= 1803) bin -= (1803 - 1269); // wrap around if needed
+		// With IQ mixing the signal is centered at FFT bin 0 (baseband).
+		// The display expects data centered at bin 1536 (3*MAX_BINS/4).
+		// Subtraction direction determines USB/LSB orientation on display.
+		int fft_bin = (3 * MAX_BINS / 4) - i;
+		if (fft_bin < 0) fft_bin += MAX_BINS;
 		fft_bins[i] = ((1.0 - spectrum_speed) * fft_bins[i]) +
-					  (spectrum_speed * cabs(fft_spectrum[bin]));
+					  (spectrum_speed * cabs(fft_spectrum[fft_bin]));
 
 		int y = power2dB(cnrmf(fft_bins[i]));
 		spectrum_plot[i] = y;
 	}
 }
+
 /*
 static int create_mcast_socket(){
 	int sockfd;
@@ -832,68 +996,143 @@ struct rx *add_rx(int frequency, short mode, int bpf_low, int bpf_high)
 	rx_list = r;
 }
 
-int count = 0;
+// enhanced AGC with hang-time, smoothed attack/decay, and
+// sample-by-sample gain ramping
+//  - No instantaneous gain jumps — attack is fast but ramped
+//  - Signal strength measured via smoothed peak (not raw single-sample peak)
+//  - Gain applied sample-by-sample with linear interpolation across the block
+//  - Gain computed in log domain to avoid extreme nonlinearity
+//  - Works with existing UI
+//      FAST (10 blocks)  ≈  53 ms hang
+//      MED  (33 blocks)  ≈ 176 ms hang
+//      SLOW (100 blocks) ≈ 533 ms hang
+double agc2(struct rx *r) {
+  int i;
+  int n_samples = MAX_BINS / 2;
 
-double agc2(struct rx *r)
-{
-	int i;
-	double signal_strength, agc_gain_should_be;
+  // AGC OFF: measure the instantaneous block level and apply the same
+  // gain formula as AGC ON (AGC_TARGET_OUTPUT / block_peak), but with
+  // no smoothing, hang time, or slew rate limiting.
+  //
+  // This ensures the output volume matches AGC ON for a given signal
+  // level. The difference from AGC ON is purely temporal: there is no
+  // attack/decay envelope, so gain changes are instantaneous rather
+  // than smoothed. The per-mode output paths (SSB *1e7, AM, FM) see
+  // the same scaled fft_time as they do with AGC ON, so levels match.
+  if (r->agc_speed == -1) {
+    double block_peak = 0.0;
+    for (i = 0; i < n_samples; i++) {
+      double s = cabs(r->fft_time[i + n_samples]) * 1000.0;
+      if (s > block_peak)
+        block_peak = s;
+    }
+    double gain;
+    if (block_peak < 1e-12)
+      gain = AGC_MAXIMUM_GAIN;
+    else
+      gain = AGC_TARGET_OUTPUT / block_peak;
+    if (gain > AGC_MAXIMUM_GAIN) gain = AGC_MAXIMUM_GAIN;
+    if (gain < AGC_MINIMUM_GAIN) gain = AGC_MINIMUM_GAIN;
+    for (i = 0; i < n_samples; i++) {
+      __real__(r->fft_time[i + n_samples]) *= gain;
+      __imag__(r->fft_time[i + n_samples]) *= gain;
+    }
+    // Update signal_avg so the S-meter and other consumers get a valid level
+    // even when AGC is off.  Note: squelch_update() receives the agc2() *return
+    // value* (AGC_TARGET_OUTPUT / agc_gain), not signal_avg directly — that
+    // normalised value matches the thresholds in squelch.c.
+    r->signal_avg = block_peak;
+    r->signal_strength = 0;
+    return gain;
+  }
 
-	// do nothing if agc is off
-	if (r->agc_speed == -1)
-	{
-		for (i = 0; i < MAX_BINS / 2; i++)
-			__imag__(r->fft_time[i + (MAX_BINS / 2)]) *= 10000000;
-		return 10000000;
-	}
+  // Measure the peak amplitude in this block
+  // Use cabs() to get the true magnitude of the complex sample.
+  // Multiply by 1000 to maintain scale compatibility with the rest of
+  // the signal chain (same scaling as the old code).
+  double block_peak = 0.0;
+  for (i = 0; i < n_samples; i++) {
+    double s = cabs(r->fft_time[i + n_samples]) * 1000.0;
+    if (s > block_peak)
+      block_peak = s;
+  }
 
-	// find the peak signal amplitude
-	signal_strength = 0.0;
-	for (i = 0; i < MAX_BINS / 2; i++)
-	{
-		double s = cimag(r->fft_time[i + (MAX_BINS / 2)]) * 1000;
-		if (signal_strength < s)
-			signal_strength = s;
-	}
-	// also calculate the moving average of the signal strength
-	r->signal_avg = (r->signal_avg * 0.93) + (signal_strength * 0.07);
-	if (signal_strength == 0)
-		agc_gain_should_be = 10000000;
-	else
-		agc_gain_should_be = 100000000000 / signal_strength;
-	r->signal_strength = signal_strength;
-	// printf("Agc temp, g:%g, s:%g, f:%g ", r->agc_gain, signal_strength, agc_gain_should_be);
+  // Smooth the peak envelope
+  // Fast tracking when signal is rising (attack), slow when falling.
+  // This prevents a single noise spike from slamming the gain down,
+  // and prevents the gain from pumping on every syllable boundary.
+  if (block_peak > r->signal_avg) {
+    // Signal is louder than our current estimate — track it quickly
+    r->signal_avg = (AGC_ATTACK_ALPHA * r->signal_avg) + ((1.0 - AGC_ATTACK_ALPHA) * block_peak);
+  } else {
+    // Signal is quieter — hold during hang, then decay slowly
+    if (r->agc_loop > 0) {
+      // During hang time, don't change the envelope at all.
+      // This prevents gain from creeping up during pauses in speech.
+    } else {
+      // Hang expired — let the envelope decay toward the current peak
+      r->signal_avg = (AGC_DECAY_ALPHA * r->signal_avg) + ((1.0 - AGC_DECAY_ALPHA) * block_peak);
+    }
+  }
 
-	double agc_ramp = 0.0;
+  // Export for S-meter and other consumers
+  r->signal_strength = r->signal_avg;
 
-	// climb up the agc quickly if the signal is louder than before
-	if (agc_gain_should_be < r->agc_gain)
-	{
-		r->agc_gain = agc_gain_should_be;
-		// reset the agc to hang count down
-		r->agc_loop = r->agc_speed;
-	}
-	else if (r->agc_loop <= 0)
-	{
-		agc_ramp = (agc_gain_should_be - r->agc_gain) / (MAX_BINS / 2);
-	}
+  // Compute the target gain from the smoothed envelope
+  double target_gain;
+  if (r->signal_avg < 1e-12) {
+    target_gain = AGC_MAXIMUM_GAIN;
+  } else {
+    target_gain = AGC_TARGET_OUTPUT / r->signal_avg;
+  }
 
-	if (agc_ramp != 0)
-	{
-		for (i = 0; i < MAX_BINS / 2; i++)
-		{
-			__imag__(r->fft_time[i + (MAX_BINS / 2)]) *= r->agc_gain;
-		}
-		r->agc_gain += agc_ramp;
-	}
-	else
-		for (i = 0; i < MAX_BINS / 2; i++)
-			__imag__(r->fft_time[i + (MAX_BINS / 2)]) *= r->agc_gain;
+  // Clamp gain to valid range
+  if (target_gain > AGC_MAXIMUM_GAIN)
+    target_gain = AGC_MAXIMUM_GAIN;
+  if (target_gain < AGC_MINIMUM_GAIN)
+    target_gain = AGC_MINIMUM_GAIN;
 
-	r->agc_loop--;
+  // Manage hang time
+  // When the target gain drops (signal got louder), reset the hang counter.
+  // This means we hold the reduced gain for agc_speed blocks before
+  // allowing recovery.
+  if (target_gain < r->agc_gain) {
+    // Signal is louder — we need to reduce gain
+    r->agc_loop = r->agc_speed;
+  } else if (r->agc_loop > 0) {
+    // We're in hang time — don't let gain increase yet
+    target_gain = r->agc_gain;
+    r->agc_loop--;
+  }
+  // else: hang expired, target_gain > agc_gain, gain will ramp up
 
-	// printf("%d:s meter: %d %d %d \n", count++, (int)r->agc_gain, (int)r->signal_strength, r->agc_loop);
-	return 100000000000 / r->agc_gain;
+  // Apply gain sample-by-sample with slew rate limiting
+  // Instead of applying a single gain to all 512 samples, we linearly
+  // interpolate from the current gain toward the target gain, clamping
+  // the rate of change per sample.  This eliminates clicks and steps.
+  double current_gain = r->agc_gain;
+
+  for (i = 0; i < n_samples; i++) {
+    // Move current_gain toward target_gain, limited by slew rate
+    double diff = target_gain - current_gain;
+    if (diff > AGC_SLEW_RATE)
+      diff = AGC_SLEW_RATE;
+    else if (diff < -AGC_SLEW_RATE)
+      diff = -AGC_SLEW_RATE;
+    current_gain += diff;
+
+    // Apply gain to both real and imaginary parts
+    __real__(r->fft_time[i + n_samples]) *= current_gain;
+    __imag__(r->fft_time[i + n_samples]) *= current_gain;
+  }
+
+  // Store the final gain for the next block
+  r->agc_gain = current_gain;
+
+  // Return signal strength estimate for S-meter and squelch.
+  if (r->agc_gain < AGC_MINIMUM_GAIN)
+    return AGC_MAXIMUM_GAIN;
+  return AGC_TARGET_OUTPUT / r->agc_gain;
 }
 
 void my_fftw_execute(fftw_plan f)
@@ -920,7 +1159,7 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
 	{
-		i_sample = (1.0 * input_rx[j]) / 200000000.0;
+		i_sample = (1.0 * input_rx[j]) / ADC_SCALE;
 		q_sample = 0;
 
 		j++;
@@ -1139,427 +1378,456 @@ int calculate_zero_beat(struct rx *r, double sampling_rate) {
 }
 
 
-// rx_linear with Spectral Subtraction and Wiener Filter DSP filtering - W2JON
-void rx_linear(int32_t *input_rx, int32_t *input_mic,
-			   int32_t *output_speaker, int32_t *output_tx, int n_samples)
-{
-	int i = 0;
-	double i_sample;
+// RX processing pipeline
+void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, int32_t *output_tx,
+               int n_samples) {
+  int i;
+  struct rx *r = rx_list;
 
-	// STEP 1: First add the previous M samples
-	// memcpy to replace for loop, ffts are 16 bytes
-	memcpy(fft_in, fft_m, MAX_BINS / 2 * 8 * 2);
-	// for (i = 0; i < MAX_BINS/2; i++)
-	//     fft_in[i] = fft_m[i];
+  //////////////////////////////////////////////////
+  // Input framing
+  // Build the overlap-save FFT block from the previous
+  // half-frame and the newly received IQ samples.
+  //////////////////////////////////////////////////
 
-	// STEP 2: Add the new set of samples
-	int m = 0;
-	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-	{
-		i_sample = (1.0 * input_rx[m]) / 200000000.0;
-		__real__ fft_m[m] = i_sample;
-		__imag__ fft_m[m] = 0;
-		__real__ fft_in[i] = i_sample;
-		__imag__ fft_in[i] = 0;
-		m++;
-	}
+  // Build overlap-save block
+  // Old half-block goes first
+  for (i = 0; i < MAX_BINS / 2; i++) {
+    __real__ fft_in[i] = __real__ fft_m[i];
+    __imag__ fft_in[i] = __imag__ fft_m[i];
+  }
 
-	// STEP 3: Convert to frequency domain
-	my_fftw_execute(plan_fwd);
+  // New half-block goes second, and is saved for next call
+  for (i = 0; i < MAX_BINS / 2; i++) {
+    __real__ fft_m[i] = iq_i[i];
+    __imag__ fft_m[i] = iq_q[i];
 
-	// STEP 3B: Spectrum update for user interface
-	for (i = 0; i < MAX_BINS; i++)
-		__real__ fft_in[i] *= spectrum_window[i];
-	my_fftw_execute(plan_spectrum);
-	spectrum_update();
+    __real__ fft_in[i + MAX_BINS / 2] = iq_i[i];
+    __imag__ fft_in[i + MAX_BINS / 2] = iq_q[i];
+  }
 
-	// STEP 4: Rotate the bins around by r->tuned_bin
-	struct rx *r = rx_list;
-	int shift = r->tuned_bin;
-	if (r->mode == MODE_AM)
-		shift = 0;
-	int b = 0;
-	for (i = 0; i < MAX_BINS; i++)
-	{
-		b = i + shift;
-		if (b >= MAX_BINS)
-			b -= MAX_BINS;
-		if (b < 0)
-			b += MAX_BINS;
-		r->fft_freq[i] = fft_out[b];
-	}
+  //////////////////////////////////////////////////
+  // Frequency-domain processing
+  // FFT, spectrum display, noise reduction, sideband
+  // selection, filtering, and CW peaking.
+  //////////////////////////////////////////////////
 
-	// STEP 4a Calculate zero beat indicator for CW modes if in CW modes
-	if (r->mode == MODE_CW || r->mode == MODE_CWR) {
-		int prev_indicator = zero_beat_indicator;
-		zero_beat_indicator = calculate_zero_beat(r, 96000.0);
-		// Only print when the indicator changes to avoid console spam
-		if (prev_indicator != zero_beat_indicator) {
-			const char* indicators[] = {"No Signal", "Much Lower", "Slightly Lower", "Centered", "Slightly Higher", "Much Higher"};
-			//printf("Zero Beat: %s (%d)\n", indicators[zero_beat_indicator], zero_beat_indicator);
-			//printf("Zero Beat Target Frequency: %d\n", zero_beat_target_frequency);
-			//printf("Zero Beat Sense: %d\n", zero_beat_min_magnitude);
-		}
-	} else {
-		zero_beat_indicator = 0;
-	}
+  // FFT for RX processing
+  my_fftw_execute(plan_fwd);
 
-	static int rx_eq_initialized = 0;
+  // Spectrum / waterfall display path
+  // plan_spectrum was bound to fft_in as its input at creation time, so we
+  // apply the Hann window directly to fft_in before executing it.
+  // plan_fwd has already run at this point so fft_in is safe to modify.
+  for (i = 0; i < MAX_BINS; i++) {
+    __real__ fft_in[i] *= spectrum_window[i];
+    __imag__ fft_in[i] *= spectrum_window[i];
+  }
+  my_fftw_execute(plan_spectrum);
+  spectrum_update();
 
-	if (!rx_eq_initialized)
-	{
-		init_eq(&rx_eq, "rx");
-		rx_eq_initialized = 1;
-	}
+  // begin frequency-domain processing tasks
+  // Copy FFT output into the rx structure.  IQ mixing already centered the
+  // signal at baseband so no bin rotation is needed.
+  for (i = 0; i < MAX_BINS; i++)
+    r->fft_freq[i] = fft_out[i];
 
-	// STEP 4a: BIN processing functions for a better life.
-
-	if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_FT4 && r->mode != MODE_2TONE)
-	{
-		double sampling_rate = 96000.0; // Sample rate
-		static double noise_est[MAX_BINS] = {0};
-		static double signal_est[MAX_BINS] = {0}; // For Wiener filter
-		static int noise_est_initialized = 0;
-		static int noise_update_counter = 0;
-		// Scale the noise_threshold value
-		double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold * 1.2);
-
-		// Notch filter
-		if (notch_enabled)
-		{
-			int notch_center_bin, notch_bin_range;
-
-			if (r->mode == MODE_USB || r->mode == MODE_CW)
-			{
-				notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
-			}
-			else if (r->mode == MODE_LSB || r->mode == MODE_CWR)
-			{
-				notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
-			}
-			notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
-
-			for (i = notch_center_bin - notch_bin_range / 2; i <= notch_center_bin + notch_bin_range / 2; i++)
-			{
-				if (i >= 0 && i < MAX_BINS)
-				{
-					r->fft_freq[i] *= 0.001; // Attenuate magnitude
-				}
-			}
-		}
-		/*
-		// Noise Estimation Original
-		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
-		{
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				if (!noise_est_initialized)
-				{
-					noise_est[i] = current_magnitude;
-				}
-				else
-				{
-					noise_est[i] = NOISE_ALPHA * noise_est[i] + (1 - NOISE_ALPHA) * current_magnitude;
-				}
-			}
-			noise_update_counter = 0;
-			noise_est_initialized = 1;
-		}
-		else
-		{
-			noise_update_counter++;
-		}
-
-		if (dsp_enabled)
-		{
-			// Spectral Subtraction filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double magnitude = cabs(r->fft_freq[i]);
-				double phase = carg(r->fft_freq[i]);
-				double noise_magnitude = noise_est[i];
-				double new_magnitude = fmax(scaled_noise_threshold, magnitude - noise_magnitude);
-				r->fft_freq[i] = new_magnitude * cexp(I * phase);
-				rx_list->agc_speed = -1;
-			}
-		}
-
-		if (anr_enabled)
-		{
-			// Signal Estimation for Wiener filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
-			}
-
-			// Wiener Filter (ANR)
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double signal_power = signal_est[i] * signal_est[i];
-				double noise_power = noise_est[i] * noise_est[i];
-				double wiener_filter = signal_power / (signal_power + noise_power);
-				r->fft_freq[i] *= wiener_filter;
-			}
-		}
-  		*/
-
-		// Noise Estimation, ANR, DSP mods W4WHL
-		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
-		{
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-
-				// Dynamically adjust noise estimation rate vs fixed
-				double dynamic_alpha = (current_magnitude > noise_est[i]) ? 0.95 : 0.75;
-				noise_est[i] = dynamic_alpha * noise_est[i] + (1 - dynamic_alpha) * current_magnitude;
-
-				// Enforce a noise floor
-				noise_est[i] = fmax(1e-6, noise_est[i]);
-			}
-			noise_update_counter = 0;
-			noise_est_initialized = 1;
-		}
-		else
-		{
-			noise_update_counter++;
-		}
-
-		if (dsp_enabled)
-		{
-			// Spectral Subtraction filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double magnitude = cabs(r->fft_freq[i]);
-				double phase = carg(r->fft_freq[i]);
-				double noise_magnitude = noise_est[i];
-
-				// Calculate the SNR
-				double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
-				double new_magnitude;
-
-				// Sigmoid-based reduction factor
-				double reduction_factor = 1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
-
-
-				// Calculate new magnitude with residual noise preservation
-				double noise_residual = 0.10; // Retain 10% of noise, reduces
-				new_magnitude = fmax(noise_residual * noise_magnitude,
-									magnitude - reduction_factor * noise_magnitude);
-
-				// Smoother bin-to-bin transitions (blend current and adjacent bins)
-				static double previous_magnitude[MAX_BINS] = {0};
-				new_magnitude = 0.9 * new_magnitude + 0.1 * previous_magnitude[i]; // Stronger weight on current bin
-				previous_magnitude[i] = new_magnitude;
-
-				// Reconstruct the frequency domain signal
-				r->fft_freq[i] = new_magnitude * cexp(I * phase);
-			}
-		}
-
-		if (anr_enabled)
-		{
-			// Signal Estimation for Wiener filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
-			}
-
-			// Wiener Filter (ANR)
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double signal_power = fmax(1e-6, signal_est[i] * signal_est[i]);
-				double noise_power = fmax(1e-6, noise_est[i] * noise_est[i]);
-
-				// Relaxed Wiener filter gain
-				double wiener_filter = (signal_power + 0.2 * noise_power) / (signal_power + noise_power);
-				wiener_filter = fmax(0.2, wiener_filter); // Minimum gain to preserve quiet signals
-
-				r->fft_freq[i] *= wiener_filter;
-			}
-
-			// Improved bin smoothing
-			for (i = 1; i < MAX_BINS - 1; i++)
-			{
-				r->fft_freq[i] = (0.8 * r->fft_freq[i]) + (0.1 * r->fft_freq[i - 1]) + (0.1 * r->fft_freq[i + 1]);
-			}
-		}
-	}
-
-	// STEP 5: Zero out the other sideband
-	switch (r->mode)
-	{
-	case MODE_LSB:
-	case MODE_CWR:
-		for (i = 0; i < MAX_BINS / 2; i++)
-		{
-			__real__ r->fft_freq[i] = 0;
-			__imag__ r->fft_freq[i] = 0;
-		}
-		break;
-	case MODE_AM:
-		break;
-	default:
-		for (i = MAX_BINS / 2; i < MAX_BINS; i++)
-		{
-			__real__ r->fft_freq[i] = 0;
-			__imag__ r->fft_freq[i] = 0;
-		}
-		break;
-	}
-
-	// STEP 6: Apply the FIR filter
-	for (i = 0; i < MAX_BINS; i++)
-	{
-		r->fft_freq[i] *= r->filter->fir_coeff[i];
-	}
-
-	if (r->mode == MODE_CW || r->mode == MODE_CWR) {  // apply apf
-
-		if (apf1.ison){
-
-			int center;
-//			printf("   apf applied \n");
-			if ( r->mode == MODE_CW)
-			{
-				center = (int)(rx_pitch/ (96000.0 / MAX_BINS)); // rx_pitch
-			}
-			else if ( r->mode == MODE_CWR)
-			{
-				center = MAX_BINS - (int)(rx_pitch/ (96000.0 / MAX_BINS));
-			}
-
-			r->fft_freq[center-4] *= apf1.coeff[0];
-			r->fft_freq[center-3] *= apf1.coeff[1];
-			r->fft_freq[center-2] *= apf1.coeff[2];
-			r->fft_freq[center-1] *= apf1.coeff[3];
-			r->fft_freq[center] *= apf1.coeff[4]; // peak
-			r->fft_freq[center+1] *= apf1.coeff[5];
-			r->fft_freq[center+2] *= apf1.coeff[6];
-			r->fft_freq[center+3] *= apf1.coeff[7];
-			r->fft_freq[center+4] *= apf1.coeff[8];
-		}
-	}
-
-
-	// STEP 7: Convert back to time domain
-	my_fftw_execute(r->plan_rev);
-
-	// STEP 8: AGC
-	agc2(r);
-
-	// STEP 9: Send the output
-	// int is_digital = 0;
-	if (rx_list->output == 0)
-	{
-		if (r->mode == MODE_AM)
-		{
-			for (i = 0; i < MAX_BINS / 2; i++)
-			{
-				int32_t sample = cabs(r->fft_time[i + (MAX_BINS / 2)]);
-				output_speaker[i] = sample;
-				output_tx[i] = 0;
-			}
-		}
-		else
-		{
-			int32_t sample;
-			for (i = 0; i < MAX_BINS / 2; i++)
-			{
-				sample = cimag(r->fft_time[i + (MAX_BINS / 2)]);
-				output_speaker[i] = sample;
-				output_tx[i] = 0;
-			}
-		}
-
-		// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-		//for (i = 0; i < MAX_BINS / 2; i += 6)
-		//{
-		//	q_write(&qremote, output_speaker[i]);
-		//}
-	}
-
-	if (mute_count)
-	{
-		memset(output_speaker, 0, MAX_BINS / 2 * sizeof(int32_t));
-		mute_count--;
-	}
-
-	// Push the data to any potential modem
-	modem_rx(rx_list->mode, output_speaker, MAX_BINS / 2);
-
-	// Apply RXEQ after Modem only on non-digital modes
-	if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_FT4 && r->mode != MODE_2TONE)
-{
-    if (rx_eq_is_enabled == 1)
-    {
-        // Step 1: Apply EQ with built-in normalization and clamping
-        apply_eq(&rx_eq, output_speaker, n_samples, 96000.0);
-
-        // Step 2: Optionally apply soft limiting (only if additional smoothing is required)
-        const double limiter_threshold = 0.8 * 500000000; // Lower limiter threshold for headroom
-
-        for (int i = 0; i < n_samples; i++)
-        {
-            double sample = output_speaker[i];
-
-            // Apply smooth limiting if sample exceeds threshold
-            if (fabs(sample) > limiter_threshold)
-            {
-                sample = limiter_threshold * tanh(sample / limiter_threshold);
-            }
-
-            output_speaker[i] = (int32_t)sample;
-        }
+  // Zero-beat indicator for CW modes (UI feedback, no effect on audio)
+  if (r->mode == MODE_CW || r->mode == MODE_CWR) {
+    int prev_indicator = zero_beat_indicator;
+    zero_beat_indicator = calculate_zero_beat(r, 96000.0);
+    if (prev_indicator != zero_beat_indicator) {
+      const char *indicators[] = {"No Signal", "Much Lower",      "Slightly Lower",
+                                  "Centered",  "Slightly Higher", "Much Higher"};
     }
+  } else {
+    zero_beat_indicator = 0;
+  }
+
+  static int rx_eq_initialized = 0;
+  if (!rx_eq_initialized) {
+    init_eq(&rx_eq, "rx");
+    rx_eq_initialized = 1;
+  }
+
+  // Per-bin DSP: noise estimation, spectral subtraction, Wiener ANR, notch
+  // Skipped for digital modes which work on the raw spectrum.
+  if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_FT4 &&
+      r->mode != MODE_2TONE) {
+    double sampling_rate = 96000.0; // Sample rate
+    static double noise_est[MAX_BINS] = {0};
+    static double signal_est[MAX_BINS] = {0}; // For Wiener filter
+    static int noise_est_initialized = 0;
+    static int noise_update_counter = 0;
+    // Scale the noise_threshold value
+    double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold * 1.2);
+
+    // Notch filter
+    if (notch_enabled) {
+      int notch_center_bin, notch_bin_range;
+
+      if (r->mode == MODE_USB || r->mode == MODE_CW) {
+        notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
+      } else if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
+        notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
+      }
+      notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
+
+      for (i = notch_center_bin - notch_bin_range / 2; i <= notch_center_bin + notch_bin_range / 2;
+           i++) {
+        if (i >= 0 && i < MAX_BINS) {
+          r->fft_freq[i] *= 0.001; // Attenuate magnitude
+        }
+      }
+    }
+
+    // Noise Estimation, ANR, DSP mods by W4WHL
+    if (!noise_est_initialized || noise_update_counter >= noise_update_interval) {
+      for (i = 0; i < MAX_BINS; i++) {
+        double current_magnitude = cabs(r->fft_freq[i]);
+
+        // Dynamically adjust noise estimation rate vs fixed
+        double dynamic_alpha = (current_magnitude > noise_est[i]) ? 0.95 : 0.75;
+        noise_est[i] = dynamic_alpha * noise_est[i] + (1 - dynamic_alpha) * current_magnitude;
+
+        // Enforce a noise floor
+        noise_est[i] = fmax(1e-6, noise_est[i]);
+      }
+      noise_update_counter = 0;
+      noise_est_initialized = 1;
+    } else {
+      noise_update_counter++;
+    }
+
+    if (dsp_enabled) {
+      // Spectral subtraction filter
+      for (i = 0; i < MAX_BINS; i++) {
+        double magnitude = cabs(r->fft_freq[i]);
+        double phase = carg(r->fft_freq[i]);
+        double noise_magnitude = noise_est[i];
+
+        // Calculate the SNR
+        double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
+        double new_magnitude;
+
+        // Sigmoid-based reduction factor
+        double reduction_factor =
+            1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
+
+        // Calculate new magnitude with residual noise preservation
+        double noise_residual = 0.10; // Retain 10% of noise, reduces
+        new_magnitude =
+            fmax(noise_residual * noise_magnitude, magnitude - reduction_factor * noise_magnitude);
+
+        // Smoother bin-to-bin transitions (blend current and adjacent bins)
+        static double previous_magnitude[MAX_BINS] = {0};
+        new_magnitude =
+            0.9 * new_magnitude + 0.1 * previous_magnitude[i]; // Stronger weight on current bin
+        previous_magnitude[i] = new_magnitude;
+
+        // Reconstruct the frequency domain signal
+        r->fft_freq[i] = new_magnitude * cexp(I * phase);
+      }
+    }
+
+    if (anr_enabled) {
+      // Signal estimation for Wiener filter
+      for (i = 0; i < MAX_BINS; i++) {
+        double current_magnitude = cabs(r->fft_freq[i]);
+        signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
+      }
+
+      // Wiener filter
+      for (i = 0; i < MAX_BINS; i++) {
+        double signal_power = fmax(1e-6, signal_est[i] * signal_est[i]);
+        double noise_power = fmax(1e-6, noise_est[i] * noise_est[i]);
+
+        // Relaxed Wiener filter gain
+        double wiener_filter = (signal_power + 0.2 * noise_power) / (signal_power + noise_power);
+        wiener_filter = fmax(0.2, wiener_filter); // Minimum gain to preserve quiet signals
+
+        r->fft_freq[i] *= wiener_filter;
+      }
+
+      // Bin smoothing
+      for (i = 1; i < MAX_BINS - 1; i++) {
+        r->fft_freq[i] =
+            (0.8 * r->fft_freq[i]) + (0.1 * r->fft_freq[i - 1]) + (0.1 * r->fft_freq[i + 1]);
+      }
+    }
+  }
+
+  // Sideband selection: zero the unwanted image
+  // IQ mixing already attenuates the image; zeroing the unwanted half adds
+  // a second stage of rejection (typically >60 dB combined).
+  switch (r->mode) {
+  case MODE_LSB:
+  case MODE_CWR:
+    for (i = 0; i < MAX_BINS / 2; i++) {
+      __real__ r->fft_freq[i] = 0;
+      __imag__ r->fft_freq[i] = 0;
+    }
+    break;
+  case MODE_AM:
+  case MODE_FM:   // FM spectrum is symmetric — keep both halves intact
+    break;
+  default:
+    for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
+      __real__ r->fft_freq[i] = 0;
+      __imag__ r->fft_freq[i] = 0;
+    }
+    break;
+  }
+
+  // Bandpass FIR filter (applied in frequency domain)
+  for (i = 0; i < MAX_BINS; i++) {
+    r->fft_freq[i] *= r->filter->fir_coeff[i];
+  }
+
+  // CW audio peaking filter (APF)
+  if (r->mode == MODE_CW || r->mode == MODE_CWR) {
+
+    if (apf1.ison) {
+
+      int center;
+      if (r->mode == MODE_CW) {
+        center = (int)(rx_pitch / (96000.0 / MAX_BINS));
+      } else if (r->mode == MODE_CWR) {
+        center = MAX_BINS - (int)(rx_pitch / (96000.0 / MAX_BINS));
+      }
+
+      r->fft_freq[center - 4] *= apf1.coeff[0];
+      r->fft_freq[center - 3] *= apf1.coeff[1];
+      r->fft_freq[center - 2] *= apf1.coeff[2];
+      r->fft_freq[center - 1] *= apf1.coeff[3];
+      r->fft_freq[center] *= apf1.coeff[4];
+      r->fft_freq[center + 1] *= apf1.coeff[5];
+      r->fft_freq[center + 2] *= apf1.coeff[6];
+      r->fft_freq[center + 3] *= apf1.coeff[7];
+      r->fft_freq[center + 4] *= apf1.coeff[8];
+    }
+  }
+
+  //////////////////////////////////////////////////
+  // Time-domain reconstruction
+  // Inverse FFT, AGC, and demodulation to speaker/tx
+  // output buffers.
+  //////////////////////////////////////////////////
+    
+  my_fftw_execute(r->plan_rev);
+
+  // AGC (operates on the valid second half of the overlap-and-save output).
+  // agc2() returns AGC_TARGET_OUTPUT / agc_gain — a normalised signal-strength
+  // estimate that is bounded to roughly [1, AGC_TARGET_OUTPUT (30,000)].
+  // This is the value the squelch thresholds in squelch.c are calibrated against:
+  //   noise floor  → ~2,000    (below level-1 threshold of ~1,186 after AGC)
+  //   S9 signal    → ~30,000   (matches level-20 threshold of 30,200)
+  //
+  // r->signal_avg, by contrast, is the raw pre-gain block_peak (cabs * 1000)
+  // which can reach tens of millions for a normal signal — far above every
+  // squelch threshold, so the gate was permanently open regardless of level.
+  double agc_signal_strength = agc2(r);
+
+  // Update the squelch gate with the normalised signal-strength estimate.
+  // Called for both AM and FM so the hang timer counts correctly every block.
+  if (r->mode == MODE_FM || r->mode == MODE_AM)
+    squelch_update(agc_signal_strength);
+
+  // Demodulate and produce audio output.
+  // Only the second half of the IFFT is valid (first half is
+  // overlap-and-save artifact).
+  if (rx_list->output == 0) {
+    if (r->mode == MODE_AM) {
+			static double am_dc_offset = 0.0;
+			int sq_open = squelch_is_open();
+			for (i = 0; i < MAX_BINS / 2; i++) {
+				double mag = cabs(r->fft_time[i + (MAX_BINS / 2)]);
+				
+				// Track the DC offset (carrier amplitude) using a simple low-pass filter
+				am_dc_offset = (am_dc_offset * 0.999) + (mag * 0.001);
+				
+				// Subtract the DC carrier to yield the AC audio waveform
+				// Gate through squelch — always run mag/offset to keep state current
+				output_speaker[i] = sq_open
+				    ? (int32_t)((mag - am_dc_offset) * 10000000.0)
+				    : 0;
+				output_tx[i] = 0;
+			}
+    } else if (r->mode == MODE_FM) {
+      // --- FM phase-difference discriminator ---
+      // disc[n] = Im( conj(z[n-1]) * z[n] )
+      //         = |z[n-1]||z[n]| * sin(Δφ)  ≈  |z|² * Δφ   for small Δφ
+      // With AGC keeping |z| roughly constant this is gain-independent.
+      //
+      // 75 µs de-emphasis IIR: α = exp(-1 / (Fs * τ))
+      //   Fs = 96000, τ = 75e-6  →  α ≈ 0.8702
+      // Cuts high-frequency hiss added by the transmitter's pre-emphasis.
+      //
+      // Output scaling:
+      //   At 2.5 kHz deviation and Fs=96000 → Δφ_max = 2π·2500/96000 ≈ 0.164 rad
+      //   AGC target keeps |z|≈30 (AGC_TARGET_OUTPUT/1000),
+      //   disc_max ≈ 30² · sin(0.164) ≈ 900 · 0.163 ≈ 147
+      //   Scale factor 2e6 → 147 · 2e6 ≈ 294e6, matching the SSB ~300M range.
+      static fftw_complex fm_rx_prev  = 0.0;
+      static double       fm_deemph   = 0.0;
+      const  double       DEEMPH_ALPHA  = 0.8702;
+      const  double       FM_RX_SCALE = 2000000.0;
+      // squelch_is_open() returns 1 when squelch is off or signal is above threshold
+      int sq_open = squelch_is_open();
+      for (i = 0; i < MAX_BINS / 2; i++) {
+        fftw_complex cur = r->fft_time[i + (MAX_BINS / 2)];
+        // Phase-difference discriminator — always run to keep state current
+        double disc = cimag(conj(fm_rx_prev) * cur);
+        fm_rx_prev = cur;
+        // 75 µs de-emphasis low-pass
+        fm_deemph = DEEMPH_ALPHA * fm_deemph +
+                      (1.0 - DEEMPH_ALPHA) * disc;
+
+        double audio = fm_deemph;
+
+        // CTCSS RX notch: strip sub-audible tone from speaker audio.
+        // Applied whenever ctcss_rx_index > 0, even on open squelch,
+        // so the tone is never audible in the speaker.
+        if (ctcss_rx_index > 0) {
+          double xn = audio;
+          double yn = ctcss_notch_b0 * xn
+                    + ctcss_notch_b1 * ctcss_notch_x1
+                    + ctcss_notch_b2 * ctcss_notch_x2
+                    - ctcss_notch_a1 * ctcss_notch_y1
+                    - ctcss_notch_a2 * ctcss_notch_y2;
+          ctcss_notch_x2 = ctcss_notch_x1; ctcss_notch_x1 = xn;
+          ctcss_notch_y2 = ctcss_notch_y1; ctcss_notch_y1 = yn;
+          audio = yn;
+
+          // Goertzel tone detector: accumulate on pre-notch discriminator
+          // output so the notch doesn't affect detection.
+          double s = ctcss_goertzel_coeff * ctcss_goertzel_s0
+                   - ctcss_goertzel_s1 + disc;
+          ctcss_goertzel_s1 = ctcss_goertzel_s0;
+          ctcss_goertzel_s0 = s;
+          ctcss_goertzel_n++;
+          if (ctcss_goertzel_n >= CTCSS_GOERTZEL_N) {
+            double power = ctcss_goertzel_s0 * ctcss_goertzel_s0
+                         + ctcss_goertzel_s1 * ctcss_goertzel_s1
+                         - ctcss_goertzel_coeff
+                           * ctcss_goertzel_s0 * ctcss_goertzel_s1;
+            if (power > ctcss_detect_threshold) {
+              // Tone present — reload the hang timer and open the gate.
+              ctcss_hang_ctr      = CTCSS_HANG_BLOCKS;
+              ctcss_tone_detected = 1;
+            } else {
+              // Tone absent — count down the hang timer.
+              // Gate stays open until the hang expires, preventing
+              // chatter during brief tone dips under voice peaks.
+              if (ctcss_hang_ctr > 0)
+                ctcss_hang_ctr--;
+              else
+                ctcss_tone_detected = 0;
+            }
+            ctcss_goertzel_s0 = ctcss_goertzel_s1 = 0.0;
+            ctcss_goertzel_n  = 0;
+          }
+        }
+
+        // Gate the speaker:
+        //  - RF squelch closed  → silence
+        //  - CTCSS tone squelch active and tone absent → silence
+        //  - Otherwise → pass de-emphasised, notch-filtered audio
+        int tone_sq_open = (ctcss_rx_index == 0) || ctcss_tone_detected;
+        output_speaker[i] = (sq_open && tone_sq_open)
+                             ? (int32_t)(audio * FM_RX_SCALE)
+                             : 0;
+        output_tx[i] = 0;
+      }
+		} else {
+      // SSB / CW / Digital: demodulated audio is in the imaginary part
+      // USB/CW (upper bins kept):  audio = -imag
+      // LSB/CWR (lower bins kept): audio = +imag
+      int sign = (r->mode == MODE_LSB || r->mode == MODE_CWR) ? 1 : -1;
+      for (i = 0; i < MAX_BINS / 2; i++) {
+        double sample = sign * cimag(r->fft_time[i + (MAX_BINS / 2)]);
+        output_speaker[i] = (int32_t)(sample * 10000000.0);
+        output_tx[i] = 0;
+      }
+    }
+  }
+
+  //////////////////////////////////////////////////
+  // Post-processing
+  // Apply mute handling, feed decoders, run EQ/limiter,
+  // and queue remote audio.
+  //////////////////////////////////////////////////
+
+  // Mute transient (suppresses clicks after TX/RX switch)
+  if (mute_count) {
+    memset(output_speaker, 0, MAX_BINS / 2 * sizeof(int32_t));
+    mute_count--;
+  }
+
+  // Feed demodulated audio to modem decoders
+  modem_rx(rx_list->mode, output_speaker, MAX_BINS / 2);
+
+  // RX equalizer and soft limiter (voice modes only)
+  if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_FT4 &&
+      r->mode != MODE_2TONE) {
+    if (rx_eq_is_enabled == 1) {
+      apply_eq(&rx_eq, output_speaker, n_samples, 96000.0);
+
+      const double limiter_threshold = 0.8 * 500000000;
+
+      for (int i = 0; i < n_samples; i++) {
+        double sample = output_speaker[i];
+
+        if (fabs(sample) > limiter_threshold) {
+          sample = limiter_threshold * tanh(sample / limiter_threshold);
+        }
+
+        output_speaker[i] = (int32_t)sample;
+      }
+    }
+  }
+
+  // Decimated audio for remote/web clients (after EQ so they hear the same thing)
+  if (rx_list->output == 0) {
+    for (i = 0; i < MAX_BINS / 2; i += 6) {
+      q_write(&qremote, output_speaker[i]);
+    }
+  }
 }
-// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-// Moved after EQ processing so qremote gets the equalized audio when applicable
-	if (rx_list->output == 0) {
-		for (i = 0; i < MAX_BINS / 2; i += 6)
-		{
-			q_write(&qremote, output_speaker[i]);
-		}
-	}
-}
+
 void read_power()
 {
 	uint8_t response[4];
 	int16_t vfwd, vref;
-	int fwdpw;
+	float fwdpw;
 
-	char buff[20];
 
 	if (!in_tx)
 		return;
 	if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
 		return;
 
-	vfwd = vref = 0;
-
-	memcpy(&vfwd, response, 2);
+	vfwd = vref = 0;  
+	memcpy(&vfwd, response, 2);  // bridge voltage values 0-1023
 	memcpy(&vref, response + 2, 2);
-	//	printf("%d:%d\n", vfwd, vref);
 
+	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
 	// Better not to calculate the swr at all if the measured power is under a very minimal level
-	if (vfwd > 3) {
+	// vfwd 0-1023, limit changed from 3 to 50 ~.1 watt   RLB
+
+	if (vfwd > 50) {   // don't calculate if < .1 watt
 		if (vref >= vfwd)
 			vswr = 100;
 		else
-			vswr = (10 * (vfwd + vref)) / (vfwd - vref);
+			vswr = round((10 * (vfwd + vref)) / (vfwd - vref));
 	}
 
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
-	int fwdvoltage = (vfwd * 40) / bridge_compensation;
-
-	// Implement a simple "hold" algorithm in order to show
-	// readable and meaningful power readings that should be the pep power
-	fwdpw = (fwdvoltage * fwdvoltage) / 400;
+	float fwdvoltage = (vfwd * 40.0) / bridge_compensation;
+	fwdpw = (fwdvoltage * fwdvoltage) / 400.0;
+	
 	if (fwdpw > fwdpower_calc) {
 		fwdpower_calc = fwdpw;
 	}
@@ -1569,24 +1837,26 @@ void read_power()
 	}
 	if (!fwdpower)
 		fwdpower = fwdpw;
-	fwdpower_cnt = ++fwdpower_cnt % 100;
+	fwdpower_cnt = ++fwdpower_cnt % 50; // display new value every 1/2 s
 
-	int rf_v_p2p = (fwdvoltage * 126) / 400;
-	//	printf("rf volts: %d, alc %g, %d watts ", rf_v_p2p, alc_level, fwdpower/10);
-	if (rf_v_p2p > 135 && !in_calibration)
-	{
-		alc_level *= 135.0 / (1.0 * rf_v_p2p);
-		printf("ALC tripped, to %d percent\n", (int)(100 * alc_level));
-	}
-	/*	else if (alc_level < 0.95){
-			printf("alc releasing to ");
-			alc_level *= 1.02;
+	float cpower=(float)fwdpw/10.0;;
+	float climit = band_power[cur_band].max_watts;
+
+	if ( climit > 0.1 && in_calibration) {  // check limits
+		if (cpower > climit) {   // check power  against band_max
+			alc_level = alc_level * climit/cpower; // scale alc_limit
+			return;
 		}
-	*/
-	//	printf("alc: %g\n", alc_level);
+	}	
+	if (alc_level < 1.0 ) {  // restore alc_level
+		alc_level = alc_level + (1.0-alc_level)/2.0;
+	}
+	
+	return;		
 }
 
-static int tx_process_restart = 0;
+
+static int tx_process_restart = 1;
 
 void tx_process(
 	int32_t *input_rx, int32_t *input_mic,
@@ -1595,7 +1865,6 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
-
 	// Check if browser microphone is active and use it instead of physical mic
 	int32_t browser_mic_samples[n_samples];
 	int use_browser_mic = is_browser_mic_active();
@@ -1672,9 +1941,18 @@ void tx_process(
 				apply_eq(&tx_eq, input_mic, n_samples, 96000.0);
 			}
 		}
-	}
+    
+    // apply CESSB processing if enabled (voice modes only)
+    if (cessb_enabled && (r->mode == MODE_USB || r->mode == MODE_LSB)) {
+      if (use_browser_mic) {
+          cessb_process_int32(&cessb_processor, browser_mic_samples, n_samples);
+      } else {
+          cessb_process_int32(&cessb_processor, input_mic, n_samples);
+      }
+    }
+  }
 
-	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM))
+	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_FM))
 	{
 		memset(input_mic, 0, n_samples * sizeof(int32_t));
 		if (use_browser_mic) {
@@ -1688,7 +1966,8 @@ void tx_process(
 
 	int m = 0;
 	int j = 0;
-
+	double i_sample_max = 0.0;
+	double i_sample_old = 0.0;
 	// double max = -10.0, min = 10.0;
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
@@ -1714,6 +1993,88 @@ void tx_process(
 			i_carrier = (1.0 * vfo_read(&am_carrier)) / 50000000000.0;
 			i_sample = (1.0 + modulation) * i_carrier;
 		}
+		else if (r->mode == MODE_FM)
+		{
+			// --- FM FM modulator ---
+			// Reads microphone, applies 75 µs pre-emphasis, integrates
+			// instantaneous frequency to phase, then outputs a complex
+			// exponential so that both I and Q carry the FM signal.
+			// The TX pipeline uses only creal(fft_time[…]) for the final
+			// RF output, but the complex form drives the FFT/filter chain
+			// correctly so the spectrum stays symmetric around the carrier.
+			//
+			// 75 µs pre-emphasis: y[n] = x[n] - α·x[n-1]
+			//   α = exp(-1/(Fs·τ)) = exp(-1/(96000·75e-6)) ≈ 0.8702
+			//   This mirrors the RX de-emphasis so the net response is flat.
+			//
+			// Max deviation 2.5 kHz at Fs=96000:
+			//   Δφ_max = 2π · 2500 / 96000 ≈ 0.164 rad per sample
+			static double fm_tx_phase        = 0.0;
+			static double fm_tx_prev_mic      = 0.0;
+			const  double FM_PRE_ALPHA        = 0.8702;
+			const  double FM_DEV_SCALE        = 2.0 * M_PI * 2500.0 / 96000.0;
+
+			// Amplitude calibration:
+			// AM puts a real 24 kHz cosine of amplitude A_c into the FFT → energy
+			// splits to bin 512 and bin 1536 (N/2 * A_c each); the TX filter passes
+			// only bin 512, so IFFT amplitude ≈ N/2 * A_c = 1024 * 0.02147 ≈ 21.98.
+			// FM puts a complex DC signal of amplitude 1.0 → all N energy at bin 0,
+			// shifted to bin 512 → IFFT amplitude ≈ N * 1.0 = 2048 (≈ 93× too loud).
+			// Scale factor: AM_carrier_amp / 2 = (1073741824 / 50e9) / 2 ≈ 0.01074.
+			const double FM_AMP = 1073741824.0 / 100000000000.0;
+
+			double mic_val;
+			if (use_browser_mic)
+				mic_val = (1.0 * browser_mic_samples[j]) / 2000000000.0;
+			else
+				mic_val = (1.0 * input_mic[j]) / 2000000000.0;
+
+			// 75 µs pre-emphasis: exact inverse of the RX de-emphasis IIR.
+			// RX de-emphasis:  H_de(z) = (1-α) / (1 - α·z⁻¹)
+			// TX pre-emphasis: H_pre(z) = (1 - α·z⁻¹) / (1-α)
+			// This gives unity gain at DC and progressive boost above the
+			// corner frequency (f_c = 1/(2π·75µs) ≈ 2122 Hz), for flat
+			// end-to-end voice response through the TX/RX chain.
+			double pe = (mic_val - FM_PRE_ALPHA * fm_tx_prev_mic)
+			            / (1.0 - FM_PRE_ALPHA);
+			fm_tx_prev_mic = mic_val;
+
+			// Clip pre-emphasised signal to prevent deviation runaway.
+			// The pre-emphasis boosts highs up to ~14× near Nyquist, so
+			// hard-limiting is needed to keep deviation ≤ 2.5 kHz.
+			if (pe >  1.0) pe =  1.0;
+			if (pe < -1.0) pe = -1.0;
+
+			// Add CTCSS sub-audible tone into the FM deviation.
+			// The tone is mixed BEFORE the phase integrator so it adds
+			// directly to instantaneous frequency (proper FM encoding).
+			// Tone deviation is ±200 Hz (CTCSS_DEV_SCALE), which is about
+			// 8% of the 2.5 kHz max voice deviation — standard practice.
+			// The tone amplitude is normalised relative to FM_DEV_SCALE so
+			// the combined deviation never exceeds ±2.7 kHz at full voice.
+			if (ctcss_tx_index > 0) {
+				double tone_freq = ctcss_tones[ctcss_tx_index];
+				ctcss_tx_phase += 2.0 * M_PI * tone_freq / 96000.0;
+				if (ctcss_tx_phase >  M_PI) ctcss_tx_phase -= 2.0 * M_PI;
+				if (ctcss_tx_phase < -M_PI) ctcss_tx_phase += 2.0 * M_PI;
+				// Scale: CTCSS_DEV_SCALE / FM_DEV_SCALE normalises the
+				// sine amplitude so the integrator step matches ±200 Hz dev.
+				pe += sin(ctcss_tx_phase) * (CTCSS_DEV_SCALE / FM_DEV_SCALE);
+			}
+
+			// FM: integrate instantaneous frequency into instantaneous phase
+			fm_tx_phase += pe * FM_DEV_SCALE;
+			// Wrap to [-π, π] to prevent floating-point accumulation drift
+			if (fm_tx_phase >  M_PI) fm_tx_phase -= 2.0 * M_PI;
+			if (fm_tx_phase < -M_PI) fm_tx_phase += 2.0 * M_PI;
+
+			// Complex analytic FM signal e^(jφ), scaled to AM carrier level.
+			// q_sample is NOT zeroed below — it is essential for the complex
+			// FFT input so that the baseband FM spectrum stays single-sided
+			// before the tx_shift rotation moves it to the 24 kHz IF.
+			i_sample = cos(fm_tx_phase) * FM_AMP;
+			q_sample = sin(fm_tx_phase) * FM_AMP;
+		}
 		else
 		{
 			if (use_browser_mic) {
@@ -1726,6 +2087,10 @@ void tx_process(
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
 		{
+			i_sample_max = fmax(i_sample, i_sample_max); // find peak value
+			i_sample_max = 0.5 * i_sample_max + 0.5 * i_sample_old;
+			i_sample_old =  i_sample_max;  // do exponential smoothing
+			
 			if (i_sample < (-1.0 * voice_clip_level))
 				i_sample = -1.0 * voice_clip_level;
 			else if (i_sample > voice_clip_level)
@@ -1733,7 +2098,7 @@ void tx_process(
 		}
 
 		// Don't echo the voice modes
-		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_NBFM)
+		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_FM)
 		{
 			// Unless of course you want to use the txmon control
 			if (txmon_control_level >= 1 && txmon_control_level <= 10)
@@ -1744,7 +2109,10 @@ void tx_process(
 			{
 				output_speaker[j] = 0;
 			}
-			q_sample = 0;
+			// FM: q_sample already set by the FM modulator above — do not
+			// overwrite it with 0 or the complex analytic signal is destroyed.
+			if (r->mode != MODE_FM)
+				q_sample = 0;
 		}
 		else
 		{
@@ -1761,7 +2129,11 @@ void tx_process(
 		__real__ fft_in[i] = i_sample;
 		__imag__ fft_in[i] = q_sample;
 		m++;
-	}
+
+	}	
+			
+	vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0		
+	i_sample_max=0.0;
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
 	for (i = 0; i < MAX_BINS / 2; i += 6) {
@@ -1792,19 +2164,13 @@ void tx_process(
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	else if (r->mode != MODE_AM)
-		// zero out the USB
+	else if (r->mode != MODE_AM && r->mode != MODE_FM)
+		// zero out the USB (not for AM or FM which use both halves)
 		for (i = MAX_BINS / 2; i < MAX_BINS; i++)
 		{
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	// adjust USB/CW modulation power factor W9JES
-	for (i = 0; i < MAX_BINS / 2; i++)
-	{
-		__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
-		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
-	}
 
 	// now rotate to the tx_bin
 	// rememeber the AM is already a carrier modulated at 24 KHz
@@ -1828,16 +2194,22 @@ void tx_process(
 	fftw_execute(r->plan_rev);
 	int min = 10000000;
 	int max = -10000000;
-	float scale = volume;
+	float tx_mode_scale = 1.0;
+	float scale = 1.0;
+	
+	if (r->mode == MODE_LSB || r->mode == MODE_CWR) // RLB balance modes here
+		tx_mode_scale = mode_bal; 
+	scale = volume * tx_amp * alc_level * tx_mode_scale; // combine all scale factors
 	for (i = 0; i < MAX_BINS / 2; i++)
 	{
 		double s = creal(r->fft_time[i + (MAX_BINS / 2)]);
-		output_tx[i] = s * scale * tx_amp * alc_level;
-		if (min > output_tx[i])
+		output_tx[i] = s * scale;
+/*		if (min > output_tx[i])
 			min = output_tx[i];
 		if (max < output_tx[i])
 			max = output_tx[i];
-		// output_tx[i] = 0;
+		 output_tx[i] = 0;
+*/
 	}
 	//	printf("min %d, max %d\n", min, max);
 
@@ -1941,27 +2313,101 @@ void tx_process(
 	sdr_modulation_update(output_tx, MAX_BINS / 2, tx_amp);
 }
 
-/*
-	This is called each time there is a block of signal samples ready
-	either from the mic or from the rx IF
-*/
+// filter for use by sound_process() after mixing
+// 63-tap Remez (equiripple) filter FIR LPF: Fs = 96 kHz, cutoff = 24 kHz (Fs/4)
+#define FIR_TAPS 63
+static const double fir_lpf[FIR_TAPS] = {
+    -0.0023719905, 0.0000121849,  0.0020397458,  0.0000042563,  -0.0028669872,
+    0.0000147339,  0.0039436436,  0.0000007346,  -0.0052405033, 0.0000167459,
+    0.0068787394,  -0.0000016600, -0.0088601751, 0.0000200795,  0.0113490612,
+    -0.0000022286, -0.0144264618, 0.0000210718,  0.0183989561,  -0.0000048059,
+    -0.0236106999, 0.0000207801,  0.0309117731,  -0.0000057449, -0.0419199502,
+    0.0000219431,  0.0610994174,  -0.0000070024, -0.1045365490, 0.0000235578,
+    0.3177955951,  0.4999915596,  0.3177955951,  0.0000235578,  -0.1045365490,
+    -0.0000070024, 0.0610994174,  0.0000219431,  -0.0419199502, -0.0000057449,
+    0.0309117731,  0.0000207801,  -0.0236106999, -0.0000048059, 0.0183989561,
+    0.0000210718,  -0.0144264618, -0.0000022286, 0.0113490612,  0.0000200795,
+    -0.0088601751, -0.0000016600, 0.0068787394,  0.0000167459,  -0.0052405033,
+    0.0000007346,  0.0039436436,  0.0000147339,  -0.0028669872, 0.0000042563,
+    0.0020397458,  0.0000121849,  -0.0023719905,
+};
+static double fir_state_i[FIR_TAPS] = {0};
+static double fir_state_q[FIR_TAPS] = {0};
+static int fir_state_pos = 0;
+static void fir_lpf_iq(const double *in_i, const double *in_q,
+                       double *out_i, double *out_q, int n_samples) {
+    for (int n = 0; n < n_samples; n++) {
+        fir_state_i[fir_state_pos] = in_i[n];
+        fir_state_q[fir_state_pos] = in_q[n];
 
-void sound_process(
-	int32_t *input_rx, int32_t *input_mic,
-	int32_t *output_speaker, int32_t *output_tx,
-	int n_samples)
-{
-	if (in_tx)
-	{
-		tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
-	}
-	else
-	{
-		rx_linear(input_rx, input_mic, output_speaker, output_tx, n_samples);
-	}
+        double acc_i = 0.0;
+        double acc_q = 0.0;
 
-	if (pf_record)
-	{
+        int idx = fir_state_pos;
+        for (int t = 0; t < FIR_TAPS; t++) {
+            acc_i += fir_lpf[t] * fir_state_i[idx];
+            acc_q += fir_lpf[t] * fir_state_q[idx];
+
+            idx--;
+            if (idx < 0) {
+                idx = FIR_TAPS - 1;
+            }
+        }
+
+        out_i[n] = acc_i;
+        out_q[n] = acc_q;
+
+        fir_state_pos++;
+        if (fir_state_pos >= FIR_TAPS) {
+            fir_state_pos = 0;
+        }
+    }
+}
+
+// called when a block of samples from the mic or rx IF is ready
+void sound_process(int32_t *input_rx, int32_t *input_mic, int32_t *output_speaker,
+                   int32_t *output_tx, int n_samples) {
+    if (in_tx) {
+        // tx_process continues to operate on real samples for now
+        tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
+
+    } else {
+        // generate I and Q data from the real input before passing samples to rx_linear()
+        // Note: this also downconverts to baseband
+        double iq_i[MAX_BINS / 2];
+        double iq_q[MAX_BINS / 2];
+        double filt_i[MAX_BINS / 2];
+        double filt_q[MAX_BINS / 2];
+
+        for (int m = 0; m < MAX_BINS / 2; m++) {
+            double rx_sample = (1.0 * input_rx[m]) / ADC_SCALE;
+
+            int osc_i, osc_q;
+            vfo_read_iq(&rx_osc, &osc_i, &osc_q);
+
+            static const double VFO_SCALE = 1.0 / 1073741824.0;  // 2^30
+            iq_i[m] = rx_sample * (osc_i * VFO_SCALE);
+            iq_q[m] = rx_sample * (-osc_q * VFO_SCALE);
+        }
+
+        // FIR low-pass filter after the mixer
+        fir_lpf_iq(iq_i, iq_q, filt_i, filt_q, MAX_BINS / 2);
+
+        // pass filtered I and Q data to receive pipeline
+        rx_linear(filt_i, filt_q, output_speaker, output_tx, n_samples);
+        
+        // no pass filtered I and Q data to receive pipeline
+        //rx_linear(iq_i, iq_q, output_speaker, output_tx, n_samples);
+
+    // EXTERNAL USERS OF I&Q DATA GET IT HERE
+    // THEY SHOULD CREATE THEIR OWN COPY OF THE DATA
+    // AND NEVER CHANGE THE ORIGINAL SIGNAL
+    // this is an example showing data being passed to an
+    // experimental HPSDR Protocol 1 interface
+    hpsdr_send_iq(filt_q, filt_i, MAX_BINS / 2);
+  }
+
+	if (pf_record) {
 		wav_record(in_tx == 0 ? output_speaker : input_mic, n_samples);
 	}
 }
@@ -1969,13 +2415,24 @@ void sound_process(
 // Existing set_rx_filter function
 void set_rx_filter()
 {
-	// on AM filter at the IF level, instead of the baseband
+	// AM filter at baseband (since IQ mixing centers it at 0 Hz)
 	if (rx_list->mode == MODE_AM)
 	{
 		printf("Setting AM filter\n");
 		filter_tune(rx_list->filter,
-					(1.0 * (24000 - rx_list->high_hz)) / 96000.0,
-					(1.0 * (24000 + rx_list->high_hz)) / 96000.0,
+					(1.0 * -rx_list->high_hz) / 96000.0,
+					(1.0 * rx_list->high_hz) / 96000.0,
+					5);
+	}
+	else if (rx_list->mode == MODE_FM)
+	{
+		// FM: symmetric BPF centred at baseband DC (like AM).
+		// high_hz is the user-selected bandwidth half-width (typically 2500 Hz
+		// for 5 kHz channel, matching ±2.5 kHz max deviation).
+		printf("Setting FM filter\n");
+		filter_tune(rx_list->filter,
+					(1.0 * -rx_list->high_hz) / 96000.0,
+					(1.0 *  rx_list->high_hz) / 96000.0,
 					5);
 	}
 	else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
@@ -2054,14 +2511,16 @@ static int hw_settings_handler(void *user, const char *section,
 	if (!strcmp(name, "f_start"))
 		band_power[hw_init_index].f_start = atoi(value);
 	if (!strcmp(name, "f_stop"))
-		band_power[hw_init_index].f_stop = atoi(value);
+		band_power[hw_init_index].f_stop = atoi(value);	
+	if (!strcmp(name, "max_watts"))
+		band_power[hw_init_index].max_watts = atof(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
-		ssb_val = atof(value);
+	if (!strcmp(name, "mode_bal"))
+		mode_bal = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
@@ -2109,7 +2568,10 @@ void set_tx_power_levels()
 		}
 	}
 	//	printf("tx_amp is set to %g for %d drive\n", tx_amp, tx_drive);
-	// we keep the audio card output 'volume' constant'
+	// Always set Master=95 during TX -- the WM8731 right-channel DAC feeds the
+	// RF PA via the Master output.  Muting Master also mutes the PA, killing TX
+	// power regardless of the DRIVE setting.  The USB headset guard must NOT
+	// apply here: USB only affects the speaker (RX audio), not the PA output.
 	sound_mixer(audio_card, "Master", 95);
 	sound_mixer(audio_card, "Capture", tx_gain);
 	alc_level = 1.0;
@@ -2234,47 +2696,81 @@ void tr_switch_v2(int tx_on) {
 // transmit-receive switch for both sbitx DE and V2 and newer
 void tr_switch(int tx_on) {
   if (tx_on) {                   // switch to transmit
-    in_tx = 1;                   // raise a flag so functions see we are in transmit mode
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to transmit
-    sound_mixer(audio_card, "Capture", 0);
-		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
-		delay(20);
-	}
-    //mute_count = 20;             // number of audio samples to zero out
-    mute_count = 1;             // number of audio samples to zero out
-	fft_reset_m_bins();          // fixes burst at start of transmission
-    set_tx_power_levels();       // use values for tx_power_watts, tx_gain
-    //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
-			if (ext_ptt_enable == 1) {
-				digitalWrite(EXT_PTT, HIGH);
-				delay(20); //this delay gives time for ext device to settle before tx
-			}
-    digitalWrite(TX_LINE, HIGH);  // power up PA and disconnect receiver
-    spectrum_reset();
+    in_tx = 1;                   // set first so audio thread stops rx_linear()
+    tx_process_restart = 1;      // reset FFT state on first tx_process call
+    mute_count = 1;
 
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
+    fft_reset_m_bins();
+
+    if (!usb_audio_play_device[0])
+        sound_mixer(audio_card, "Master", 0);
+    sound_mixer(audio_card, "Capture", 0);
+
+    if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR)
+        delay(20);
+
+    set_tx_power_levels();
+
+    if (ext_ptt_enable == 1) {
+        digitalWrite(EXT_PTT, HIGH);
+        delay(20);
+    }
+    digitalWrite(TX_LINE, HIGH);
+    spectrum_reset();
+ 
     fwdpower = 0;
+    alc_level=1.0;
 
   } else {                       // switch to receive
-    in_tx = 0;                   // lower the transmit flag
-    sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
-    sound_mixer(audio_card, "Capture", 0);
+    /* ── T/R relay sequence ─────────────────────────────────────────────
+     * Order matters:
+     * 1. Mute the WM8731 output and zero Capture BEFORE clearing in_tx
+     *    so the DSP never sees antenna signal while the relay is still TX.
+     * 2. Switch the relay hardware.
+     * 3. THEN clear in_tx so rx_linear() starts on clean, muted samples.
+     * 4. mute_count blanks output_speaker for MUTE_MAX blocks while the
+     *    relay contacts settle, RF decays, and the WM8731 ADC resettles.
+     *    MUTE_MAX * 1024 samples / 96000 = MUTE_MAX * 10.67ms of blanking.
+     * 5. Restore Capture (ADC input) only after the relay has settled --
+     *    not before, or RF transients flow straight into the DSP chain.
+     */
+    sound_mixer(audio_card, "Master", 0);
+    sound_mixer(audio_card, "Capture", 0);   // kill ADC input immediately
     fft_reset_m_bins();
-    mute_count = MUTE_MAX;
-    digitalWrite(EXT_PTT, LOW);  // added by KF7YDU - shuts down ext_ptt
+
+    digitalWrite(EXT_PTT, LOW);              // external PTT off first
     delay(5);
-    digitalWrite(TX_LINE, LOW);  // use T/R switch to connect rcvr
-    check_r1_volume();           // audio codec is back on
-    initialize_rx_vol();         // added to set volume after tx -W2JON W9JES KB2ML
-    sound_mixer(audio_card, "Master", rx_vol);
+    digitalWrite(TX_LINE, LOW);             // physically switch T/R relay
+
+    in_tx = 0;                              // NOW safe to start RX processing
+    mute_count = MUTE_MAX;                  // blank output for settling period
+
+    rx_list->signal_avg = 0.0;             // reset AGC level - W9JES
+
+    check_r1_volume();
+    initialize_rx_vol();
+
+    if (usb_audio_play_device[0])
+    {
+        sound_usb_set_volume(usb_audio_play_device, rx_vol);
+        if (rx_list->mode == MODE_LSB
+            || rx_list->mode == MODE_USB
+            || rx_list->mode == MODE_AM
+            || rx_list->mode == MODE_FM)
+            sound_usb_set_capture(usb_audio_play_device, tx_gain);
+    }
+    else
+    {
+        sound_mixer(audio_card, "Master", rx_vol);
+    }
+    /* Restore ADC input AFTER relay has settled and mute is armed.
+       The mute_count will zero output_speaker for MUTE_MAX more blocks
+       even though Capture is now open -- input_q[] fills with real signal
+       but output is suppressed until the DSP chain has stabilised. */
     sound_mixer(audio_card, "Capture", rx_gain);
     spectrum_reset();
 
-    // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
+    // item fpr read_power
     fwdpower = 0;
   }
 }
@@ -2321,12 +2817,16 @@ void setup()
 	jitter_buffer_samples = 0;
 
 	modem_init();
+  cessb_init(&cessb_processor, 96000.0f);  // initialize CESSB processor
+  init_squelch();                           // initialize FM squelch gate
+  ctcss_set_tx(0);                          // CTCSS TX off
+  ctcss_set_rx(0);                          // CTCSS RX tone-squelch off
 
-	add_rx(7000000, MODE_LSB, -3000, -300);
-	add_tx(7000000, MODE_LSB, -3000, -300);
+	add_rx(7000000, MODE_LSB, -3000, -200);  // RLB made all edges 200
+	add_tx(7000000, MODE_LSB, -3000, -200);
 	rx_list->tuned_bin = 512;
 	tx_list->tuned_bin = 512;
-	tx_init(7000000, MODE_LSB, -3000, -150);
+	tx_init(7000000, MODE_LSB, -3000, -200);
 
 	// detect the version of sbitx
 	uint8_t response[4];
@@ -2336,16 +2836,28 @@ void setup()
 		sbitx_version = SBITX_V2;
 
 	setup_audio_codec();
-	sound_thread_start("plughw:CARD=audioinjectorpi,DEV=0");
-
-	sleep(1); // why? to allow the aloop to initialize?
+	/*
+	 * sound_thread_start() has been moved to sound_start_with_usb() in
+	 * sbitx_gtk.c main(), which is called AFTER ini_parse() so that the
+	 * #usb_audio_out / #usb_audio_in field values are available.
+	 * We still call setup_audio_codec() here so the WM8731 mixer is
+	 * configured before the loopback device probing.
+	 */
 
 	vfo_start(&tone_a, 700, 0);
 	vfo_start(&tone_b, 1900, 0);
 	vfo_start(&am_carrier, 24000, 0);
+  // start IQ oscillator at the correct offset for the initial mode (LSB)
+	vfo_start(&rx_osc, rx_osc_freq_for_mode(rx_list->mode), 0);
+
+  // start HPSDR Protocol 1 IQ server
+  if (hpsdr_init() == 0) {
+      hpsdr_poll();  // launches background listener thread
+  }
 	delay(2000);
 	//	pf_debug = fopen("am_test.raw", "w");
 }
+
 void sdr_request(char *request, char *response)
 {
 	char cmd[100], value[1000];
@@ -2390,6 +2902,8 @@ void sdr_request(char *request, char *response)
 			rx_list->mode = MODE_FT4;
 		else if (!strcmp(value, "AM"))
 			rx_list->mode = MODE_AM;
+		else if (!strcmp(value, "FM"))
+			rx_list->mode = MODE_FM;
 		else if (!strcmp(value, "DIGI"))
 			rx_list->mode = MODE_DIGITAL;
 		else
@@ -2421,27 +2935,42 @@ void sdr_request(char *request, char *response)
 						5);
 		}
 
+		else if (rx_list->mode == MODE_FM)
+		{
+			// FM TX: symmetric BPF around DC (baseband FM signal).
+			// ±3000 Hz passes the full ±2.5 kHz deviation plus guard band.
+			// The tx_shift rotation later moves it to the 24 kHz IF centre.
+			filter_tune(tx_list->filter,
+						(1.0 * -3000) / 96000.0,
+						(1.0 *  3000) / 96000.0,
+						5);
+			filter_tune(tx_filter,
+						(1.0 * -3000) / 96000.0,
+						(1.0 *  3000) / 96000.0,
+						5);
+		}
+
 		else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
 		{
 			// puts("\n\n\ntx LSB filter ");
-			filter_tune(tx_list->filter,
+			filter_tune(tx_list->filter,  // RLB set all edges to 200
 						(1.0 * -3500) / 96000.0,
-						(1.0 * -100) / 96000.0,
+						(1.0 * -200) / 96000.0,
 						5);
 			filter_tune(tx_filter,
 						(1.0 * -3500) / 96000.0,
-						(1.0 * -100) / 96000.0,
+						(1.0 * -200) / 96000.0,
 						5);
 		}
 		else
 		{
 			// puts("\n\n\ntx USB filter ");
 			filter_tune(tx_list->filter,
-						(1.0 * 300) / 96000.0,
+						(1.0 * 200) / 96000.0,
 						(1.0 * 3500) / 96000.0,
 						5);
 			filter_tune(tx_filter,
-						(1.0 * 300) / 96000.0,
+						(1.0 * 200) / 96000.0,
 						(1.0 * 3500) / 96000.0,
 						5);
 		}
@@ -2454,16 +2983,28 @@ void sdr_request(char *request, char *response)
 		set_rx1(f - 10);
 		set_rx1(f);
 
+		/* Enable USB mic only in voice modes; mute it for everything else.
+		   This operates at the hardware capture switch level so the mic
+		   is fully silenced regardless of gain settings. */
+		if (usb_audio_play_device[0])
+		{
+			int voice_mode = (rx_list->mode == MODE_LSB
+			               || rx_list->mode == MODE_USB
+			               || rx_list->mode == MODE_AM
+			               || rx_list->mode == MODE_FM);
+			sound_usb_enable_capture(usb_audio_play_device, voice_mode);
+		}
+
 		// printf("mode set to %d\n", rx_list->mode);
 		strcpy(response, "ok");
 	}
 	else if (!strcmp(cmd, "txmode"))
 	{
 		puts("\n\n\n\n###### tx filter #######");
-		if (!strcmp(value, "LSB") || !strcmp(value, "CWR"))
-			filter_tune(tx_filter, (1.0 * -3000) / 96000.0, (1.0 * -300) / 96000.0, 5);
+		if (!strcmp(value, "LSB") || !strcmp(value, "CWR"))  // RLB changed to 200
+			filter_tune(tx_filter, (1.0 * -3000) / 96000.0, (1.0 * -200) / 96000.0, 5);
 		else
-			filter_tune(tx_filter, (1.0 * 300) / 96000.0, (1.0 * 3000) / 96000.0, 5);
+			filter_tune(tx_filter, (1.0 * 200) / 96000.0, (1.0 * 3000) / 96000.0, 5);
 	}
 	else if (!strcmp(cmd, "record"))
 	{
@@ -2494,6 +3035,15 @@ void sdr_request(char *request, char *response)
 		tx_gain = atoi(value);
 		if (in_tx)
 			set_tx_power_levels();
+		/* USB mic is only active in voice modes (LSB, USB, AM).
+		   All other modes — CW, CWR, FT8, FT4, DIGI, RTTY, 2TONE, FM —
+		   either use the loopback, keyer, or no mic at all. */
+		if (usb_audio_play_device[0]
+		    && (rx_list->mode == MODE_LSB
+		        || rx_list->mode == MODE_USB
+		        || rx_list->mode == MODE_AM
+		        || rx_list->mode == MODE_FM))
+			sound_usb_set_capture(usb_audio_play_device, tx_gain);
 	}
 	else if (!strcmp(cmd, "tx_power"))
 	{
@@ -2518,17 +3068,16 @@ void sdr_request(char *request, char *response)
 		int rx_vol;
 
 		if (input_volume == 0)
-		{
 			rx_vol = 0;
-		}
 		else
-		{
 			rx_vol = (int)(log10(1 + 9 * input_volume) * 100 / log10(1 + 900));
-		}
 
 		if (!in_tx)
 		{
-			sound_mixer(audio_card, "Master", rx_vol);
+			if (usb_audio_play_device[0])
+				sound_usb_set_volume(usb_audio_play_device, rx_vol);
+			else
+				sound_mixer(audio_card, "Master", rx_vol);
 		}
 	}
 	//
@@ -2559,6 +3108,46 @@ void sdr_request(char *request, char *response)
 		if (0 <= t_sidetone && t_sidetone <= 100)
 			sidetone = atof(value) * 20000000;
 	}
+	else if (!strcmp(cmd, "squelch"))
+	{
+		// squelch=N  : set squelch level 0–20 (0 = always open / disabled)
+		// The squelch gate is only applied in FM mode (squelch_update() is
+		// only called in the FM demodulator branch of rx_linear()).
+		int level = atoi(value);
+		squelch_set_level(level);
+		// Enable the feature for any level > 0; disable at level 0 so the
+		// gate is always open and there is zero CPU overhead.
+		squelch_on = (level > 0) ? 1 : 0;
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "ctcss_tx"))
+	{
+		// ctcss_tx=OFF   → disable TX tone
+		// ctcss_tx=67.0  → find matching entry in tone table and encode that tone
+		int idx = 0;
+		if (strcasecmp(value, "OFF") != 0) {
+			double freq = atof(value);
+			for (int ti = 1; ti <= 38; ti++) {
+				if (fabs(ctcss_tones[ti] - freq) < 0.1) { idx = ti; break; }
+			}
+		}
+		ctcss_set_tx(idx);
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "ctcss_rx"))
+	{
+		// ctcss_rx=OFF   → disable RX tone-squelch
+		// ctcss_rx=67.0  → gate audio on that tone; strip it from speaker
+		int idx = 0;
+		if (strcasecmp(value, "OFF") != 0) {
+			double freq = atof(value);
+			for (int ti = 1; ti <= 38; ti++) {
+				if (fabs(ctcss_tones[ti] - freq) < 0.1) { idx = ti; break; }
+			}
+		}
+		ctcss_set_rx(idx);
+		strcpy(response, "ok");
+	}
 	else if (!strcmp(cmd, "mod"))
 	{
 		if (!strcmp(value, "MIC"))
@@ -2587,6 +3176,75 @@ void sdr_request(char *request, char *response)
 		bandtweak = atoi(value);
 		printf("Now adjusting band %i scale is currently: %f\n", band_power[bandtweak].f_start, band_power[bandtweak].scale);
 	}
+
+  // CESSB (Controlled Envelope SSB) Controls
+	else if (!strcasecmp(cmd, "cessb"))
+	{
+		// Enable/disable CESSB processing
+		// Usage: cessb=on, cessb=off, cessb=1, cessb=0
+		if (! strcasecmp(value, "on") || !strcmp(value, "1")) {
+			cessb_enabled = 1;
+			cessb_set_enabled(&cessb_processor, 1);
+			printf("CESSB processing enabled\n");
+		}
+		else if (!strcasecmp(value, "off") || !strcmp(value, "0")) {
+			cessb_enabled = 0;
+			cessb_set_enabled(&cessb_processor, 0);
+			printf("CESSB processing disabled\n");
+		}
+		else if (!strcasecmp(value, "status")) {
+			// Return current CESSB status
+			if (cessb_enabled)
+				strcpy(response, "ok on");
+			else
+				strcpy(response, "ok off");
+			return;
+		}
+		strcpy(response, "ok");
+	}
+	else if (!strcasecmp(cmd, "cessb_clip")) {
+		// Set CESSB clipping level (0.0 to 1.0)
+		// Usage: cessb_clip=0.85
+		float level = atof(value);
+		if (level > 0.0f && level <= 1.0f) {
+			cessb_set_clip_level(&cessb_processor, level);
+			printf("CESSB clip level set to %.2f\n", level);
+			strcpy(response, "ok");
+		}
+		else {
+			printf("CESSB clip level must be between 0.0 and 1.0\n");
+			strcpy(response, "error invalid range");
+		}
+	}
+	else if (!strcasecmp(cmd, "cessb_limit")) {
+		// Set CESSB envelope limit (0.0 to 2.0)
+		// Usage: cessb_limit=1.0
+		float limit = atof(value);
+		if (limit > 0.0f && limit <= 2.0f) {
+			cessb_set_envelope_limit(&cessb_processor, limit);
+			printf("CESSB envelope limit set to %.2f\n", limit);
+			strcpy(response, "ok");
+		}
+		else {
+			printf("CESSB envelope limit must be between 0.0 and 2.0\n");
+			strcpy(response, "error invalid range");
+		}
+	}
+	else if (!strcasecmp(cmd, "cessb_stats")) {
+    // Get CESSB processing statistics
+    // Usage: cessb_stats=get
+    float peak_reduction, avg_gain, talk_power;
+    cessb_get_stats(&cessb_processor, &peak_reduction, &avg_gain, &talk_power);
+    sprintf(response, "ok peak_reduction=%.1fdB avg_gain=%.1fdB talk_power=%.1fdB",
+            peak_reduction, avg_gain, talk_power);
+  }
+	else if (!strcasecmp(cmd, "cessb_reset")) {
+		// Reset CESSB statistics
+		// Usage: cessb_reset=1
+		cessb_reset_stats(&cessb_processor);
+		strcpy(response, "ok");
+	}
+	// end of CESSB Controls
 
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */

@@ -625,7 +625,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 {
     int sample_rate = 12000;
 	bool is_ft8 = !strcmp(field_str("MODE"), "FT8");
-	recent_qso_age = field_int("RCT_QSO_AGE");
+	recent_qso_age = field_int("RECENT_QSO_AGE");
 
     // Compute FFT over the whole signal and store it
     monitor_t mon;

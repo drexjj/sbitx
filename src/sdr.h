@@ -61,6 +61,10 @@ have continuos waveform.
 */
 
 #include <stdbool.h>
+#include <complex.h>
+#include <fftw3.h>
+#include <stdint.h>
+#include <time.h>
 
 struct Queue
 {
@@ -115,7 +119,7 @@ struct vfo {
 void vfo_init_phase_table();
 void vfo_start(struct vfo *v, int frequency_hz, int start_phase);
 int vfo_read(struct vfo *v);
-
+void vfo_read_iq(struct vfo *v, int *out_i, int *out_q);
 
 // the filter definitions
 struct filter {
@@ -148,7 +152,7 @@ enum _mode {
 	MODE_LSB,
 	MODE_CW,
 	MODE_CWR,
-	MODE_NBFM,
+	MODE_FM,
 	MODE_AM,
 	MODE_FT8,
 	MODE_FT4,

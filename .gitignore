@@ -4,6 +4,8 @@ audio/
 data/hw_settings.ini
 data/user_settings.ini
 data/sbitx.db
+data/display_settings.ini
+data/user_style.tpl
 sbitx
 sbitx-fast
 sbitx_wisdom.wis

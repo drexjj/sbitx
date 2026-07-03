@@ -11,12 +11,16 @@ extern int vswr_on;
 
 // Initialize VSWR monitor at startup
 void init_vswr_monitor(void);
-
+int poll_vswr_alert_timeout(void);
 // Check VSWR and handle reduction/recovery
 // vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
 void check_and_handle_vswr(int vswr);
 
 // Reset VSWR tripped state and clear UI
 void reset_vswr_tripped(void);
+
+void swr_sweep(int steps); // sweep functions
+void swr_sweep_cancel(void);
+int swr_sweep_is_running(void);
 
 #endif // SWR_MONITOR_H
