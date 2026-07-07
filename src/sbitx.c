@@ -1009,8 +1009,19 @@ struct rx *add_rx(int frequency, short mode, int bpf_low, int bpf_high)
 double agc2(struct rx *r) {
   int i;
   int n_samples = MAX_BINS / 2;
+  // TRUE AGC OFF: Apply no gain
+  if (r->agc_speed == 0) {
+    double block_peak = 0.0;
+    for (i = 0; i < n_samples; i++) {
+      double s = cabs(r->fft_time[i + n_samples]) * 1000.0;
+      if (s > block_peak) block_peak = s;
+    }
 
-  // AGC OFF: measure the instantaneous block level and apply the same
+    r->signal_avg = block_peak;
+    r->signal_strength = block_peak;
+    return 0.0;
+  }
+  // INST: measure the instantaneous block level and apply the same
   // gain formula as AGC ON (AGC_TARGET_OUTPUT / block_peak), but with
   // no smoothing, hang time, or slew rate limiting.
   //
@@ -3094,13 +3105,15 @@ void sdr_request(char *request, char *response)
 	else if (!strcmp(cmd, "r1:agc"))
 	{
 		if (!strcmp(value, "OFF"))
-			rx_list->agc_speed = -1;
+			rx_list->agc_speed = 0;
 		else if (!strcmp(value, "SLOW"))
 			rx_list->agc_speed = 100;
 		else if (!strcmp(value, "MED"))
 			rx_list->agc_speed = 33;
 		else if (!strcmp(value, "FAST"))
 			rx_list->agc_speed = 10;
+		else if (!strcmp(value, "INST"))
+			rx_list->agc_speed = -1;
 	}
 	else if (!strcmp(cmd, "sidetone"))
 	{ // between 100 and 0

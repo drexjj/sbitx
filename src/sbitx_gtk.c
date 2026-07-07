@@ -948,7 +948,7 @@ struct field main_controls[] = {
 	{"r1:gain", NULL, 500, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
 	{"r1:agc", do_dropdown, 540, 5, 40, 40, "AGC", 40, "SLOW", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
-	 "OFF/SLOW/MED/FAST", 0, 1024, 1, COMMON_CONTROL},
+	 "OFF/SLOW/MED/FAST/INST", 0, 1024, 1, COMMON_CONTROL},
 	{"tx_power", NULL, 580, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, COMMON_CONTROL},
 	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, STYLE_LARGE_VALUE,
