@@ -1050,8 +1050,6 @@ struct field main_controls[] = {
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
-	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
-	 "", 0, 0, 0, 0},
 	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -10955,10 +10953,6 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "TX"))
 	{
 		tx_on(TX_SOFT);
-	}
-	else if (!strcmp(request, "WEB"))
-	{
-		open_url("http://127.0.0.1:8080");
 	}
 	else if (!strcmp(request, "RX"))
 	{
