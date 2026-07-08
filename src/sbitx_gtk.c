@@ -7699,7 +7699,7 @@ void open_url(char *url)
 {
 	char temp_line[200];
 
-	sprintf(temp_line, "chromium-browser --log-leve=3 "
+	sprintf(temp_line, "chromium --log-leve=3 "
 					   "--enable-features=OverlayScrollbar %s"
 					   "  >/dev/null 2> /dev/null &",
 			url);
