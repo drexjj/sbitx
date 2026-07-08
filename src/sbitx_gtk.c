@@ -453,6 +453,16 @@ int console_selected_line = -1; // index
 time_t console_current_time = 0;
 static int console_scroll_offset = 0;  // 0 = tail (follow live), higher = lines above tail
 
+// Maps each drawn pixel-row of the console to the console_stream index that was
+// painted there, so mouse clicks resolve to exactly the line the user sees.
+// Populated by draw_console(), read by do_console(). y-origin and count are
+// recorded so clicks outside the drawn text area can be rejected.
+#define MAX_CONSOLE_VISIBLE_ROWS 200
+static int console_row_index[MAX_CONSOLE_VISIBLE_ROWS];
+static int console_row_count = 0;   // number of valid entries in console_row_index
+static int console_row_y0 = 0;      // pixel y of the first drawn row
+static int console_row_height = 0;  // pixel height of each drawn row
+
 // max power and swr from most recent transmission, for the log
 int last_fwdpower = 0;
 int last_vswr = 0;
@@ -1050,8 +1060,6 @@ struct field main_controls[] = {
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
-	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
-	 "", 0, 0, 0, 0},
 	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -1971,10 +1979,18 @@ void draw_console(cairo_t* gfx, struct field* f)
 	if (start_line < 0)
 		start_line += MAX_CONSOLE_LINES;
 
+	// Record geometry so do_console() can map a click y-coordinate back to the
+	// exact console_stream index drawn at that row (see console_row_index[]).
+	console_row_y0 = y;
+	console_row_height = line_height;
+	console_row_count = 0;
+
 	const char *logger_call = field_str("CALL");
 
 	for (int i = 0; i <= n_lines; i++) {
 		struct console_line* line = console_stream + start_line;
+		if (console_row_count < MAX_CONSOLE_VISIBLE_ROWS)
+			console_row_index[console_row_count++] = start_line;
 		if (start_line == console_selected_line)
 			fill_rect(gfx, f->x, y + 1, f->width, font_table[line->spans[0].semantic].height + 1, SELECTED_LINE);
 		// tracking where we are, horizontally
@@ -2168,15 +2184,34 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		return 1;
 		break;
 	case GDK_BUTTON_PRESS:
-	case GDK_MOTION_NOTIFY:
-		l = start_line + ((b - f->y) / line_height);
-		if (l < 0)
-			l += MAX_CONSOLE_LINES;
-		console_selected_line = l;
+	case GDK_MOTION_NOTIFY: {
+		// Map the click's y-coordinate to the row that draw_console() actually
+		// painted there. Using the recorded map (rather than recomputing
+		// start_line + offset) keeps clicks aligned with what the user sees
+		// even before the ring buffer fills, when leading rows are blank.
+		int row = 0;
+		if (console_row_height > 0)
+			row = (b - console_row_y0) / console_row_height;
+		if (row < 0)
+			row = 0;
+		if (row >= console_row_count)
+			row = console_row_count - 1;
+		if (row >= 0 && console_row_count > 0)
+			console_selected_line = console_row_index[row];
 		f->is_dirty = 1;
 		return 1;
 		break;
+	}
 	case GDK_BUTTON_RELEASE: {
+		// Ignore releases when no valid line is selected or the selected line is
+		// blank (e.g. a click on empty space before the console has filled up).
+		if (console_selected_line < 0 ||
+			console_selected_line >= MAX_CONSOLE_LINES ||
+			console_stream[console_selected_line].text[0] == 0) {
+			f->is_dirty = 1;
+			return 1;
+		}
+
 		// copy console line to X11 selection
 		GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
 		gtk_clipboard_set_text(clipboard, console_stream[console_selected_line].text, -1);
@@ -3384,7 +3419,7 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	draw_text(gfx, f->x + 20, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	if (alc_level <.999) {
 		sprintf(meter_str, "ALC");
-		draw_text(gfx, f->x + 140, f->y + 5, meter_str, STYLE_FIELD_LABEL);
+		draw_text(gfx, f->x + 20, f->y + 25, meter_str, STYLE_FIELD_LABEL);
 	}		
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
 	draw_text(gfx, f->x + 200, f->y + 5, meter_str, STYLE_FIELD_LABEL);
@@ -4776,6 +4811,18 @@ void invalidate_rect(int x, int y, int width, int height)
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
 }
 
+// This new function allows for the thickness of a border around a rectangle.
+// The border around a rectangle is centered on the path, so a thickness-1 border
+// extends ~0.5px outside that rectangle on every edge.  
+// The extra overhang lingers until something unrelated redraws over it, 
+// this is why the CW_INPUT/MACRO drop-up frame was staying visible briefly after closing.
+#define INVALIDATE_BORDER_MARGIN 2  // allow for fattter borders that may be used
+static void invalidate_rect_bordered(int x, int y, int width, int height)
+{
+	invalidate_rect(x - INVALIDATE_BORDER_MARGIN, y - INVALIDATE_BORDER_MARGIN,
+					 width + 2 * INVALIDATE_BORDER_MARGIN, height + 2 * INVALIDATE_BORDER_MARGIN);
+}
+
 #define KEYBOARD_HEIGHT_BASE 148
 #define KEYBOARD_HEIGHT SC(KEYBOARD_HEIGHT_BASE)
 void keyboard_display(int show) {
@@ -5470,7 +5517,7 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 	fill_rect(gfx, x1, y1, x2 - x1, y2 - y1, COLOR_BACKGROUND);
 	for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
-		double cx1, cx2, cy1, cy2;
+		int cx1, cx2, cy1, cy2;
 		struct field *f = active_layout + i;
 
 		// Skip the expanded dropdown in the normal loop - it will be drawn last
@@ -5481,7 +5528,12 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 		cx2 = cx1 + f->width;
 		cy1 = f->y;
 		cy2 = cy1 + f->height;
-		if (cairo_in_clip(gfx, cx1, cy1) || cairo_in_clip(gfx, cx2, cy2))
+		// The old corner-only test missed fields (e.g. CONSOLE) that are
+		// larger than the invalidated rect and so don't have either of
+		// their own corners inside it, even though they clearly overlap
+		// it (this is what caused the console area to stay blank after a
+		// drop-up menu like CW_INPUT closed over it).
+		if (cx1 < x2 && cx2 > x1 && cy1 < y2 && cy2 > y1)
 			draw_field(widget, gfx, active_layout + i);
 		// else if (f->label[0] == 'F')
 		//	printf("skipping %s\n", active_layout[i].label);
@@ -6803,9 +6855,20 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Was dropped down
 				invalidate_y = f->y + f->height;
 			}
-			invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
-			// Also invalidate the button itself to ensure clean redraw
-			invalidate_rect(f->x, f->y, f->width, f->height);
+			
+			// CW_INPUT and MACRO are drop-up menus where the border overhang from
+			// rect()'s centered stroke is most noticeable; pad their erase area only.
+			if (!strcmp(f->cmd, "#cwinput") || !strcmp(f->cmd, "#current_macro"))
+			{
+				invalidate_rect_bordered(f->x, invalidate_y, invalidate_width, expanded_height);
+				invalidate_rect_bordered(f->x, f->y, f->width, f->height);
+			}
+			else
+			{
+				invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
+				// Also invalidate the button itself to ensure clean redraw
+				invalidate_rect(f->x, f->y, f->width, f->height);
+			}
 
 			// Only call update_field if the value actually changed
 			if (value_changed)
@@ -7671,7 +7734,7 @@ void open_url(char *url)
 {
 	char temp_line[200];
 
-	sprintf(temp_line, "chromium-browser --log-leve=3 "
+	sprintf(temp_line, "chromium --log-leve=3 "
 					   "--enable-features=OverlayScrollbar %s"
 					   "  >/dev/null 2> /dev/null &",
 			url);
@@ -9061,8 +9124,18 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 
 				// Only invalidate the areas that need redrawing (button and dropdown area)
 				// Don't call update_field since nothing changed - this avoids unnecessary redraws
-				invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
-				invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				// CW_INPUT and MACRO are drop-up menus near the bottom of the screen where the
+				// border overhang is most noticeable; pad their erase area, leave other dropdowns as-is.
+				if (!strcmp(closing_dropdown->cmd, "#cwinput") || !strcmp(closing_dropdown->cmd, "#current_macro"))
+				{
+					invalidate_rect_bordered(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+					invalidate_rect_bordered(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				}
+				else
+				{
+					invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+					invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
+				}
 
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
@@ -9889,22 +9962,10 @@ gboolean ui_tick(gpointer gook)
  	static int last_vswr_tripped = -1;
 	const int vswr_check_tick_interval = 10;
 	ticks++;
-
-	/* Only service the alert-timeout while an alert is actually active,
-	   instead of every tick.  Polling unconditionally forces a console/
-	   field redraw on every tick, which steals focus from the console
-	   until its buffer fills up. */
-	if (vswr_tripped)
-		poll_vswr_alert_timeout();
+	
+	poll_vswr_alert_timeout();
 	if (in_tx && (ticks % vswr_check_tick_interval) == 0)
  		check_and_handle_vswr(vswr);
-
-	/* Redraw the spectrum overlay only when the trip state actually
-	   changes, not on every tick. */
-	if (last_vswr_tripped != vswr_tripped) {
-		update_field(get_field("spectrum"));
-		last_vswr_tripped = vswr_tripped;
-	}
  
 	while (q_length(&q_remote_commands) > 0)
 	{
@@ -10929,10 +10990,6 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "TX"))
 	{
 		tx_on(TX_SOFT);
-	}
-	else if (!strcmp(request, "WEB"))
-	{
-		open_url("http://127.0.0.1:8080");
 	}
 	else if (!strcmp(request, "RX"))
 	{
