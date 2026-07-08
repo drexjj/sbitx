@@ -1050,6 +1050,8 @@ struct field main_controls[] = {
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
+	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+	 "", 0, 0, 0, 0},
 	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -3382,7 +3384,7 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	draw_text(gfx, f->x + 20, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	if (alc_level <.999) {
 		sprintf(meter_str, "ALC");
-		draw_text(gfx, f->x + 20, f->y + 25, meter_str, STYLE_FIELD_LABEL);
+		draw_text(gfx, f->x + 140, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	}		
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
 	draw_text(gfx, f->x + 200, f->y + 5, meter_str, STYLE_FIELD_LABEL);
@@ -4774,18 +4776,6 @@ void invalidate_rect(int x, int y, int width, int height)
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
 }
 
-// This new function allows for the thickness of a border around a rectangle.
-// The border around a rectangle is centered on the path, so a thickness-1 border
-// extends ~0.5px outside that rectangle on every edge.  
-// The extra overhang lingers until something unrelated redraws over it, 
-// this is why the CW_INPUT/MACRO drop-up frame was staying visible briefly after closing.
-#define INVALIDATE_BORDER_MARGIN 2  // allow for fattter borders that may be used
-static void invalidate_rect_bordered(int x, int y, int width, int height)
-{
-	invalidate_rect(x - INVALIDATE_BORDER_MARGIN, y - INVALIDATE_BORDER_MARGIN,
-					 width + 2 * INVALIDATE_BORDER_MARGIN, height + 2 * INVALIDATE_BORDER_MARGIN);
-}
-
 #define KEYBOARD_HEIGHT_BASE 148
 #define KEYBOARD_HEIGHT SC(KEYBOARD_HEIGHT_BASE)
 void keyboard_display(int show) {
@@ -5480,7 +5470,7 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 	fill_rect(gfx, x1, y1, x2 - x1, y2 - y1, COLOR_BACKGROUND);
 	for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
-		int cx1, cx2, cy1, cy2;
+		double cx1, cx2, cy1, cy2;
 		struct field *f = active_layout + i;
 
 		// Skip the expanded dropdown in the normal loop - it will be drawn last
@@ -5491,12 +5481,7 @@ void redraw_main_screen(GtkWidget *widget, cairo_t *gfx)
 		cx2 = cx1 + f->width;
 		cy1 = f->y;
 		cy2 = cy1 + f->height;
-		// The old corner-only test missed fields (e.g. CONSOLE) that are
-		// larger than the invalidated rect and so don't have either of
-		// their own corners inside it, even though they clearly overlap
-		// it (this is what caused the console area to stay blank after a
-		// drop-up menu like CW_INPUT closed over it).
-		if (cx1 < x2 && cx2 > x1 && cy1 < y2 && cy2 > y1)
+		if (cairo_in_clip(gfx, cx1, cy1) || cairo_in_clip(gfx, cx2, cy2))
 			draw_field(widget, gfx, active_layout + i);
 		// else if (f->label[0] == 'F')
 		//	printf("skipping %s\n", active_layout[i].label);
@@ -6818,20 +6803,9 @@ int do_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 				// Was dropped down
 				invalidate_y = f->y + f->height;
 			}
-			
-			// CW_INPUT and MACRO are drop-up menus where the border overhang from
-			// rect()'s centered stroke is most noticeable; pad their erase area only.
-			if (!strcmp(f->cmd, "#cwinput") || !strcmp(f->cmd, "#current_macro"))
-			{
-				invalidate_rect_bordered(f->x, invalidate_y, invalidate_width, expanded_height);
-				invalidate_rect_bordered(f->x, f->y, f->width, f->height);
-			}
-			else
-			{
-				invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
-				// Also invalidate the button itself to ensure clean redraw
-				invalidate_rect(f->x, f->y, f->width, f->height);
-			}
+			invalidate_rect(f->x, invalidate_y, invalidate_width, expanded_height);
+			// Also invalidate the button itself to ensure clean redraw
+			invalidate_rect(f->x, f->y, f->width, f->height);
 
 			// Only call update_field if the value actually changed
 			if (value_changed)
@@ -7697,7 +7671,7 @@ void open_url(char *url)
 {
 	char temp_line[200];
 
-	sprintf(temp_line, "chromium --log-leve=3 "
+	sprintf(temp_line, "chromium-browser --log-leve=3 "
 					   "--enable-features=OverlayScrollbar %s"
 					   "  >/dev/null 2> /dev/null &",
 			url);
@@ -9087,18 +9061,8 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 
 				// Only invalidate the areas that need redrawing (button and dropdown area)
 				// Don't call update_field since nothing changed - this avoids unnecessary redraws
-				// CW_INPUT and MACRO are drop-up menus near the bottom of the screen where the
-				// border overhang is most noticeable; pad their erase area, leave other dropdowns as-is.
-				if (!strcmp(closing_dropdown->cmd, "#cwinput") || !strcmp(closing_dropdown->cmd, "#current_macro"))
-				{
-					invalidate_rect_bordered(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
-					invalidate_rect_bordered(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
-				}
-				else
-				{
-					invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
-					invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
-				}
+				invalidate_rect(closing_dropdown->x, invalidate_y, expanded_width, expanded_height);
+				invalidate_rect(closing_dropdown->x, closing_dropdown->y, closing_dropdown->width, closing_dropdown->height);
 
 				last_mouse_x = (int)event->x;
 				last_mouse_y = (int)event->y;
@@ -9925,10 +9889,22 @@ gboolean ui_tick(gpointer gook)
  	static int last_vswr_tripped = -1;
 	const int vswr_check_tick_interval = 10;
 	ticks++;
-	
-	poll_vswr_alert_timeout();
+
+	/* Only service the alert-timeout while an alert is actually active,
+	   instead of every tick.  Polling unconditionally forces a console/
+	   field redraw on every tick, which steals focus from the console
+	   until its buffer fills up. */
+	if (vswr_tripped)
+		poll_vswr_alert_timeout();
 	if (in_tx && (ticks % vswr_check_tick_interval) == 0)
  		check_and_handle_vswr(vswr);
+
+	/* Redraw the spectrum overlay only when the trip state actually
+	   changes, not on every tick. */
+	if (last_vswr_tripped != vswr_tripped) {
+		update_field(get_field("spectrum"));
+		last_vswr_tripped = vswr_tripped;
+	}
  
 	while (q_length(&q_remote_commands) > 0)
 	{
@@ -10953,6 +10929,10 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "TX"))
 	{
 		tx_on(TX_SOFT);
+	}
+	else if (!strcmp(request, "WEB"))
+	{
+		open_url("http://127.0.0.1:8080");
 	}
 	else if (!strcmp(request, "RX"))
 	{
