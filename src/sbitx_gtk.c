@@ -84,6 +84,10 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
+// MUTE button state: audio_muted tracks whether MUTE is engaged, and
+// premute_volume stores the AUDIO level to restore when un-muting. - added mute control
+int audio_muted = 0;
+char premute_volume[16] = "";
 int freq_out_of_band = 0;  // Set when VFO frequency is outside all band ranges
 // ---------------------------------------------------------------------------
 // OOB (out-of-band) privilege limits loaded from ~/sbitx/data/oob_limits.txt
@@ -965,6 +969,8 @@ struct field main_controls[] = {
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
+	{"#mute", do_toggle_option, 755, 5, 40, 40, "MUTE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -2427,8 +2433,10 @@ void save_user_settings(int forced)
 	{
 		// Skip #band and #band_stack_pos - these are computed fields, not saved
 		// The band stack index is saved per-band in the [80M], [40M], etc. sections
+		// #mute is a momentary UI state that should always start OFF. - added mute control
 		if (!strcmp(active_layout[i].cmd, "#band") || 
 			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
+			!strcmp(active_layout[i].cmd, "#mute") ||
 			!strcmp(active_layout[i].cmd, "#ftx_auto"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
@@ -5039,7 +5047,7 @@ static void layout_ui()
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
     field_move("REC",    SC(459), SC(50), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
     field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
     field_move("RECV", SC(140), SC(50), SC(50), SC(20));
@@ -5055,18 +5063,39 @@ static void layout_ui()
 
   field_move("KBD", screen_width - SC(48), screen_height - SC(40), SC(45), SC(37));
 
-  field_move("AUDIO", x2 - SC(45), SC(5), SC(40), SC(40));
-  field_move("FREQ", x2 - SC(212), SC(3), SC(180), SC(40));
+  // Top control row (y=5), evenly spaced with a uniform 3px gap. MUTE is
+  // flush to the right edge; FREQ (the wide frequency readout) sits between
+  // VFO and AUDIO. RIT is the left-most of this shared cluster.
+  //   MUTE : x2-45 .. x2-5
+  //   AUDIO: x2-88 .. x2-48
+  //   FREQ : x2-271.. x2-91   (width 180)
+  //   VFO  : x2-314.. x2-274
+  //   RIT  : x2-357.. x2-317
+  field_move("MUTE", x2 - SC(45), SC(5), SC(40), SC(40));
+  field_move("AUDIO", x2 - SC(88), SC(5), SC(40), SC(40));
+  field_move("FREQ", x2 - SC(271), SC(3), SC(180), SC(40));
+  field_move("VFO", x2 - SC(314), SC(5), SC(40), SC(40));
+  field_move("RIT", x2 - SC(357), SC(5), SC(40), SC(40));
   field_move("STEP", x2 - SC(252), SC(50), SC(40), SC(40));
-  field_move("RIT", x2 - SC(292), SC(5), SC(40), SC(40));
 
   field_move("IF", x2 - SC(45), SC(50), SC(40), SC(40));
   field_move("DRIVE", x2 - SC(87), SC(50), SC(42), SC(40));
   field_move("BW", x2 - SC(127), SC(50), SC(40), SC(40));
   field_move("AGC", x2 - SC(170), SC(50), SC(42), SC(40));
   field_move("SPAN", x2 - SC(212), SC(50), SC(42), SC(40));
-  field_move("VFO", x2 - SC(252), SC(5), SC(40), SC(40));
   field_move("SPLIT", x2 - SC(292), SC(50), SC(40), SC(40));
+
+  // Left pair of the top row, continuing the uniform 3px spacing to the left
+  // of RIT. TUNE is always here. The slot immediately left of RIT holds REC
+  // in the default (1.0) layout and MENU in the scaled layout, matching how
+  // each layout arranges its header buttons.
+  //   TUNE : x2-443 .. x2-403
+  //   (REC or MENU): x2-400 .. x2-360
+  field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
+  if (ui_scale != 1.0f)
+    field_move("MENU", x2 - SC(400), SC(5), SC(40), SC(40));
+  else
+    field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
 
   if (!strcmp(field_str("KBD"), "ON")) {
     y2 = screen_height - KEYBOARD_HEIGHT;
@@ -5278,7 +5307,7 @@ static void layout_ui()
 
     // TUNE control is on screen in this mode
 	field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-	field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+	field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     break;
 
   case MODE_USB:
@@ -5315,7 +5344,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5349,7 +5378,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5384,7 +5413,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5423,7 +5452,7 @@ static void layout_ui()
     field_move("SPECT",    x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5463,7 +5492,7 @@ static void layout_ui()
 
     // keep TUNE and PAD where they live on top row
     field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -11169,6 +11198,30 @@ void do_control_action(char *cmd)
 	{
 		qrz(field_str("CALL"));
 	}
+	// MUTE button - saves the current AUDIO level, drops volume to 0, and
+	// restores the saved level when un-muted. - added mute control
+	else if (!strcmp(request, "MUTE ON"))
+	{
+		// Remember the AUDIO level in effect before muting so we can put it
+		// back later. Guard against re-muting (which would save "0").
+		if (!audio_muted)
+		{
+			get_field_value("r1:volume", premute_volume);
+			audio_muted = 1;
+		}
+		// Drop the AUDIO field (and therefore the radio volume) to 0.
+		set_field("r1:volume", "0");
+	}
+	else if (!strcmp(request, "MUTE OFF"))
+	{
+		// Restore the AUDIO level captured when we muted.
+		if (audio_muted)
+		{
+			audio_muted = 0;
+			if (premute_volume[0])
+				set_field("r1:volume", premute_volume);
+		}
+	}
 	else
 	{
 		if (!strncmp(request, "IF ", 3))
@@ -11197,6 +11250,21 @@ void do_control_action(char *cmd)
 			if (band_idx >= 0 && band_idx < sizeof(band_stack) / sizeof(struct band))
 				band_stack[band_idx].tnpwr = atoi(ti);
 			settings_updated++;
+		}
+
+		// If the user raises the AUDIO level while MUTE is engaged, treat that
+		// as un-muting: clear the mute state and flip the MUTE button to OFF.
+		// The value has already been applied to r1:volume, so we don't restore
+		// the pre-mute level here. - added mute control
+		if (audio_muted && !strncmp(request, "AUDIO ", 6) && atoi(request + 6) != 0)
+		{
+			audio_muted = 0;
+			struct field *mf = get_field("#mute");
+			if (mf && strcmp(mf->value, "OFF"))
+			{
+				strcpy(mf->value, "OFF");
+				update_field(mf);
+			}
 		}
 
 		// Send this to the radio core
