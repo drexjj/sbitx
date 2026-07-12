@@ -233,6 +233,7 @@ static unsigned long millis_now = 0;
 static int cw_delay_ms = 300;
 static int cw_key_state = 0;
 static int cw_period;
+static int cw_pitch_hz = 700;   // cached TX pitch, refreshed in cw_poll()
 static struct vfo cw_tone;  // cw_env is replaced with data table
 static int keydown_count = 0;
 static int keyup_count = 0;
@@ -526,8 +527,8 @@ float cw_tx_get_sample() {
     // note current time to use with UI value of CW_DELAY to control break-in
     millis_now = millis();
     // set CW pitch if needed
-    if (cw_tone.freq_hz != get_pitch())
-      vfo_start( &cw_tone, get_pitch(), 0);
+    if (cw_tone.freq_hz != cw_pitch_hz)
+      vfo_start( &cw_tone, cw_pitch_hz, 0);
   }
   
   // check to see if input available from macro or keyboard
@@ -2160,9 +2161,10 @@ void cw_poll(int bytes_available, int tx_is_on) {
   }
 
   // retune TX decoder pitch if needed
-  int cw_tx_pitch = get_pitch();
-  if (cw_tx_pitch != tx_decoder.signal_center.freq) {
-    cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f, N_BINS, SAMPLING_FREQ);
+  // path (cw_tx_get_sample) does not call get_pitch() itself
+  cw_pitch_hz = get_pitch();
+  if (cw_pitch_hz != tx_decoder.signal_center.freq) {
+    cw_rx_bin_init(&tx_decoder.signal_center, cw_pitch_hz + 0.0f, N_BINS, SAMPLING_FREQ);
   }
 
   // TX ON if bytes are available (from macro/keyboard) or key is pressed
