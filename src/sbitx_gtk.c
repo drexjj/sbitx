@@ -1243,11 +1243,13 @@ struct field main_controls[] = {
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
-	// RNN (RNNoise neural noise reduction) Control
-	{"#rnn_plugin", do_toggle_option, 1000, -1000, 40, 40, "RNN", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, 0},
+	// RNN (RNNoise neural noise reduction) Control - main screen, left of REC.
+	// RNNS (strength) sits to its left and is shown by check_plugin_controls
+	// only while RNN is ON.
+	{"#rnn_plugin", do_toggle_option, 370, 5, 40, 40, "RNN", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#rnn_strength", NULL, 1000, -1000, 40, 40, "RNNS", 80, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
-	 "", 0, 100, 5, 0},
+	 "", 0, 100, 5, COMMON_CONTROL},
 
 	// APF (Audio Peak Filter) Controls
 	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -4870,7 +4872,6 @@ void menu_display(int show) {
 				field_move("TXMON", SC(535), screen_height - SC(80), SC(45), SC(37));
 				field_move("TNDUR", SC(600), screen_height - SC(80), SC(45), SC(37));
 				field_move("SWRSWP", SC(650), screen_height - SC(80), SC(55), SC(37));
-				field_move("RNN", SC(710), screen_height - SC(80), SC(45), SC(37));
 				// ePTT moved to menu2
 
 				// Line 2
@@ -4886,7 +4887,6 @@ void menu_display(int show) {
 				// VFOLK moved to menu2
 				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
 				field_move("SWRSTEP", SC(650), screen_height - SC(40), SC(55), SC(37));
-				field_move("RNNS", SC(710), screen_height - SC(40), SC(45), SC(37));
 			}
 
 			else {
@@ -5011,6 +5011,7 @@ static void layout_ui()
     if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
+    field_move("RNN",    SC(370), SC(5), SC(40), SC(40));
     field_move("REC",    SC(459), SC(50), SC(40), SC(40));
     field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
@@ -8503,6 +8504,21 @@ gboolean check_plugin_controls(gpointer data)
     int v = atoi(rnn_str_stat->value);
     if (v >= 0 && v <= 100)
       rnn_strength = v;
+  }
+
+  // Show the RNNS strength field beside the RNN button only while RNN is
+  // enabled; park it off-screen otherwise. Both are COMMON_CONTROL so the
+  // generic layout code leaves them alone and this is the single authority
+  // for RNNS visibility.
+  {
+    static int rnns_visible = -1;
+    if (rnn_enabled != rnns_visible) {
+      if (rnn_enabled)
+        field_move("RNNS", SC(330), SC(5), SC(40), SC(40));
+      else
+        field_move("RNNS", 1000, -1000, SC(40), SC(40));
+      rnns_visible = rnn_enabled;
+    }
   }
   
   if (eptt_stat) {

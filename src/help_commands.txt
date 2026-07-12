@@ -394,6 +394,8 @@ scroll the mouse wheel over it for fine adjustment.
   more effective than DSP/ANR on non-stationary noise (static crashes, wind,
   clicks) because it recognizes speech patterns rather than tracking recent
   power levels. Adds roughly 10-20 ms of audio latency while enabled.
+  The RNN button is on the main screen, just left of REC. While RNN is ON,
+  the RNNS strength control appears beside it.
   Voice modes only; not applied in FT8/FT4/DIGITAL modes.
   Best used INSTEAD of DSP or ANR rather than together with them - stacking
   multiple noise reducers usually degrades audio. Default: off
