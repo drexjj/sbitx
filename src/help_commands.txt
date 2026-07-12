@@ -388,20 +388,20 @@ scroll the mouse wheel over it for fine adjustment.
   Most useful in CW, USB, and LSB modes to eliminate a single strong interferer
   while leaving the rest of the passband open.
 
-* RNN [on|off]
+* AINR [on|off]
   Neural-network noise reduction (RNNoise). Uses a small recurrent neural
   network trained on speech to separate voice from background noise. Often
   more effective than DSP/ANR on non-stationary noise (static crashes, wind,
   clicks) because it recognizes speech patterns rather than tracking recent
   power levels. Adds roughly 10-20 ms of audio latency while enabled.
-  The RNN button is on the main screen, just left of REC. While RNN is ON,
-  the RNNS strength control appears beside it.
+  The AINR button is on the main screen, just left of REC. While AINR is ON,
+  the AINRS strength control appears beside it.
   Voice modes only; not applied in FT8/FT4/DIGITAL modes.
   Best used INSTEAD of DSP or ANR rather than together with them - stacking
   multiple noise reducers usually degrades audio. Default: off
 
-* RNNS [0-100]
-  RNN strength (wet/dry mix). 100 = full RNNoise output: deepest noise
+* AINRS [0-100]
+  AINR strength (wet/dry mix). 100 = full RNNoise output: deepest noise
   reduction but the gating can be heard as volume pumping/breathing,
   especially on fading (QSB) signals. Lower values blend the original
   audio back in, which smooths the pumping at the cost of letting a
