@@ -2038,6 +2038,7 @@ void cw_init(void) {
   keydown_count = 0;
   keyup_count = 0;
   cw_envelope = 0;
+  cw_mode = get_cw_input_method();
 }
 
 // called from sbitx_gtk.c to display cw stats under zerobeat indicator
