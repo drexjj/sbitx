@@ -1246,6 +1246,8 @@ struct field main_controls[] = {
 	// RNN (RNNoise neural noise reduction) Control
 	{"#rnn_plugin", do_toggle_option, 1000, -1000, 40, 40, "RNN", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+	{"#rnn_strength", NULL, 1000, -1000, 40, 40, "RNNS", 80, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 100, 5, 0},
 
 	// APF (Audio Peak Filter) Controls
 	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -4884,6 +4886,7 @@ void menu_display(int show) {
 				// VFOLK moved to menu2
 				field_move("TNPWR", SC(600), screen_height - SC(40), SC(45), SC(37));
 				field_move("SWRSTEP", SC(650), screen_height - SC(40), SC(55), SC(37));
+				field_move("RNNS", SC(710), screen_height - SC(40), SC(45), SC(37));
 			}
 
 			else {
@@ -8489,6 +8492,17 @@ gboolean check_plugin_controls(gpointer data)
     } else if (!strcmp(rnn_stat->value, "OFF")) {
       rnn_enabled = 0;
     }
+  }
+
+  // RNNoise wet/dry strength (0-100), edited via the RNNS field or the
+  // \rnns console command. Read here so changes apply within a second
+  // without needing a dedicated edit callback.
+  struct field *rnn_str_stat = get_field("#rnn_strength");
+  if (rnn_str_stat) {
+    extern int rnn_strength;
+    int v = atoi(rnn_str_stat->value);
+    if (v >= 0 && v <= 100)
+      rnn_strength = v;
   }
   
   if (eptt_stat) {

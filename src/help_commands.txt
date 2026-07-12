@@ -398,6 +398,14 @@ scroll the mouse wheel over it for fine adjustment.
   Best used INSTEAD of DSP or ANR rather than together with them - stacking
   multiple noise reducers usually degrades audio. Default: off
 
+* RNNS [0-100]
+  RNN strength (wet/dry mix). 100 = full RNNoise output: deepest noise
+  reduction but the gating can be heard as volume pumping/breathing,
+  especially on fading (QSB) signals. Lower values blend the original
+  audio back in, which smooths the pumping at the cost of letting a
+  little noise through. 70-85 is a good compromise on SSB; drop toward
+  50-60 if pumping is still audible on weak signals. Default: 80
+
 * PIN [password]
   Sets the password required to access the sBitx web interface from a browser.
   Choose something memorable but not trivially guessable if your network is shared.

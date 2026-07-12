@@ -19,4 +19,7 @@
 void rnn_process_speaker(int32_t *samples, int n_samples);
 void rnn_reset(void);
 
+/* Wet/dry strength, 0-100. See sbitx_rnn.c. */
+extern int rnn_strength;
+
 #endif

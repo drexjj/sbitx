@@ -10,7 +10,14 @@
  *                                             decimation adds no audible
  *                                             aliasing)
  *     -> ring buffer -> 480-sample frames -> rnnoise_process_frame()
- *     -> output ring buffer
+ *     -> wet/dry mix with an identically delayed copy of the input
+ *        (rnn_strength, 0-100). Full-strength neural gating swings band
+ *        gains between ~0 and 1 as speech confidence changes, which is
+ *        audible as volume pumping/breathing, especially with QSB. Mixing
+ *        a fraction of the dry signal back in bounds the depth of those
+ *        swings: at strength S the output can never drop below (1 - S/100)
+ *        of the input, which masks pumping while retaining most of the
+ *        noise reduction.
  *     -> interpolate 1:2 back to 96 kHz      (linear; images land > 43 kHz,
  *                                             far above the audio band)
  *     -> scale back up                        (* RNN_SCALE)
@@ -39,13 +46,21 @@
 /* Ring buffers sized for several rx_linear blocks of headroom. */
 #define RNN_RING (RNN_FRAME * 8)
 
+/* Noise-reduction strength, 0-100 (percent wet). 100 = pure RNNoise
+ * output (deepest noise reduction, most pumping); lower values blend the
+ * dry signal back in. 70-85 is a good compromise on SSB. Set from the UI
+ * via the RNNS field / \rnns console command. */
+int rnn_strength = 80;
+
 static DenoiseState *rnn_st = NULL;
 
 static float in_ring[RNN_RING];
 static int in_count = 0; /* valid 48 kHz samples waiting to be denoised */
 
-static float out_ring[RNN_RING];
-static int out_head = 0; /* read position */
+/* wet = denoised, dry = identically delayed original, kept in lockstep */
+static float wet_ring[RNN_RING];
+static float dry_ring[RNN_RING];
+static int out_head = 0; /* read position (shared by wet and dry) */
 static int out_count = 0; /* valid denoised 48 kHz samples available */
 
 static float last_out = 0.0f; /* previous 48 kHz sample, for interpolation */
@@ -84,17 +99,30 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 		        (in_count - RNN_FRAME) * sizeof(float));
 		in_count -= RNN_FRAME;
 
-		rnnoise_process_frame(rnn_st, frame, frame);
-
-		/* Append to the output ring (kept compact at index 0). */
+		/* Keep the output rings compact at index 0. */
 		if (out_head) {
-			memmove(out_ring, out_ring + out_head,
+			memmove(wet_ring, wet_ring + out_head,
+			        out_count * sizeof(float));
+			memmove(dry_ring, dry_ring + out_head,
 			        out_count * sizeof(float));
 			out_head = 0;
 		}
-		memcpy(out_ring + out_count, frame, sizeof(frame));
+
+		/* Dry copy first (rnnoise processes in place). */
+		memcpy(dry_ring + out_count, frame, sizeof(frame));
+		rnnoise_process_frame(rnn_st, frame, frame);
+		memcpy(wet_ring + out_count, frame, sizeof(frame));
 		out_count += RNN_FRAME;
 	}
+
+	/* Clamp strength and precompute the mix once per block. */
+	int s = rnn_strength;
+	if (s < 0)
+		s = 0;
+	if (s > 100)
+		s = 100;
+	float wet_mix = (float)s / 100.0f;
+	float dry_mix = 1.0f - wet_mix;
 
 	/* Interpolate 48k -> 96k back into the caller's block. Each output
 	 * pair is (midpoint, sample) so the reconstructed stream stays
@@ -105,7 +133,9 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 	for (i = 0; i < need; i++) {
 		float cur;
 		if (out_count > 0) {
-			cur = out_ring[out_head++];
+			cur = wet_mix * wet_ring[out_head] +
+			      dry_mix * dry_ring[out_head];
+			out_head++;
 			out_count--;
 		} else {
 			cur = 0.0f;
