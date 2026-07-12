@@ -8096,8 +8096,14 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 //---Noise threshold for DSP -W2JON
 double scaleNoiseThreshold(int control)
 {
-	double minValue = 0.001;
-	double maxValue = 0.01;
+	// Range chosen to be meaningful as a sigmoid midpoint against SNR values
+	// (SNR = bin magnitude / estimated noise magnitude, ~1.0 at the noise
+	// floor). Previous range (0.001-0.01) was too small relative to the
+	// hardcoded 0.5 midpoint it was meant to replace, so the control had no
+	// audible effect. 0.1 = aggressive (most bins get subtracted), 2.0 =
+	// conservative (only bins well above the noise floor get subtracted).
+	double minValue = 0.1;
+	double maxValue = 2.0;
 	int controlMin = 0;
 	int controlMax = 100;
 	double scaled_noise_threshold = minValue + ((double)control - controlMin) * (maxValue - minValue) / (controlMax - controlMin);
