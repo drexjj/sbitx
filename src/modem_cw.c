@@ -230,9 +230,10 @@ static const struct morse_rx morse_rx_table[] = {
 
 // global variables
 static unsigned long millis_now = 0;
+static int cw_delay_ms = 300;
 static int cw_key_state = 0;
 static int cw_period;
-static struct vfo cw_tone, cw_env;
+static struct vfo cw_tone;  // cw_env is replaced with data table
 static int keydown_count = 0;
 static int keyup_count = 0;
 static float cw_envelope = 1;
@@ -2032,7 +2033,6 @@ void cw_init(void) {
   // CW TX side (keyer, envelope, LUT)
   cw_init_morse_lut();
   vfo_start(&cw_tone, 700, 0);
-  vfo_start(&cw_env, 200, 49044);  // not used with data-driven waveform
   cw_period = 9600;                // at 96ksps, 0.1 sec = 1 dot at 12 WPM
   keydown_count = 0;
   keyup_count = 0;
@@ -2132,46 +2132,50 @@ char *cw_get_stats(char *buf, size_t len)
 void cw_poll(int bytes_available, int tx_is_on) {
   cw_bytes_available = bytes_available;
   cw_key_state = key_poll();
+  millis_now = millis();
+
+  // cache UI-derived break-in delay here so audio path reads cw_delay_ms only (not the GUI value)
+  cw_delay_ms = get_cw_delay();
+
+  // WPM: recompute period every poll, but only touch the
+  // decoder/tx_decoder state when WPM actually changes ---
   int wpm = field_int("WPM");
   cw_period = (12 * 9600) / wpm;
-
-  // retune the rx pitch if needed
-  int cw_rx_pitch = field_int("PITCH");
-  if (cw_rx_pitch != decoder.signal_center.freq) {
-    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 150.0f, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 75.0f, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus1, cw_rx_pitch + 75.0f, N_BINS, SAMPLING_FREQ);
-    cw_rx_bin_init(&decoder.signal_plus2, cw_rx_pitch + 150.0f, N_BINS, SAMPLING_FREQ);
-  }
-  // check if the wpm has changed
   if (wpm != decoder.wpm) {
     decoder.wpm = wpm;
     decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
   }
-  
-  // retune the tx decoder pitch if needed
+  if (wpm != tx_decoder.wpm) {
+    tx_decoder.wpm = wpm;
+  }
+
+  // retune RX pitch if needed
+  int cw_rx_pitch = field_int("PITCH");
+  if (cw_rx_pitch != decoder.signal_center.freq) {
+    cw_rx_bin_init(&decoder.signal_minus2, cw_rx_pitch - 150.0f, N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_minus1, cw_rx_pitch - 75.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_center, cw_rx_pitch + 0.0f,   N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus1,  cw_rx_pitch + 75.0f,  N_BINS, SAMPLING_FREQ);
+    cw_rx_bin_init(&decoder.signal_plus2,  cw_rx_pitch + 150.0f, N_BINS, SAMPLING_FREQ);
+  }
+
+  // retune TX decoder pitch if needed
   int cw_tx_pitch = get_pitch();
   if (cw_tx_pitch != tx_decoder.signal_center.freq) {
     cw_rx_bin_init(&tx_decoder.signal_center, cw_tx_pitch + 0.0f, N_BINS, SAMPLING_FREQ);
   }
-  // update tx decoder WPM
-  if (wpm != tx_decoder.wpm) {
-    tx_decoder.wpm = wpm;
-  }
-  
+
   // TX ON if bytes are available (from macro/keyboard) or key is pressed
   // or we are in the middle of symbol (dah/dit) transmission
-  millis_now = millis();
   if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) ||
         cw_key_state || (symbol_next && *symbol_next))) {
     tx_on(TX_SOFT);
-    cw_tx_until = get_cw_delay() + millis_now;
+    cw_tx_until = cw_delay_ms + millis_now;
     cw_mode = get_cw_input_method();
   } else if (tx_is_on && cw_tx_until < millis_now) {
-    // Flush any pending TX decode character
+    // flush any pending TX decode character
     cw_tx_emit_char();
-    // If we were in a TX session, write newline to end it
+    // if we were in a TX session, write newline to end it
     if (tx_session_active) {
       cw_write_console(STYLE_CW_TX, "\n");
       tx_session_active = false;
