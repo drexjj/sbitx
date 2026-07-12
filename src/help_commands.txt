@@ -388,6 +388,16 @@ scroll the mouse wheel over it for fine adjustment.
   Most useful in CW, USB, and LSB modes to eliminate a single strong interferer
   while leaving the rest of the passband open.
 
+* RNN [on|off]
+  Neural-network noise reduction (RNNoise). Uses a small recurrent neural
+  network trained on speech to separate voice from background noise. Often
+  more effective than DSP/ANR on non-stationary noise (static crashes, wind,
+  clicks) because it recognizes speech patterns rather than tracking recent
+  power levels. Adds roughly 10-20 ms of audio latency while enabled.
+  Voice modes only; not applied in FT8/FT4/DIGITAL modes.
+  Best used INSTEAD of DSP or ANR rather than together with them - stacking
+  multiple noise reducers usually degrades audio. Default: off
+
 * PIN [password]
   Sets the password required to access the sBitx web interface from a browser.
   Choose something memorable but not trivially guessable if your network is shared.

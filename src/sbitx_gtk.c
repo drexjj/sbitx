@@ -1243,6 +1243,10 @@ struct field main_controls[] = {
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
+	// RNN (RNNoise neural noise reduction) Control
+	{"#rnn_plugin", do_toggle_option, 1000, -1000, 40, 40, "RNN", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+
 	// APF (Audio Peak Filter) Controls
 	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -4864,6 +4868,7 @@ void menu_display(int show) {
 				field_move("TXMON", SC(535), screen_height - SC(80), SC(45), SC(37));
 				field_move("TNDUR", SC(600), screen_height - SC(80), SC(45), SC(37));
 				field_move("SWRSWP", SC(650), screen_height - SC(80), SC(55), SC(37));
+				field_move("RNN", SC(710), screen_height - SC(80), SC(45), SC(37));
 				// ePTT moved to menu2
 
 				// Line 2
@@ -8380,6 +8385,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *apf_stat = get_field("#apf_plugin");
 	struct field *dsp_stat = get_field("#dsp_plugin");
 	struct field *anr_stat = get_field("#anr_plugin");
+	struct field *rnn_stat = get_field("#rnn_plugin");
 	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
@@ -8474,6 +8480,14 @@ gboolean check_plugin_controls(gpointer data)
       anr_enabled = 1;
     } else if (!strcmp(anr_stat->value, "OFF")) {
       anr_enabled = 0;
+    }
+  }
+
+  if (rnn_stat) {
+    if (!strcmp(rnn_stat->value, "ON")) {
+      rnn_enabled = 1;
+    } else if (!strcmp(rnn_stat->value, "OFF")) {
+      rnn_enabled = 0;
     }
   }
   
