@@ -60,8 +60,29 @@ static int in_count = 0; /* valid 48 kHz samples waiting to be denoised */
 /* wet = denoised, dry = identically delayed original, kept in lockstep */
 static float wet_ring[RNN_RING];
 static float dry_ring[RNN_RING];
+static float vad_ring[RNN_RING]; /* smoothed VAD aligned with wet/dry */
 static int out_head = 0; /* read position (shared by wet and dry) */
 static int out_count = 0; /* valid denoised 48 kHz samples available */
+
+/* VAD-adaptive mixing state and tuning.
+ *
+ * rnnoise_process_frame() returns the network's per-frame voice-activity
+ * probability. On weak/fading signals that confidence sits in the
+ * uncertain middle and the band gains chatter, which eats fragile speech.
+ * Mitigation: as (smoothed) VAD rises, relax the wet mix so speech - even
+ * weak speech - is protected from the gate, while frames the network is
+ * confident are pure noise still get full suppression.
+ *
+ * effective_wet = wet_mix * (1 - VAD_RELAX * vad_smooth)
+ *
+ * VAD_RELAX = 0.5: at full speech confidence, suppression depth is halved.
+ * VAD_ATTACK/RELEASE are per-10ms-frame smoothing coefficients: attack
+ * reaches ~90% in ~3 frames (30 ms, catches syllable onsets), release
+ * decays with ~0.5 s time constant (rides through inter-word gaps). */
+#define VAD_ATTACK 0.55f
+#define VAD_RELEASE 0.02f
+#define VAD_RELAX 0.5f
+static float vad_smooth = 0.0f;
 
 static float last_out = 0.0f; /* previous 48 kHz sample, for interpolation */
 
@@ -71,6 +92,7 @@ void rnn_reset(void)
 	out_head = 0;
 	out_count = 0;
 	last_out = 0.0f;
+	vad_smooth = 0.0f;
 	if (rnn_st) {
 		rnnoise_destroy(rnn_st);
 		rnn_st = NULL;
@@ -105,36 +127,57 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 			        out_count * sizeof(float));
 			memmove(dry_ring, dry_ring + out_head,
 			        out_count * sizeof(float));
+			memmove(vad_ring, vad_ring + out_head,
+			        out_count * sizeof(float));
 			out_head = 0;
 		}
 
-		/* Dry copy first (rnnoise processes in place). */
+		/* Dry copy first (rnnoise processes in place). The return value
+		 * is the network's voice-activity probability for this frame,
+		 * used below for VAD-adaptive mixing. */
 		memcpy(dry_ring + out_count, frame, sizeof(frame));
-		rnnoise_process_frame(rnn_st, frame, frame);
+		float vad = rnnoise_process_frame(rnn_st, frame, frame);
 		memcpy(wet_ring + out_count, frame, sizeof(frame));
+
+		/* Smooth the VAD with fast attack / slow release: speech onsets
+		 * raise it within a frame or two, but it decays slowly so it
+		 * doesn't flutter between words and syllables. */
+		if (vad > vad_smooth)
+			vad_smooth += VAD_ATTACK * (vad - vad_smooth);
+		else
+			vad_smooth += VAD_RELEASE * (vad - vad_smooth);
+
+		/* Store the smoothed VAD for each sample of this frame so the
+		 * mixing loop below stays aligned even across block boundaries. */
+		for (int k = 0; k < RNN_FRAME; k++)
+			vad_ring[out_count + k] = vad_smooth;
+
 		out_count += RNN_FRAME;
 	}
 
-	/* Clamp strength and precompute the mix once per block. */
+	/* Clamp strength and precompute the base mix once per block. */
 	int s = rnn_strength;
 	if (s < 0)
 		s = 0;
 	if (s > 100)
 		s = 100;
-	float wet_mix = (float)s / 100.0f;
-	float dry_mix = 1.0f - wet_mix;
+	float base_wet = (float)s / 100.0f;
 
 	/* Interpolate 48k -> 96k back into the caller's block. Each output
 	 * pair is (midpoint, sample) so the reconstructed stream stays
-	 * aligned with the decimated one. If the output ring hasn't filled
-	 * yet (first ~10 ms after enabling), emit silence for the shortfall
-	 * rather than stale input. */
+	 * aligned with the decimated one. The wet mix is relaxed per sample
+	 * by the smoothed VAD (see above) so weak speech is protected while
+	 * confident noise still gets the full configured suppression. If the
+	 * output ring hasn't filled yet (first ~10 ms after enabling), emit
+	 * silence for the shortfall rather than stale input. */
 	int need = n_samples / 2;
 	for (i = 0; i < need; i++) {
 		float cur;
 		if (out_count > 0) {
+			float wet_mix =
+			    base_wet * (1.0f - VAD_RELAX * vad_ring[out_head]);
 			cur = wet_mix * wet_ring[out_head] +
-			      dry_mix * dry_ring[out_head];
+			      (1.0f - wet_mix) * dry_ring[out_head];
 			out_head++;
 			out_count--;
 		} else {
