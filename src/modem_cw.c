@@ -588,7 +588,7 @@ float cw_tx_get_sample() {
   if ((symbol_now == CW_DOWN) || (symbol_now == CW_DOT) ||
       (symbol_now == CW_DASH) || (symbol_now == CW_SQUEEZE) ||
       (keydown_count > 0))
-    cw_tx_until = millis_now + get_cw_delay();
+    cw_tx_until = millis_now + cw_delay_ms;
   // if macro or keyboard characters remain in the buffer
   // prevent switching from xmit to rcv and cutting off macro
   if (cw_bytes_available != 0)
