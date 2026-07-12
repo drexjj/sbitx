@@ -1510,9 +1510,12 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
         double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
         double new_magnitude;
 
-        // Sigmoid-based reduction factor
+        // Sigmoid-based reduction factor. Midpoint is user-adjustable via the
+        // DSP noise threshold field (scaled_noise_threshold): lower values
+        // subtract more aggressively (more bins treated as noise), higher
+        // values are more conservative (fewer bins get full subtraction).
         double reduction_factor =
-            1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
+            1.0 / (1.0 + exp(-5.0 * (snr - scaled_noise_threshold)));
 
         // Calculate new magnitude with residual noise preservation
         double noise_residual = 0.10; // Retain 10% of noise, reduces
