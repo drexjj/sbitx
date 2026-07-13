@@ -21,5 +21,6 @@ void rnn_reset(void);
 
 /* Wet/dry strength, 0-100. See sbitx_rnn.c. */
 extern int rnn_strength;
+extern int rnn_relax; /* VAD relax depth, 0-50 percent */
 
 #endif

@@ -1250,6 +1250,8 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#rnn_strength", NULL, 1000, -1000, 40, 40, "AINRS", 80, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 5, COMMON_CONTROL},
+	{"#rnn_relax", NULL, 1000, -1000, 40, 40, "AINRV", 80, "25", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 50, 5, COMMON_CONTROL},
 
 	// APF (Audio Peak Filter) Controls
 	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -8506,17 +8508,29 @@ gboolean check_plugin_controls(gpointer data)
       rnn_strength = v;
   }
 
-  // Show the RNNS strength field beside the RNN button only while RNN is
-  // enabled; park it off-screen otherwise. Both are COMMON_CONTROL so the
-  // generic layout code leaves them alone and this is the single authority
-  // for RNNS visibility.
+  // VAD relax depth (0-50), edited via the AINRV field or \ainrv.
+  struct field *rnn_rlx_stat = get_field("#rnn_relax");
+  if (rnn_rlx_stat) {
+    extern int rnn_relax;
+    int v = atoi(rnn_rlx_stat->value);
+    if (v >= 0 && v <= 50)
+      rnn_relax = v;
+  }
+
+  // Show the AINRS strength and AINRV relax fields beside the AINR button
+  // only while AINR is enabled; park them off-screen otherwise. All are
+  // COMMON_CONTROL so the generic layout code leaves them alone and this
+  // is the single authority for their visibility.
   {
     static int rnns_visible = -1;
     if (rnn_enabled != rnns_visible) {
-      if (rnn_enabled)
+      if (rnn_enabled) {
         field_move("AINRS", SC(330), SC(5), SC(40), SC(40));
-      else
+        field_move("AINRV", SC(290), SC(5), SC(40), SC(40));
+      } else {
         field_move("AINRS", 1000, -1000, SC(40), SC(40));
+        field_move("AINRV", 1000, -1000, SC(40), SC(40));
+      }
       rnns_visible = rnn_enabled;
     }
   }

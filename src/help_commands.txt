@@ -408,6 +408,14 @@ scroll the mouse wheel over it for fine adjustment.
   little noise through. 70-85 is a good compromise on SSB; drop toward
   50-60 if pumping is still audible on weak signals. Default: 80
 
+* AINRV [0-50]
+  AINR VAD relax depth. While speech is detected, noise suppression backs
+  off by up to this percentage to protect weak speech from being gated.
+  0 = no adaptation (fixed suppression, deepest silence, matches original
+  full-gate behavior at AINRS 100). Higher values protect weak syllables
+  better but let more noise "halo" through around words. Appears beside
+  AINRS while AINR is ON. Default: 25
+
 * PIN [password]
   Sets the password required to access the sBitx web interface from a browser.
   Choose something memorable but not trivially guessable if your network is shared.

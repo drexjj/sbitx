@@ -73,19 +73,19 @@ static int out_count = 0; /* valid denoised 48 kHz samples available */
  * weak speech - is protected from the gate, while frames the network is
  * confident are pure noise still get full suppression.
  *
- * effective_wet = wet_mix * (1 - VAD_RELAX * vad_smooth)
+ * effective_wet = wet_mix * (1 - (rnn_relax/100) * vad_smooth)
  *
- * VAD_RELAX = 0.25: at full speech confidence, suppression depth backs
- * off by a quarter. (First-pass value of 0.5 blended in too much raw
- * noise on weak signals - reported on-air as a noise halo around words
- * and slow fading, v2 tune.)
+ * rnn_relax (0-50, percent) is the relax depth: how far suppression backs
+ * off at full speech confidence. Runtime-tunable from the UI (AINRV field
+ * beside AINRS) for on-air tuning; 25 is the current default (v1's 50 was
+ * reported as too much noise halo on weak signals).
  * VAD_ATTACK/RELEASE are per-10ms-frame smoothing coefficients: attack
  * reaches ~90% in ~3 frames (30 ms, catches syllable onsets); release
  * decays with a ~150 ms time constant so suppression recovers inside an
  * inter-word gap instead of persisting through it. */
 #define VAD_ATTACK 0.55f
 #define VAD_RELEASE 0.065f
-#define VAD_RELAX 0.25f
+int rnn_relax = 25;
 static float vad_smooth = 0.0f;
 
 static float last_out = 0.0f; /* previous 48 kHz sample, for interpolation */
@@ -167,6 +167,13 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 		s = 100;
 	float base_wet = (float)s / 100.0f;
 
+	int rv = rnn_relax;
+	if (rv < 0)
+		rv = 0;
+	if (rv > 50)
+		rv = 50;
+	float relax = (float)rv / 100.0f;
+
 	/* Interpolate 48k -> 96k back into the caller's block. Each output
 	 * pair is (midpoint, sample) so the reconstructed stream stays
 	 * aligned with the decimated one. The wet mix is relaxed per sample
@@ -179,7 +186,7 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 		float cur;
 		if (out_count > 0) {
 			float wet_mix =
-			    base_wet * (1.0f - VAD_RELAX * vad_ring[out_head]);
+			    base_wet * (1.0f - relax * vad_ring[out_head]);
 			cur = wet_mix * wet_ring[out_head] +
 			      (1.0f - wet_mix) * dry_ring[out_head];
 			out_head++;
