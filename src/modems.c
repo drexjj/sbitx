@@ -403,7 +403,7 @@ void modem_rx(int mode, int32_t *samples, int count){
 	if (get_pitch() != last_pitch
 		&& (mode == MODE_CW || mode == MODE_CWR || mode == MODE_RTTY || mode == MODE_PSK31)) {
 		modem_set_pitch(get_pitch(),mode);
-		//last_pitch = get_pitch();
+		last_pitch = get_pitch();
 	}
 
 	s = samples;
