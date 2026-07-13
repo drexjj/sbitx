@@ -61,8 +61,27 @@ static int in_count = 0; /* valid 48 kHz samples waiting to be denoised */
 static float wet_ring[RNN_RING];
 static float dry_ring[RNN_RING];
 static float vad_ring[RNN_RING]; /* smoothed VAD aligned with wet/dry */
+static float gain_ring[RNN_RING]; /* normalization gain aligned with wet/dry */
 static int out_head = 0; /* read position (shared by wet and dry) */
 static int out_count = 0; /* valid denoised 48 kHz samples available */
+
+/* Input normalization.
+ *
+ * RNNoise performs best when input resembles its training data: speech
+ * at normal int16-style amplitudes (RMS of a few thousand). At low IF
+ * gain the samples reaching the network can be tiny, starving its band
+ * energy / pitch features - observed on-air as noticeably better AINR
+ * results at high IF settings. Fix: track the running RMS of the input,
+ * apply makeup gain toward NORM_TARGET_RMS before the network, and
+ * divide the same gain back out after the wet/dry mix, so output volume
+ * is untouched and AINR quality no longer depends on the IF setting.
+ * The per-frame gain is stored alongside the rings so the inverse stays
+ * sample-aligned. */
+#define NORM_TARGET_RMS 3000.0f
+#define NORM_GAIN_MIN 0.25f
+#define NORM_GAIN_MAX 64.0f
+#define NORM_RMS_SMOOTH 0.1f /* per-frame; ~100 ms time constant */
+static float rms_smooth = 0.0f;
 
 /* VAD-adaptive mixing state and tuning.
  *
@@ -97,6 +116,7 @@ void rnn_reset(void)
 	out_count = 0;
 	last_out = 0.0f;
 	vad_smooth = 0.0f;
+	rms_smooth = 0.0f;
 	if (rnn_st) {
 		rnnoise_destroy(rnn_st);
 		rnn_st = NULL;
@@ -133,7 +153,31 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 			        out_count * sizeof(float));
 			memmove(vad_ring, vad_ring + out_head,
 			        out_count * sizeof(float));
+			memmove(gain_ring, gain_ring + out_head,
+			        out_count * sizeof(float));
 			out_head = 0;
+		}
+
+		/* Input normalization: bring this frame toward the network's
+		 * comfortable amplitude. RMS is smoothed so the gain doesn't
+		 * chatter; the exact gain used is stored per sample so the
+		 * inverse below stays aligned. */
+		{
+			double acc = 0;
+			for (int k = 0; k < RNN_FRAME; k++)
+				acc += (double)frame[k] * frame[k];
+			float rms = (float)sqrt(acc / RNN_FRAME);
+			rms_smooth += NORM_RMS_SMOOTH * (rms - rms_smooth);
+			float denom = rms_smooth > 1e-3f ? rms_smooth : 1e-3f;
+			float g = NORM_TARGET_RMS / denom;
+			if (g < NORM_GAIN_MIN)
+				g = NORM_GAIN_MIN;
+			if (g > NORM_GAIN_MAX)
+				g = NORM_GAIN_MAX;
+			for (int k = 0; k < RNN_FRAME; k++)
+				frame[k] *= g;
+			for (int k = 0; k < RNN_FRAME; k++)
+				gain_ring[out_count + k] = g;
 		}
 
 		/* Dry copy first (rnnoise processes in place). The return value
@@ -187,8 +231,9 @@ void rnn_process_speaker(int32_t *samples, int n_samples)
 		if (out_count > 0) {
 			float wet_mix =
 			    base_wet * (1.0f - relax * vad_ring[out_head]);
-			cur = wet_mix * wet_ring[out_head] +
-			      (1.0f - wet_mix) * dry_ring[out_head];
+			cur = (wet_mix * wet_ring[out_head] +
+			       (1.0f - wet_mix) * dry_ring[out_head]) /
+			      gain_ring[out_head];
 			out_head++;
 			out_count--;
 		} else {
