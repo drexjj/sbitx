@@ -75,13 +75,17 @@ static int out_count = 0; /* valid denoised 48 kHz samples available */
  *
  * effective_wet = wet_mix * (1 - VAD_RELAX * vad_smooth)
  *
- * VAD_RELAX = 0.5: at full speech confidence, suppression depth is halved.
+ * VAD_RELAX = 0.25: at full speech confidence, suppression depth backs
+ * off by a quarter. (First-pass value of 0.5 blended in too much raw
+ * noise on weak signals - reported on-air as a noise halo around words
+ * and slow fading, v2 tune.)
  * VAD_ATTACK/RELEASE are per-10ms-frame smoothing coefficients: attack
- * reaches ~90% in ~3 frames (30 ms, catches syllable onsets), release
- * decays with ~0.5 s time constant (rides through inter-word gaps). */
+ * reaches ~90% in ~3 frames (30 ms, catches syllable onsets); release
+ * decays with a ~150 ms time constant so suppression recovers inside an
+ * inter-word gap instead of persisting through it. */
 #define VAD_ATTACK 0.55f
-#define VAD_RELEASE 0.02f
-#define VAD_RELAX 0.5f
+#define VAD_RELEASE 0.065f
+#define VAD_RELAX 0.25f
 static float vad_smooth = 0.0f;
 
 static float last_out = 0.0f; /* previous 48 kHz sample, for interpolation */
