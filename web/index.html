@@ -362,6 +362,7 @@
             <div class="sbitxv3-control">
                 <label class="sbitxv3-label" for="SPAN">SPAN</label>
                 <select class="sbitxv3-selection sbitx-selection" id="SPAN">
+                    <option value="PASS">PASS</option>
                     <option value="25K">25K</option>
                     <option value="10K">10K</option>
                     <option value="8K">8K</option>
@@ -1575,6 +1576,27 @@
 
     var waterfall_image = null;
 
+    function spectrumUsesPassband() {
+        return el("SPAN").value === "PASS";
+    }
+
+    function spectrumIsReversed() {
+        const mode = el("MODE").value;
+        return mode === "LSB" || mode === "CWR";
+    }
+
+    function spectrumSpanHz() {
+        const span = spectrumUsesPassband()
+            ? parseFloat(el("HIGH").value)
+            : parseFloat(el("SPAN").value) * 1000;
+        return Number.isFinite(span) ? Math.max(1, span) : 1;
+    }
+
+    function spectrumTunedX(width) {
+        if (!spectrumUsesPassband()) return width / 2;
+        return spectrumIsReversed() ? width - 1 : 0;
+    }
+
     function waterfall_init() {
         var w = el("waterfall");
         var ctx = w.getContext("2d");
@@ -1598,8 +1620,11 @@
         let w = rect.width;
         console.log("waterfall click " + x + ", " + w);
         let freq = parseInt(el('FREQ').value);
-        let span = parseFloat(el('SPAN').value) * 1000;
-        freq = Math.round((freq - span / 2 + (span / w) * x) / 100) * 100;
+        const span = spectrumSpanHz();
+        const start = spectrumUsesPassband()
+            ? (spectrumIsReversed() ? freq - span : freq)
+            : freq - span / 2;
+        freq = Math.round((start + (span / w) * x) / 100) * 100;
         console.log("waterfall freq " + freq);
         update_freq(freq);
     }
@@ -1652,10 +1677,9 @@
         const drawHeight = height - 15;
 
         // Calculate filter edge positions directly
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
+        const calculated_span = spectrumSpanHz();
         const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2;
+        const tuned_x = spectrumTunedX(width);
 
         // Get current filter values
         const mode = el("MODE").value;
@@ -1672,15 +1696,15 @@
         let filterLeftX, filterRightX, visualLeftEdgeX, visualRightEdgeX;
 
         if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
+            filterLeftX = tuned_x - hz_per_pixel * high;
+            filterRightX = tuned_x - hz_per_pixel * low;
         } else if (mode === "AM" || mode === "FM") {
             const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
+            filterLeftX = tuned_x - blockWidth / 2;
+            filterRightX = tuned_x + blockWidth / 2;
         } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
+            filterLeftX = tuned_x + hz_per_pixel * low;
+            filterRightX = tuned_x + hz_per_pixel * high;
         }
 
         // Calculate the visual edge positions (where the edges are actually drawn)
@@ -1733,8 +1757,7 @@
         const adjustedDelta = deltaX * scaleX;
 
         const { width } = canvas;
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
+        const calculated_span = spectrumSpanHz();
         const hz_per_pixel = width / calculated_span;
 
         // Get current filter values
@@ -1878,10 +1901,9 @@
             const spectrumCanvas = el("spectrum");
             const { width, height } = spectrumCanvas;
             const drawHeight = height - 15;
-            const nbins = 1024; // Typical value for spectrum
-            const calculated_span = nbins * 46.875;
+            const calculated_span = spectrumSpanHz();
             const hz_per_pixel = width / calculated_span;
-            const half_width = width / 2;
+            const tuned_x = spectrumTunedX(width);
 
             // Get current filter values
             const mode = el("MODE").value;
@@ -1892,15 +1914,15 @@
             let filterLeftX, filterRightX;
 
             if (mode === "LSB" || mode === "CWR") {
-                filterLeftX = half_width - hz_per_pixel * high;
-                filterRightX = half_width - hz_per_pixel * low;
+                filterLeftX = tuned_x - hz_per_pixel * high;
+                filterRightX = tuned_x - hz_per_pixel * low;
             } else if (mode === "AM") {
                 const blockWidth = bw * hz_per_pixel * 2;
-                filterLeftX = half_width - blockWidth / 2;
-                filterRightX = half_width + blockWidth / 2;
+                filterLeftX = tuned_x - blockWidth / 2;
+                filterRightX = tuned_x + blockWidth / 2;
             } else {
-                filterLeftX = half_width + hz_per_pixel * low;
-                filterRightX = half_width + hz_per_pixel * high;
+                filterLeftX = tuned_x + hz_per_pixel * low;
+                filterRightX = tuned_x + hz_per_pixel * high;
             }
 
             // Use a wider detection area (20 pixels) for clicking
@@ -2267,9 +2289,9 @@
         const nbins = update.length - 3;
         const scale = width / nbins;
         const drawHeight = height - 15; // Keep original height allocation
-        const calculated_span = nbins * 46.875;
+        const calculated_span = spectrumSpanHz();
         const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2;
+        const tuned_x = spectrumTunedX(width);
 
         // Clear canvas
         ctx.fillStyle = "#000";
@@ -2300,17 +2322,17 @@
         let filterLeftX, filterRightX;
 
         if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
+            filterLeftX = tuned_x - hz_per_pixel * high;
+            filterRightX = tuned_x - hz_per_pixel * low;
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         } else if (mode === "AM" || mode === "FM") {
             const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
+            filterLeftX = tuned_x - blockWidth / 2;
+            filterRightX = tuned_x + blockWidth / 2;
             ctx.fillRect(filterLeftX, 0, blockWidth, drawHeight);
         } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
+            filterLeftX = tuned_x + hz_per_pixel * low;
+            filterRightX = tuned_x + hz_per_pixel * high;
             ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
         }
 
@@ -2444,7 +2466,7 @@
         for (const [callsign, { spot }] of activeSpots) {
             const spot_freq = spot.frequency * 1000;
             const relative_freq = spot_freq - freq * 1000;
-            const spot_x = half_width + relative_freq * hz_per_pixel;
+            const spot_x = tuned_x + relative_freq * hz_per_pixel;
             spots_with_x.push({ x: spot_x, callsign, timestamp: spot.timestamp || currentTime });
         }
 
@@ -2484,11 +2506,11 @@
         let rx_x;
 
         if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
-            rx_x = half_width;
+            rx_x = tuned_x;
         } else if (mode === "CWR") {
-            rx_x = half_width - rx_pitch * hz_per_pixel;
+            rx_x = tuned_x - rx_pitch * hz_per_pixel;
         } else {
-            rx_x = half_width + rx_pitch * hz_per_pixel;
+            rx_x = tuned_x + rx_pitch * hz_per_pixel;
         }
 
         // Check for overlap with spot labels
@@ -2518,7 +2540,7 @@
             ctx.beginPath();
             ctx.strokeStyle = "red";
             ctx.fillStyle = "red";
-            const tx_x = half_width + tx_pitch * hz_per_pixel;
+            const tx_x = tuned_x + tx_pitch * hz_per_pixel;
             ctx.moveTo(tx_x, 0);
             ctx.lineTo(tx_x, drawHeight);
             ctx.fillText("TX", tx_x - 10, drawHeight + 12);
@@ -2536,7 +2558,7 @@
             // TX freq = RX freq - RIT delta (same calculation as in GTK)
             const freq_diff = -rit_delta; // Negative because we subtract RIT delta from RX freq
             const offset_pixels = freq_diff * hz_per_pixel;
-            const tx_needle_x = half_width + offset_pixels;
+            const tx_needle_x = tuned_x + offset_pixels;
 
             // Check if TX indicator is within visible range
             let is_at_edge = false;
@@ -2617,9 +2639,9 @@
         const ctx = waterfallEl.getContext("2d", { willReadFrequently: true });
         const nbins = update.length - 3;
         const scale = nbins / width;
-        const calculated_span = nbins * 46.875;
+        const calculated_span = spectrumSpanHz();
         const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2; // Precompute for reuse
+        const tuned_x = spectrumTunedX(width);
 
         // Get mode and pitch values
         const mode = modeEl.value;
@@ -2632,14 +2654,14 @@
         // Simplify rx_spot calculation
         let rx_spot;
         if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
-            rx_spot = Math.round(half_width);
+            rx_spot = Math.round(tuned_x);
         } else if (mode === "CWR") {
-            rx_spot = Math.round(half_width - rx_pitch * hz_per_pixel);
+            rx_spot = Math.round(tuned_x - rx_pitch * hz_per_pixel);
         } else {
-            rx_spot = Math.round(half_width + rx_pitch * hz_per_pixel);
+            rx_spot = Math.round(tuned_x + rx_pitch * hz_per_pixel);
         }
 
-        const tx_spot = mode === "FT8" || mode === "FT4" ? Math.round(half_width + tx_pitch * hz_per_pixel) : -1;
+        const tx_spot = mode === "FT8" || mode === "FT4" ? Math.round(tuned_x + tx_pitch * hz_per_pixel) : -1;
 
         // Shift existing image down
         const img = ctx.getImageData(0, 0, width, height);

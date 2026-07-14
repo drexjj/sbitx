@@ -974,7 +974,7 @@ struct field main_controls[] = {
 	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
-	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
+	 "PASS/25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
 	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, STYLE_FIELD_VALUE,
@@ -2400,6 +2400,54 @@ static int mode_id(const char *mode_str)
 	return -1;
 }
 
+static bool spectrum_uses_passband(void)
+{
+	return !strcmp(get_field("#span")->value, "PASS");
+}
+
+static bool spectrum_is_reversed(void)
+{
+	int mode = mode_id(get_field("r1:mode")->value);
+	return mode == MODE_LSB || mode == MODE_CWR;
+}
+
+static int spectrum_display_span_hz(void)
+{
+	int span = spectrum_uses_passband() ? atoi(get_field("r1:high")->value) : spectrum_span;
+	return span > 0 ? span : 1;
+}
+
+static long spectrum_view_start(long tuned_freq, int span_hz)
+{
+	if (!spectrum_uses_passband())
+		return tuned_freq - span_hz / 2;
+	return spectrum_is_reversed() ? tuned_freq - span_hz : tuned_freq;
+}
+
+static int spectrum_tuned_x(const struct field *f)
+{
+	if (!spectrum_uses_passband())
+		return f->x + f->width / 2;
+	return spectrum_is_reversed() ? f->x + f->width - 1 : f->x;
+}
+
+static void spectrum_bin_range(int *start, int *end)
+{
+	const int center = 3 * MAX_BINS / 4;
+	const int bins = MAX(1, (int)(spectrum_display_span_hz() / 46.875));
+
+	if (!spectrum_uses_passband()) {
+		*start = center - bins / 2;
+		*end = *start + bins;
+	} else if (spectrum_is_reversed()) {
+		*start = center;
+		*end = center + bins;
+	} else {
+		*start = center - bins;
+		*end = center;
+	}
+}
+
 void save_user_settings(int forced)
 {
 	static int last_save_at = 0;
@@ -3652,7 +3700,7 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 }
 
 static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
-								long center_freq, float span_khz, int grid_height)
+								long tuned_freq, float span_khz, int grid_height)
 {
 	if (oob_range_count == 0) return;
 
@@ -3664,9 +3712,9 @@ static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
 	if (all_class_only) return;
 
 	const int   STRIP_H = 5;
-	const long  half_span = (long)(span_khz * 500.0f);  // half span in Hz
-	const long  vis_start = center_freq - half_span;
-	const long  vis_stop  = center_freq + half_span;
+	const long  span_hz   = (long)(span_khz * 1000.0f);
+	const long  vis_start = spectrum_view_start(tuned_freq, span_hz);
+	const long  vis_stop  = vis_start + span_hz;
 	const float hz_per_px = (float)f->width / (span_khz * 1000.0f);
 	const int   strip_y   = f->y + (grid_height / 2) - (STRIP_H / 2);  // vertically centered
 
@@ -3759,11 +3807,12 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	tx_pitch = field_int("TX_PITCH");
 	freq = atol(get_field("r1:freq")->value);
 
-	span = atof(get_field("#span")->value);
+	span = spectrum_display_span_hz() / 1000.0f;
 	bw_high = atoi(get_field("r1:high")->value);
 	bw_low = atoi(get_field("r1:low")->value);
 	grid_height = f_spectrum->height - ((font_table[STYLE_SMALL].height * 4) / 3);
 	sub_division = f_spectrum->width / 10;
+	const int tuned_x = spectrum_tuned_x(f_spectrum);
 
 	// the step is in khz, we multiply by 1000 and div 10(divisions) = 100
 	freq_div = span * 100;
@@ -3773,7 +3822,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	if (!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB"))
 	{
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) -
+		filter_start = tuned_x -
 					   ((f_spectrum->width * bw_high) / (span * 1000));
 		if (filter_start < f_spectrum->x)
 		{
@@ -3786,33 +3835,33 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
 			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2) -
+		pitch = tuned_x -
 				((f_spectrum->width * pitch) / (span * 1000));
 	}
 	else if (!strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 	{
 		// For AM/FM mode, cover both sidebands
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) -
+		filter_start = tuned_x -
 					   ((f_spectrum->width * bw_high) / (span * 1000));
 		if (filter_start < f_spectrum->x)
 			filter_start = f_spectrum->x;
 		filter_width = (f_spectrum->width * (bw_high + bw_low)) / (span * 1000);
 		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
 			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2); // Center pitch for AM/FM
+		pitch = tuned_x;
 	}
 	else
 	{
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) +
+		filter_start = tuned_x +
 					   ((f_spectrum->width * bw_low) / (span * 1000));
 		if (filter_start < f_spectrum->x)
 			filter_start = f_spectrum->x;
 		filter_width = (f_spectrum->width * (bw_high - bw_low)) / (span * 1000);
 		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
 			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2) +
+		pitch = tuned_x +
 				((f_spectrum->width * pitch) / (span * 1000));
-		tx_pitch = f_spectrum->x + (f_spectrum->width / 2) +
+		tx_pitch = tuned_x +
 				   ((f_spectrum->width * tx_pitch) / (span * 1000));
 	}
 
@@ -3849,7 +3898,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
 	int yellow_bar_height = scope_size - 13;
 	int notch_start, notch_width;
-	int center_x = f_spectrum->x + (f_spectrum->width / 2);
+	int center_x = tuned_x;
 
 	if (notch_enabled)
 	{
@@ -4239,7 +4288,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		display_freq = freq + atoi(rit_delta->value);
 	}
 
-	long f_start = display_freq - (4 * freq_div);
+	long f_start = spectrum_view_start(display_freq, spectrum_display_span_hz()) + freq_div;
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -4339,11 +4388,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
+	int starting_bin, ending_bin;
+	spectrum_bin_range(&starting_bin, &ending_bin);
+	int n_bins = ending_bin - starting_bin;
 
 	float x_step = (1.0 * f->width) / n_bins;
 
@@ -4481,9 +4528,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgb(gfx, palette[COLOR_RX_PITCH][0],
 							 palette[COLOR_RX_PITCH][1], palette[COLOR_RX_PITCH][2]);
 		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI"))
-		{ // for LSB, USB, and DIGI draw pitch line at center
-			cairo_move_to(gfx, f->x + (f->width / 2), f->y);
-			cairo_line_to(gfx, f->x + (f->width / 2), f->y + grid_height);
+		{ // LSB, USB, and DIGI mark the tuned frequency directly
+			cairo_move_to(gfx, tuned_x, f->y);
+			cairo_line_to(gfx, tuned_x, f->y + grid_height);
 		}
 		else
 		{
@@ -4504,7 +4551,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// draw the needle
 	for (struct rx *r = rx_list; r; r = r->next)
 	{
-		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
+		int needle_x = spectrum_uses_passband()
+			? tuned_x - f->x
+			: (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
 
 
@@ -4524,8 +4573,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			// Calculate the TX bin position directly
 			// We need to calculate where the TX frequency would be in the spectrum
 			// First, determine the frequency span visible in the spectrum
-			float span_khz = atof(get_field("#span")->value);
-			float span_hz = span_khz * 1000;
+			float span_hz = spectrum_display_span_hz();
 
 			// Now we calculate the frequency difference between RX and TX in Hz
 			long freq_diff = rx_freq - tx_freq;
@@ -4545,7 +4593,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			// Calculate the TX needle position directly from the RX needle position
 			// The RX needle is always at the center (f->width/2)
 			// We just need to offset it based on the RIT delta
-			tx_needle_x = (f->width / 2) + offset_pixels;
+			tx_needle_x = tuned_x - f->x + offset_pixels;
 
 			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
 			int is_at_edge = 0;
@@ -5976,7 +6024,7 @@ void abort_tx()
 
 int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	struct field *f_freq, *f_span, *f_pitch;
+	struct field *f_freq, *f_pitch;
 	int span, pitch;
 	long freq;
 	char buff[100];
@@ -6011,8 +6059,7 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	case GDK_MOTION_NOTIFY:
 		f_freq = get_field("r1:freq");
 		freq = atoi(f_freq->value);
-		f_span = get_field("#span");
-		span = atof(f_span->value) * 1000;
+		span = spectrum_display_span_hz();
 		// a has the x position of the mouse
 		freq -= ((a - last_mouse_x) * (span / f->width));
 		sprintf(buff, "%ld", freq);
@@ -6024,21 +6071,24 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		{ // right click QSY
 			f_freq = get_field("r1:freq");
 			freq = atoi(f_freq->value);
-			f_span = get_field("#span");
-			span = atof(f_span->value) * 1000;
+			span = spectrum_display_span_hz();
 			f_pitch = get_field("rx_pitch");
 			pitch = atoi(f_pitch->value);
+			float position = (float)(a - f->x) / (float)f->width;
+			float offset = spectrum_uses_passband()
+				? (spectrum_is_reversed() ? position - 1.0f : position)
+				: position - 0.5f;
 			if (mode == MODE_CW)
 			{
-				freq += ((((float)(a - f->x) / (float)f->width) - 0.5) * (float)span) - pitch;
+				freq += (offset * span) - pitch;
 			}
 			else if (mode == MODE_CWR)
 			{
-				freq += ((((float)(a - f->x) / (float)f->width) - 0.5) * (float)span) + pitch;
+				freq += (offset * span) + pitch;
 			}
 			else
 			{ // other modes may need to be optimized - k3ng 2022-09-02
-				freq += (((float)(a - f->x) / (float)f->width) - 0.5) * (float)span;
+				freq += offset * span;
 			}
 			sprintf(buff, "%ld", freq);
 			set_field("r1:freq", buff);
@@ -9752,11 +9802,8 @@ int web_get_console(char *buff, int max)
 void web_get_spectrum(char *buff)
 {
 
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
+	int starting_bin, ending_bin;
+	spectrum_bin_range(&starting_bin, &ending_bin);
 
 	int j = 3;
 	if (in_tx)
@@ -11157,6 +11204,10 @@ void do_control_action(char *cmd)
 	{
 		// spectrum_span = 25000;
 		spectrum_span = 24980; // trimmed to prevent edge of bin artifract from showing on scope
+	}
+	else if (!strcmp(request, "SPAN PASS"))
+	{
+		// The displayed span follows r1:high dynamically.
 	}
 	else if (!strcmp(request, "80M") ||
 			 !strcmp(request, "60M") ||
