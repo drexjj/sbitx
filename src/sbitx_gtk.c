@@ -2434,6 +2434,14 @@ static int spectrum_frequency_x(const struct field *f, int64_t frequency,
 	return f->x + (int)(offset * f->width / span_hz);
 }
 
+// Round a grid division to the frequency precision shown by its label.
+static long spectrum_grid_frequency(long view_start, int span_hz, int division)
+{
+	const int resolution = (span_hz == 25000 || span_hz == 10000) ? 1000 : 100;
+	const long frequency = view_start + (int64_t)span_hz * division / 10;
+	return ((frequency + resolution / 2) / resolution) * resolution;
+}
+
 static int spectrum_tuned_x(const struct field *f)
 {
 	if (!spectrum_uses_passband())
@@ -3642,7 +3650,8 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	cairo_fill(gfx);
 }
 
-void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx)
+void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx,
+						long view_start, int span_hz)
 {
 	struct field *f = f_spectrum;
 	int grid_height = f->height - (font_table[STYLE_SMALL].height * 4 / 3);
@@ -3667,6 +3676,10 @@ void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx)
 	for (int division = 0; division <= 10; division++)
 	{
 		int grid_x = f->x + (f->width * division) / 10;
+		if (division > 0 && division < 10)
+			grid_x = spectrum_frequency_x(f,
+							spectrum_grid_frequency(view_start, span_hz, division),
+							view_start, span_hz);
 		cairo_move_to(gfx, grid_x, f->y);
 		cairo_line_to(gfx, grid_x, f->y + grid_height);
 	}
@@ -3781,9 +3794,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		return;
 	}
 
-	int y, sub_division, i, grid_height, bw_high, bw_low, pitch, tx_pitch;
+	int grid_height, bw_high, bw_low, pitch, tx_pitch;
 	struct field *f;
-	long freq, freq_div;
+	long freq;
 	char freq_text[20];
 
 	if (in_tx)
@@ -3820,11 +3833,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	bw_high = atoi(get_field("r1:high")->value);
 	bw_low = atoi(get_field("r1:low")->value);
 	grid_height = f_spectrum->height - ((font_table[STYLE_SMALL].height * 4) / 3);
-	sub_division = f_spectrum->width / 10;
 	const int tuned_x = spectrum_tuned_x(f_spectrum);
-
-	// Frequency-label step for ten equal divisions of the displayed span.
-	freq_div = span_hz / 10;
 
 	// calculate the position of bandwidth strip
 	long filter_freq_start, filter_freq_stop;
@@ -3860,7 +3869,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	fill_rect(gfx, filter_start, f->y, filter_width, grid_height, SPECTRUM_BANDWIDTH);
 	cairo_stroke(gfx);
 
-	draw_spectrum_grid(f_spectrum, gfx);
+	draw_spectrum_grid(f_spectrum, gfx, view_start, span_hz);
 	// Draw color-coded license privilege band strip along the bottom of the grid
 	draw_oob_band_strip(f_spectrum, gfx, display_freq, span_hz, grid_height);
 	f = f_spectrum;
@@ -4265,22 +4274,21 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
 					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
 
-	long f_start = view_start + freq_div;
 	for (int division = 1; division < 10; division++)
 	{
+		long label_frequency = spectrum_grid_frequency(view_start, span_hz, division);
 		if ((span_hz == 25000) || (span_hz == 10000))
 		{
-			sprintf(freq_text, "%ld", f_start / 1000);
+			sprintf(freq_text, "%ld", label_frequency / 1000);
 		}
 		else
 		{
-			float f_start_temp = (((float)f_start / 1000000.0) - ((int)(f_start / 1000000))) * 1000;
-			sprintf(freq_text, "%5.1f", f_start_temp);
+			double label_khz = (label_frequency % 1000000) / 1000.0;
+			sprintf(freq_text, "%5.1f", label_khz);
 		}
-		const int label_x = f->x + (f->width * division) / 10;
+		const int label_x = spectrum_frequency_x(f, label_frequency, view_start, span_hz);
 		int off = measure_text(gfx, freq_text, STYLE_SMALL) / 2;
 		draw_text(gfx, label_x - off, f->y + grid_height, freq_text, STYLE_SMALL);
-		f_start += freq_div;
 	}
 
 	//--- S-Meter test W2JON
