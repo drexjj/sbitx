@@ -2424,6 +2424,16 @@ static long spectrum_view_start(long tuned_freq, int span_hz)
 	return spectrum_is_reversed() ? tuned_freq - span_hz : tuned_freq;
 }
 
+// Map a frequency to a clamped pixel edge shared by all spectrum overlays.
+static int spectrum_frequency_x(const struct field *f, int64_t frequency,
+								int64_t view_start, int span_hz)
+{
+	int64_t offset = frequency - view_start;
+	if (offset < 0) offset = 0;
+	if (offset > span_hz) offset = span_hz;
+	return f->x + (int)(offset * f->width / span_hz);
+}
+
 static int spectrum_tuned_x(const struct field *f)
 {
 	if (!spectrum_uses_passband())
@@ -3291,7 +3301,6 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 		int led_x = vu_text_x + vu_text_width + 5;
 
 		// Draw LED background
-		cairo_save(gfx);
 		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
 		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 12 + 2,  // 5
 						box_height + 4);
@@ -3334,7 +3343,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 			}
 
 			cairo_fill(gfx);
-		}	
+		}
 			
 	}
 	
@@ -3700,7 +3709,7 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 }
 
 static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
-								long tuned_freq, float span_khz, int grid_height)
+								long tuned_freq, int span_hz, int grid_height)
 {
 	if (oob_range_count == 0) return;
 
@@ -3712,25 +3721,23 @@ static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
 	if (all_class_only) return;
 
 	const int   STRIP_H = 5;
-	const long  span_hz   = (long)(span_khz * 1000.0f);
 	const long  vis_start = spectrum_view_start(tuned_freq, span_hz);
 	const long  vis_stop  = vis_start + span_hz;
-	const float hz_per_px = (float)f->width / (span_khz * 1000.0f);
 	const int   strip_y   = f->y + (grid_height / 2) - (STRIP_H / 2);  // vertically centered
 
 	for (int i = 0; i < oob_range_count; i++) {
 		struct oob_range *r = &oob_ranges[i];
 
 		// Skip ranges entirely outside the visible span
-		if (r->stop < vis_start || r->start > vis_stop) continue;
+		if (r->stop <= vis_start || r->start >= vis_stop) continue;
 
 		// Clamp to visible area and convert to pixel coords
 		long  clamp_start = r->start > vis_start ? r->start : vis_start;
 		long  clamp_stop  = r->stop  < vis_stop  ? r->stop  : vis_stop;
-		int   px_start = f->x + (int)((clamp_start - vis_start) * hz_per_px);
-		int   px_stop  = f->x + (int)((clamp_stop  - vis_start) * hz_per_px);
+		int   px_start = spectrum_frequency_x(f, clamp_start, vis_start, span_hz);
+		int   px_stop  = spectrum_frequency_x(f, clamp_stop, vis_start, span_hz);
+		px_stop = MAX(px_start + 1, px_stop);
 		int   px_width = px_stop - px_start;
-		if (px_width < 1) px_width = 1;
 
 		double cr, cg, cb, ca;
 		oob_class_color(r->lic_class, &cr, &cg, &cb, &ca);
@@ -3777,7 +3784,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	int y, sub_division, i, grid_height, bw_high, bw_low, pitch, tx_pitch;
-	float span;
 	struct field *f;
 	long freq, freq_div;
 	char freq_text[20];
@@ -3807,63 +3813,46 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	tx_pitch = field_int("TX_PITCH");
 	freq = atol(get_field("r1:freq")->value);
 
-	span = spectrum_display_span_hz() / 1000.0f;
+	const int span_hz = spectrum_display_span_hz();
+	const long view_start = spectrum_view_start(freq, span_hz);
 	bw_high = atoi(get_field("r1:high")->value);
 	bw_low = atoi(get_field("r1:low")->value);
 	grid_height = f_spectrum->height - ((font_table[STYLE_SMALL].height * 4) / 3);
 	sub_division = f_spectrum->width / 10;
 	const int tuned_x = spectrum_tuned_x(f_spectrum);
 
-	// the step is in khz, we multiply by 1000 and div 10(divisions) = 100
-	freq_div = span * 100;
+	// Frequency-label step for ten equal divisions of the displayed span.
+	freq_div = span_hz / 10;
 
 	// calculate the position of bandwidth strip
-	int filter_start, filter_width;
+	long filter_freq_start, filter_freq_stop;
 
 	if (!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB"))
 	{
-		filter_start = tuned_x -
-					   ((f_spectrum->width * bw_high) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-		{
-			filter_width = ((f_spectrum->width * (bw_high - bw_low)) / (span * 1000)) - (f_spectrum->x - filter_start);
-			filter_start = f_spectrum->x;
-		}
-		else
-		{
-			filter_width = (f_spectrum->width * (bw_high - bw_low)) / (span * 1000);
-		}
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+		filter_freq_start = freq - bw_high;
+		filter_freq_stop = freq - bw_low;
 		pitch = tuned_x -
-				((f_spectrum->width * pitch) / (span * 1000));
+				((f_spectrum->width * pitch) / span_hz);
 	}
 	else if (!strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 	{
 		// For AM/FM mode, cover both sidebands
-		filter_start = tuned_x -
-					   ((f_spectrum->width * bw_high) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high + bw_low)) / (span * 1000);
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+		filter_freq_start = freq - bw_high;
+		filter_freq_stop = freq + bw_low;
 		pitch = tuned_x;
 	}
 	else
 	{
-		filter_start = tuned_x +
-					   ((f_spectrum->width * bw_low) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high - bw_low)) / (span * 1000);
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+		filter_freq_start = freq + bw_low;
+		filter_freq_stop = freq + bw_high;
 		pitch = tuned_x +
-				((f_spectrum->width * pitch) / (span * 1000));
+				((f_spectrum->width * pitch) / span_hz);
 		tx_pitch = tuned_x +
-				   ((f_spectrum->width * tx_pitch) / (span * 1000));
+				   ((f_spectrum->width * tx_pitch) / span_hz);
 	}
+	int filter_start = spectrum_frequency_x(f_spectrum, filter_freq_start, view_start, span_hz);
+	int filter_stop = spectrum_frequency_x(f_spectrum, filter_freq_stop, view_start, span_hz);
+	int filter_width = MAX(0, filter_stop - filter_start);
 
 	// clear the spectrum
 	f = f_spectrum;
@@ -3874,7 +3863,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	draw_spectrum_grid(f_spectrum, gfx);
 	// Draw color-coded license privilege band strip along the bottom of the grid
-	draw_oob_band_strip(f_spectrum, gfx, freq, span, grid_height);
+	draw_oob_band_strip(f_spectrum, gfx, freq, span_hz, grid_height);
 	f = f_spectrum;
 
 	// Display TX meters in the top left corner of the spectrum grid during transmission
@@ -3909,16 +3898,16 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			{
 				// For USB and CW mode
 				notch_start = center_x +
-							  ((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
+							  ((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / span_hz);
 
 				if (notch_start < f_spectrum->x)
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz - (f_spectrum->x - notch_start);
 					notch_start = f_spectrum->x;
 				}
 				else
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz;
 				}
 
 				if (notch_width + notch_start > f_spectrum->x + f_spectrum->width)
@@ -3930,20 +3919,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			{
 				// For LSB and CWR mode
 				notch_start = center_x -
-							  ((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / (span * 1000));
+							  ((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / span_hz);
 
-				if (notch_start + (f_spectrum->width * notch_bandwidth) / (span * 1000) > f_spectrum->x + f_spectrum->width)
+				if (notch_start + (f_spectrum->width * notch_bandwidth) / span_hz > f_spectrum->x + f_spectrum->width)
 				{
 					notch_width = (f_spectrum->x + f_spectrum->width) - notch_start;
 				}
 				else
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz;
 				}
 
 				if (notch_start < f_spectrum->x)
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz - (f_spectrum->x - notch_start);
 					notch_start = f_spectrum->x;
 				}
 			}
@@ -4289,9 +4278,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	long f_start = spectrum_view_start(display_freq, spectrum_display_span_hz()) + freq_div;
-	for (i = f->width / 10; i < f->width; i += f->width / 10)
+	for (int division = 1; division < 10; division++)
 	{
-		if ((span == 25) || (span == 10))
+		if ((span_hz == 25000) || (span_hz == 10000))
 		{
 			sprintf(freq_text, "%ld", f_start / 1000);
 		}
@@ -4300,8 +4289,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			float f_start_temp = (((float)f_start / 1000000.0) - ((int)(f_start / 1000000))) * 1000;
 			sprintf(freq_text, "%5.1f", f_start_temp);
 		}
+		const int label_x = f->x + (f->width * division) / 10;
 		int off = measure_text(gfx, freq_text, STYLE_SMALL) / 2;
-		draw_text(gfx, f->x + i - off, f->y + grid_height, freq_text, STYLE_SMALL);
+		draw_text(gfx, label_x - off, f->y + grid_height, freq_text, STYLE_SMALL);
 		f_start += freq_div;
 	}
 
@@ -4412,7 +4402,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	compute_time_based_average(averaged_spectrum, MAX_BINS);
 
 	// Find min and max values for dynamic range computation
-	for (int i = starting_bin; i <= ending_bin; i++)
+	for (int i = starting_bin; i < ending_bin; i++)
 	{
 		int raw_value = spectrum_plot[i] + waterfall_offset; // Use raw spectrum for waterfall
 		if (raw_value < min_value)
@@ -4452,7 +4442,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// of the graph.
 	static float sp_baseline_offs = 0.0;
 
-	for (int i = starting_bin; i <= ending_bin; i++)
+	for (int i = starting_bin; i < ending_bin; i++)
 	{
 		int y;
 
@@ -4488,17 +4478,16 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		if (enhanced_y < 0)
 			enhanced_y = 0;
 
-		// Add the spectrum line point to the path
-		// shift by half a bin width to align with waterfall:
-        cairo_line_to(gfx, f->x + f->width - (int)x + x_step / 2.0, f->y + grid_height - enhanced_y);
+		// Plot the spectrum line point at the center of the same pixel range used by the waterfall.
+		cairo_line_to(gfx, f->x + f->width - x - x_step / 2.0, f->y + grid_height - enhanced_y);
 
-		// Fill the waterfall with the original (unchanged) y value
-		for (int k = 0; k <= 1 + (int)x_step; k++)
-			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
+		// Fill this bin's in-bounds waterfall pixels with the original, unenhanced y value.
+		int pixel_left = MAX(0, (int)(f->width - x - x_step));
+		int pixel_right = MIN(f->width - 1, (int)(f->width - 1 - x));
+		for (int pixel = pixel_left; pixel <= pixel_right; pixel++)
+			wf[pixel] = (y * 100) / grid_height;
 
 		x += x_step;
-		if (f->width <= x)
-			x = f->width - 1;
 	}
 
 	// We adjust slowly the baseline offset, to keep it smoothly stable where we want it in the graph
@@ -4570,30 +4559,15 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			long rx_freq = atol(freq_field->value);
 			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
 
-			// Calculate the TX bin position directly
-			// We need to calculate where the TX frequency would be in the spectrum
-			// First, determine the frequency span visible in the spectrum
-			float span_hz = spectrum_display_span_hz();
-
-			// Now we calculate the frequency difference between RX and TX in Hz
+			// Convert the RX/TX frequency difference to an offset across the displayed span.
 			long freq_diff = rx_freq - tx_freq;
 
-			// Let's calculate the pixel offset based on the frequency difference and span
-			// The center of the spectrum is at f->width/2
-			// The full width represents span_hz
 			float pixels_per_hz = (float)f->width / span_hz;
 			// Invert the offset to match the spectrum panning direction
 			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
 
-			// Calculate the TX needle position
-			// WE can use the same calculation method as the RX needle (tuned_bin)
-			// but with an offset based on the RIT delta
-			int tx_needle_x;
-
-			// Calculate the TX needle position directly from the RX needle position
-			// The RX needle is always at the center (f->width/2)
-			// We just need to offset it based on the RIT delta
-			tx_needle_x = tuned_x - f->x + offset_pixels;
+			// Offset the TX needle from the tuned RX position by the RIT difference.
+			int tx_needle_x = tuned_x - f->x + offset_pixels;
 
 			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
 			int is_at_edge = 0;
@@ -6053,7 +6027,11 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	switch (event)
 	{
 	case FIELD_DRAW:
+		cairo_save(gfx);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_clip(gfx);
 		draw_spectrum(f, gfx);
+		cairo_restore(gfx);
 		return 1;
 		break;
 	case GDK_MOTION_NOTIFY:
@@ -6124,7 +6102,11 @@ int do_waterfall(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	switch (event)
 	{
 	case FIELD_DRAW:
+		cairo_save(gfx);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_clip(gfx);
 		draw_waterfall(f, gfx);
+		cairo_restore(gfx);
 		return 1;
 		/*
 				case GDK_MOUSE_MOVE:{
