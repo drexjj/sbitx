@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Configuration
-SOURCE="/home/pi/Pictures/sbitxv54.png"
+SOURCE="/home/pi/sbitx/splash.png"
 DEST_DIR="/usr/share/plymouth/themes/pix"
 DEST_FILE="splash.png"
 DESTINATION="${DEST_DIR}/${DEST_FILE}"
