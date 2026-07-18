@@ -84,6 +84,10 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
+// MUTE button state: audio_muted tracks whether MUTE is engaged, and
+// premute_volume stores the AUDIO level to restore when un-muting. - added mute control
+int audio_muted = 0;
+char premute_volume[16] = "";
 int freq_out_of_band = 0;  // Set when VFO frequency is outside all band ranges
 // ---------------------------------------------------------------------------
 // OOB (out-of-band) privilege limits loaded from ~/sbitx/data/oob_limits.txt
@@ -452,6 +456,16 @@ int console_current_line = 0; // index in console_stream
 int console_selected_line = -1; // index
 time_t console_current_time = 0;
 static int console_scroll_offset = 0;  // 0 = tail (follow live), higher = lines above tail
+
+// Maps each drawn pixel-row of the console to the console_stream index that was
+// painted there, so mouse clicks resolve to exactly the line the user sees.
+// Populated by draw_console(), read by do_console(). y-origin and count are
+// recorded so clicks outside the drawn text area can be rejected.
+#define MAX_CONSOLE_VISIBLE_ROWS 200
+static int console_row_index[MAX_CONSOLE_VISIBLE_ROWS];
+static int console_row_count = 0;   // number of valid entries in console_row_index
+static int console_row_y0 = 0;      // pixel y of the first drawn row
+static int console_row_height = 0;  // pixel height of each drawn row
 
 // max power and swr from most recent transmission, for the log
 int last_fwdpower = 0;
@@ -955,6 +969,8 @@ struct field main_controls[] = {
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
+	{"#mute", do_toggle_option, 755, 5, 40, 40, "MUTE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
@@ -1050,8 +1066,6 @@ struct field main_controls[] = {
 	 "nothing valuable", 0, 128, 0, 0},
 
 	// other settings - currently off screen
-	{"#web", NULL, 1000, -1000, 50, 50, "WEB", 40, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
-	 "", 0, 0, 0, 0},
 	{"reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 	{"tuning_acceleration", NULL, 1000, -1000, 50, 50, "TA", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
@@ -1971,10 +1985,18 @@ void draw_console(cairo_t* gfx, struct field* f)
 	if (start_line < 0)
 		start_line += MAX_CONSOLE_LINES;
 
+	// Record geometry so do_console() can map a click y-coordinate back to the
+	// exact console_stream index drawn at that row (see console_row_index[]).
+	console_row_y0 = y;
+	console_row_height = line_height;
+	console_row_count = 0;
+
 	const char *logger_call = field_str("CALL");
 
 	for (int i = 0; i <= n_lines; i++) {
 		struct console_line* line = console_stream + start_line;
+		if (console_row_count < MAX_CONSOLE_VISIBLE_ROWS)
+			console_row_index[console_row_count++] = start_line;
 		if (start_line == console_selected_line)
 			fill_rect(gfx, f->x, y + 1, f->width, font_table[line->spans[0].semantic].height + 1, SELECTED_LINE);
 		// tracking where we are, horizontally
@@ -2168,15 +2190,34 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		return 1;
 		break;
 	case GDK_BUTTON_PRESS:
-	case GDK_MOTION_NOTIFY:
-		l = start_line + ((b - f->y) / line_height);
-		if (l < 0)
-			l += MAX_CONSOLE_LINES;
-		console_selected_line = l;
+	case GDK_MOTION_NOTIFY: {
+		// Map the click's y-coordinate to the row that draw_console() actually
+		// painted there. Using the recorded map (rather than recomputing
+		// start_line + offset) keeps clicks aligned with what the user sees
+		// even before the ring buffer fills, when leading rows are blank.
+		int row = 0;
+		if (console_row_height > 0)
+			row = (b - console_row_y0) / console_row_height;
+		if (row < 0)
+			row = 0;
+		if (row >= console_row_count)
+			row = console_row_count - 1;
+		if (row >= 0 && console_row_count > 0)
+			console_selected_line = console_row_index[row];
 		f->is_dirty = 1;
 		return 1;
 		break;
+	}
 	case GDK_BUTTON_RELEASE: {
+		// Ignore releases when no valid line is selected or the selected line is
+		// blank (e.g. a click on empty space before the console has filled up).
+		if (console_selected_line < 0 ||
+			console_selected_line >= MAX_CONSOLE_LINES ||
+			console_stream[console_selected_line].text[0] == 0) {
+			f->is_dirty = 1;
+			return 1;
+		}
+
 		// copy console line to X11 selection
 		GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
 		gtk_clipboard_set_text(clipboard, console_stream[console_selected_line].text, -1);
@@ -2392,8 +2433,10 @@ void save_user_settings(int forced)
 	{
 		// Skip #band and #band_stack_pos - these are computed fields, not saved
 		// The band stack index is saved per-band in the [80M], [40M], etc. sections
+		// #mute is a momentary UI state that should always start OFF. - added mute control
 		if (!strcmp(active_layout[i].cmd, "#band") || 
 			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
+			!strcmp(active_layout[i].cmd, "#mute") ||
 			!strcmp(active_layout[i].cmd, "#ftx_auto"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
@@ -5004,7 +5047,7 @@ static void layout_ui()
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
     field_move("REC",    SC(459), SC(50), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
     field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
     field_move("RECV", SC(140), SC(50), SC(50), SC(20));
@@ -5020,18 +5063,39 @@ static void layout_ui()
 
   field_move("KBD", screen_width - SC(48), screen_height - SC(40), SC(45), SC(37));
 
-  field_move("AUDIO", x2 - SC(45), SC(5), SC(40), SC(40));
-  field_move("FREQ", x2 - SC(212), SC(3), SC(180), SC(40));
+  // Top control row (y=5), evenly spaced with a uniform 3px gap. MUTE is
+  // flush to the right edge; FREQ (the wide frequency readout) sits between
+  // VFO and AUDIO. RIT is the left-most of this shared cluster.
+  //   MUTE : x2-45 .. x2-5
+  //   AUDIO: x2-88 .. x2-48
+  //   FREQ : x2-271.. x2-91   (width 180)
+  //   VFO  : x2-314.. x2-274
+  //   RIT  : x2-357.. x2-317
+  field_move("MUTE", x2 - SC(45), SC(5), SC(40), SC(40));
+  field_move("AUDIO", x2 - SC(88), SC(5), SC(40), SC(40));
+  field_move("FREQ", x2 - SC(271), SC(3), SC(180), SC(40));
+  field_move("VFO", x2 - SC(314), SC(5), SC(40), SC(40));
+  field_move("RIT", x2 - SC(357), SC(5), SC(40), SC(40));
   field_move("STEP", x2 - SC(252), SC(50), SC(40), SC(40));
-  field_move("RIT", x2 - SC(292), SC(5), SC(40), SC(40));
 
   field_move("IF", x2 - SC(45), SC(50), SC(40), SC(40));
   field_move("DRIVE", x2 - SC(87), SC(50), SC(42), SC(40));
   field_move("BW", x2 - SC(127), SC(50), SC(40), SC(40));
   field_move("AGC", x2 - SC(170), SC(50), SC(42), SC(40));
   field_move("SPAN", x2 - SC(212), SC(50), SC(42), SC(40));
-  field_move("VFO", x2 - SC(252), SC(5), SC(40), SC(40));
   field_move("SPLIT", x2 - SC(292), SC(50), SC(40), SC(40));
+
+  // Left pair of the top row, continuing the uniform 3px spacing to the left
+  // of RIT. TUNE is always here. The slot immediately left of RIT holds REC
+  // in the default (1.0) layout and MENU in the scaled layout, matching how
+  // each layout arranges its header buttons.
+  //   TUNE : x2-443 .. x2-403
+  //   (REC or MENU): x2-400 .. x2-360
+  field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
+  if (ui_scale != 1.0f)
+    field_move("MENU", x2 - SC(400), SC(5), SC(40), SC(40));
+  else
+    field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
 
   if (!strcmp(field_str("KBD"), "ON")) {
     y2 = screen_height - KEYBOARD_HEIGHT;
@@ -5243,7 +5307,7 @@ static void layout_ui()
 
     // TUNE control is on screen in this mode
 	field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-	field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+	field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     break;
 
   case MODE_USB:
@@ -5280,7 +5344,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5314,7 +5378,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5349,7 +5413,7 @@ static void layout_ui()
     field_move("SPECT", x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5388,7 +5452,7 @@ static void layout_ui()
     field_move("SPECT",    x2 - SC(97), y_bottom, SC(45), row_h);
 
     field_move("PAD",  SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE", SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -5428,7 +5492,7 @@ static void layout_ui()
 
     // keep TUNE and PAD where they live on top row
     field_move("PAD", SC(135), SC(5), SC(40), SC(40));
-    field_move("TUNE",   SC(459), SC(5), SC(40), SC(40));
+    field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
   }
   break;
 
@@ -7699,7 +7763,7 @@ void open_url(char *url)
 {
 	char temp_line[200];
 
-	sprintf(temp_line, "chromium-browser --log-leve=3 "
+	sprintf(temp_line, "chromium --log-leve=3 "
 					   "--enable-features=OverlayScrollbar %s"
 					   "  >/dev/null 2> /dev/null &",
 			url);
@@ -10956,10 +11020,6 @@ void do_control_action(char *cmd)
 	{
 		tx_on(TX_SOFT);
 	}
-	else if (!strcmp(request, "WEB"))
-	{
-		open_url("http://127.0.0.1:8080");
-	}
 	else if (!strcmp(request, "RX"))
 	{
 		tx_off();
@@ -11138,6 +11198,30 @@ void do_control_action(char *cmd)
 	{
 		qrz(field_str("CALL"));
 	}
+	// MUTE button - saves the current AUDIO level, drops volume to 0, and
+	// restores the saved level when un-muted. - added mute control
+	else if (!strcmp(request, "MUTE ON"))
+	{
+		// Remember the AUDIO level in effect before muting so we can put it
+		// back later. Guard against re-muting (which would save "0").
+		if (!audio_muted)
+		{
+			get_field_value("r1:volume", premute_volume);
+			audio_muted = 1;
+		}
+		// Drop the AUDIO field (and therefore the radio volume) to 0.
+		set_field("r1:volume", "0");
+	}
+	else if (!strcmp(request, "MUTE OFF"))
+	{
+		// Restore the AUDIO level captured when we muted.
+		if (audio_muted)
+		{
+			audio_muted = 0;
+			if (premute_volume[0])
+				set_field("r1:volume", premute_volume);
+		}
+	}
 	else
 	{
 		if (!strncmp(request, "IF ", 3))
@@ -11166,6 +11250,21 @@ void do_control_action(char *cmd)
 			if (band_idx >= 0 && band_idx < sizeof(band_stack) / sizeof(struct band))
 				band_stack[band_idx].tnpwr = atoi(ti);
 			settings_updated++;
+		}
+
+		// If the user raises the AUDIO level while MUTE is engaged, treat that
+		// as un-muting: clear the mute state and flip the MUTE button to OFF.
+		// The value has already been applied to r1:volume, so we don't restore
+		// the pre-mute level here. - added mute control
+		if (audio_muted && !strncmp(request, "AUDIO ", 6) && atoi(request + 6) != 0)
+		{
+			audio_muted = 0;
+			struct field *mf = get_field("#mute");
+			if (mf && strcmp(mf->value, "OFF"))
+			{
+				strcpy(mf->value, "OFF");
+				update_field(mf);
+			}
 		}
 
 		// Send this to the radio core
