@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    # Native arm64 runner - matches the Pi 4/5 architecture exactly, no
+    # cross-compilation or emulation involved.
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config \
+            libgtk-3-dev \
+            libwiringpi-dev \
+            libasound2-dev \
+            libfftw3-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libpcre2-dev \
+            libnsl-dev
+
+      - name: Build ft8_lib
+        run: make -C ft8_lib
+
+      - name: Build sbitx
+        run: make
+
+      - name: Verify binary was produced
+        run: |
+          test -f sbitx
+          file sbitx
+
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbitx-${{ github.sha }}
+          path: sbitx

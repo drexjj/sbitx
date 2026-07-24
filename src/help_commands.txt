@@ -388,6 +388,34 @@ scroll the mouse wheel over it for fine adjustment.
   Most useful in CW, USB, and LSB modes to eliminate a single strong interferer
   while leaving the rest of the passband open.
 
+* AINR [on|off]
+  Neural-network noise reduction (RNNoise). Uses a small recurrent neural
+  network trained on speech to separate voice from background noise. Often
+  more effective than DSP/ANR on non-stationary noise (static crashes, wind,
+  clicks) because it recognizes speech patterns rather than tracking recent
+  power levels. Adds roughly 10-20 ms of audio latency while enabled.
+  The AINR button is on the main screen, just left of REC. While AINR is ON,
+  the AINRS strength control appears beside it.
+  Voice modes only; not applied in FT8/FT4/DIGITAL modes.
+  Best used INSTEAD of DSP or ANR rather than together with them - stacking
+  multiple noise reducers usually degrades audio. Default: off
+
+* AINRS [0-100]
+  AINR strength (wet/dry mix). 100 = full RNNoise output: deepest noise
+  reduction but the gating can be heard as volume pumping/breathing,
+  especially on fading (QSB) signals. Lower values blend the original
+  audio back in, which smooths the pumping at the cost of letting a
+  little noise through. 70-85 is a good compromise on SSB; drop toward
+  50-60 if pumping is still audible on weak signals. Default: 80
+
+* AINRV [0-50]
+  AINR VAD relax depth. While speech is detected, noise suppression backs
+  off by up to this percentage to protect weak speech from being gated.
+  0 = no adaptation (fixed suppression, deepest silence, matches original
+  full-gate behavior at AINRS 100). Higher values protect weak syllables
+  better but let more noise "halo" through around words. Appears beside
+  AINRS while AINR is ON. Default: 25
+
 * PIN [password]
   Sets the password required to access the sBitx web interface from a browser.
   Choose something memorable but not trivially guessable if your network is shared.
