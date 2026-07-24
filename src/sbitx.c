@@ -26,6 +26,7 @@
 #include "cessb.h"
 #include "hpsdr_p1.h"  // demonstrates using I and Q for other uses
 #include "squelch.h"   // FM squelch gate
+#include "sbitx_rnn.h" // RNNoise neural noise reduction
 
 // ---------------------------------------------------------------------------
 // CTCSS (sub-audible tone) for FM mode
@@ -239,6 +240,7 @@ static int in_calibration = 1; // this turns off alc, clipping et al
 static double mode_bal = 1.0;   // RLB
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
+int rnn_enabled = 0;		   // RNNoise neural noise reduction
 int notch_enabled = 0;		   // notch filter W2JON
 double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
@@ -1510,9 +1512,12 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
         double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
         double new_magnitude;
 
-        // Sigmoid-based reduction factor
+        // Sigmoid-based reduction factor. Midpoint is user-adjustable via the
+        // DSP noise threshold field (scaled_noise_threshold): lower values
+        // subtract more aggressively (more bins treated as noise), higher
+        // values are more conservative (fewer bins get full subtraction).
         double reduction_factor =
-            1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
+            1.0 / (1.0 + exp(-5.0 * (snr - scaled_noise_threshold)));
 
         // Calculate new magnitude with residual noise preservation
         double noise_residual = 0.10; // Retain 10% of noise, reduces
@@ -1770,6 +1775,18 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
   // RX equalizer and soft limiter (voice modes only)
   if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_FT4 &&
       r->mode != MODE_2TONE) {
+    // RNNoise neural noise reduction. Placed after modem_rx so the CW/digital
+    // decoders always see unprocessed audio, and before the EQ so tone
+    // shaping applies to the denoised signal. rnn_reset() drops buffered
+    // state when toggled off so no stale audio leaks into the next enable.
+    static int rnn_was_enabled = 0;
+    if (rnn_enabled) {
+      rnn_process_speaker(output_speaker, n_samples);
+      rnn_was_enabled = 1;
+    } else if (rnn_was_enabled) {
+      rnn_reset();
+      rnn_was_enabled = 0;
+    }
     if (rx_eq_is_enabled == 1) {
       apply_eq(&rx_eq, output_speaker, n_samples, 96000.0);
 
