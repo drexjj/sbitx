@@ -310,28 +310,6 @@ struct encoder
 };
 void tuning_isr(void);
 
-#define COLOR_SELECTED_TEXT 0
-#define COLOR_TEXT 1
-#define COLOR_TEXT_MUTED 2
-#define COLOR_SELECTED_BOX 3
-#define COLOR_BACKGROUND 4
-#define COLOR_FREQ 5
-#define COLOR_LABEL 6
-#define SPECTRUM_BACKGROUND 7
-#define SPECTRUM_GRID 8
-#define SPECTRUM_PLOT 9
-#define SPECTRUM_NEEDLE 10
-#define COLOR_CONTROL_BOX 11
-#define SPECTRUM_BANDWIDTH 12
-#define COLOR_RX_PITCH 13
-#define SELECTED_LINE 14
-#define COLOR_FIELD_SELECTED 15
-#define COLOR_TX_PITCH 16
-#define COLOR_TOGGLE_ACTIVE 17
-#define WATERFALL_LOW  18
-#define WATERFALL_MID  19
-#define WATERFALL_HIGH 20
-
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
 	{0, 1, 1},		 // COLOR_TEXT
@@ -371,17 +349,6 @@ static int ui_scale_applied = 0;
 
 /* Scale a pixel size/dimension by ui_scale */
 #define SC(x) ((int)((x) * ui_scale))
-
-// we just use a look-up table to define the fonts used
-// the struct field indexes into this table
-struct font_style {
-	int index;
-	float r, g, b;
-	char name[32];
-	int height;
-	int weight;
-	int type;
-};
 
 guint key_modifier = 0;
 

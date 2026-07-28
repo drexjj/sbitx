@@ -83,7 +83,11 @@ int q_length(struct Queue *p);
 int32_t q_read(struct Queue *p);
 int q_write(struct Queue *p, int w);
 void q_empty(struct Queue *p);
-#define SAMPLE_RATE 48000
+/*
+ * Internal DSP rate. sound_process() creates one complex I/Q sample for each
+ * 96 kHz sound-card sample; the stream is not decimated to its 48 kHz bandwidth.
+ */
+#define SDR_SAMPLE_RATE 96000
 #define MAX_BINS 2048
 
 /*
