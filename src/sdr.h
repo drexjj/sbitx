@@ -93,22 +93,17 @@ void q_empty(struct Queue *p);
 /*
 All the incoming samples are converted to frequency domain in sound_process().
 The fft_out stores these as frequency bins.
-These are fft_out bins are also used to paint the spectrum and waterfall.
 
 You can have any number of radios working with different slices of the spectrum.
 At the moment, only ssb (and CW as a single sideband signal) are demodulated.
 Each receiver is inserted a node in a linked list that starts at rx_list.
 
-Each receiver is defined by the struct rx. The rx
-Each receiver copies the fft_bins to by shifting it around to bring the desired
-to baseband.
+Each receiver is defined by the struct rx.
 
 Each tx is also based on a struct rx but it is used to describe and hold state
 for the transmission. The data required is the same!
 */
 
-extern float fft_bins[];
-extern int spectrum_plot[];
 extern struct filter *ssb;
 
 //vfo definitions
@@ -201,6 +196,9 @@ struct rx {
 
 extern struct rx *rx_list;
 extern int freq_hdr;
+struct panadapter_fft;
+extern struct panadapter_fft *panadapter_fft_context;
+extern struct panadapter_fft *web_panadapter_fft_context;
 
 void set_lo(int frequency);
 void set_volume(double v);
