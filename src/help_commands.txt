@@ -134,6 +134,11 @@ first; on an external keyboard type \ directly. Press Enter to execute.
     2TONE  -- Two-tone test signal for SSB amplifier linearity testing
   Example: \mode LSB
 
+* \pandir view|wf
+  Sets what the waterfall arrow buttons move.
+  VIEW -- an arrow points in the direction the visible view moves (default).
+  WF   -- an arrow points in the direction the waterfall content moves.
+
 * \r
   Immediately switches the radio to receive mode.
   In FT8/FT4 mode, you can also press Ctrl+R to interrupt an active transmission
@@ -296,12 +301,6 @@ is open. They cover the most frequently adjusted operating parameters.
   Useful when a station is slightly off your transmit frequency -- you can tune
   them in without moving your TX frequency. The split is shown on the display.
   Turn RIT off to return RX to the main VFO frequency.
-
-* SPAN [2.5K | 6K | 8K | 10K | 25K]
-  Sets the frequency span of the panadapter (spectrum display).
-  Narrower spans show more detail around your current frequency.
-  Wider spans let you see more of the band at once to spot activity.
-  Recommended: 10K for general SSB, 2.5K for CW contesting, 25K for band survey.
 
 * SPLIT [on|off]
   Split frequency operation. When ON, the radio receives on VFO-A and transmits
@@ -476,6 +475,11 @@ the spectrum display, waterfall appearance, and advanced hardware options.
   Controls the brightness/contrast of the spectrum and waterfall colours on screen.
   Increase if the display looks washed out; decrease if colours are too harsh.
   Adjust to suit your display and ambient lighting conditions. Default: 5.
+
+* PANDIR [view|wf]
+  Sets what the left and right arrow buttons move. VIEW treats the display like
+  a camera and moves the visible view in the arrow direction. WF moves the
+  waterfall content in the arrow direction. Default: VIEW.
 
 * SCOPEAVG [1-15]
   Sets the number of FFT frames averaged together to produce each line of the
