@@ -5,8 +5,10 @@ ALL_SOURCES = $(SOURCES) $(CLU_SOURCES)
 OBJECTS = $(ALL_SOURCES:.c=.o)
 FFTOBJ = ft8_lib/.build/fft/kiss_fft.o ft8_lib/.build/fft/kiss_fftr.o
 HEADERS = $(wildcard src/*.h)
-CFLAGS = `pkg-config --cflags gtk+-3.0` -I. -Iclu/src
-LIBS = -lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lsqlite3 -lnsl -lrt -lssl -lcrypto -lpcre2-8 ft8_lib/libft8.a `pkg-config --libs gtk+-3.0`
+GTK_CFLAGS := $(shell pkg-config --cflags gtk+-3.0)
+GTK_LIBS := $(shell pkg-config --libs gtk+-3.0)
+CFLAGS = $(GTK_CFLAGS) -I. -Iclu/src
+LIBS = -lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lsqlite3 -lnsl -lrt -lssl -lcrypto -lpcre2-8 ft8_lib/libft8.a $(GTK_LIBS)
 ifdef SBITX_DEBUG
 CFLAGS += -ggdb3 -fsanitize=address
 LIBS += -fsanitize=address -static-libasan
