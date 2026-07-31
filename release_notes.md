@@ -1,3 +1,17 @@
+# v5.401
+**Bug Fixes:**
+- FTx station selection
+- QRZ button
+- FM mode mic gain
+
+**Changes:**
+- Web button removed (deprecated)
+- Removed SI570 code (deprecated)
+- Updated bootlogo installer path
+
+**New Features:**
+- Mute button added
+
 # v5.4
 **New Features:**
 - sBitx IQ improvements

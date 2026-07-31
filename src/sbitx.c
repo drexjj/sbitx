@@ -2007,7 +2007,7 @@ void tx_process(
 			//   α = exp(-1/(Fs·τ)) = exp(-1/(96000·75e-6)) ≈ 0.8702
 			//   This mirrors the RX de-emphasis so the net response is flat.
 			//
-			// Max deviation 2.5 kHz at Fs=96000:
+			// Max deviation 2.5 kHz at Fs=96000 (NBFM compliant):
 			//   Δφ_max = 2π · 2500 / 96000 ≈ 0.164 rad per sample
 			static double fm_tx_phase        = 0.0;
 			static double fm_tx_prev_mic      = 0.0;
@@ -2023,11 +2023,17 @@ void tx_process(
 			// Scale factor: AM_carrier_amp / 2 = (1073741824 / 50e9) / 2 ≈ 0.01074.
 			const double FM_AMP = 1073741824.0 / 100000000000.0;
 
+			// FM mic input gain matched to AM loudness.
+			// AM uses input_mic / 2e8. Bench test showed FM at mic level 50
+			// matched AM at mic level 23 (ratio ≈ 2.17×), so FM needs 2.17×
+			// more drive than AM at the same mic setting:
+			//   input_mic / 2e8 × 2.17  ==  input_mic / 92000000
+			// This makes FM TX audio loudness track AM at the same MIC knob.
 			double mic_val;
 			if (use_browser_mic)
-				mic_val = (1.0 * browser_mic_samples[j]) / 2000000000.0;
+				mic_val = (1.0 * browser_mic_samples[j]) / 92000000.0;
 			else
-				mic_val = (1.0 * input_mic[j]) / 2000000000.0;
+				mic_val = (1.0 * input_mic[j]) / 92000000.0;
 
 			// 75 µs pre-emphasis: exact inverse of the RX de-emphasis IIR.
 			// RX de-emphasis:  H_de(z) = (1-α) / (1 - α·z⁻¹)
