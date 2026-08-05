@@ -26,7 +26,6 @@
 #include "cessb.h"
 #include "hpsdr_p1.h"  // demonstrates using I and Q for other uses
 #include "squelch.h"   // FM squelch gate
-#include "panadapter_fft.h"
 
 // ---------------------------------------------------------------------------
 // CTCSS (sub-audible tone) for FM mode
@@ -185,6 +184,12 @@ int vswr = 10;
 int cur_band;
 
 
+float fft_bins[MAX_BINS]; // spectrum ampltiudes
+float spectrum_window[MAX_BINS];
+int spectrum_plot[MAX_BINS];
+fftw_complex *fft_spectrum;
+fftw_plan plan_spectrum;
+
 void set_rx1(int frequency);
 void tr_switch(int tx_on);
 
@@ -205,8 +210,6 @@ fftw_complex *fft_out; // holds the incoming samples in freq domain (for rx as w
 fftw_complex *fft_in;  // holds the incoming samples in time domain (for rx as well as tx)
 fftw_complex *fft_m;   // holds previous samples for overlap and discard convolution
 fftw_plan plan_fwd, plan_tx;
-struct panadapter_fft *panadapter_fft_context;
-struct panadapter_fft *web_panadapter_fft_context;
 int bfo_freq = 40035000;
 int bfo_freq_runtime_offset = 0; // Runtime bfo offset
 int freq_hdr = -1;
@@ -216,6 +219,7 @@ static int tx_drive = 40;
 static int rx_gain = 100;
 static int tx_gain = 100;
 static int tx_compress = 0;
+static double spectrum_speed = 0.3;
 static int in_tx = 0;
 static int rx_tx_ramp = 0;
 static int sidetone = 2000000000;
@@ -386,7 +390,9 @@ void fft_init()
 	fft_m = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * MAX_BINS / 2);
 	fft_in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
 	fft_out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
+	fft_spectrum = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * MAX_BINS);
 
+	memset(fft_spectrum, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_in, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_out, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_m, 0, sizeof(fftw_complex) * MAX_BINS / 2);
@@ -399,6 +405,7 @@ void fft_init()
 		printf("Generating Wisdom File...\n");
 	}
 	plan_fwd = fftw_plan_dft_1d(MAX_BINS, fft_in, fft_out, FFTW_FORWARD, WISDOM_MODE);			 // Was FFTW_ESTIMATE N3SB
+	plan_spectrum = fftw_plan_dft_1d(MAX_BINS, fft_in, fft_spectrum, FFTW_FORWARD, WISDOM_MODE); // Was FFTW_ESTIMATE N3SB
 	fftw_export_wisdom_to_filename(wisdom_file);
 
 	// zero up the previous 'M' bins
@@ -408,12 +415,8 @@ void fft_init()
 		__imag__ fft_m[i] = 0.0;
 	}
 
-	panadapter_fft_context = panadapter_fft_create();
-	web_panadapter_fft_context = panadapter_fft_create();
-	if (!panadapter_fft_context || !web_panadapter_fft_context) {
-		fprintf(stderr, "Unable to initialize panadapter FFT\n");
-		exit(EXIT_FAILURE);
-	}
+	make_hann_window(spectrum_window, MAX_BINS);
+	//make_kaiser(spectrum_window, MAX_BINS, 6.0);
 }
 
 void fft_reset_m_bins()
@@ -422,6 +425,7 @@ void fft_reset_m_bins()
 	memset(fft_in, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_out, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(fft_m, 0, sizeof(fftw_complex) * MAX_BINS / 2);
+	memset(fft_spectrum, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(tx_list->fft_time, 0, sizeof(fftw_complex) * MAX_BINS);
 	memset(tx_list->fft_freq, 0, sizeof(fftw_complex) * MAX_BINS);
 	/*	for (int i= 0; i < MAX_BINS/2; i++){
@@ -445,6 +449,37 @@ int mag2db(double mag)
 		p = p >> 1;
 	}
 	return c;
+}
+
+void set_spectrum_speed(int speed)
+{
+	spectrum_speed = speed;
+	for (int i = 0; i < MAX_BINS; i++)
+		fft_bins[i] = 0;
+}
+
+void spectrum_reset()
+{
+	for (int i = 0; i < MAX_BINS; i++)
+		fft_bins[i] = 0;
+}
+
+void spectrum_update()
+{
+	struct rx *r = rx_list;
+	for (int i = 1269; i < 1803; i++)
+	{
+		// With IQ mixing the signal is centered at FFT bin 0 (baseband).
+		// The display expects data centered at bin 1536 (3*MAX_BINS/4).
+		// Subtraction direction determines USB/LSB orientation on display.
+		int fft_bin = (3 * MAX_BINS / 4) - i;
+		if (fft_bin < 0) fft_bin += MAX_BINS;
+		fft_bins[i] = ((1.0 - spectrum_speed) * fft_bins[i]) +
+					  (spectrum_speed * cabs(fft_spectrum[fft_bin]));
+
+		int y = power2dB(cnrmf(fft_bins[i]));
+		spectrum_plot[i] = y;
+	}
 }
 
 /*
@@ -1140,6 +1175,21 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	// STEP 3: convert the time domain samples to  frequency domain
 	my_fftw_execute(plan_fwd);
 
+	// STEP 3B: this is a side line, we use these frequency domain
+	//  values to paint the spectrum in the user interface
+	//  I discovered that the raw time samples give horrible spectrum
+	//  and they need to be multiplied wiht a window function
+	//  they use a separate fft plan
+	//  NOTE: the spectrum update has nothing to do with the actual
+	//  signal processing. If you are not showing the spectrum or the
+	//  waterfall, you can skip these steps
+	for (i = 0; i < MAX_BINS; i++)
+		__real__ fft_in[i] *= spectrum_window[i];
+	my_fftw_execute(plan_spectrum);
+
+	// the spectrum display is updated
+	spectrum_update();
+
 	struct rx *r = rx_list;
 
 	// STEP 4: we rotate the bins around by r-tuned_bin
@@ -1358,12 +1408,23 @@ void rx_linear(const double *iq_i, const double *iq_q, int32_t *output_speaker, 
 
   //////////////////////////////////////////////////
   // Frequency-domain processing
-  // FFT, noise reduction, sideband selection, filtering,
-  // and CW peaking.
+  // FFT, spectrum display, noise reduction, sideband
+  // selection, filtering, and CW peaking.
   //////////////////////////////////////////////////
 
   // FFT for RX processing
   my_fftw_execute(plan_fwd);
+
+  // Spectrum / waterfall display path
+  // plan_spectrum was bound to fft_in as its input at creation time, so we
+  // apply the Hann window directly to fft_in before executing it.
+  // plan_fwd has already run at this point so fft_in is safe to modify.
+  for (i = 0; i < MAX_BINS; i++) {
+    __real__ fft_in[i] *= spectrum_window[i];
+    __imag__ fft_in[i] *= spectrum_window[i];
+  }
+  my_fftw_execute(plan_spectrum);
+  spectrum_update();
 
   // begin frequency-domain processing tasks
   // Copy FFT output into the rx structure.  IQ mixing already centered the
@@ -2132,42 +2193,129 @@ void tx_process(
 		r->fft_freq[b] = fft_out[i];
 	}
 
+	// the spectrum display is updated
+	// spectrum_update();
+
 	// convert back to time domain
 	fftw_execute(r->plan_rev);
+	int min = 10000000;
+	int max = -10000000;
 	float tx_mode_scale = 1.0;
 	float scale = 1.0;
-	double visual_i[MAX_BINS / 2];
-	double visual_q[MAX_BINS / 2];
 	
 	if (r->mode == MODE_LSB || r->mode == MODE_CWR) // RLB balance modes here
 		tx_mode_scale = mode_bal; 
 	scale = volume * tx_amp * alc_level * tx_mode_scale; // combine all scale factors
 	for (i = 0; i < MAX_BINS / 2; i++)
 	{
-		fftw_complex sample = r->fft_time[i + (MAX_BINS / 2)] * scale;
-		output_tx[i] = creal(sample);
-		double sample_i = creal(sample) / ADC_SCALE;
-		double sample_q = cimag(sample) / ADC_SCALE;
-
-		/*
-		 * The transmit signal is offset by 24 kHz for the sound card, while
-		 * the panadapter expects it centered at 0 Hz. At the 96 kHz sample
-		 * rate, undoing that offset means rotating each I/Q sample another
-		 * quarter turn through this four-step pattern. This only changes the
-		 * copy sent to the panadapter, not the transmitted audio.
-		 */
-		switch (i & 3) {
-			case 0: visual_i[i] = sample_i;  visual_q[i] = sample_q;  break;
-			case 1: visual_i[i] = sample_q;  visual_q[i] = -sample_i; break;
-			case 2: visual_i[i] = -sample_i; visual_q[i] = -sample_q; break;
-			default: visual_i[i] = -sample_q; visual_q[i] = sample_i; break;
-		}
+		double s = creal(r->fft_time[i + (MAX_BINS / 2)]);
+		output_tx[i] = s * scale;
+/*		if (min > output_tx[i])
+			min = output_tx[i];
+		if (max < output_tx[i])
+			max = output_tx[i];
+		 output_tx[i] = 0;
+*/
 	}
-	panadapter_fft_push(panadapter_fft_context, visual_i, visual_q, MAX_BINS / 2);
-	panadapter_fft_push(web_panadapter_fft_context, visual_i, visual_q, MAX_BINS / 2);
+	//	printf("min %d, max %d\n", min, max);
 
 	read_power();
 
+	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
+	// This allows the TX audio to be displayed in the spectrum and waterfall
+
+	// Create input buffer for FFT
+	complex float *tx_fft_in = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+
+	// Calculate DC offset (average) to remove it
+	float dc_offset = 0;
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		dc_offset += output_tx[i];
+	}
+	dc_offset /= (MAX_BINS / 2);
+
+	// Copy the output_tx samples to the FFT input buffer with a window function
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		// Apply Hann window for better spectral resolution
+		float window = 0.5 * (1 - cos(2 * M_PI * i / (MAX_BINS / 2 - 1)));
+		// Remove DC offset and scale down
+		tx_fft_in[i] = (output_tx[i] - dc_offset) * window / (tx_amp * 150000000.0); // Significantly reduced scaling
+	}
+
+	// Zero-pad the second half
+	for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
+		tx_fft_in[i] = 0;
+	}
+
+	// Use the existing FFT infrastructure
+	for (i = 0; i < MAX_BINS; i++) {
+		__real__ fft_in[i] = crealf(tx_fft_in[i]);
+		__imag__ fft_in[i] = 0;
+	}
+
+	// Perform FFT using the existing plan
+	fftw_execute(plan_fwd);
+
+	// Update the fft_spectrum array with the FFT results
+	// This is important because the spectrum_update function uses this array
+
+	// First pass - enhanced detail with frequency-dependent scaling
+	for (i = 0; i < MAX_BINS; i++) {
+		// Calculate bin frequency relative to center (for frequency-dependent scaling)
+		int bin_from_center = i - MAX_BINS / 2;
+		if (bin_from_center < 0) bin_from_center = -bin_from_center;
+
+		// Apply slightly higher gain to mid-range frequencies where voice details matter most
+		float freq_scale = 1.0;
+		if (bin_from_center > 10 && bin_from_center < 100) {
+			freq_scale = 1.3; // Boost mid-range frequencies
+		}
+
+		// Store the FFT results with enhanced detail
+		fft_spectrum[i] = fft_out[i] * 0.025 * freq_scale; // Slightly increased from 0.02 for more detail
+	}
+
+	// Apply a more refined smoothing that preserves detail while reducing noise
+	complex float *smoothed = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+
+	// Copy first and last points as-is
+	smoothed[0] = fft_spectrum[0];
+	smoothed[MAX_BINS-1] = fft_spectrum[MAX_BINS-1];
+
+	// Apply minimal smoothing to preserve maximum detail
+	for (i = 1; i < MAX_BINS-1; i++) {
+		// Use weighted average with heavy weight on current bin: 80% current bin, 10% each adjacent bin
+		smoothed[i] = fft_spectrum[i-1] * 0.1 + fft_spectrum[i] * 0.8 + fft_spectrum[i+1] * 0.1;
+
+		// Apply stronger contrast enhancement to make fine details more visible
+		float mag = cabsf(smoothed[i]);
+		if (mag > 0) {
+			// Use stronger non-linear enhancement to reveal subtle details
+			smoothed[i] *= (1.0 + 0.5 * log10f(mag + 1.0));
+
+			// Add slight sharpening effect to enhance edges between frequency components
+			if (i > 1 && i < MAX_BINS-2) {
+				complex float edge_detect = smoothed[i] * 2.0 - smoothed[i-1] * 0.5 - smoothed[i+1] * 0.5;
+				smoothed[i] = smoothed[i] * 0.7 + edge_detect * 0.3;
+			}
+		}
+	}
+
+	// Copy smoothed spectrum back to fft_spectrum
+	for (i = 0; i < MAX_BINS; i++) {
+		fft_spectrum[i] = smoothed[i];
+	}
+
+	// Free the temporary buffer
+	free(smoothed);
+
+	// Call the standard spectrum update function to ensure consistent processing
+	spectrum_update();
+
+	// Clean up
+	free(tx_fft_in);
+
+	// The old sdr_modulation_update function is still called for API compatibility
 	sdr_modulation_update(output_tx, MAX_BINS / 2, tx_amp);
 }
 
@@ -2250,10 +2398,6 @@ void sound_process(int32_t *input_rx, int32_t *input_mic, int32_t *output_speake
 
         // FIR low-pass filter after the mixer
         fir_lpf_iq(iq_i, iq_q, filt_i, filt_q, MAX_BINS / 2);
-
-        // Visual-only consumer: it copies and converts these samples to float.
-        panadapter_fft_push(panadapter_fft_context, filt_i, filt_q, MAX_BINS / 2);
-        panadapter_fft_push(web_panadapter_fft_context, filt_i, filt_q, MAX_BINS / 2);
 
         // pass filtered I and Q data to receive pipeline
         rx_linear(filt_i, filt_q, output_speaker, output_tx, n_samples);
@@ -2578,7 +2722,7 @@ void tr_switch(int tx_on) {
         delay(20);
     }
     digitalWrite(TX_LINE, HIGH);
-    panadapter_fft_reset(panadapter_fft_context);
+    spectrum_reset();
  
     fwdpower = 0;
     alc_level=1.0;
@@ -2630,7 +2774,7 @@ void tr_switch(int tx_on) {
        even though Capture is now open -- input_q[] fills with real signal
        but output is suppressed until the DSP chain has stabilised. */
     sound_mixer(audio_card, "Capture", rx_gain);
-    panadapter_fft_reset(panadapter_fft_context);
+    spectrum_reset();
 
     // item fpr read_power
     fwdpower = 0;

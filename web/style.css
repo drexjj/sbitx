@@ -517,56 +517,6 @@ input {
     margin-top: 0px;
 }
 
-#waterfall-wrap {
-    position: relative;
-}
-
-#panadapter-controls {
-    align-items: center;
-    bottom: 5px;
-    display: flex;
-    gap: 4px;
-    left: 5px;
-    position: absolute;
-}
-
-#panadapter-controls button {
-    align-items: center;
-    background: rgba(26, 26, 26, 0.85);
-    background: color-mix(in srgb, var(--primary-bg) 85%, transparent);
-    border: 1px solid var(--primary-text);
-    border-radius: 3px;
-    color: var(--primary-text);
-    display: flex;
-    height: 28px;
-    justify-content: center;
-    padding: 4px;
-    width: 28px;
-}
-
-#panadapter-controls button:disabled {
-    opacity: 0.35;
-}
-
-#panadapter-controls svg {
-    fill: none;
-    height: 18px;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 2;
-    width: 18px;
-}
-
-#panadapter-span {
-    background: rgba(26, 26, 26, 0.85);
-    background: color-mix(in srgb, var(--primary-bg) 85%, transparent);
-    border-radius: 3px;
-    color: var(--primary-text);
-    font: 12px var(--font-mono);
-    padding: 4px 6px;
-}
-
 #spectrum canvas,
 #waterfall canvas {
     width: 100% !important;

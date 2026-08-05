@@ -183,8 +183,16 @@ select, select option, input {
 	position: relative;
 }
 
-#spectrum canvas {
+#spectrum canvas, #span-control {
 	position: absolute;
+}
+
+#span-control {
+	position: absolute;
+}
+
+#span-control select {
+	border: none;
 }
 
 /* receiver panel styling */
