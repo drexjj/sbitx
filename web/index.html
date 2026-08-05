@@ -41,6 +41,7 @@
     <script src="proj4.js"></script>
     <script src="gridmap.js"></script>
     <script src="panadapter-view.js"></script>
+    <script src="panadapter-redraw.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         #spectrum_header {
@@ -2320,8 +2321,11 @@
     // Global declarations
     let activeSpots = new Map(); // Map<callsign, { spot, last_seen }>
     const SPOT_TIMEOUT = 15000; // 15 seconds
+    const webPanadapterRedraw = WebPanadapterRedraw.create(
+        update => spectrum_update(update));
 
     function spectrum_update(update) {
+        webPanadapterRedraw.spectrumUpdated(update);
         const { width, height } = spectrumEl;
         const ctx = spectrumEl.getContext("2d");
         const nbins = update.length - 3;
@@ -3262,6 +3266,7 @@
         }
 
         websocket_send(e.id + " " + e.value);
+        webPanadapterRedraw.fieldUpdated(e.id);
     }
 
     function sbitx_slider_changed(event) {
@@ -4425,7 +4430,7 @@
             case 'WATERFALL':
                 break;
             case 'FREQ':
-                e = el(cmd);
+                e = el(cmd === "FTX_RX_PITCH" ? "PITCH" : cmd);
                 log("freq " + args);
                 if (e)
                     e.value = args;
@@ -4553,6 +4558,7 @@
                 if (e) {
                     if (e.value != args) {
                         e.value = args;
+                        webPanadapterRedraw.fieldUpdated(cmd);
                         if (e.classList.contains('knob-value'))
                             knob_update(e);
                         else if (e.classList.contains('linear-value')) {
@@ -4903,6 +4909,7 @@
         var control = event.currentTarget;
         var control_id = control.id.substring(7);
         el(control_id).value = control.value;
+        webPanadapterRedraw.fieldUpdated(control_id);
 
         // Special handling for BFO slider
         if (control_id === "BFO") {

@@ -63,6 +63,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "cessb.h"
 #include "freq_keypad.h"
 #include "panadapter_fft.h"
+#include "panadapter_redraw.h"
 #include "panadapter_renderer.h"
 #include "panadapter_view.h"
 extern int get_rx_gain(void);
@@ -252,6 +253,7 @@ static struct spectrum_history_state spectrum_history;
 static int spectrum_latency_ms = -1;
 #define PANADAPTER_FULL_SPAN_HZ 25000
 static struct panadapter_view panadapter_view = {1.0, 0.0};
+static struct panadapter_redraw_state panadapter_redraw_state;
 
 #define MIN_WATERFALL_HEIGHT 10 // Define a minimum safe height
 #define WATERFALL_Y_OFFSET 2   // Pixels to move waterfall up from spectrum bottom
@@ -1577,8 +1579,9 @@ int set_field(const char *id, const char *value)
 	sprintf(buff, "%s %s", f->label, f->value);
 	do_control_action(buff);
 
-	// mark field for redraw / remote update
+  // mark field for redraw / remote update
   update_field(f);
+  panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
   // if this field has a handler and is off-screen, invoke it immediately
   // so off-screen toggles (like #cessb_plugin) actually take effect
   if (f->fn && f->y < 0) {
@@ -5955,6 +5958,7 @@ static void edit_field(struct field *f, int action)
 	do_control_action(buff);
 	f->is_dirty = 1;
 	f->update_remote = 1;
+	panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
 	//	update_field(f);
 	settings_updated++;
 }
@@ -6632,6 +6636,7 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
+		panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
 		int mode = mode_id(get_field("r1:mode")->value);
 		modem_set_pitch(v, mode);
 		char buff[20], response[20];
@@ -10312,6 +10317,9 @@ gboolean ui_tick(gpointer gook)
 			settings_updated = 1; // save the settings
 		}
 	}
+
+	if (panadapter_redraw_tick(&panadapter_redraw_state))
+		update_field(get_field("spectrum"));
 
 	for (struct field *f = active_layout; f->cmd[0] > 0; f++)
 	{
