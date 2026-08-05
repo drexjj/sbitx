@@ -16,6 +16,7 @@
 // we define one more lookup table entry than needed, so that each quadrant
 // has both endpoints of 90 degree range
 static int phase_table[MAX_PHASE_COUNT];
+int sampling_freq = 96000;
 // the only time we call this trig function is when we initialize the table
 void vfo_init_phase_table() {
   for (int i = 0; i < MAX_PHASE_COUNT; i++) {
@@ -25,7 +26,7 @@ void vfo_init_phase_table() {
 }
 
 void vfo_start(struct vfo *v, int frequency_hz, int start_phase) {
-  v->phase_increment = (frequency_hz * 65536) / SDR_SAMPLE_RATE;
+  v->phase_increment = (frequency_hz * 65536) / sampling_freq;
   v->phase = start_phase;
   v->freq_hz = frequency_hz;
 }

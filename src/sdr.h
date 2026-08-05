@@ -83,27 +83,28 @@ int q_length(struct Queue *p);
 int32_t q_read(struct Queue *p);
 int q_write(struct Queue *p, int w);
 void q_empty(struct Queue *p);
-/*
- * Internal DSP rate. sound_process() creates one complex I/Q sample for each
- * 96 kHz sound-card sample; the stream is not decimated to its 48 kHz bandwidth.
- */
-#define SDR_SAMPLE_RATE 96000
+#define SAMPLE_RATE 48000
 #define MAX_BINS 2048
 
 /*
 All the incoming samples are converted to frequency domain in sound_process().
 The fft_out stores these as frequency bins.
+These are fft_out bins are also used to paint the spectrum and waterfall.
 
 You can have any number of radios working with different slices of the spectrum.
 At the moment, only ssb (and CW as a single sideband signal) are demodulated.
 Each receiver is inserted a node in a linked list that starts at rx_list.
 
-Each receiver is defined by the struct rx.
+Each receiver is defined by the struct rx. The rx
+Each receiver copies the fft_bins to by shifting it around to bring the desired
+to baseband.
 
 Each tx is also based on a struct rx but it is used to describe and hold state
 for the transmission. The data required is the same!
 */
 
+extern float fft_bins[];
+extern int spectrum_plot[];
 extern struct filter *ssb;
 
 //vfo definitions
@@ -196,9 +197,6 @@ struct rx {
 
 extern struct rx *rx_list;
 extern int freq_hdr;
-struct panadapter_fft;
-extern struct panadapter_fft *panadapter_fft_context;
-extern struct panadapter_fft *web_panadapter_fft_context;
 
 void set_lo(int frequency);
 void set_volume(double v);
