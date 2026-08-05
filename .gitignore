@@ -1,6 +1,7 @@
 audio/
 .vs/
 .vscode/
+.idea/
 data/hw_settings.ini
 data/user_settings.ini
 data/sbitx.db
