@@ -1,11 +1,14 @@
 TARGET = sbitx
 SOURCES = $(wildcard src/*.c)
 CLU_SOURCES = clu/src/awards_enum.c clu/src/dxcc.c clu/src/locator.c
-ALL_SOURCES = $(SOURCES) $(CLU_SOURCES)
+RNNOISE_SOURCES = rnnoise/src/denoise.c rnnoise/src/kiss_fft.c rnnoise/src/pitch.c \
+                  rnnoise/src/celt_lpc.c rnnoise/src/rnn.c rnnoise/src/rnn_data.c \
+                  rnnoise/src/rnn_reader.c
+ALL_SOURCES = $(SOURCES) $(CLU_SOURCES) $(RNNOISE_SOURCES)
 OBJECTS = $(ALL_SOURCES:.c=.o)
 FFTOBJ = ft8_lib/.build/fft/kiss_fft.o ft8_lib/.build/fft/kiss_fftr.o
 HEADERS = $(wildcard src/*.h)
-CFLAGS = `pkg-config --cflags gtk+-3.0` -I. -Iclu/src
+CFLAGS = `pkg-config --cflags gtk+-3.0` -I. -Iclu/src -Irnnoise/include
 LIBS = -lwiringPi -lasound -lm -lfftw3 -lfftw3f -pthread -lsqlite3 -lnsl -lrt -lssl -lcrypto -lpcre2-8 ft8_lib/libft8.a `pkg-config --libs gtk+-3.0`
 ifdef SBITX_DEBUG
 CFLAGS += -ggdb3 -fsanitize=address

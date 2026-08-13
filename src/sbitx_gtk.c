@@ -1257,6 +1257,16 @@ struct field main_controls[] = {
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
+	// RNN (RNNoise neural noise reduction) Control - main screen, left of REC.
+	// RNNS (strength) sits to its left and is shown by check_plugin_controls
+	// only while RNN is ON.
+	{"#rnn_plugin", do_toggle_option, 370, 5, 40, 40, "AINR", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
+	{"#rnn_strength", NULL, 1000, -1000, 40, 40, "AINRS", 80, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 100, 5, COMMON_CONTROL},
+	{"#rnn_relax", NULL, 1000, -1000, 40, 40, "AINRV", 80, "25", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 50, 5, COMMON_CONTROL},
+
 	// APF (Audio Peak Filter) Controls
 	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
@@ -5046,6 +5056,7 @@ static void layout_ui()
     if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
+    field_move("AINR",    SC(370), SC(5), SC(40), SC(40));
     field_move("REC",    SC(459), SC(50), SC(40), SC(40));
     field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
@@ -8160,8 +8171,14 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 //---Noise threshold for DSP -W2JON
 double scaleNoiseThreshold(int control)
 {
-	double minValue = 0.001;
-	double maxValue = 0.01;
+	// Range chosen to be meaningful as a sigmoid midpoint against SNR values
+	// (SNR = bin magnitude / estimated noise magnitude, ~1.0 at the noise
+	// floor). Previous range (0.001-0.01) was too small relative to the
+	// hardcoded 0.5 midpoint it was meant to replace, so the control had no
+	// audible effect. 0.1 = aggressive (most bins get subtracted), 2.0 =
+	// conservative (only bins well above the noise floor get subtracted).
+	double minValue = 0.1;
+	double maxValue = 2.0;
 	int controlMin = 0;
 	int controlMax = 100;
 	double scaled_noise_threshold = minValue + ((double)control - controlMin) * (maxValue - minValue) / (controlMax - controlMin);
@@ -8438,6 +8455,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *apf_stat = get_field("#apf_plugin");
 	struct field *dsp_stat = get_field("#dsp_plugin");
 	struct field *anr_stat = get_field("#anr_plugin");
+	struct field *rnn_stat = get_field("#rnn_plugin");
 	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
@@ -8532,6 +8550,52 @@ gboolean check_plugin_controls(gpointer data)
       anr_enabled = 1;
     } else if (!strcmp(anr_stat->value, "OFF")) {
       anr_enabled = 0;
+    }
+  }
+
+  if (rnn_stat) {
+    if (!strcmp(rnn_stat->value, "ON")) {
+      rnn_enabled = 1;
+    } else if (!strcmp(rnn_stat->value, "OFF")) {
+      rnn_enabled = 0;
+    }
+  }
+
+  // RNNoise wet/dry strength (0-100), edited via the RNNS field or the
+  // \rnns console command. Read here so changes apply within a second
+  // without needing a dedicated edit callback.
+  struct field *rnn_str_stat = get_field("#rnn_strength");
+  if (rnn_str_stat) {
+    extern int rnn_strength;
+    int v = atoi(rnn_str_stat->value);
+    if (v >= 0 && v <= 100)
+      rnn_strength = v;
+  }
+
+  // VAD relax depth (0-50), edited via the AINRV field or \ainrv.
+  struct field *rnn_rlx_stat = get_field("#rnn_relax");
+  if (rnn_rlx_stat) {
+    extern int rnn_relax;
+    int v = atoi(rnn_rlx_stat->value);
+    if (v >= 0 && v <= 50)
+      rnn_relax = v;
+  }
+
+  // Show the AINRS strength and AINRV relax fields beside the AINR button
+  // only while AINR is enabled; park them off-screen otherwise. All are
+  // COMMON_CONTROL so the generic layout code leaves them alone and this
+  // is the single authority for their visibility.
+  {
+    static int rnns_visible = -1;
+    if (rnn_enabled != rnns_visible) {
+      if (rnn_enabled) {
+        field_move("AINRS", SC(330), SC(5), SC(40), SC(40));
+        field_move("AINRV", SC(290), SC(5), SC(40), SC(40));
+      } else {
+        field_move("AINRS", 1000, -1000, SC(40), SC(40));
+        field_move("AINRV", 1000, -1000, SC(40), SC(40));
+      }
+      rnns_visible = rnn_enabled;
     }
   }
   

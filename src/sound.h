@@ -45,6 +45,7 @@ extern int anr_enabled;
 
 //rx DSP tool
 extern int dsp_enabled;
+extern int rnn_enabled; // RNNoise neural noise reduction toggle
 extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
