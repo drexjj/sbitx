@@ -254,6 +254,25 @@ static int spectrum_latency_ms = -1;
 #define PANADAPTER_FULL_SPAN_HZ 25000
 static struct panadapter_view panadapter_view = {1.0, 0.0};
 static struct panadapter_redraw_state panadapter_redraw_state;
+static int wf_latency_enabled_state;
+
+static int wf_latency_enabled(void)
+{
+	return wf_latency_enabled_state;
+}
+
+static int wf_latency_set(const char *value)
+{
+	if (!value)
+		return -1;
+	if (!strcasecmp(value, "on"))
+		wf_latency_enabled_state = 1;
+	else if (!strcasecmp(value, "off"))
+		wf_latency_enabled_state = 0;
+	else
+		return -1;
+	return 0;
+}
 
 #define MIN_WATERFALL_HEIGHT 10 // Define a minimum safe height
 #define WATERFALL_Y_OFFSET 2   // Pixels to move waterfall up from spectrum bottom
@@ -2507,6 +2526,9 @@ void save_user_settings(int forced)
   // write "max_vswr" so it will be saved to usersettings.ini
   fprintf(f, "max_vswr=%g\n", max_vswr);
 
+	// write the WF latency display setting to user_settings.ini
+	fprintf(f, "wf_latency=%s\n", wf_latency_enabled() ? "ON" : "OFF");
+
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
@@ -2776,6 +2798,12 @@ static int user_settings_handler(void *user, const char *section,
               vswr=0;
               vswr_on = 0;  // turn off protection
             }
+			return 1;
+		}
+
+		if (!strcmp(name, "wf_latency"))
+		{
+			wf_latency_set(value);
 			return 1;
 		}
 
@@ -4006,7 +4034,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 	cairo_paint(gfx);
 	cairo_fill(gfx);
 
-	if (spectrum_latency_ms >= 0) {
+	if (wf_latency_enabled() && spectrum_latency_ms >= 0) {
 		char label[32];
 		snprintf(label, sizeof(label), "WF Latency %d ms", spectrum_latency_ms);
 
@@ -5276,7 +5304,6 @@ static void layout_ui()
     if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
-    field_move("REC",    SC(459), SC(50), SC(40), SC(40));
     field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
     field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
@@ -5287,7 +5314,6 @@ static void layout_ui()
     field_move("WIPE", SC(330), SC(50), SC(40), SC(40));
     field_move("QRZ",  SC(370), SC(50), SC(40), SC(40));
     field_move("LOG",  SC(410), SC(50), SC(40), SC(40));
-    field_move("MENU", SC(410), SC(5), SC(40), SC(40));
     field_move("TEXT", SC(5), SC(70), SC(285), SC(20));
   }
 
@@ -5314,20 +5340,13 @@ static void layout_ui()
   field_move("AGC", x2 - SC(178), SC(50), SC(42), SC(40));
   field_move("SPLIT", x2 - SC(264), SC(50), SC(40), SC(40));
 
-  // Left pair of the top row, continuing the uniform 3px spacing to the left
-  // of RIT. TUNE is always here. In the scaled layout, MENU shares this row;
-  // in the default layout, MENU sits between LOG and SPLIT on the second row.
+  // Left pair and the menu slot keep the same rows on both layouts.
   //   TUNE       : x2-443 .. x2-403
-  //   REC        : x2-400 .. x2-360 (default, top row)
-  //   MENU       : x2-386 .. x2-346 (scaled, top row)
-  //   MENU       : SC(473) .. SC(513) (default, second row)
+  //   REC        : x2-400 .. x2-360 (top row)
+  //   MENU       : SC(473) .. SC(513) (second row)
   field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
-  if (ui_scale != 1.0f)
-    field_move("MENU", x2 - SC(386), SC(5), SC(40), SC(40));
-  else {
-    field_move("MENU", SC(473), SC(50), SC(40), SC(40));
-    field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
-  }
+  field_move("MENU", SC(473), SC(50), SC(40), SC(40));
+  field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
 
   if (!strcmp(field_str("KBD"), "ON")) {
     y2 = screen_height - KEYBOARD_HEIGHT;
@@ -11860,6 +11879,24 @@ else if (!strcasecmp(exec, "decode"))
     struct field *cf = get_field("#console");
     if (cf) cf->is_dirty = 1;
   }
+	else if (!strcasecmp(exec, "wflatency"))
+	{
+		if (!args[0])
+		{
+			char msg[64];
+			snprintf(msg, sizeof(msg), "WFLATENCY is %s\n",
+					 wf_latency_enabled() ? "ON" : "OFF");
+			write_console(STYLE_LOG, msg);
+		}
+		else if (!wf_latency_set(args))
+		{
+			settings_updated++;
+			write_console(STYLE_LOG, wf_latency_enabled() ?
+					"WFLATENCY set to ON\n" : "WFLATENCY set to OFF\n");
+		}
+		else
+			write_console(STYLE_LOG, "Usage: \\wflatency on|off\n");
+	}
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))

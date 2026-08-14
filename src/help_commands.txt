@@ -216,6 +216,11 @@ first; on an external keyboard type \ directly. Press Enter to execute.
   Not available in FT8, FT4, CW, or CWR modes.
   Default: off
 
+* \wflatency on|off
+  Shows or hides the WF Latency readout in the lower-right corner of the waterfall.
+  The setting is also stored as wf_latency=ON|OFF in user_settings.ini.
+  Default: off
+
 * \zerobeat on|off
   Toggles the zero-beat helper window for CW operation.
   When ON, a small visual indicator helps you tune your transmit frequency to
