@@ -58,6 +58,9 @@ These are text commands that can be entered from the keyboard
 	You must have the QRO accessory board installed from ducerf.etsy.com to use this effectively
 \smeteropt [ON | OFF]
 	Shows or hides the relative S-Meter
+\wflatency [ON | OFF]
+	Shows or hides the WF Latency readout in the lower-right corner of the waterfall.
+	The setting is saved as wf_latency=ON|OFF in user_settings.ini. Default: OFF.
 \ina260opt [ON | OFF]
 	Enables or disables the input source voltage and amperage display on the title box
 10M
@@ -122,5 +125,4 @@ FTX_AUTO OFF/ANS/CQRESP
 FTX_CQ EVEN/ODD/ALT_EVEN/XOTA
 FTX_REPEAT 1-10
 TELNETURL [server:port]
-
 
