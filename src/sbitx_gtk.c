@@ -954,7 +954,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#keypad_btn", do_keypad_btn, 135, 5, 40, 40, "PAD", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", do_toggle_option, 500, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	{"#tune", do_toggle_option, 500, 5, 40, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
@@ -1277,8 +1277,6 @@ struct field main_controls[] = {
 	 "", -3000, 3000, 50, 0},
 
 	// Tune Controls - W9JES
-	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	//"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, 0},
 	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -2515,7 +2513,8 @@ void save_user_settings(int forced)
 			!strcmp(active_layout[i].cmd, "#band") ||
 			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
 			!strcmp(active_layout[i].cmd, "#mute") ||
-			!strcmp(active_layout[i].cmd, "#ftx_auto"))
+			!strcmp(active_layout[i].cmd, "#ftx_auto") ||
+			!strcmp(active_layout[i].cmd, "#tune"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
@@ -2787,6 +2786,11 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 		sprintf(cmd, "%s", name);
+
+		// #tune is a momentary action, not a persisted setting.  Ignore
+		// legacy entries so they don't cause issues during startup
+		if (!strcmp(cmd, "#tune"))
+			return 1;
 
         // Load max_vswr if present
 		if (!strcmp(name, "max_vswr"))
