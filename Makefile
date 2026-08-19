@@ -21,7 +21,13 @@ MONGOOSE_FLAGS = -DMG_ENABLE_OPENSSL=1 -DMG_ENABLE_MBEDTLS=0 -DMG_ENABLE_LINES=1
 TEST_C_SOURCES = $(wildcard tests/test_*.c)
 TEST_C_TARGETS = $(patsubst tests/test_%.c,/tmp/sbitx-test_%,$(TEST_C_SOURCES))
 TEST_JS_SOURCES = $(wildcard tests/test_*.js)
+TEST_SH_SOURCES = $(wildcard tests/test_*.sh)
 TEST_LIBS = -lfftw3f -lm -pthread
+GLIB_CFLAGS = $(shell pkg-config --cflags glib-2.0)
+GLIB_LIBS = $(shell pkg-config --libs glib-2.0)
+TEST_SOURCES_dxcc = $(CLU_SOURCES)
+TEST_CFLAGS_dxcc = -Iclu/src $(GLIB_CFLAGS)
+TEST_EXTRA_LIBS_dxcc = $(GLIB_LIBS)
 
 $(TARGET): $(OBJECTS) ft8_lib/libft8.a
 	$(LINK) $(LFLAGS) -o $(TARGET) $(OBJECTS) $(FFTOBJ) $(LIBPATH) $(LIBS)
@@ -53,6 +59,7 @@ clean:
 test: $(TEST_C_TARGETS)
 	@set -e; for test in $(TEST_C_TARGETS); do echo "Running $$test"; $$test; done
 	@set -e; for test in $(TEST_JS_SOURCES); do echo "Running $$test"; node $$test; done
+	@set -e; for test in $(TEST_SH_SOURCES); do echo "Running $$test"; sh $$test; done
 
-/tmp/sbitx-test_%: tests/test_%.c src/%.c
-	$(CC) -O2 -Isrc -o $@ $^ $(TEST_LIBS)
+/tmp/sbitx-test_%: tests/test_%.c
+	$(CC) -O2 -Isrc $(TEST_CFLAGS_$*) -o $@ $< $(or $(TEST_SOURCES_$*),src/$*.c) $(TEST_LIBS) $(TEST_EXTRA_LIBS_$*)
