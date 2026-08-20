@@ -66,6 +66,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "panadapter_redraw.h"
 #include "panadapter_renderer.h"
 #include "panadapter_view.h"
+#include "waterfall_ring.h"
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -3400,7 +3401,6 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 
 static int waterfall_offset = 30;
 static int *wf = NULL;
-GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 static guint8 *waterfall_history_map;
 static bool waterfall_dragging;
@@ -3408,6 +3408,10 @@ static uint64_t waterfall_live_sample_end;
 static float waterfall_color_offset;
 static guint waterfall_history_timer;
 static guint waterfall_history_debounce_timer;
+// Physical row currently holding logical row 0 (the newest row). Advancing
+// this on each new frame replaces shifting every retained row down by one
+// (an O(width x storage_height) memmove) with an O(1) index update.
+static int waterfall_head;
 
 #define WATERFALL_HISTORY_DEBOUNCE_MS 100
 #define WATERFALL_HISTORY_ROWS_PER_TICK 4
@@ -3441,34 +3445,85 @@ static void waterfall_history_start(void);
 static void waterfall_history_schedule(void);
 static void waterfall_history_snapshot(void);
 
+// Thin wrappers binding the pure ring index math in waterfall_ring.c to
+// this file's waterfall_head/waterfall_storage_height state.
+static int waterfall_physical_row(int logical_row)
+{
+	return waterfall_ring_physical_row(waterfall_head, waterfall_storage_height,
+		logical_row);
+}
+
+static int waterfall_segments(int count, struct waterfall_segment out[2])
+{
+	return waterfall_ring_segments(waterfall_head, waterfall_storage_height,
+		count, out);
+}
+
 static void remap_waterfall(
 							const struct panadapter_view *old_view,
 							const struct panadapter_view *new_view)
 {
-	if (!waterfall_pixbuf)
+	struct field *f = get_field("waterfall");
+	if (!waterfall_map || !f || f->width < 1 || f->height < 1)
 		return;
 
-	GdkPixbuf *previous = gdk_pixbuf_copy(waterfall_pixbuf);
-	if (!previous)
+	const int width = f->width;
+	const int height = f->height;
+	struct waterfall_segment seg[2];
+	const int n = waterfall_segments(height, seg);
+	if (n < 1)
 		return;
 
-	const int width = gdk_pixbuf_get_width(waterfall_pixbuf);
-	const int height = gdk_pixbuf_get_height(waterfall_pixbuf);
-	const double scale = old_view->zoom / new_view->zoom;
-	const double source_x = panadapter_view_map_position(old_view, new_view,
-		0.5 / width) * width - 0.5;
-	const int first = MAX(0, (int)ceil((-0.5 - source_x) / scale));
-	const int last = MIN(width - 1,
-		(int)floor((width - 0.5 - source_x) / scale));
+	// The visible rows are read out of the ring in logical (time) order
+	// into a plain linear buffer, remapped there, and written back through
+	// the same segments -- gdk_pixbuf can't address a wrapped ring directly.
+	guint8 *previous = malloc((size_t)width * height * 3);
+	guint8 *remapped = malloc((size_t)width * height * 3);
+	GdkPixbuf *previous_pb = NULL, *remapped_pb = NULL;
+	if (previous && remapped) {
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(previous + (size_t)copied * width * 3,
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
 
-	gdk_pixbuf_fill(waterfall_pixbuf, 0x000000ff);
-	if (first <= last) {
-		gdk_pixbuf_scale(previous, waterfall_pixbuf,
-			first, 0, last - first + 1, height,
-			-source_x / scale, 0, 1.0 / scale, 1.0,
-			GDK_INTERP_BILINEAR);
+		previous_pb = gdk_pixbuf_new_from_data(previous,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
+		remapped_pb = gdk_pixbuf_new_from_data(remapped,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
 	}
-	g_object_unref(previous);
+	if (previous_pb && remapped_pb) {
+		const double scale = old_view->zoom / new_view->zoom;
+		const double source_x = panadapter_view_map_position(old_view, new_view,
+			0.5 / width) * width - 0.5;
+		const int first = MAX(0, (int)ceil((-0.5 - source_x) / scale));
+		const int last = MIN(width - 1,
+			(int)floor((width - 0.5 - source_x) / scale));
+
+		gdk_pixbuf_fill(remapped_pb, 0x000000ff);
+		if (first <= last) {
+			gdk_pixbuf_scale(previous_pb, remapped_pb,
+				first, 0, last - first + 1, height,
+				-source_x / scale, 0, 1.0 / scale, 1.0,
+				GDK_INTERP_BILINEAR);
+		}
+
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				remapped + (size_t)copied * width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
+	}
+	if (previous_pb)
+		g_object_unref(previous_pb);
+	if (remapped_pb)
+		g_object_unref(remapped_pb);
+	free(previous);
+	free(remapped);
 }
 
 static void panadapter_view_refresh(const struct panadapter_view *previous)
@@ -3604,29 +3659,47 @@ static bool resize_waterfall(struct field *f)
 		}
 
 		const int rows = MIN(waterfall_storage_height, new_height);
-		if (waterfall_map && waterfall_storage_width > 0 && rows > 0) {
-			GdkPixbuf *old_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-				GDK_COLORSPACE_RGB, FALSE, 8, waterfall_storage_width, rows,
-				waterfall_storage_width * 3, NULL, NULL);
-			GdkPixbuf *new_pixbuf = gdk_pixbuf_new_from_data(new_map,
-				GDK_COLORSPACE_RGB, FALSE, 8, f->width, rows,
-				f->width * 3, NULL, NULL);
-			gdk_pixbuf_scale(old_pixbuf, new_pixbuf, 0, 0, f->width, rows,
-				0, 0, (double)f->width / waterfall_storage_width, 1.0,
-				GDK_INTERP_NEAREST);
-			g_object_unref(old_pixbuf);
-			g_object_unref(new_pixbuf);
+		struct waterfall_segment seg[2];
+		const int n = waterfall_map && waterfall_storage_width > 0
+			? waterfall_segments(rows, seg) : 0;
+		if (n > 0) {
+			guint8 *old_linear = malloc((size_t)waterfall_storage_width * rows * 3);
+			if (old_linear) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(old_linear + (size_t)copied * waterfall_storage_width * 3,
+						waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+						(size_t)seg[s].count * waterfall_storage_width * 3);
+					copied += seg[s].count;
+				}
+				GdkPixbuf *old_pixbuf = gdk_pixbuf_new_from_data(old_linear,
+					GDK_COLORSPACE_RGB, FALSE, 8, waterfall_storage_width, rows,
+					waterfall_storage_width * 3, NULL, NULL);
+				GdkPixbuf *new_pixbuf = gdk_pixbuf_new_from_data(new_map,
+					GDK_COLORSPACE_RGB, FALSE, 8, f->width, rows,
+					f->width * 3, NULL, NULL);
+				if (old_pixbuf && new_pixbuf)
+					gdk_pixbuf_scale(old_pixbuf, new_pixbuf, 0, 0, f->width, rows,
+						0, 0, (double)f->width / waterfall_storage_width, 1.0,
+						GDK_INTERP_NEAREST);
+				if (old_pixbuf)
+					g_object_unref(old_pixbuf);
+				if (new_pixbuf)
+					g_object_unref(new_pixbuf);
+				free(old_linear);
+			}
+			if (waterfall_history_rows) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(new_rows + copied,
+						waterfall_history_rows + seg[s].offset,
+						(size_t)seg[s].count * sizeof(*new_rows));
+					copied += seg[s].count;
+				}
+			}
 		}
-			if (waterfall_history_rows)
-				memcpy(new_rows, waterfall_history_rows,
-					(size_t)MIN(waterfall_storage_height, new_height) *
-						sizeof(*new_rows));
 		memcpy(new_history_map, new_map, (size_t)f->width * new_height * 3);
 
-		if (waterfall_pixbuf) {
-			g_object_unref(waterfall_pixbuf);
-			waterfall_pixbuf = NULL;
-		}
 		free(waterfall_map);
 		free(waterfall_history_map);
 		free(waterfall_history_rows);
@@ -3636,6 +3709,7 @@ static bool resize_waterfall(struct field *f)
 		waterfall_history_rows = new_rows;
 		waterfall_storage_width = f->width;
 		waterfall_storage_height = new_height;
+		waterfall_head = 0;
 
 		if (width_changed && rows > 0) {
 			waterfall_view_generation++;
@@ -3646,17 +3720,7 @@ static bool resize_waterfall(struct field *f)
 		}
 	}
 
-	if (!waterfall_pixbuf ||
-		gdk_pixbuf_get_width(waterfall_pixbuf) != f->width ||
-		gdk_pixbuf_get_height(waterfall_pixbuf) != f->height) {
-		if (waterfall_pixbuf)
-			g_object_unref(waterfall_pixbuf);
-		waterfall_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-			GDK_COLORSPACE_RGB, FALSE, 8, f->width, f->height,
-			waterfall_storage_width * 3, NULL, NULL);
-		waterfall_history_start();
-	}
-	return waterfall_pixbuf != NULL;
+	return true;
 }
 
 void init_waterfall()
@@ -3720,7 +3784,7 @@ void init_waterfall()
 	}
 }
 
-static void waterfall_render_history_row(struct field *f, int row,
+static void waterfall_render_history_row(struct field *f, int phys_row,
 									 const struct panadapter_fft_frame *frame,
 									 float min_db, float max_db, float offset)
 {
@@ -3738,7 +3802,7 @@ static void waterfall_render_history_row(struct field *f, int row,
 		y = MAX(0, MIN(spectrum->height - 1, y));
 		panadapter_renderer_waterfall_pixel((y * 100) / grid_height,
 			min_db, max_db, offset, auto_scope,
-			target + ((size_t)row * f->width + x) * 3);
+			target + ((size_t)phys_row * f->width + x) * 3);
 	}
 }
 
@@ -3779,15 +3843,16 @@ static bool waterfall_history_update(struct field *f, float min_db,
 				waterfall_history_render.next + WATERFALL_HISTORY_ROWS_PER_TICK);
 			for (int result = waterfall_history_render.next; result < end; result++) {
 				for (int row = 0; row < f->height; row++) {
-					if (waterfall_history_rows[row].sample_end !=
+					const int phys = waterfall_physical_row(row);
+					if (waterfall_history_rows[phys].sample_end !=
 						waterfall_history_render.frames[result].sample_end ||
-						waterfall_history_rows[row].view_generation ==
+						waterfall_history_rows[phys].view_generation ==
 						waterfall_view_generation)
 						continue;
 					if (waterfall_history_render.frames[result].count > 0)
-						waterfall_render_history_row(f, row,
+						waterfall_render_history_row(f, phys,
 							&waterfall_history_render.frames[result], min_db, max_db, offset);
-					waterfall_history_rows[row].view_generation = waterfall_view_generation;
+					waterfall_history_rows[phys].view_generation = waterfall_view_generation;
 				}
 			}
 			waterfall_history_render.next = end;
@@ -3804,15 +3869,16 @@ static bool waterfall_history_update(struct field *f, float min_db,
 		return true;
 	int count = 0;
 	for (int row = 0; row < f->height; row++) {
-		if (!waterfall_history_rows[row].sample_end ||
-			waterfall_history_rows[row].view_generation == waterfall_view_generation)
+		const int phys = waterfall_physical_row(row);
+		if (!waterfall_history_rows[phys].sample_end ||
+			waterfall_history_rows[phys].view_generation == waterfall_view_generation)
 			continue;
 		bool duplicate = false;
 		for (int previous = 0; previous < count; previous++)
-			if (sample_ends[previous] == waterfall_history_rows[row].sample_end)
+			if (sample_ends[previous] == waterfall_history_rows[phys].sample_end)
 				duplicate = true;
 		if (!duplicate)
-			sample_ends[count++] = waterfall_history_rows[row].sample_end;
+			sample_ends[count++] = waterfall_history_rows[phys].sample_end;
 	}
 	if (count > 0) {
 		const uint64_t token = ++waterfall_request_token;
@@ -3831,8 +3897,14 @@ static bool waterfall_history_update(struct field *f, float min_db,
 	}
 	free(sample_ends);
 	if (waterfall_history_map_generation == waterfall_view_generation) {
-		memcpy(waterfall_map, waterfall_history_map,
-			(size_t)waterfall_storage_width * f->height * 3);
+		// Both buffers share the same head, so a per-segment copy at
+		// matching physical offsets restores exactly the visible rows.
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		for (int s = 0; s < n; s++)
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				waterfall_history_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * waterfall_storage_width * 3);
 		waterfall_history_map_generation = 0;
 	}
 	return false;
@@ -4003,20 +4075,12 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		waterfall_live_sample_end != waterfall_drawn_sample_end) {
 		waterfall_drawn_sample_end = waterfall_live_sample_end;
 		// Advance retained history only when a new FFT frame arrives.
-		// Only the visible rows need to shift every frame; the rest of
-		// waterfall_storage_height exists for pan/zoom history and doesn't
-		// need to move on the hot path (avoids an O(storage_height) memmove
-		// every frame regressing WFSPD's effective ceiling).
-		memmove(waterfall_map + waterfall_storage_width * 3, waterfall_map,
-			(size_t)waterfall_storage_width * (f->height - 1) * 3);
-		if (waterfall_history_map_generation == waterfall_view_generation)
-			memmove(waterfall_history_map + waterfall_storage_width * 3,
-				waterfall_history_map,
-				(size_t)waterfall_storage_width * (f->height - 1) * 3);
-		memmove(waterfall_history_rows + 1, waterfall_history_rows,
-			(size_t)(f->height - 1) *
-				sizeof(*waterfall_history_rows));
-		waterfall_history_rows[0] = (struct waterfall_history_row) {
+		// Rather than physically shifting every retained row down (an
+		// O(width x storage_height) memmove every frame, which is what
+		// regressed WFSPD's effective ceiling), advance a ring head and
+		// recolor just the one new row -- O(width).
+		waterfall_head = waterfall_ring_advance(waterfall_head, waterfall_storage_height);
+		waterfall_history_rows[waterfall_head] = (struct waterfall_history_row) {
 			.sample_end = waterfall_live_sample_end,
 			.view_generation = waterfall_view_generation,
 		};
@@ -4024,22 +4088,41 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		if (strcmp(field_str("AUTOSCOPE"), "ON") || in_tx)
 			waterfall_color_offset = 0;
 		const bool auto_scope = !strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx;
+		const bool update_history = waterfall_history_map_generation == waterfall_view_generation;
+		guint8 *row = waterfall_map + (size_t)waterfall_head * waterfall_storage_width * 3;
+		guint8 *row_hist = waterfall_history_map + (size_t)waterfall_head * waterfall_storage_width * 3;
 		for (int i = 0; i < f->width; i++) {
 			panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
 				waterfall_color_offset, auto_scope,
-				waterfall_map + i * 3);
-			if (waterfall_history_map_generation == waterfall_view_generation)
+				row + i * 3);
+			if (update_history)
 				panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
 					waterfall_color_offset, auto_scope,
-					waterfall_history_map + i * 3);
+					row_hist + i * 3);
 		}
 
 		waterfall_color_offset += ((sp_baseline + 40)*2 - waterfall_color_offset) / 10;
 	}
 
-	// Draw the updated waterfall
-	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
-	cairo_paint(gfx);
+	// Draw the updated waterfall. The visible logical rows [0, f->height)
+	// may wrap around the end of the ring, so paint at most two segments.
+	{
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		int painted = 0;
+		for (int s = 0; s < n; s++) {
+			GdkPixbuf *pb = gdk_pixbuf_new_from_data(
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				GDK_COLORSPACE_RGB, FALSE, 8, f->width, seg[s].count,
+				waterfall_storage_width * 3, NULL, NULL);
+			if (pb) {
+				gdk_cairo_set_source_pixbuf(gfx, pb, f->x, f->y + painted);
+				cairo_paint(gfx);
+				g_object_unref(pb);
+			}
+			painted += seg[s].count;
+		}
+	}
 	cairo_fill(gfx);
 
 	if (wf_latency_enabled() && spectrum_latency_ms >= 0) {
