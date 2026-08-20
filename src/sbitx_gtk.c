@@ -4003,14 +4003,18 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		waterfall_live_sample_end != waterfall_drawn_sample_end) {
 		waterfall_drawn_sample_end = waterfall_live_sample_end;
 		// Advance retained history only when a new FFT frame arrives.
+		// Only the visible rows need to shift every frame; the rest of
+		// waterfall_storage_height exists for pan/zoom history and doesn't
+		// need to move on the hot path (avoids an O(storage_height) memmove
+		// every frame regressing WFSPD's effective ceiling).
 		memmove(waterfall_map + waterfall_storage_width * 3, waterfall_map,
-			(size_t)waterfall_storage_width * (waterfall_storage_height - 1) * 3);
+			(size_t)waterfall_storage_width * (f->height - 1) * 3);
 		if (waterfall_history_map_generation == waterfall_view_generation)
 			memmove(waterfall_history_map + waterfall_storage_width * 3,
 				waterfall_history_map,
-				(size_t)waterfall_storage_width * (waterfall_storage_height - 1) * 3);
+				(size_t)waterfall_storage_width * (f->height - 1) * 3);
 		memmove(waterfall_history_rows + 1, waterfall_history_rows,
-			(size_t)(waterfall_storage_height - 1) *
+			(size_t)(f->height - 1) *
 				sizeof(*waterfall_history_rows));
 		waterfall_history_rows[0] = (struct waterfall_history_row) {
 			.sample_end = waterfall_live_sample_end,
