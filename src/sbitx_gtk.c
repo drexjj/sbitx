@@ -9205,16 +9205,12 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		return FALSE;
 	}
 
-	//	printf("keyPress %x %x\n", event->keyval, event->state);
+	// printf("keyPress %x %x\n", event->keyval, event->state);
 	// key_modifier = event->keyval;
 	switch (event->keyval)
 	{
 	case MIN_KEY_ESC:
 		// TODO we could do a 2-stage esc: call it with false the first time, true the second
-		if (swr_sweep_is_running())
-		{
-			swr_sweep_cancel();
-		}
 		modem_abort(true);
 		tx_off();
 		call_wipe();
@@ -9374,7 +9370,9 @@ static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer
 static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
 	struct field *f;
-
+	
+	swr_sweep_cancel();  // cancel SWR sweep on any mouse click
+	
 	if (event->type == GDK_BUTTON_RELEASE)
 	{
 		mouse_down = 0;
