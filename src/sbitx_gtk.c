@@ -65,7 +65,9 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "panadapter_fft.h"
 #include "panadapter_redraw.h"
 #include "panadapter_renderer.h"
+#include "panadapter_presets.h"
 #include "panadapter_view.h"
+#include "waterfall_ring.h"
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -255,6 +257,16 @@ static int spectrum_latency_ms = -1;
 static struct panadapter_view panadapter_view = {1.0, 0.0};
 static struct panadapter_redraw_state panadapter_redraw_state;
 static int wf_latency_enabled_state;
+
+/*
+ * Panadapter load settings, mirrored out of the #pan_* fields by
+ * do_panadapter_edit(). Defaults match the field table so the radio behaves as
+ * it did before these knobs existed if the settings file predates them.
+ */
+static int panadapter_max_bins = PANADAPTER_FFT_MAX_BINS;
+static int panadapter_web_bins = PANADAPTER_FFT_FRAME_BINS;
+static int panadapter_wf_rebuild = 1;
+static int panadapter_web_enabled = 1;
 
 static int wf_latency_enabled(void)
 {
@@ -901,6 +913,7 @@ int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -1175,6 +1188,26 @@ struct field main_controls[] = {
 	 "", 20, 150, 5, 0},
 	{"#pan_direction", do_toggle_option, 1000, -1000, 70, 37, "PANDIR", 40, "VIEW", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "VIEW/WF", 0, 0, 0, 0},
+
+	/*
+	 * Panadapter load settings. PANPERF is a preset that writes the other four;
+	 * setting any of those four directly flips PANPERF to CUSTOM so a reload
+	 * does not stomp the override. PANPERF must come first in this table, so
+	 * that on load the preset is applied before the values it would overwrite.
+	 * PANPERF is placed on screen by menu2_display(); the rest stay hidden and
+	 * are reachable as \PANBINS, \PANHISTSECS, \WFREBUILD and \WEBBINS via the
+	 * get_field_by_label() fall-through in cmd_exec().
+	 */
+	{"#pan_perf", do_panadapter_edit, 1000, -1000, 70, 37, "PANPERF", 40, "HIGH", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "LOW/MED/HIGH/CUSTOM", 0, 0, 0, 0},
+	{"#pan_bins", do_panadapter_edit, 1000, -1000, 70, 37, "PANBINS", 40, "16384", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "1024/2048/4096/8192/16384", 0, 0, 0, 0},
+	{"#pan_hist_secs", do_panadapter_edit, 1000, -1000, 70, 37, "PANHISTSECS", 40, "11", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "3/6/11", 0, 0, 0, 0},
+	{"#pan_wf_rebuild", do_panadapter_edit, 1000, -1000, 70, 37, "WFREBUILD", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/ON", 0, 0, 0, 0},
+	{"#pan_web_bins", do_panadapter_edit, 1000, -1000, 70, 37, "WEBBINS", 40, "2048", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/256/512/1024/2048", 0, 0, 0, 0},
 
 	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 25, 1, 0},
@@ -2460,6 +2493,7 @@ static struct panadapter_fft_config spectrum_fft_config(void)
 		.wpm = MAX(1, get_wpm()),
 		.refresh_ms = spectrum_refresh_interval_ms(mode),
 		.display_width_px = MAX(1, spectrum->width),
+		.max_bins = panadapter_max_bins,
 	};
 }
 
@@ -3400,7 +3434,6 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 
 static int waterfall_offset = 30;
 static int *wf = NULL;
-GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 static guint8 *waterfall_history_map;
 static bool waterfall_dragging;
@@ -3408,6 +3441,10 @@ static uint64_t waterfall_live_sample_end;
 static float waterfall_color_offset;
 static guint waterfall_history_timer;
 static guint waterfall_history_debounce_timer;
+// Physical row currently holding logical row 0 (the newest row). Advancing
+// this on each new frame replaces shifting every retained row down by one
+// (an O(width x storage_height) memmove) with an O(1) index update.
+static int waterfall_head;
 
 #define WATERFALL_HISTORY_DEBOUNCE_MS 100
 #define WATERFALL_HISTORY_ROWS_PER_TICK 4
@@ -3441,34 +3478,85 @@ static void waterfall_history_start(void);
 static void waterfall_history_schedule(void);
 static void waterfall_history_snapshot(void);
 
+// Thin wrappers binding the pure ring index math in waterfall_ring.c to
+// this file's waterfall_head/waterfall_storage_height state.
+static int waterfall_physical_row(int logical_row)
+{
+	return waterfall_ring_physical_row(waterfall_head, waterfall_storage_height,
+		logical_row);
+}
+
+static int waterfall_segments(int count, struct waterfall_segment out[2])
+{
+	return waterfall_ring_segments(waterfall_head, waterfall_storage_height,
+		count, out);
+}
+
 static void remap_waterfall(
 							const struct panadapter_view *old_view,
 							const struct panadapter_view *new_view)
 {
-	if (!waterfall_pixbuf)
+	struct field *f = get_field("waterfall");
+	if (!waterfall_map || !f || f->width < 1 || f->height < 1)
 		return;
 
-	GdkPixbuf *previous = gdk_pixbuf_copy(waterfall_pixbuf);
-	if (!previous)
+	const int width = f->width;
+	const int height = f->height;
+	struct waterfall_segment seg[2];
+	const int n = waterfall_segments(height, seg);
+	if (n < 1)
 		return;
 
-	const int width = gdk_pixbuf_get_width(waterfall_pixbuf);
-	const int height = gdk_pixbuf_get_height(waterfall_pixbuf);
-	const double scale = old_view->zoom / new_view->zoom;
-	const double source_x = panadapter_view_map_position(old_view, new_view,
-		0.5 / width) * width - 0.5;
-	const int first = MAX(0, (int)ceil((-0.5 - source_x) / scale));
-	const int last = MIN(width - 1,
-		(int)floor((width - 0.5 - source_x) / scale));
+	// The visible rows are read out of the ring in logical (time) order
+	// into a plain linear buffer, remapped there, and written back through
+	// the same segments -- gdk_pixbuf can't address a wrapped ring directly.
+	guint8 *previous = malloc((size_t)width * height * 3);
+	guint8 *remapped = malloc((size_t)width * height * 3);
+	GdkPixbuf *previous_pb = NULL, *remapped_pb = NULL;
+	if (previous && remapped) {
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(previous + (size_t)copied * width * 3,
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
 
-	gdk_pixbuf_fill(waterfall_pixbuf, 0x000000ff);
-	if (first <= last) {
-		gdk_pixbuf_scale(previous, waterfall_pixbuf,
-			first, 0, last - first + 1, height,
-			-source_x / scale, 0, 1.0 / scale, 1.0,
-			GDK_INTERP_BILINEAR);
+		previous_pb = gdk_pixbuf_new_from_data(previous,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
+		remapped_pb = gdk_pixbuf_new_from_data(remapped,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
 	}
-	g_object_unref(previous);
+	if (previous_pb && remapped_pb) {
+		const double scale = old_view->zoom / new_view->zoom;
+		const double source_x = panadapter_view_map_position(old_view, new_view,
+			0.5 / width) * width - 0.5;
+		const int first = MAX(0, (int)ceil((-0.5 - source_x) / scale));
+		const int last = MIN(width - 1,
+			(int)floor((width - 0.5 - source_x) / scale));
+
+		gdk_pixbuf_fill(remapped_pb, 0x000000ff);
+		if (first <= last) {
+			gdk_pixbuf_scale(previous_pb, remapped_pb,
+				first, 0, last - first + 1, height,
+				-source_x / scale, 0, 1.0 / scale, 1.0,
+				GDK_INTERP_BILINEAR);
+		}
+
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				remapped + (size_t)copied * width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
+	}
+	if (previous_pb)
+		g_object_unref(previous_pb);
+	if (remapped_pb)
+		g_object_unref(remapped_pb);
+	free(previous);
+	free(remapped);
 }
 
 static void panadapter_view_refresh(const struct panadapter_view *previous)
@@ -3586,8 +3674,19 @@ static bool resize_waterfall(struct field *f)
 	if (!f || f->width < 1 || f->height < 1)
 		return false;
 	const bool width_changed = waterfall_storage_width != f->width;
-	const int new_height = MAX(waterfall_storage_height,
-		MAX(f->height, screen_height));
+	/*
+	 * Retain exactly the rows that get read. Nothing indexes past f->height --
+	 * every consumer goes through waterfall_segments(f->height, ...) or
+	 * waterfall_physical_row(row < f->height) -- so the old
+	 * MAX(..., screen_height) term just padded both RGB buffers and the
+	 * per-view-change snapshot with rows no one looks at.
+	 *
+	 * The MAX against the current height stays: it keeps the buffers from being
+	 * reallocated every time a layout change shrinks the waterfall (toggling
+	 * MENU, KBD or SPECT), so they settle at the tallest layout actually used
+	 * rather than at the full screen height.
+	 */
+	const int new_height = MAX(waterfall_storage_height, f->height);
 	const bool storage_changed = !waterfall_map || width_changed ||
 		new_height != waterfall_storage_height;
 
@@ -3604,29 +3703,47 @@ static bool resize_waterfall(struct field *f)
 		}
 
 		const int rows = MIN(waterfall_storage_height, new_height);
-		if (waterfall_map && waterfall_storage_width > 0 && rows > 0) {
-			GdkPixbuf *old_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-				GDK_COLORSPACE_RGB, FALSE, 8, waterfall_storage_width, rows,
-				waterfall_storage_width * 3, NULL, NULL);
-			GdkPixbuf *new_pixbuf = gdk_pixbuf_new_from_data(new_map,
-				GDK_COLORSPACE_RGB, FALSE, 8, f->width, rows,
-				f->width * 3, NULL, NULL);
-			gdk_pixbuf_scale(old_pixbuf, new_pixbuf, 0, 0, f->width, rows,
-				0, 0, (double)f->width / waterfall_storage_width, 1.0,
-				GDK_INTERP_NEAREST);
-			g_object_unref(old_pixbuf);
-			g_object_unref(new_pixbuf);
+		struct waterfall_segment seg[2];
+		const int n = waterfall_map && waterfall_storage_width > 0
+			? waterfall_segments(rows, seg) : 0;
+		if (n > 0) {
+			guint8 *old_linear = malloc((size_t)waterfall_storage_width * rows * 3);
+			if (old_linear) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(old_linear + (size_t)copied * waterfall_storage_width * 3,
+						waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+						(size_t)seg[s].count * waterfall_storage_width * 3);
+					copied += seg[s].count;
+				}
+				GdkPixbuf *old_pixbuf = gdk_pixbuf_new_from_data(old_linear,
+					GDK_COLORSPACE_RGB, FALSE, 8, waterfall_storage_width, rows,
+					waterfall_storage_width * 3, NULL, NULL);
+				GdkPixbuf *new_pixbuf = gdk_pixbuf_new_from_data(new_map,
+					GDK_COLORSPACE_RGB, FALSE, 8, f->width, rows,
+					f->width * 3, NULL, NULL);
+				if (old_pixbuf && new_pixbuf)
+					gdk_pixbuf_scale(old_pixbuf, new_pixbuf, 0, 0, f->width, rows,
+						0, 0, (double)f->width / waterfall_storage_width, 1.0,
+						GDK_INTERP_NEAREST);
+				if (old_pixbuf)
+					g_object_unref(old_pixbuf);
+				if (new_pixbuf)
+					g_object_unref(new_pixbuf);
+				free(old_linear);
+			}
+			if (waterfall_history_rows) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(new_rows + copied,
+						waterfall_history_rows + seg[s].offset,
+						(size_t)seg[s].count * sizeof(*new_rows));
+					copied += seg[s].count;
+				}
+			}
 		}
-			if (waterfall_history_rows)
-				memcpy(new_rows, waterfall_history_rows,
-					(size_t)MIN(waterfall_storage_height, new_height) *
-						sizeof(*new_rows));
 		memcpy(new_history_map, new_map, (size_t)f->width * new_height * 3);
 
-		if (waterfall_pixbuf) {
-			g_object_unref(waterfall_pixbuf);
-			waterfall_pixbuf = NULL;
-		}
 		free(waterfall_map);
 		free(waterfall_history_map);
 		free(waterfall_history_rows);
@@ -3636,6 +3753,7 @@ static bool resize_waterfall(struct field *f)
 		waterfall_history_rows = new_rows;
 		waterfall_storage_width = f->width;
 		waterfall_storage_height = new_height;
+		waterfall_head = 0;
 
 		if (width_changed && rows > 0) {
 			waterfall_view_generation++;
@@ -3646,17 +3764,7 @@ static bool resize_waterfall(struct field *f)
 		}
 	}
 
-	if (!waterfall_pixbuf ||
-		gdk_pixbuf_get_width(waterfall_pixbuf) != f->width ||
-		gdk_pixbuf_get_height(waterfall_pixbuf) != f->height) {
-		if (waterfall_pixbuf)
-			g_object_unref(waterfall_pixbuf);
-		waterfall_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-			GDK_COLORSPACE_RGB, FALSE, 8, f->width, f->height,
-			waterfall_storage_width * 3, NULL, NULL);
-		waterfall_history_start();
-	}
-	return waterfall_pixbuf != NULL;
+	return true;
 }
 
 void init_waterfall()
@@ -3720,7 +3828,7 @@ void init_waterfall()
 	}
 }
 
-static void waterfall_render_history_row(struct field *f, int row,
+static void waterfall_render_history_row(struct field *f, int phys_row,
 									 const struct panadapter_fft_frame *frame,
 									 float min_db, float max_db, float offset)
 {
@@ -3738,7 +3846,7 @@ static void waterfall_render_history_row(struct field *f, int row,
 		y = MAX(0, MIN(spectrum->height - 1, y));
 		panadapter_renderer_waterfall_pixel((y * 100) / grid_height,
 			min_db, max_db, offset, auto_scope,
-			target + ((size_t)row * f->width + x) * 3);
+			target + ((size_t)phys_row * f->width + x) * 3);
 	}
 }
 
@@ -3751,7 +3859,8 @@ static void waterfall_history_render_clear(void)
 static bool waterfall_history_update(struct field *f, float min_db,
 									  float max_db, float offset)
 {
-	if (!waterfall_history_rows || waterfall_storage_height < f->height)
+	if (!panadapter_wf_rebuild || !waterfall_history_rows ||
+		waterfall_storage_height < f->height)
 		return false;
 
 	if (waterfall_history_request.active) {
@@ -3779,15 +3888,16 @@ static bool waterfall_history_update(struct field *f, float min_db,
 				waterfall_history_render.next + WATERFALL_HISTORY_ROWS_PER_TICK);
 			for (int result = waterfall_history_render.next; result < end; result++) {
 				for (int row = 0; row < f->height; row++) {
-					if (waterfall_history_rows[row].sample_end !=
+					const int phys = waterfall_physical_row(row);
+					if (waterfall_history_rows[phys].sample_end !=
 						waterfall_history_render.frames[result].sample_end ||
-						waterfall_history_rows[row].view_generation ==
+						waterfall_history_rows[phys].view_generation ==
 						waterfall_view_generation)
 						continue;
 					if (waterfall_history_render.frames[result].count > 0)
-						waterfall_render_history_row(f, row,
+						waterfall_render_history_row(f, phys,
 							&waterfall_history_render.frames[result], min_db, max_db, offset);
-					waterfall_history_rows[row].view_generation = waterfall_view_generation;
+					waterfall_history_rows[phys].view_generation = waterfall_view_generation;
 				}
 			}
 			waterfall_history_render.next = end;
@@ -3804,15 +3914,16 @@ static bool waterfall_history_update(struct field *f, float min_db,
 		return true;
 	int count = 0;
 	for (int row = 0; row < f->height; row++) {
-		if (!waterfall_history_rows[row].sample_end ||
-			waterfall_history_rows[row].view_generation == waterfall_view_generation)
+		const int phys = waterfall_physical_row(row);
+		if (!waterfall_history_rows[phys].sample_end ||
+			waterfall_history_rows[phys].view_generation == waterfall_view_generation)
 			continue;
 		bool duplicate = false;
 		for (int previous = 0; previous < count; previous++)
-			if (sample_ends[previous] == waterfall_history_rows[row].sample_end)
+			if (sample_ends[previous] == waterfall_history_rows[phys].sample_end)
 				duplicate = true;
 		if (!duplicate)
-			sample_ends[count++] = waterfall_history_rows[row].sample_end;
+			sample_ends[count++] = waterfall_history_rows[phys].sample_end;
 	}
 	if (count > 0) {
 		const uint64_t token = ++waterfall_request_token;
@@ -3831,8 +3942,14 @@ static bool waterfall_history_update(struct field *f, float min_db,
 	}
 	free(sample_ends);
 	if (waterfall_history_map_generation == waterfall_view_generation) {
-		memcpy(waterfall_map, waterfall_history_map,
-			(size_t)waterfall_storage_width * f->height * 3);
+		// Both buffers share the same head, so a per-segment copy at
+		// matching physical offsets restores exactly the visible rows.
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		for (int s = 0; s < n; s++)
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				waterfall_history_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * waterfall_storage_width * 3);
 		waterfall_history_map_generation = 0;
 	}
 	return false;
@@ -3858,6 +3975,10 @@ static void waterfall_history_start(void)
 		g_source_remove(waterfall_history_debounce_timer);
 		waterfall_history_debounce_timer = 0;
 	}
+	// resize_waterfall() calls this directly, bypassing the scheduler, so the
+	// WFREBUILD guard has to be repeated here or the snapshot memcpy still runs.
+	if (!panadapter_wf_rebuild)
+		return;
 	waterfall_history_snapshot();
 	if (!waterfall_history_timer)
 		waterfall_history_timer = g_timeout_add(1, waterfall_history_tick, NULL);
@@ -3875,12 +3996,36 @@ static gboolean waterfall_history_debounce_tick(gpointer unused)
 
 static void waterfall_history_snapshot(void)
 {
-	if (!waterfall_dragging && waterfall_history_map &&
-		waterfall_history_map_generation != waterfall_view_generation) {
-		memcpy(waterfall_history_map, waterfall_map,
-			(size_t)waterfall_storage_width * waterfall_storage_height * 3);
-		waterfall_history_map_generation = waterfall_view_generation;
+	const struct field *const f = get_field("waterfall");
+	if (waterfall_dragging || !waterfall_history_map || !f ||
+		waterfall_history_map_generation == waterfall_view_generation)
+		return;
+
+	/*
+	 * Only the visible rows are ever read back out of waterfall_history_map:
+	 * the restore in waterfall_history_update() and every other consumer index
+	 * it through waterfall_segments(f->height, ...). A row outside the visible
+	 * window can only be reached again once the head wraps onto it, and
+	 * draw_waterfall() rewrites the row at waterfall_head in both maps in the
+	 * same frame it advances the head, before painting -- so a stale copy out
+	 * there is never observable.
+	 *
+	 * Copying the whole storage_height instead was the largest bulk copy left
+	 * in the waterfall path once b6b179c removed the per-frame row shift, and
+	 * it ran on every view-generation change, i.e. every zoom or pan step.
+	 *
+	 * Clamped like the guard in waterfall_history_update(): the 1 ms history
+	 * timer can fire between a layout change and the next resize_waterfall().
+	 */
+	struct waterfall_segment seg[2];
+	const int rows = MIN(f->height, waterfall_storage_height);
+	const int n = waterfall_segments(rows, seg);
+	for (int i = 0; i < n; i++) {
+		const size_t offset = (size_t)seg[i].offset * waterfall_storage_width * 3;
+		memcpy(waterfall_history_map + offset, waterfall_map + offset,
+			(size_t)seg[i].count * waterfall_storage_width * 3);
 	}
+	waterfall_history_map_generation = waterfall_view_generation;
 }
 
 static void waterfall_history_schedule(void)
@@ -3889,8 +4034,14 @@ static void waterfall_history_schedule(void)
 		g_source_remove(waterfall_history_timer);
 		waterfall_history_timer = 0;
 	}
-	if (waterfall_history_debounce_timer)
+	if (waterfall_history_debounce_timer) {
 		g_source_remove(waterfall_history_debounce_timer);
+		waterfall_history_debounce_timer = 0;
+	}
+	// WFREBUILD OFF: cancel the timers and stop there, so neither the re-analysis
+	// batch nor waterfall_history_snapshot()'s full-storage memcpy ever runs.
+	if (!panadapter_wf_rebuild)
+		return;
 	waterfall_history_debounce_timer = g_timeout_add(
 		WATERFALL_HISTORY_DEBOUNCE_MS, waterfall_history_debounce_tick, NULL);
 }
@@ -4003,20 +4154,12 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		waterfall_live_sample_end != waterfall_drawn_sample_end) {
 		waterfall_drawn_sample_end = waterfall_live_sample_end;
 		// Advance retained history only when a new FFT frame arrives.
-		// Only the visible rows need to shift every frame; the rest of
-		// waterfall_storage_height exists for pan/zoom history and doesn't
-		// need to move on the hot path (avoids an O(storage_height) memmove
-		// every frame regressing WFSPD's effective ceiling).
-		memmove(waterfall_map + waterfall_storage_width * 3, waterfall_map,
-			(size_t)waterfall_storage_width * (f->height - 1) * 3);
-		if (waterfall_history_map_generation == waterfall_view_generation)
-			memmove(waterfall_history_map + waterfall_storage_width * 3,
-				waterfall_history_map,
-				(size_t)waterfall_storage_width * (f->height - 1) * 3);
-		memmove(waterfall_history_rows + 1, waterfall_history_rows,
-			(size_t)(f->height - 1) *
-				sizeof(*waterfall_history_rows));
-		waterfall_history_rows[0] = (struct waterfall_history_row) {
+		// Rather than physically shifting every retained row down (an
+		// O(width x storage_height) memmove every frame, which is what
+		// regressed WFSPD's effective ceiling), advance a ring head and
+		// recolor just the one new row -- O(width).
+		waterfall_head = waterfall_ring_advance(waterfall_head, waterfall_storage_height);
+		waterfall_history_rows[waterfall_head] = (struct waterfall_history_row) {
 			.sample_end = waterfall_live_sample_end,
 			.view_generation = waterfall_view_generation,
 		};
@@ -4024,22 +4167,41 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		if (strcmp(field_str("AUTOSCOPE"), "ON") || in_tx)
 			waterfall_color_offset = 0;
 		const bool auto_scope = !strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx;
+		const bool update_history = waterfall_history_map_generation == waterfall_view_generation;
+		guint8 *row = waterfall_map + (size_t)waterfall_head * waterfall_storage_width * 3;
+		guint8 *row_hist = waterfall_history_map + (size_t)waterfall_head * waterfall_storage_width * 3;
 		for (int i = 0; i < f->width; i++) {
 			panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
 				waterfall_color_offset, auto_scope,
-				waterfall_map + i * 3);
-			if (waterfall_history_map_generation == waterfall_view_generation)
+				row + i * 3);
+			if (update_history)
 				panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
 					waterfall_color_offset, auto_scope,
-					waterfall_history_map + i * 3);
+					row_hist + i * 3);
 		}
 
 		waterfall_color_offset += ((sp_baseline + 40)*2 - waterfall_color_offset) / 10;
 	}
 
-	// Draw the updated waterfall
-	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
-	cairo_paint(gfx);
+	// Draw the updated waterfall. The visible logical rows [0, f->height)
+	// may wrap around the end of the ring, so paint at most two segments.
+	{
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		int painted = 0;
+		for (int s = 0; s < n; s++) {
+			GdkPixbuf *pb = gdk_pixbuf_new_from_data(
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				GDK_COLORSPACE_RGB, FALSE, 8, f->width, seg[s].count,
+				waterfall_storage_width * 3, NULL, NULL);
+			if (pb) {
+				gdk_cairo_set_source_pixbuf(gfx, pb, f->x, f->y + painted);
+				cairo_paint(gfx);
+				g_object_unref(pb);
+			}
+			painted += seg[s].count;
+		}
+	}
 	cairo_fill(gfx);
 
 	if (wf_latency_enabled() && spectrum_latency_ms >= 0) {
@@ -5227,6 +5389,7 @@ void menu2_display(int show) {
 		field_move("SCOPEAVG", SC(170), screen_height - SC(40), SC(70), SC(37));  // Add SCOPEAVG field
 		field_move("SCOPESIZE", SC(245), screen_height - SC(80), SC(70), SC(37)); // Add SCOPESIZE field
 		field_move("TXPANAFAL", SC(320), screen_height - SC(80), SC(70), SC(37)); // Add TXPANAFAL field
+		field_move("PANPERF", SC(395), screen_height - SC(80), SC(70), SC(37)); // Panadapter load preset
 		field_move("INTENSITY", SC(245), screen_height - SC(40), SC(70), SC(37)); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", SC(320), screen_height - SC(40), SC(70), SC(37)); // Add AUTOADJUST spectrum field
 		if (!strcmp(field_str("EPTTOPT"), "ON"))
@@ -8551,6 +8714,66 @@ int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int
 	return 0;
 }
 
+/*
+ * Mirror the #pan_* fields into the globals the analysis paths read, and keep
+ * PANPERF and the four individual knobs consistent.
+ *
+ * PANPERF writes the other four; touching one of those four directly reports
+ * CUSTOM, so that reloading settings does not stomp a deliberate override. The
+ * recursion guard keeps a preset's own writes from immediately reporting CUSTOM.
+ */
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	static int applying_preset;
+	(void)gfx; (void)event; (void)a; (void)b; (void)c;
+
+	struct panadapter_preset preset;
+	if (f && !strcmp(f->label, "PANPERF") && !applying_preset) {
+		// CUSTOM (and anything unrecognised) resolves to nothing on purpose:
+		// the individual knobs are authoritative in that case.
+		if (panadapter_preset_lookup(field_str("PANPERF"), &preset)) {
+			applying_preset = 1;
+			set_field("#pan_bins", preset.bins);
+			set_field("#pan_hist_secs", preset.hist_secs);
+			set_field("#pan_wf_rebuild", preset.wf_rebuild);
+			set_field("#pan_web_bins", preset.web_bins);
+			applying_preset = 0;
+		}
+	} else if (f && !applying_preset && strcmp(field_str("PANPERF"), "CUSTOM")) {
+		/*
+		 * An individual knob was set directly. Only clear the preset name if the
+		 * knobs actually disagree with it -- reloading settings replays all four
+		 * values after the preset that produced them, so an unconditional
+		 * "became CUSTOM" here relabelled every preset as CUSTOM on restart.
+		 */
+		const struct panadapter_preset current = {
+			.bins = field_str("PANBINS"),
+			.hist_secs = field_str("PANHISTSECS"),
+			.wf_rebuild = field_str("WFREBUILD"),
+			.web_bins = field_str("WEBBINS"),
+		};
+		if (!panadapter_preset_matches(field_str("PANPERF"), &current)) {
+			applying_preset = 1;
+			set_field("#pan_perf", "CUSTOM");
+			applying_preset = 0;
+		}
+	}
+
+	panadapter_max_bins = atoi(field_str("PANBINS"));
+	panadapter_wf_rebuild = !strcmp(field_str("WFREBUILD"), "ON");
+
+	const char *const web_bins = field_str("WEBBINS");
+	panadapter_web_enabled = strcmp(web_bins, "OFF") != 0;
+	panadapter_web_bins = panadapter_web_enabled ? atoi(web_bins)
+	                                             : PANADAPTER_FFT_FRAME_BINS;
+
+	// Contexts do not exist until panadapter_init(); this fires during ini_parse.
+	const uint64_t history = (uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE;
+	panadapter_fft_set_history_limit(panadapter_fft_context, history);
+	panadapter_fft_set_history_limit(web_panadapter_fft_context, history);
+	return 0;
+}
+
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *field_name = f->label;					 // Get the field label
@@ -10087,6 +10310,11 @@ void web_get_spectrum(char *buff)
 				buff[j++] = ' ';
 		}
 	}
+	else if (!panadapter_web_enabled)
+	{
+		// WEBBINS is OFF: sbitx.c is not even feeding this context.
+		strcpy(buff, "RX ");
+	}
 	else
 	{
 		const int mode = mode_id(get_field("r1:mode")->value);
@@ -10096,7 +10324,8 @@ void web_get_spectrum(char *buff)
 			.is_cw = mode == MODE_CW || mode == MODE_CWR,
 			.wpm = MAX(1, get_wpm()),
 			.refresh_ms = spectrum_refresh_interval_ms(mode),
-			.display_width_px = PANADAPTER_FFT_FRAME_BINS,
+			.display_width_px = panadapter_web_bins,
+			.max_bins = panadapter_max_bins,
 		};
 		struct panadapter_fft_frame frame;
 		panadapter_frame_get(web_panadapter_fft_context, &config, &frame);
@@ -12539,6 +12768,27 @@ int main(int argc, char *argv[])
 		strcat(directory, "/sbitx/data/default_settings.ini");
 		ini_parse(directory, user_settings_handler, NULL);
 	}
+
+	/*
+	 * Create the panadapter analysis contexts now: user_settings.ini has been
+	 * parsed (so PANHISTSECS is known) and the audio threads have not started
+	 * yet, so nothing is pushing samples into a ring that does not exist.
+	 *
+	 * The do_panadapter_edit() call is required, not belt-and-braces. set_field()
+	 * only auto-fires a field's handler while the field is off-screen (f->y < 0),
+	 * which covers the four hidden #pan_* fields but not PANPERF once
+	 * menu2_display() has given it a real position -- and menu2_display(0) never
+	 * moves it back. It also covers a first run with no #pan_* keys in the INI,
+	 * where no handler fires at all.
+	 */
+	panadapter_init((uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE);
+	do_panadapter_edit(get_field("#pan_perf"), NULL, FIELD_EDIT, 0, 0, 0);
+	// Report the resolved settings once, next to the existing "Panadapter FFT
+	// bins:" line, so a bug report says what the analysis was actually asked for.
+	printf("Panadapter settings: PANPERF=%s PANBINS=%s PANHISTSECS=%s "
+		   "WFREBUILD=%s WEBBINS=%s\n",
+		   field_str("PANPERF"), field_str("PANBINS"), field_str("PANHISTSECS"),
+		   field_str("WFREBUILD"), field_str("WEBBINS"));
 
 	/*
 	 * Start audio threads now that user_settings.ini has been loaded.
