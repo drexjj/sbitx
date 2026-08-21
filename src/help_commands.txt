@@ -481,6 +481,29 @@ the spectrum display, waterfall appearance, and advanced hardware options.
   Increase if the display looks washed out; decrease if colours are too harsh.
   Adjust to suit your display and ambient lighting conditions. Default: 5.
 
+* PANBINS [1024|2048|4096|8192|16384]
+  Caps the size of the analysis FFT, which is the main cost of the panadapter:
+  a 127-tap filter runs once per FFT bin, so halving this roughly halves the
+  work per frame on both the screen and the web display.
+  At full zoom-out the analysis only needs about 4096 bins anyway, so 4096
+  costs you nothing there and only limits how much detail deep zoom can show.
+  Lower this first if the radio feels sluggish. Default: 16384.
+
+* PANHISTSECS [3|6|11]
+  How many seconds of raw I/Q the panadapter keeps. This is what lets the
+  waterfall be re-drawn at the new resolution when you zoom or pan, so a
+  smaller value means less of the older waterfall gets rebuilt.
+  The reduction in CPU work applies immediately; the matching reduction in
+  memory (up to 6 MB) takes effect the next time sbitx starts. Default: 11.
+
+* PANPERF [low|med|high|custom]
+  One control that sets PANBINS, PANHISTSECS, WFREBUILD and WEBBINS together,
+  for trading panadapter detail against system load without adjusting four
+  things by hand.
+  LOW is the lightest, HIGH is the highest quality. Setting any of
+  those four individually changes this to CUSTOM, which then leaves them alone.
+  Default: HIGH.
+
 * PANDIR [view|wf]
   Sets what the left and right arrow buttons move. VIEW treats the display like
   a camera and moves the visible view in the arrow direction. WF moves the
@@ -538,6 +561,20 @@ the spectrum display, waterfall appearance, and advanced hardware options.
   Faster speeds are better for high-traffic bands where signals appear briefly.
   Slower speeds spread signals out vertically and are easier to read.
   Default: 100. Recommended: 50-100 for SSB/CW, 100+ for digital modes.
+
+* WEBBINS [off|256|512|1024|2048]
+  Resolution of the panadapter sent to the web interface, which is analysed
+  separately from the one on screen. The web display cannot show anything like
+  2048 points of detail, so lowering this is close to free.
+  OFF stops the analysis entirely and is worth using if you never open the web
+  interface. Default: 2048.
+
+* WFREBUILD [on|off]
+  Whether the existing waterfall is re-analysed after you zoom or pan, so that
+  old lines are redrawn at the new resolution. This happens in a burst of work
+  covering every visible line, which can make zooming feel jumpy.
+  With it OFF, zoom and pan simply stretch the waterfall you already have,
+  which is smoother but less detailed. Default: ON.
 
 #Mode-Specific Controls
 

@@ -20,7 +20,8 @@ int waterfall_ring_physical_row(int head, int storage_height, int logical_row);
 
 // Splits the logical rows [0, count) into up to two physically-contiguous
 // segments, in logical order, since the ring wraps at storage_height.
-// Returns the number of segments (0-2).
+// count is clamped to storage_height, so the segments never describe more rows
+// than the ring holds. Returns the number of segments (0-2).
 int waterfall_ring_segments(int head, int storage_height, int count,
 	struct waterfall_segment out[2]);
 

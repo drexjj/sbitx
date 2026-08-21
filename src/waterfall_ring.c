@@ -19,6 +19,12 @@ int waterfall_ring_segments(int head, int storage_height, int count,
 {
 	if (count <= 0 || storage_height <= 0)
 		return 0;
+	// The ring cannot yield more rows than it holds. Callers pass the widget's
+	// current height, which can briefly exceed storage_height when a layout
+	// change lands before the next resize_waterfall() -- without this clamp the
+	// second segment would run off the end of the buffer.
+	if (count > storage_height)
+		count = storage_height;
 	const int start = head % storage_height;
 	const int before_wrap = storage_height - start;
 	if (count <= before_wrap) {

@@ -24,12 +24,13 @@
 #define MAX_RAW_SAMPLES ((PANADAPTER_FFT_MAX_BINS - 1) * MAX_DECIMATION + FILTER_TAPS)
 #define WORK_SIZE (PANADAPTER_FFT_MAX_BINS * (MAX_DECIMATION + 1))
 /*
- * 1024 1024-sample SDR blocks: about 10.9 seconds and 8 MiB at 96 ksample/s.
- * This retention window limits how much existing waterfall history can be
- * reanalyzed and rerendered after zooming or panning.
+ * The I/Q retention ring is sized per context at create() time (see
+ * panadapter_fft_ring_size()); PANADAPTER_FFT_MAX_HISTORY_SAMPLES is about 10.9
+ * seconds and 8 MiB at 96 ksample/s. The retention window limits how much
+ * existing waterfall history can be reanalyzed and rerendered after zooming or
+ * panning, and history_limit narrows it further at runtime.
  */
-#define HISTORY_RING_SIZE (1024 * 1024)
-#define HISTORY_RING_INDEX_MASK (HISTORY_RING_SIZE - 1)
+#define HISTORY_FLOOR_SAMPLES (MAX_RAW_SAMPLES + PANADAPTER_FFT_MAX_BINS)
 /*
  * Display-level calibration expressed as an equivalent FFT length. The value
  * 2048 makes the variable-length, decimated analysis match the noise floor of
@@ -42,11 +43,25 @@
 #define NON_CW_NEW_FRAME_WEIGHT 0.3f
 
 _Static_assert(WORK_SIZE >= MAX_RAW_SAMPLES, "panadapter FFT work area must hold the largest analysis window");
-_Static_assert(HISTORY_RING_SIZE >= MAX_RAW_SAMPLES, "panadapter FFT history must hold the largest analysis window");
-_Static_assert((HISTORY_RING_SIZE & (HISTORY_RING_SIZE - 1)) == 0, "panadapter FFT history size must be a power of two");
+_Static_assert(PANADAPTER_FFT_MIN_HISTORY_SAMPLES >= HISTORY_FLOOR_SAMPLES,
+  "smallest panadapter FFT history must still satisfy the history retention guard");
+_Static_assert((PANADAPTER_FFT_MIN_HISTORY_SAMPLES & (PANADAPTER_FFT_MIN_HISTORY_SAMPLES - 1)) == 0,
+  "panadapter FFT history size must be a power of two");
+_Static_assert((PANADAPTER_FFT_MAX_HISTORY_SAMPLES & (PANADAPTER_FFT_MAX_HISTORY_SAMPLES - 1)) == 0,
+  "panadapter FFT history size must be a power of two");
 
 struct panadapter_fft {
   fftwf_complex *sample_ring;
+  uint64_t ring_size;  // Power of two, fixed at create(); the mask is ring_size - 1.
+  uint64_t ring_mask;
+  /*
+   * How far back reconstructed history may reach, in samples. Written from any
+   * thread, read by the worker. Relaxed access is sufficient: the ring is always
+   * written in full with the fixed mask, so every index the worker computes is a
+   * slot the audio thread genuinely maintains. A stale read only changes how many
+   * rows one batch renders, never whether an index is valid.
+   */
+  _Atomic uint64_t history_limit;
   _Atomic uint64_t samples_written;
   _Atomic uint64_t history_epoch;
 
@@ -91,6 +106,7 @@ static bool fft_configs_equal(const struct panadapter_fft_config *a, const struc
          && a->is_cw == b->is_cw
          && a->is_tx == b->is_tx
          && a->display_width_px == b->display_width_px
+         && a->max_bins == b->max_bins
          && (!a->is_cw || a->wpm == b->wpm);
 }
 
@@ -191,8 +207,12 @@ static bool prepare_analysis(struct panadapter_fft *state,
                           ? config->display_width_px
                           : PANADAPTER_FFT_FRAME_BINS;
 
+  int max_bins = config->max_bins > 0 ? config->max_bins : PANADAPTER_FFT_MAX_BINS;
+  if (max_bins > PANADAPTER_FFT_MAX_BINS) max_bins = PANADAPTER_FFT_MAX_BINS;
+  if (max_bins < PANADAPTER_FFT_MIN_BINS) max_bins = PANADAPTER_FFT_MIN_BINS;
+
   layout->fft_bins = PANADAPTER_FFT_MIN_BINS;
-  while (layout->fft_bins < PANADAPTER_FFT_MAX_BINS) {
+  while (layout->fft_bins < max_bins) {
     const double bin_hz = output_rate / layout->fft_bins;
     const int half_bins = (int) floor(config->display_span_hz / (2.0 * bin_hz));
     if (2 * half_bins + 1 >= layout->target_bins)
@@ -277,20 +297,20 @@ static bool snapshot_samples(struct panadapter_fft *state, int count,
                              uint64_t *first_sample, uint64_t *sample_end,
                              uint64_t *sample_end_ms) {
   const uint64_t current = atomic_load_explicit(&state->samples_written, memory_order_acquire);
-  if (current < (uint64_t) count || (uint64_t) count > HISTORY_RING_SIZE)
+  if (current < (uint64_t) count || (uint64_t) count > state->ring_size)
     return false;
   *sample_end = current;
   *sample_end_ms = monotonic_ms();
 
   const uint64_t start = current - (uint64_t) count;
   const size_t sample_count = (size_t) count;
-  const size_t ring_index = (size_t) (start & HISTORY_RING_INDEX_MASK);
-  size_t first_count = HISTORY_RING_SIZE - ring_index;
+  const size_t ring_index = (size_t) (start & state->ring_mask);
+  size_t first_count = state->ring_size - ring_index;
   if (first_count > sample_count) first_count = sample_count;
   memcpy(state->raw_work, state->sample_ring + ring_index, first_count * sizeof(state->raw_work[0]));
   memcpy(state->raw_work + first_count, state->sample_ring, (sample_count - first_count) * sizeof(state->raw_work[0]));
 
-  if (atomic_load_explicit(&state->samples_written, memory_order_acquire) - start > HISTORY_RING_SIZE)
+  if (atomic_load_explicit(&state->samples_written, memory_order_acquire) - start > state->ring_size)
     return false;
   *first_sample = start;
   return true;
@@ -384,12 +404,13 @@ static struct panadapter_fft_frame *analyze_history_batch(
     return frames;
 
   const uint64_t current = atomic_load_explicit(&state->samples_written, memory_order_acquire);
+  const uint64_t limit = atomic_load_explicit(&state->history_limit, memory_order_relaxed);
   uint64_t first_sample = UINT64_MAX;
   uint64_t last_sample = 0;
   for (int row = 0; row < count; row++) {
     const uint64_t end = sample_ends[row];
     if (end > current || end < (uint64_t) layout.raw_count ||
-        current - end + layout.raw_count + PANADAPTER_FFT_MAX_BINS > HISTORY_RING_SIZE)
+        current - end + layout.raw_count + PANADAPTER_FFT_MAX_BINS > limit)
       continue;
     const uint64_t start = end - layout.raw_count;
     if (start < first_sample) first_sample = start;
@@ -408,12 +429,12 @@ static struct panadapter_fft_frame *analyze_history_batch(
     return frames;
   }
 
-  const size_t ring_index = first_sample & HISTORY_RING_INDEX_MASK;
-  size_t first_count = HISTORY_RING_SIZE - ring_index;
+  const size_t ring_index = first_sample & state->ring_mask;
+  size_t first_count = state->ring_size - ring_index;
   if (first_count > input_count) first_count = input_count;
   memcpy(input, state->sample_ring + ring_index, first_count * sizeof(*input));
   memcpy(input + first_count, state->sample_ring, (input_count - first_count) * sizeof(*input));
-  if (atomic_load_explicit(&state->samples_written, memory_order_acquire) - first_sample > HISTORY_RING_SIZE) {
+  if (atomic_load_explicit(&state->samples_written, memory_order_acquire) - first_sample > state->ring_size) {
     free_history_work(input, filtered, computed);
     return frames;
   }
@@ -513,16 +534,47 @@ static void *panadapter_fft_worker(void *context) {
   return NULL;
 }
 
-struct panadapter_fft *panadapter_fft_create(void) {
+/** Round a requested retention to the nearest usable power-of-two ring size. */
+uint64_t panadapter_fft_ring_size(uint64_t requested_samples) {
+  uint64_t size = PANADAPTER_FFT_MIN_HISTORY_SAMPLES;
+  while (size < PANADAPTER_FFT_MAX_HISTORY_SAMPLES &&
+         requested_samples >= size + size / 2)
+    size *= 2;
+  return size;
+}
+
+void panadapter_fft_set_history_limit(struct panadapter_fft *state, uint64_t samples) {
+  if (!state)
+    return;
+  if (samples < HISTORY_FLOOR_SAMPLES)
+    samples = HISTORY_FLOOR_SAMPLES;
+  if (samples > state->ring_size)
+    samples = state->ring_size;
+  atomic_store_explicit(&state->history_limit, samples, memory_order_relaxed);
+}
+
+uint64_t panadapter_fft_history_limit(const struct panadapter_fft *state) {
+  if (!state)
+    return 0;
+  return atomic_load_explicit(&state->history_limit, memory_order_relaxed);
+}
+
+struct panadapter_fft *panadapter_fft_create(uint64_t history_samples) {
   struct panadapter_fft *const state = calloc(1, sizeof(*state));
   if (!state)
     return NULL;
-  state->sample_ring = fftwf_alloc_complex(HISTORY_RING_SIZE);
+  state->ring_size = panadapter_fft_ring_size(history_samples);
+  state->ring_mask = state->ring_size - 1;
+  state->sample_ring = fftwf_alloc_complex(state->ring_size);
   if (!state->sample_ring) {
     free(state);
     return NULL;
   }
+  // fftwf_alloc_complex() does not zero. Uninitialised bit patterns can be NaN,
+  // and lroundf(log10f(NaN)) in fill_frame() is undefined, so clear it up front.
+  memset(state->sample_ring, 0, state->ring_size * sizeof(*state->sample_ring));
 
+  atomic_init(&state->history_limit, state->ring_size);
   atomic_init(&state->samples_written, 0);
   atomic_init(&state->history_epoch, 0);
   if (pthread_mutex_init(&state->state_mutex, NULL) != 0) {
@@ -570,7 +622,7 @@ void panadapter_fft_push(struct panadapter_fft *state, const double *i_samples, 
 
   const uint64_t start = atomic_load_explicit(&state->samples_written, memory_order_relaxed);
   for (int index = 0; index < count; index++) {
-    const uint64_t ring_index = (start + index) & HISTORY_RING_INDEX_MASK;
+    const uint64_t ring_index = (start + index) & state->ring_mask;
     state->sample_ring[ring_index] = (float) i_samples[index] + I * (float) q_samples[index];
   }
   atomic_store_explicit(&state->samples_written, start + count, memory_order_release);

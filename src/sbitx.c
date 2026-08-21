@@ -408,8 +408,19 @@ void fft_init()
 		__imag__ fft_m[i] = 0.0;
 	}
 
-	panadapter_fft_context = panadapter_fft_create();
-	web_panadapter_fft_context = panadapter_fft_create();
+}
+
+/*
+ * Create the panadapter analysis contexts. Called after user_settings.ini has
+ * been parsed (so history_samples reflects PANHISTSECS) but before the audio
+ * threads start, which is the only window where nothing is pushing samples yet.
+ * The web context never zooms, so it never needs deep history.
+ */
+void panadapter_init(uint64_t history_samples)
+{
+	panadapter_fft_context = panadapter_fft_create(history_samples);
+	web_panadapter_fft_context =
+		panadapter_fft_create(PANADAPTER_FFT_MIN_HISTORY_SAMPLES);
 	if (!panadapter_fft_context || !web_panadapter_fft_context) {
 		fprintf(stderr, "Unable to initialize panadapter FFT\n");
 		exit(EXIT_FAILURE);

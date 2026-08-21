@@ -65,6 +65,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "panadapter_fft.h"
 #include "panadapter_redraw.h"
 #include "panadapter_renderer.h"
+#include "panadapter_presets.h"
 #include "panadapter_view.h"
 #include "waterfall_ring.h"
 extern int get_rx_gain(void);
@@ -256,6 +257,16 @@ static int spectrum_latency_ms = -1;
 static struct panadapter_view panadapter_view = {1.0, 0.0};
 static struct panadapter_redraw_state panadapter_redraw_state;
 static int wf_latency_enabled_state;
+
+/*
+ * Panadapter load settings, mirrored out of the #pan_* fields by
+ * do_panadapter_edit(). Defaults match the field table so the radio behaves as
+ * it did before these knobs existed if the settings file predates them.
+ */
+static int panadapter_max_bins = PANADAPTER_FFT_MAX_BINS;
+static int panadapter_web_bins = PANADAPTER_FFT_FRAME_BINS;
+static int panadapter_wf_rebuild = 1;
+static int panadapter_web_enabled = 1;
 
 static int wf_latency_enabled(void)
 {
@@ -902,6 +913,7 @@ int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -1176,6 +1188,26 @@ struct field main_controls[] = {
 	 "", 20, 150, 5, 0},
 	{"#pan_direction", do_toggle_option, 1000, -1000, 70, 37, "PANDIR", 40, "VIEW", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "VIEW/WF", 0, 0, 0, 0},
+
+	/*
+	 * Panadapter load settings. PANPERF is a preset that writes the other four;
+	 * setting any of those four directly flips PANPERF to CUSTOM so a reload
+	 * does not stomp the override. PANPERF must come first in this table, so
+	 * that on load the preset is applied before the values it would overwrite.
+	 * PANPERF is placed on screen by menu2_display(); the rest stay hidden and
+	 * are reachable as \PANBINS, \PANHISTSECS, \WFREBUILD and \WEBBINS via the
+	 * get_field_by_label() fall-through in cmd_exec().
+	 */
+	{"#pan_perf", do_panadapter_edit, 1000, -1000, 70, 37, "PANPERF", 40, "HIGH", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "LOW/MED/HIGH/CUSTOM", 0, 0, 0, 0},
+	{"#pan_bins", do_panadapter_edit, 1000, -1000, 70, 37, "PANBINS", 40, "16384", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "1024/2048/4096/8192/16384", 0, 0, 0, 0},
+	{"#pan_hist_secs", do_panadapter_edit, 1000, -1000, 70, 37, "PANHISTSECS", 40, "11", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "3/6/11", 0, 0, 0, 0},
+	{"#pan_wf_rebuild", do_panadapter_edit, 1000, -1000, 70, 37, "WFREBUILD", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/ON", 0, 0, 0, 0},
+	{"#pan_web_bins", do_panadapter_edit, 1000, -1000, 70, 37, "WEBBINS", 40, "2048", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/256/512/1024/2048", 0, 0, 0, 0},
 
 	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 25, 1, 0},
@@ -2461,6 +2493,7 @@ static struct panadapter_fft_config spectrum_fft_config(void)
 		.wpm = MAX(1, get_wpm()),
 		.refresh_ms = spectrum_refresh_interval_ms(mode),
 		.display_width_px = MAX(1, spectrum->width),
+		.max_bins = panadapter_max_bins,
 	};
 }
 
@@ -3641,8 +3674,19 @@ static bool resize_waterfall(struct field *f)
 	if (!f || f->width < 1 || f->height < 1)
 		return false;
 	const bool width_changed = waterfall_storage_width != f->width;
-	const int new_height = MAX(waterfall_storage_height,
-		MAX(f->height, screen_height));
+	/*
+	 * Retain exactly the rows that get read. Nothing indexes past f->height --
+	 * every consumer goes through waterfall_segments(f->height, ...) or
+	 * waterfall_physical_row(row < f->height) -- so the old
+	 * MAX(..., screen_height) term just padded both RGB buffers and the
+	 * per-view-change snapshot with rows no one looks at.
+	 *
+	 * The MAX against the current height stays: it keeps the buffers from being
+	 * reallocated every time a layout change shrinks the waterfall (toggling
+	 * MENU, KBD or SPECT), so they settle at the tallest layout actually used
+	 * rather than at the full screen height.
+	 */
+	const int new_height = MAX(waterfall_storage_height, f->height);
 	const bool storage_changed = !waterfall_map || width_changed ||
 		new_height != waterfall_storage_height;
 
@@ -3815,7 +3859,8 @@ static void waterfall_history_render_clear(void)
 static bool waterfall_history_update(struct field *f, float min_db,
 									  float max_db, float offset)
 {
-	if (!waterfall_history_rows || waterfall_storage_height < f->height)
+	if (!panadapter_wf_rebuild || !waterfall_history_rows ||
+		waterfall_storage_height < f->height)
 		return false;
 
 	if (waterfall_history_request.active) {
@@ -3930,6 +3975,10 @@ static void waterfall_history_start(void)
 		g_source_remove(waterfall_history_debounce_timer);
 		waterfall_history_debounce_timer = 0;
 	}
+	// resize_waterfall() calls this directly, bypassing the scheduler, so the
+	// WFREBUILD guard has to be repeated here or the snapshot memcpy still runs.
+	if (!panadapter_wf_rebuild)
+		return;
 	waterfall_history_snapshot();
 	if (!waterfall_history_timer)
 		waterfall_history_timer = g_timeout_add(1, waterfall_history_tick, NULL);
@@ -3947,12 +3996,36 @@ static gboolean waterfall_history_debounce_tick(gpointer unused)
 
 static void waterfall_history_snapshot(void)
 {
-	if (!waterfall_dragging && waterfall_history_map &&
-		waterfall_history_map_generation != waterfall_view_generation) {
-		memcpy(waterfall_history_map, waterfall_map,
-			(size_t)waterfall_storage_width * waterfall_storage_height * 3);
-		waterfall_history_map_generation = waterfall_view_generation;
+	const struct field *const f = get_field("waterfall");
+	if (waterfall_dragging || !waterfall_history_map || !f ||
+		waterfall_history_map_generation == waterfall_view_generation)
+		return;
+
+	/*
+	 * Only the visible rows are ever read back out of waterfall_history_map:
+	 * the restore in waterfall_history_update() and every other consumer index
+	 * it through waterfall_segments(f->height, ...). A row outside the visible
+	 * window can only be reached again once the head wraps onto it, and
+	 * draw_waterfall() rewrites the row at waterfall_head in both maps in the
+	 * same frame it advances the head, before painting -- so a stale copy out
+	 * there is never observable.
+	 *
+	 * Copying the whole storage_height instead was the largest bulk copy left
+	 * in the waterfall path once b6b179c removed the per-frame row shift, and
+	 * it ran on every view-generation change, i.e. every zoom or pan step.
+	 *
+	 * Clamped like the guard in waterfall_history_update(): the 1 ms history
+	 * timer can fire between a layout change and the next resize_waterfall().
+	 */
+	struct waterfall_segment seg[2];
+	const int rows = MIN(f->height, waterfall_storage_height);
+	const int n = waterfall_segments(rows, seg);
+	for (int i = 0; i < n; i++) {
+		const size_t offset = (size_t)seg[i].offset * waterfall_storage_width * 3;
+		memcpy(waterfall_history_map + offset, waterfall_map + offset,
+			(size_t)seg[i].count * waterfall_storage_width * 3);
 	}
+	waterfall_history_map_generation = waterfall_view_generation;
 }
 
 static void waterfall_history_schedule(void)
@@ -3961,8 +4034,14 @@ static void waterfall_history_schedule(void)
 		g_source_remove(waterfall_history_timer);
 		waterfall_history_timer = 0;
 	}
-	if (waterfall_history_debounce_timer)
+	if (waterfall_history_debounce_timer) {
 		g_source_remove(waterfall_history_debounce_timer);
+		waterfall_history_debounce_timer = 0;
+	}
+	// WFREBUILD OFF: cancel the timers and stop there, so neither the re-analysis
+	// batch nor waterfall_history_snapshot()'s full-storage memcpy ever runs.
+	if (!panadapter_wf_rebuild)
+		return;
 	waterfall_history_debounce_timer = g_timeout_add(
 		WATERFALL_HISTORY_DEBOUNCE_MS, waterfall_history_debounce_tick, NULL);
 }
@@ -5310,6 +5389,7 @@ void menu2_display(int show) {
 		field_move("SCOPEAVG", SC(170), screen_height - SC(40), SC(70), SC(37));  // Add SCOPEAVG field
 		field_move("SCOPESIZE", SC(245), screen_height - SC(80), SC(70), SC(37)); // Add SCOPESIZE field
 		field_move("TXPANAFAL", SC(320), screen_height - SC(80), SC(70), SC(37)); // Add TXPANAFAL field
+		field_move("PANPERF", SC(395), screen_height - SC(80), SC(70), SC(37)); // Panadapter load preset
 		field_move("INTENSITY", SC(245), screen_height - SC(40), SC(70), SC(37)); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", SC(320), screen_height - SC(40), SC(70), SC(37)); // Add AUTOADJUST spectrum field
 		if (!strcmp(field_str("EPTTOPT"), "ON"))
@@ -8634,6 +8714,66 @@ int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int
 	return 0;
 }
 
+/*
+ * Mirror the #pan_* fields into the globals the analysis paths read, and keep
+ * PANPERF and the four individual knobs consistent.
+ *
+ * PANPERF writes the other four; touching one of those four directly reports
+ * CUSTOM, so that reloading settings does not stomp a deliberate override. The
+ * recursion guard keeps a preset's own writes from immediately reporting CUSTOM.
+ */
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	static int applying_preset;
+	(void)gfx; (void)event; (void)a; (void)b; (void)c;
+
+	struct panadapter_preset preset;
+	if (f && !strcmp(f->label, "PANPERF") && !applying_preset) {
+		// CUSTOM (and anything unrecognised) resolves to nothing on purpose:
+		// the individual knobs are authoritative in that case.
+		if (panadapter_preset_lookup(field_str("PANPERF"), &preset)) {
+			applying_preset = 1;
+			set_field("#pan_bins", preset.bins);
+			set_field("#pan_hist_secs", preset.hist_secs);
+			set_field("#pan_wf_rebuild", preset.wf_rebuild);
+			set_field("#pan_web_bins", preset.web_bins);
+			applying_preset = 0;
+		}
+	} else if (f && !applying_preset && strcmp(field_str("PANPERF"), "CUSTOM")) {
+		/*
+		 * An individual knob was set directly. Only clear the preset name if the
+		 * knobs actually disagree with it -- reloading settings replays all four
+		 * values after the preset that produced them, so an unconditional
+		 * "became CUSTOM" here relabelled every preset as CUSTOM on restart.
+		 */
+		const struct panadapter_preset current = {
+			.bins = field_str("PANBINS"),
+			.hist_secs = field_str("PANHISTSECS"),
+			.wf_rebuild = field_str("WFREBUILD"),
+			.web_bins = field_str("WEBBINS"),
+		};
+		if (!panadapter_preset_matches(field_str("PANPERF"), &current)) {
+			applying_preset = 1;
+			set_field("#pan_perf", "CUSTOM");
+			applying_preset = 0;
+		}
+	}
+
+	panadapter_max_bins = atoi(field_str("PANBINS"));
+	panadapter_wf_rebuild = !strcmp(field_str("WFREBUILD"), "ON");
+
+	const char *const web_bins = field_str("WEBBINS");
+	panadapter_web_enabled = strcmp(web_bins, "OFF") != 0;
+	panadapter_web_bins = panadapter_web_enabled ? atoi(web_bins)
+	                                             : PANADAPTER_FFT_FRAME_BINS;
+
+	// Contexts do not exist until panadapter_init(); this fires during ini_parse.
+	const uint64_t history = (uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE;
+	panadapter_fft_set_history_limit(panadapter_fft_context, history);
+	panadapter_fft_set_history_limit(web_panadapter_fft_context, history);
+	return 0;
+}
+
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *field_name = f->label;					 // Get the field label
@@ -10170,6 +10310,11 @@ void web_get_spectrum(char *buff)
 				buff[j++] = ' ';
 		}
 	}
+	else if (!panadapter_web_enabled)
+	{
+		// WEBBINS is OFF: sbitx.c is not even feeding this context.
+		strcpy(buff, "RX ");
+	}
 	else
 	{
 		const int mode = mode_id(get_field("r1:mode")->value);
@@ -10179,7 +10324,8 @@ void web_get_spectrum(char *buff)
 			.is_cw = mode == MODE_CW || mode == MODE_CWR,
 			.wpm = MAX(1, get_wpm()),
 			.refresh_ms = spectrum_refresh_interval_ms(mode),
-			.display_width_px = PANADAPTER_FFT_FRAME_BINS,
+			.display_width_px = panadapter_web_bins,
+			.max_bins = panadapter_max_bins,
 		};
 		struct panadapter_fft_frame frame;
 		panadapter_frame_get(web_panadapter_fft_context, &config, &frame);
@@ -12622,6 +12768,27 @@ int main(int argc, char *argv[])
 		strcat(directory, "/sbitx/data/default_settings.ini");
 		ini_parse(directory, user_settings_handler, NULL);
 	}
+
+	/*
+	 * Create the panadapter analysis contexts now: user_settings.ini has been
+	 * parsed (so PANHISTSECS is known) and the audio threads have not started
+	 * yet, so nothing is pushing samples into a ring that does not exist.
+	 *
+	 * The do_panadapter_edit() call is required, not belt-and-braces. set_field()
+	 * only auto-fires a field's handler while the field is off-screen (f->y < 0),
+	 * which covers the four hidden #pan_* fields but not PANPERF once
+	 * menu2_display() has given it a real position -- and menu2_display(0) never
+	 * moves it back. It also covers a first run with no #pan_* keys in the INI,
+	 * where no handler fires at all.
+	 */
+	panadapter_init((uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE);
+	do_panadapter_edit(get_field("#pan_perf"), NULL, FIELD_EDIT, 0, 0, 0);
+	// Report the resolved settings once, next to the existing "Panadapter FFT
+	// bins:" line, so a bug report says what the analysis was actually asked for.
+	printf("Panadapter settings: PANPERF=%s PANBINS=%s PANHISTSECS=%s "
+		   "WFREBUILD=%s WEBBINS=%s\n",
+		   field_str("PANPERF"), field_str("PANBINS"), field_str("PANHISTSECS"),
+		   field_str("WFREBUILD"), field_str("WEBBINS"));
 
 	/*
 	 * Start audio threads now that user_settings.ini has been loaded.
