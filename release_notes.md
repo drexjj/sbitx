@@ -8,6 +8,7 @@
 - Web button removed (deprecated)
 - Removed SI570 code (deprecated)
 - Updated bootlogo installer path
+- Cancel SWRSWEEP by touching the display or a mouse click
 
 **New Features:**
 - Mute button added
@@ -59,7 +60,7 @@
        + in menu 1 set SWRSTEP to the number of samples and click on SWRSWP
     + uses TNPWR to sample vswr at the n sample points evenly spaced between band limits
     + displays results in console
-    + touching a display button or a mouse click cancels sweep
+    + touching the display or a mouse click cancels sweep
  - Added time out feature to SWR alert
     + SWR alert ends after 10 seconds without needing to first transmit with SWR less than max_vswr
  - Added HPSDR 'Protocol 1' support to provide sbitx I and Q data to external SDR apps over WiFi or ethernet
