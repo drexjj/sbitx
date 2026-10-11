@@ -5519,6 +5519,18 @@ static void layout_ui()
   field_move("MENU", SC(473), SC(50), SC(40), SC(40));
   field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
 
+  // Left pair of the top row, continuing the uniform 3px spacing to the left
+  // of RIT. TUNE is always here. The slot immediately left of RIT holds REC
+  // in the default (1.0) layout and MENU in the scaled layout, matching how
+  // each layout arranges its header buttons.
+  //   TUNE : x2-443 .. x2-403
+  //   (REC or MENU): x2-400 .. x2-360
+  field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
+  if (ui_scale != 1.0f)
+    field_move("MENU", x2 - SC(400), SC(5), SC(40), SC(40));
+  else
+    field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
+
   if (!strcmp(field_str("KBD"), "ON")) {
     y2 = screen_height - KEYBOARD_HEIGHT;
     keyboard_display(1);
