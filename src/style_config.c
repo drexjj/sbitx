@@ -6,20 +6,6 @@
 #include <ctype.h>
 #include <cairo.h>
 
-// Forward declaration of font_style structure (from sbitx_gtk.c)
-struct font_style
-{
-    int index;
-    float r, g, b;
-    char name[32];
-    int height;
-    int weight;
-    int type;
-};
-
-// External references to the original palette and font_table
-extern float palette[][3];
-extern struct font_style font_table[];
 extern char *ui_font;
 extern int field_font_size;
 

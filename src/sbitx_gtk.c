@@ -62,6 +62,12 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <time.h>
 #include "cessb.h"
 #include "freq_keypad.h"
+#include "panadapter_fft.h"
+#include "panadapter_redraw.h"
+#include "panadapter_renderer.h"
+#include "panadapter_presets.h"
+#include "panadapter_view.h"
+#include "waterfall_ring.h"
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -74,6 +80,7 @@ extern float vmax; // vlevel meter, now with log voltage levels - not power
 float vlevels[12]= {.1, .126, .158, .2, .25, .316, .398, .5, .631, .794, 1.0, 1.26};
 void change_band(char *request);
 void highlight_band_field(int new_band);
+void invalidate_rect(int x, int y, int width, int height);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
@@ -234,14 +241,53 @@ float pw_max = 0.0;
 int tune_key=0; // CW tuning
 
 #define AVERAGING_FRAMES 15 // Number of frames to average
-// Buffer to hold past spectrum data
-static int spectrum_history[AVERAGING_FRAMES][MAX_BINS] = {0};
+struct spectrum_history_state {
+	int frames[AVERAGING_FRAMES][MAX_BINS];
+	int current_frame_index;
+	bool valid;
+	int span_hz;
+	int center_hz;
+	int mode;
+	int count;
+	bool in_tx;
+};
+static struct spectrum_history_state spectrum_history;
+static int spectrum_latency_ms = -1;
+#define PANADAPTER_FULL_SPAN_HZ 25000
+static struct panadapter_view panadapter_view = {1.0, 0.0};
+static struct panadapter_redraw_state panadapter_redraw_state;
+static int wf_latency_enabled_state;
+
+/*
+ * Panadapter load settings, mirrored out of the #pan_* fields by
+ * do_panadapter_edit(). Defaults match the field table so the radio behaves as
+ * it did before these knobs existed if the settings file predates them.
+ */
+static int panadapter_max_bins = PANADAPTER_FFT_MAX_BINS;
+static int panadapter_web_bins = PANADAPTER_FFT_FRAME_BINS;
+static int panadapter_wf_rebuild = 1;
+static int panadapter_web_enabled = 1;
+
+static int wf_latency_enabled(void)
+{
+	return wf_latency_enabled_state;
+}
+
+static int wf_latency_set(const char *value)
+{
+	if (!value)
+		return -1;
+	if (!strcasecmp(value, "on"))
+		wf_latency_enabled_state = 1;
+	else if (!strcasecmp(value, "off"))
+		wf_latency_enabled_state = 0;
+	else
+		return -1;
+	return 0;
+}
 
 #define MIN_WATERFALL_HEIGHT 10 // Define a minimum safe height
 #define WATERFALL_Y_OFFSET 2   // Pixels to move waterfall up from spectrum bottom
-
-// Index of the current frame in the history buffer
-static int current_frame_index = 0;
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7,
@@ -310,28 +356,6 @@ struct encoder
 };
 void tuning_isr(void);
 
-#define COLOR_SELECTED_TEXT 0
-#define COLOR_TEXT 1
-#define COLOR_TEXT_MUTED 2
-#define COLOR_SELECTED_BOX 3
-#define COLOR_BACKGROUND 4
-#define COLOR_FREQ 5
-#define COLOR_LABEL 6
-#define SPECTRUM_BACKGROUND 7
-#define SPECTRUM_GRID 8
-#define SPECTRUM_PLOT 9
-#define SPECTRUM_NEEDLE 10
-#define COLOR_CONTROL_BOX 11
-#define SPECTRUM_BANDWIDTH 12
-#define COLOR_RX_PITCH 13
-#define SELECTED_LINE 14
-#define COLOR_FIELD_SELECTED 15
-#define COLOR_TX_PITCH 16
-#define COLOR_TOGGLE_ACTIVE 17
-#define WATERFALL_LOW  18
-#define WATERFALL_MID  19
-#define WATERFALL_HIGH 20
-
 float palette[][3] = {
 	{1, 1, 1},		 // COLOR_SELECTED_TEXT
 	{0, 1, 1},		 // COLOR_TEXT
@@ -371,17 +395,6 @@ static int ui_scale_applied = 0;
 
 /* Scale a pixel size/dimension by ui_scale */
 #define SC(x) ((int)((x) * ui_scale))
-
-// we just use a look-up table to define the fonts used
-// the struct field indexes into this table
-struct font_style {
-	int index;
-	float r, g, b;
-	char name[32];
-	int height;
-	int weight;
-	int type;
-};
 
 guint key_modifier = 0;
 
@@ -868,8 +881,6 @@ int data_delay = 700;
 
 #define MAX_RIT 25000
 
-int spectrum_span = 48000;
-extern int spectrum_plot[];
 extern int fwdpower, vswr;
 
 void do_control_action(char *cmd);
@@ -902,6 +913,7 @@ int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_keypad_btn(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -955,7 +967,7 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#keypad_btn", do_keypad_btn, 135, 5, 40, 40, "PAD", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#tune", do_toggle_option, 500, 5, 40, 40, "TUNE", 40, "", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	{"#tune", do_toggle_option, 500, 5, 40, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 
 	//{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL},
@@ -973,8 +985,6 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#step", do_dropdown, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
-	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
-	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
 	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, STYLE_FIELD_VALUE,
@@ -1052,12 +1062,12 @@ struct field main_controls[] = {
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, 0, DIGITAL_CONTROL},
 
-	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
+	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "", FIELD_STATIC, STYLE_SMALL,
 	 "", 0, 0, 0, COMMON_CONTROL},
-	{"#status", do_status, -1000, -1000, 400, 29, "STATUS", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
+	{"#status", do_status, -1000, -1000, 400, 29, "STATUS", 70, "", FIELD_STATIC, STYLE_SMALL,
 	 "status", 0, 0, 0, 0},
 
-	{"waterfall", do_waterfall, 400, 201, 400, 99, "WATERFALL", 70, "7000 KHz", FIELD_STATIC, STYLE_SMALL,
+	{"waterfall", do_waterfall, 400, 201, 400, 99, "WATERFALL", 70, "", FIELD_STATIC, STYLE_SMALL,
 	 "", 0, 0, 0, COMMON_CONTROL},
 	{"#console", do_console, 0, 100, 400, 200, "CONSOLE", 70, "console box", FIELD_CONSOLE, STYLE_LOG,
 	 "nothing valuable", 0, 0, 0, COMMON_CONTROL},
@@ -1176,6 +1186,28 @@ struct field main_controls[] = {
 
 	{"#wf_spd", do_wf_edit, 150, 20, 5, 50, "WFSPD", 50, "50", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 20, 150, 5, 0},
+	{"#pan_direction", do_toggle_option, 1000, -1000, 70, 37, "PANDIR", 40, "VIEW", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "VIEW/WF", 0, 0, 0, 0},
+
+	/*
+	 * Panadapter load settings. PANPERF is a preset that writes the other four;
+	 * setting any of those four directly flips PANPERF to CUSTOM so a reload
+	 * does not stomp the override. PANPERF must come first in this table, so
+	 * that on load the preset is applied before the values it would overwrite.
+	 * PANPERF is placed on screen by menu2_display(); the rest stay hidden and
+	 * are reachable as \PANBINS, \PANHISTSECS, \WFREBUILD and \WEBBINS via the
+	 * get_field_by_label() fall-through in cmd_exec().
+	 */
+	{"#pan_perf", do_panadapter_edit, 1000, -1000, 70, 37, "PANPERF", 40, "HIGH", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "LOW/MED/HIGH/CUSTOM", 0, 0, 0, 0},
+	{"#pan_bins", do_panadapter_edit, 1000, -1000, 70, 37, "PANBINS", 40, "16384", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "1024/2048/4096/8192/16384", 0, 0, 0, 0},
+	{"#pan_hist_secs", do_panadapter_edit, 1000, -1000, 70, 37, "PANHISTSECS", 40, "11", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "3/6/11", 0, 0, 0, 0},
+	{"#pan_wf_rebuild", do_panadapter_edit, 1000, -1000, 70, 37, "WFREBUILD", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/ON", 0, 0, 0, 0},
+	{"#pan_web_bins", do_panadapter_edit, 1000, -1000, 70, 37, "WEBBINS", 40, "2048", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/256/512/1024/2048", 0, 0, 0, 0},
 
 	{"#scope_gain", do_wf_edit, 25, 1, 1, 10, "SCOPEGAIN", 10, "1.0", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 25, 1, 0},
@@ -1278,8 +1310,6 @@ struct field main_controls[] = {
 	 "", -3000, 3000, 50, 0},
 
 	// Tune Controls - W9JES
-	//{"#tune", do_toggle_option, 1000, -1000, 50, 40, "TUNE", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	//"ON/OFF", 0, 0, 0, 0},
 	{"#tune_power", NULL, 1000, -1000, 50, 40, "TNPWR", 100, "20", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 100, 1, 0},
 	{"#tune_duration", NULL, 1000, -1000, 50, 40, "TNDUR", 30, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1520,6 +1550,8 @@ int set_field(const char *id, const char *value)
 		printf("*Error: field[%s] not found. Check for typo?\n", id);
 		return 1;
 	}
+	if (f->value_type == FIELD_STATIC)
+		return 0;
 
 	if (f->value_type == FIELD_NUMBER)
 	{
@@ -1597,8 +1629,9 @@ int set_field(const char *id, const char *value)
 	sprintf(buff, "%s %s", f->label, f->value);
 	do_control_action(buff);
 
-	// mark field for redraw / remote update
+  // mark field for redraw / remote update
   update_field(f);
+  panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
   // if this field has a handler and is off-screen, invoke it immediately
   // so off-screen toggles (like #cessb_plugin) actually take effect
   if (f->fn && f->y < 0) {
@@ -1689,6 +1722,8 @@ int remote_update_field(int i, char *text)
 				tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
 		return 1;
 	}
+	if (f->value_type == FIELD_STATIC)
+		return 0;
 
 	strcpy(text, f->label);
 	strcat(text, " ");
@@ -2400,6 +2435,81 @@ static int mode_id(const char *mode_str)
 	return -1;
 }
 
+static int spectrum_display_span_hz(void)
+{
+	return panadapter_view_span_hz(&panadapter_view, PANADAPTER_FULL_SPAN_HZ);
+}
+
+static long spectrum_view_start(long tuned_freq)
+{
+	const int span_hz = spectrum_display_span_hz();
+	return tuned_freq - span_hz / 2
+		+ panadapter_view_center_hz(&panadapter_view, PANADAPTER_FULL_SPAN_HZ);
+}
+
+static void spectrum_filter_range(long tuned_freq, long *start, long *stop)
+{
+	const int high = atoi(get_field("r1:high")->value);
+	const int low = atoi(get_field("r1:low")->value);
+	const int mode = mode_id(get_field("r1:mode")->value);
+	if (mode == MODE_CWR || mode == MODE_LSB) {
+		*start = tuned_freq - high;
+		*stop = tuned_freq - low;
+	} else if (mode == MODE_AM || mode == MODE_FM) {
+		*start = tuned_freq - high;
+		*stop = tuned_freq + low;
+	} else {
+		*start = tuned_freq + low;
+		*stop = tuned_freq + high;
+	}
+}
+
+static long spectrum_display_frequency(void)
+{
+	long frequency = atol(get_field("r1:freq")->value);
+	struct field *rit = get_field("#rit");
+	if (!strcmp(rit->value, "ON") && !in_tx)
+		frequency += field_int("RIT_DELTA");
+	return frequency;
+}
+
+static int spectrum_refresh_interval_ms(int mode)
+{
+	const int interval = mode == MODE_FT4 || mode == MODE_FT8 ? MAX(wf_spd, 50) : wf_spd;
+	return MAX(1, MIN(interval, 500));
+}
+
+static struct panadapter_fft_config spectrum_fft_config(void)
+{
+	const int span_hz = spectrum_display_span_hz();
+	const int mode = mode_id(get_field("r1:mode")->value);
+	const int center_hz = panadapter_view_center_hz(&panadapter_view, PANADAPTER_FULL_SPAN_HZ);
+	const struct field *const spectrum = get_field("spectrum");
+	return (struct panadapter_fft_config) {
+		.display_span_hz = span_hz,
+		.center_hz = center_hz,
+		.is_cw = mode == MODE_CW || mode == MODE_CWR,
+		.is_tx = in_tx,
+		.wpm = MAX(1, get_wpm()),
+		.refresh_ms = spectrum_refresh_interval_ms(mode),
+		.display_width_px = MAX(1, spectrum->width),
+		.max_bins = panadapter_max_bins,
+	};
+}
+
+static void panadapter_frame_get(struct panadapter_fft *context,
+	const struct panadapter_fft_config *config,
+	struct panadapter_fft_frame *frame)
+{
+	panadapter_fft_request(context, config);
+	if (!panadapter_fft_get_frame(context, config, frame))
+		*frame = (struct panadapter_fft_frame) {
+			.bins = {-120},
+			.count = 1,
+			.config = *config,
+		};
+}
+
 void save_user_settings(int forced)
 {
 	static int last_save_at = 0;
@@ -2431,13 +2541,14 @@ void save_user_settings(int forced)
 	int i;
 	for (i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
-		// Skip #band and #band_stack_pos - these are computed fields, not saved
-		// The band stack index is saved per-band in the [80M], [40M], etc. sections
-		// #mute is a momentary UI state that should always start OFF. - added mute control
-		if (!strcmp(active_layout[i].cmd, "#band") || 
+		// Static display fields and momentary/computed UI state are not settings.
+		// The band stack index is saved per-band below.
+		if (active_layout[i].value_type == FIELD_STATIC ||
+			!strcmp(active_layout[i].cmd, "#band") ||
 			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
 			!strcmp(active_layout[i].cmd, "#mute") ||
-			!strcmp(active_layout[i].cmd, "#ftx_auto"))
+			!strcmp(active_layout[i].cmd, "#ftx_auto") ||
+			!strcmp(active_layout[i].cmd, "#tune"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
@@ -2447,6 +2558,9 @@ void save_user_settings(int forced)
 
   // write "max_vswr" so it will be saved to usersettings.ini
   fprintf(f, "max_vswr=%g\n", max_vswr);
+
+	// write the WF latency display setting to user_settings.ini
+	fprintf(f, "wf_latency=%s\n", wf_latency_enabled() ? "ON" : "OFF");
 
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
@@ -2707,6 +2821,11 @@ static int user_settings_handler(void *user, const char *section,
 		}
 		sprintf(cmd, "%s", name);
 
+		// #tune is a momentary action, not a persisted setting.  Ignore
+		// legacy entries so they don't cause issues during startup
+		if (!strcmp(cmd, "#tune"))
+			return 1;
+
         // Load max_vswr if present
 		if (!strcmp(name, "max_vswr"))
 		{
@@ -2717,6 +2836,12 @@ static int user_settings_handler(void *user, const char *section,
               vswr=0;
               vswr_on = 0;  // turn off protection
             }
+			return 1;
+		}
+
+		if (!strcmp(name, "wf_latency"))
+		{
+			wf_latency_set(value);
 			return 1;
 		}
 
@@ -3243,7 +3368,6 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 		int led_x = vu_text_x + vu_text_width + 5;
 
 		// Draw LED background
-		cairo_save(gfx);
 		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
 		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 12 + 2,  // 5
 						box_height + 4);
@@ -3286,7 +3410,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 			}
 
 			cairo_fill(gfx);
-		}	
+		}
 			
 	}
 	
@@ -3310,13 +3434,338 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 
 static int waterfall_offset = 30;
 static int *wf = NULL;
-GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
+static guint8 *waterfall_history_map;
+static bool waterfall_dragging;
+static uint64_t waterfall_live_sample_end;
+static float waterfall_color_offset;
+static guint waterfall_history_timer;
+static guint waterfall_history_debounce_timer;
+// Physical row currently holding logical row 0 (the newest row). Advancing
+// this on each new frame replaces shifting every retained row down by one
+// (an O(width x storage_height) memmove) with an O(1) index update.
+static int waterfall_head;
+
+#define WATERFALL_HISTORY_DEBOUNCE_MS 100
+#define WATERFALL_HISTORY_ROWS_PER_TICK 4
+
+struct waterfall_history_row {
+	uint64_t sample_end;
+	uint64_t view_generation;
+};
+
+static struct waterfall_history_row *waterfall_history_rows;
+static int waterfall_storage_width;
+static int waterfall_storage_height;
+static uint64_t waterfall_drawn_sample_end;
+static uint64_t waterfall_view_generation = 1;
+static uint64_t waterfall_history_map_generation;
+static uint64_t waterfall_request_token;
+static struct panadapter_fft_config waterfall_history_config;
+static struct {
+	bool active;
+	uint64_t token;
+	uint64_t view_generation;
+} waterfall_history_request;
+static struct {
+	struct panadapter_fft_frame *frames;
+	int count;
+	int next;
+	uint64_t view_generation;
+} waterfall_history_render;
+
+static void waterfall_history_start(void);
+static void waterfall_history_schedule(void);
+static void waterfall_history_snapshot(void);
+
+// Thin wrappers binding the pure ring index math in waterfall_ring.c to
+// this file's waterfall_head/waterfall_storage_height state.
+static int waterfall_physical_row(int logical_row)
+{
+	return waterfall_ring_physical_row(waterfall_head, waterfall_storage_height,
+		logical_row);
+}
+
+static int waterfall_segments(int count, struct waterfall_segment out[2])
+{
+	return waterfall_ring_segments(waterfall_head, waterfall_storage_height,
+		count, out);
+}
+
+static void remap_waterfall(
+							const struct panadapter_view *old_view,
+							const struct panadapter_view *new_view)
+{
+	struct field *f = get_field("waterfall");
+	if (!waterfall_map || !f || f->width < 1 || f->height < 1)
+		return;
+
+	const int width = f->width;
+	const int height = f->height;
+	struct waterfall_segment seg[2];
+	const int n = waterfall_segments(height, seg);
+	if (n < 1)
+		return;
+
+	// The visible rows are read out of the ring in logical (time) order
+	// into a plain linear buffer, remapped there, and written back through
+	// the same segments -- gdk_pixbuf can't address a wrapped ring directly.
+	guint8 *previous = malloc((size_t)width * height * 3);
+	guint8 *remapped = malloc((size_t)width * height * 3);
+	GdkPixbuf *previous_pb = NULL, *remapped_pb = NULL;
+	if (previous && remapped) {
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(previous + (size_t)copied * width * 3,
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
+
+		previous_pb = gdk_pixbuf_new_from_data(previous,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
+		remapped_pb = gdk_pixbuf_new_from_data(remapped,
+			GDK_COLORSPACE_RGB, FALSE, 8, width, height, width * 3, NULL, NULL);
+	}
+	if (previous_pb && remapped_pb) {
+		const double scale = old_view->zoom / new_view->zoom;
+		const double source_x = panadapter_view_map_position(old_view, new_view,
+			0.5 / width) * width - 0.5;
+		const int first = MAX(0, (int)ceil((-0.5 - source_x) / scale));
+		const int last = MIN(width - 1,
+			(int)floor((width - 0.5 - source_x) / scale));
+
+		gdk_pixbuf_fill(remapped_pb, 0x000000ff);
+		if (first <= last) {
+			gdk_pixbuf_scale(previous_pb, remapped_pb,
+				first, 0, last - first + 1, height,
+				-source_x / scale, 0, 1.0 / scale, 1.0,
+				GDK_INTERP_BILINEAR);
+		}
+
+		int copied = 0;
+		for (int s = 0; s < n; s++) {
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				remapped + (size_t)copied * width * 3,
+				(size_t)seg[s].count * width * 3);
+			copied += seg[s].count;
+		}
+	}
+	if (previous_pb)
+		g_object_unref(previous_pb);
+	if (remapped_pb)
+		g_object_unref(remapped_pb);
+	free(previous);
+	free(remapped);
+}
+
+static void panadapter_view_refresh(const struct panadapter_view *previous)
+{
+	remap_waterfall(previous, &panadapter_view);
+	waterfall_view_generation++;
+	if (!waterfall_view_generation)
+		waterfall_view_generation++;
+	waterfall_history_config = spectrum_fft_config();
+	waterfall_history_schedule();
+	panadapter_fft_reset(panadapter_fft_context);
+	struct field *spectrum = get_field("spectrum");
+	struct field *waterfall = get_field("waterfall");
+	invalidate_rect(spectrum->x, spectrum->y, spectrum->width, spectrum->height);
+	invalidate_rect(waterfall->x, waterfall->y, waterfall->width, waterfall->height);
+}
+
+static int panadapter_arrow_direction(int control)
+{
+	int direction = control == PANADAPTER_LEFT ? -1 : 1;
+	if (!strcmp(field_str("PANDIR"), "WF"))
+		direction = -direction;
+	return direction;
+}
+
+static bool panadapter_control_enabled(int control)
+{
+	if (control == PANADAPTER_ZOOM_OUT)
+		return panadapter_view.zoom > 1.0 + 1.0e-6;
+	if (control == PANADAPTER_ZOOM_IN)
+		return panadapter_view.zoom < PANADAPTER_VIEW_MAX_ZOOM - 1.0e-6;
+	const double pan_limit = 0.5 - 0.5 / panadapter_view.zoom;
+	if (control == PANADAPTER_LEFT || control == PANADAPTER_RIGHT)
+		return panadapter_arrow_direction(control) < 0
+			? panadapter_view.center > -pan_limit + 1.0e-6
+			: panadapter_view.center < pan_limit - 1.0e-6;
+	if (control == PANADAPTER_FULL)
+		return !panadapter_view_is_default(&panadapter_view);
+	return true;
+}
+
+static struct panadapter_view panadapter_filter_view(void)
+{
+	const long tuned = spectrum_display_frequency();
+	long start, stop;
+	spectrum_filter_range(tuned, &start, &stop);
+	struct panadapter_view view = panadapter_view;
+	panadapter_view_fit(&view,
+		0.5 + (double)(start - tuned) / PANADAPTER_FULL_SPAN_HZ,
+		0.5 + (double)(stop - tuned) / PANADAPTER_FULL_SPAN_HZ);
+	return view;
+}
+
+static void panadapter_control_rect(const struct field *f, int control,
+									int *x, int *y, int *size)
+{
+	panadapter_renderer_control_rect(f->x, f->y, f->height, control,
+									 x, y, size);
+}
+
+static void draw_panadapter_controls(struct field *f, cairo_t *gfx)
+{
+	unsigned enabled = 0;
+	for (int control = 0; control < PANADAPTER_CONTROL_COUNT; control++)
+		if (panadapter_control_enabled(control))
+			enabled |= 1u << control;
+	panadapter_renderer_draw_controls(gfx, f->x, f->y, f->height,
+		spectrum_display_span_hz(), enabled);
+}
+
+static int panadapter_control_at(struct field *f, int pointer_x, int pointer_y)
+{
+	for (int control = 0; control < PANADAPTER_CONTROL_COUNT; control++) {
+		int x, y, size;
+		panadapter_control_rect(f, control, &x, &y, &size);
+		if (pointer_x >= x && pointer_x < x + size
+			&& pointer_y >= y && pointer_y < y + size)
+			return control;
+	}
+	return -1;
+}
+
+static bool activate_panadapter_control(struct field *f, int pointer_x, int pointer_y)
+{
+	const int control = panadapter_control_at(f, pointer_x, pointer_y);
+	if (control >= 0) {
+		const struct panadapter_view previous = panadapter_view;
+		if (!panadapter_control_enabled(control))
+			return true;
+		if (control == PANADAPTER_FULL)
+			panadapter_view_reset(&panadapter_view);
+		else if (control == PANADAPTER_FILTER)
+			panadapter_view = panadapter_filter_view();
+		else if (control == PANADAPTER_LEFT || control == PANADAPTER_RIGHT)
+			panadapter_view_pan(&panadapter_view,
+				panadapter_arrow_direction(control) * 0.15);
+		else
+			panadapter_view_zoom_at(&panadapter_view,
+				control == PANADAPTER_ZOOM_IN ? 1.25 : 0.8, 0.5);
+		if (fabs(previous.zoom - panadapter_view.zoom) > 0.001
+			|| fabs(previous.center - panadapter_view.center) > 0.0001)
+			panadapter_view_refresh(&previous);
+		return true;
+	}
+	return false;
+}
 
 // Flag to override remote display disabling
 static int override_remote_display = 0;
 static int override_remote_display_timeout = 300; // 5 minutes
 static time_t last_override_time = 0;
+
+static bool resize_waterfall(struct field *f)
+{
+	if (!f || f->width < 1 || f->height < 1)
+		return false;
+	const bool width_changed = waterfall_storage_width != f->width;
+	/*
+	 * Retain exactly the rows that get read. Nothing indexes past f->height --
+	 * every consumer goes through waterfall_segments(f->height, ...) or
+	 * waterfall_physical_row(row < f->height) -- so the old
+	 * MAX(..., screen_height) term just padded both RGB buffers and the
+	 * per-view-change snapshot with rows no one looks at.
+	 *
+	 * The MAX against the current height stays: it keeps the buffers from being
+	 * reallocated every time a layout change shrinks the waterfall (toggling
+	 * MENU, KBD or SPECT), so they settle at the tallest layout actually used
+	 * rather than at the full screen height.
+	 */
+	const int new_height = MAX(waterfall_storage_height, f->height);
+	const bool storage_changed = !waterfall_map || width_changed ||
+		new_height != waterfall_storage_height;
+
+	if (storage_changed) {
+		guint8 *new_map = calloc((size_t)f->width * new_height, 3);
+		guint8 *new_history_map = calloc((size_t)f->width * new_height, 3);
+		struct waterfall_history_row *new_rows = calloc(new_height,
+			sizeof(*new_rows));
+		if (!new_map || !new_history_map || !new_rows) {
+			free(new_map);
+			free(new_history_map);
+			free(new_rows);
+			return false;
+		}
+
+		const int rows = MIN(waterfall_storage_height, new_height);
+		struct waterfall_segment seg[2];
+		const int n = waterfall_map && waterfall_storage_width > 0
+			? waterfall_segments(rows, seg) : 0;
+		if (n > 0) {
+			guint8 *old_linear = malloc((size_t)waterfall_storage_width * rows * 3);
+			if (old_linear) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(old_linear + (size_t)copied * waterfall_storage_width * 3,
+						waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+						(size_t)seg[s].count * waterfall_storage_width * 3);
+					copied += seg[s].count;
+				}
+				GdkPixbuf *old_pixbuf = gdk_pixbuf_new_from_data(old_linear,
+					GDK_COLORSPACE_RGB, FALSE, 8, waterfall_storage_width, rows,
+					waterfall_storage_width * 3, NULL, NULL);
+				GdkPixbuf *new_pixbuf = gdk_pixbuf_new_from_data(new_map,
+					GDK_COLORSPACE_RGB, FALSE, 8, f->width, rows,
+					f->width * 3, NULL, NULL);
+				if (old_pixbuf && new_pixbuf)
+					gdk_pixbuf_scale(old_pixbuf, new_pixbuf, 0, 0, f->width, rows,
+						0, 0, (double)f->width / waterfall_storage_width, 1.0,
+						GDK_INTERP_NEAREST);
+				if (old_pixbuf)
+					g_object_unref(old_pixbuf);
+				if (new_pixbuf)
+					g_object_unref(new_pixbuf);
+				free(old_linear);
+			}
+			if (waterfall_history_rows) {
+				int copied = 0;
+				for (int s = 0; s < n; s++) {
+					memcpy(new_rows + copied,
+						waterfall_history_rows + seg[s].offset,
+						(size_t)seg[s].count * sizeof(*new_rows));
+					copied += seg[s].count;
+				}
+			}
+		}
+		memcpy(new_history_map, new_map, (size_t)f->width * new_height * 3);
+
+		free(waterfall_map);
+		free(waterfall_history_map);
+		free(waterfall_history_rows);
+		waterfall_map = new_map;
+		waterfall_history_map = new_history_map;
+		waterfall_history_map_generation = 0;
+		waterfall_history_rows = new_rows;
+		waterfall_storage_width = f->width;
+		waterfall_storage_height = new_height;
+		waterfall_head = 0;
+
+		if (width_changed && rows > 0) {
+			waterfall_view_generation++;
+			if (!waterfall_view_generation)
+				waterfall_view_generation++;
+			waterfall_history_config = spectrum_fft_config();
+			waterfall_history_start();
+		}
+	}
+
+	return true;
+}
 
 void init_waterfall()
 {
@@ -3364,53 +3813,237 @@ void init_waterfall()
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
 
-	if (wf)
-	{
-		free(wf);
-	}
-	// Allocate memory for wf buffer
-	wf = malloc((MAX_BINS / 2) * f->height * sizeof(int));
+	if (!wf)
+		wf = calloc(MAX_BINS, sizeof(*wf));
 	if (!wf)
 	{
 		puts("*Error: malloc failed on waterfall buffer (wf)");
 		exit(0);
 	}
-	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
 
-	if (waterfall_map)
-	{
-		free(waterfall_map);
-	}
-	// Allocate memory for waterfall_map buffer
-	waterfall_map = malloc(f->width * f->height * 3);
-	if (!waterfall_map)
+	if (!resize_waterfall(f))
 	{
 		puts("*Error: malloc failed on waterfall buffer (waterfall_map)");
-		free(wf); // Clean up previously allocated memory
 		exit(0);
 	}
+}
 
-	for (int i = 0; i < f->width; i++)
-	{
-		for (int j = 0; j < f->height; j++)
-		{
-			int row = j * f->width * 3;
-			int index = row + i * 3;
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = 0; // i % 256;
-			waterfall_map[index++] = 0; // j % 256;
+static void waterfall_render_history_row(struct field *f, int phys_row,
+									 const struct panadapter_fft_frame *frame,
+									 float min_db, float max_db, float offset)
+{
+	const struct field *spectrum = get_field("spectrum");
+	const int grid_height = spectrum->height -
+		(font_table[STYLE_SMALL].height * 4 / 3);
+	if (frame->count < 1 || grid_height < 1)
+		return;
+	guint8 *target = waterfall_history_map_generation == waterfall_view_generation
+		? waterfall_history_map : waterfall_map;
+	const bool auto_scope = !strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx;
+	for (int x = 0; x < f->width; x++) {
+		const int bin = (f->width - 1 - x) * frame->count / f->width;
+		int y = ((frame->bins[bin] + waterfall_offset) * spectrum->height) / 80;
+		y = MAX(0, MIN(spectrum->height - 1, y));
+		panadapter_renderer_waterfall_pixel((y * 100) / grid_height,
+			min_db, max_db, offset, auto_scope,
+			target + ((size_t)phys_row * f->width + x) * 3);
+	}
+}
+
+static void waterfall_history_render_clear(void)
+{
+	free(waterfall_history_render.frames);
+	memset(&waterfall_history_render, 0, sizeof(waterfall_history_render));
+}
+
+static bool waterfall_history_update(struct field *f, float min_db,
+									  float max_db, float offset)
+{
+	if (!panadapter_wf_rebuild || !waterfall_history_rows ||
+		waterfall_storage_height < f->height)
+		return false;
+
+	if (waterfall_history_request.active) {
+		int frame_count = 0;
+		struct panadapter_fft_frame *frames =
+			panadapter_fft_take_history_batch(panadapter_fft_context,
+				waterfall_history_request.token, &frame_count);
+		if (frames) {
+			if (waterfall_history_request.view_generation == waterfall_view_generation) {
+				waterfall_history_render_clear();
+				waterfall_history_render.frames = frames;
+				waterfall_history_render.count = frame_count;
+				waterfall_history_render.view_generation = waterfall_view_generation;
+			} else
+				free(frames);
+			waterfall_history_request.active = false;
 		}
 	}
 
-	if (waterfall_pixbuf)
-	{
-		g_object_unref(waterfall_pixbuf);
+	if (waterfall_history_render.frames) {
+		if (waterfall_history_render.view_generation != waterfall_view_generation)
+			waterfall_history_render_clear();
+		else {
+			const int end = MIN(waterfall_history_render.count,
+				waterfall_history_render.next + WATERFALL_HISTORY_ROWS_PER_TICK);
+			for (int result = waterfall_history_render.next; result < end; result++) {
+				for (int row = 0; row < f->height; row++) {
+					const int phys = waterfall_physical_row(row);
+					if (waterfall_history_rows[phys].sample_end !=
+						waterfall_history_render.frames[result].sample_end ||
+						waterfall_history_rows[phys].view_generation ==
+						waterfall_view_generation)
+						continue;
+					if (waterfall_history_render.frames[result].count > 0)
+						waterfall_render_history_row(f, phys,
+							&waterfall_history_render.frames[result], min_db, max_db, offset);
+					waterfall_history_rows[phys].view_generation = waterfall_view_generation;
+				}
+			}
+			waterfall_history_render.next = end;
+			if (end < waterfall_history_render.count)
+				return true;
+			waterfall_history_render_clear();
+		}
 	}
-	waterfall_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-												GDK_COLORSPACE_RGB, FALSE, 8, f->width, f->height, f->width * 3, NULL, NULL);
-	// format,         alpha?, bit,  width,    height, rowstride, destroyfn, data
 
-	//	printf("%ld return from pixbuff", (int)waterfall_pixbuf);
+	if (waterfall_dragging || waterfall_history_request.active)
+		return true;
+	uint64_t *sample_ends = malloc((size_t)f->height * sizeof(*sample_ends));
+	if (!sample_ends)
+		return true;
+	int count = 0;
+	for (int row = 0; row < f->height; row++) {
+		const int phys = waterfall_physical_row(row);
+		if (!waterfall_history_rows[phys].sample_end ||
+			waterfall_history_rows[phys].view_generation == waterfall_view_generation)
+			continue;
+		bool duplicate = false;
+		for (int previous = 0; previous < count; previous++)
+			if (sample_ends[previous] == waterfall_history_rows[phys].sample_end)
+				duplicate = true;
+		if (!duplicate)
+			sample_ends[count++] = waterfall_history_rows[phys].sample_end;
+	}
+	if (count > 0) {
+		const uint64_t token = ++waterfall_request_token;
+		const bool queued = token && panadapter_fft_request_history_batch(
+			panadapter_fft_context, &waterfall_history_config,
+			sample_ends, count, token);
+		free(sample_ends);
+		if (!queued)
+			return true;
+		waterfall_history_request = (typeof(waterfall_history_request)) {
+			.active = true,
+			.token = token,
+			.view_generation = waterfall_view_generation,
+		};
+		return true;
+	}
+	free(sample_ends);
+	if (waterfall_history_map_generation == waterfall_view_generation) {
+		// Both buffers share the same head, so a per-segment copy at
+		// matching physical offsets restores exactly the visible rows.
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		for (int s = 0; s < n; s++)
+			memcpy(waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				waterfall_history_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				(size_t)seg[s].count * waterfall_storage_width * 3);
+		waterfall_history_map_generation = 0;
+	}
+	return false;
+}
+
+static gboolean waterfall_history_tick(gpointer unused)
+{
+	(void)unused;
+	waterfall_history_snapshot();
+	struct field *f = get_field("waterfall");
+	const bool pending = waterfall_history_update(f,
+		(wf_min - 1.0f) * 100.0f, 100.0f * wf_max,
+		waterfall_color_offset);
+	if (pending)
+		return G_SOURCE_CONTINUE;
+	waterfall_history_timer = 0;
+	return G_SOURCE_REMOVE;
+}
+
+static void waterfall_history_start(void)
+{
+	if (waterfall_history_debounce_timer) {
+		g_source_remove(waterfall_history_debounce_timer);
+		waterfall_history_debounce_timer = 0;
+	}
+	// resize_waterfall() calls this directly, bypassing the scheduler, so the
+	// WFREBUILD guard has to be repeated here or the snapshot memcpy still runs.
+	if (!panadapter_wf_rebuild)
+		return;
+	waterfall_history_snapshot();
+	if (!waterfall_history_timer)
+		waterfall_history_timer = g_timeout_add(1, waterfall_history_tick, NULL);
+}
+
+static gboolean waterfall_history_debounce_tick(gpointer unused)
+{
+	(void)unused;
+	if (waterfall_dragging)
+		return G_SOURCE_CONTINUE;
+	waterfall_history_debounce_timer = 0;
+	waterfall_history_start();
+	return G_SOURCE_REMOVE;
+}
+
+static void waterfall_history_snapshot(void)
+{
+	const struct field *const f = get_field("waterfall");
+	if (waterfall_dragging || !waterfall_history_map || !f ||
+		waterfall_history_map_generation == waterfall_view_generation)
+		return;
+
+	/*
+	 * Only the visible rows are ever read back out of waterfall_history_map:
+	 * the restore in waterfall_history_update() and every other consumer index
+	 * it through waterfall_segments(f->height, ...). A row outside the visible
+	 * window can only be reached again once the head wraps onto it, and
+	 * draw_waterfall() rewrites the row at waterfall_head in both maps in the
+	 * same frame it advances the head, before painting -- so a stale copy out
+	 * there is never observable.
+	 *
+	 * Copying the whole storage_height instead was the largest bulk copy left
+	 * in the waterfall path once b6b179c removed the per-frame row shift, and
+	 * it ran on every view-generation change, i.e. every zoom or pan step.
+	 *
+	 * Clamped like the guard in waterfall_history_update(): the 1 ms history
+	 * timer can fire between a layout change and the next resize_waterfall().
+	 */
+	struct waterfall_segment seg[2];
+	const int rows = MIN(f->height, waterfall_storage_height);
+	const int n = waterfall_segments(rows, seg);
+	for (int i = 0; i < n; i++) {
+		const size_t offset = (size_t)seg[i].offset * waterfall_storage_width * 3;
+		memcpy(waterfall_history_map + offset, waterfall_map + offset,
+			(size_t)seg[i].count * waterfall_storage_width * 3);
+	}
+	waterfall_history_map_generation = waterfall_view_generation;
+}
+
+static void waterfall_history_schedule(void)
+{
+	if (waterfall_history_timer) {
+		g_source_remove(waterfall_history_timer);
+		waterfall_history_timer = 0;
+	}
+	if (waterfall_history_debounce_timer) {
+		g_source_remove(waterfall_history_debounce_timer);
+		waterfall_history_debounce_timer = 0;
+	}
+	// WFREBUILD OFF: cancel the timers and stop there, so neither the re-analysis
+	// batch nor waterfall_history_snapshot()'s full-storage memcpy ever runs.
+	if (!panadapter_wf_rebuild)
+		return;
+	waterfall_history_debounce_timer = g_timeout_add(
+		WATERFALL_HISTORY_DEBOUNCE_MS, waterfall_history_debounce_tick, NULL);
 }
 
 void draw_tx_meters(struct field *f, cairo_t *gfx)
@@ -3517,118 +4150,120 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		}
 	}
 
-	// Scroll the existing waterfall data down
-	memmove(waterfall_map + f->width * 3, waterfall_map,
-			f->width * (f->height - 1) * 3);
+	if (waterfall_live_sample_end &&
+		waterfall_live_sample_end != waterfall_drawn_sample_end) {
+		waterfall_drawn_sample_end = waterfall_live_sample_end;
+		// Advance retained history only when a new FFT frame arrives.
+		// Rather than physically shifting every retained row down (an
+		// O(width x storage_height) memmove every frame, which is what
+		// regressed WFSPD's effective ceiling), advance a ring head and
+		// recolor just the one new row -- O(width).
+		waterfall_head = waterfall_ring_advance(waterfall_head, waterfall_storage_height);
+		waterfall_history_rows[waterfall_head] = (struct waterfall_history_row) {
+			.sample_end = waterfall_live_sample_end,
+			.view_generation = waterfall_view_generation,
+		};
 
-	int index = 0;
-	static float wf_offset = 0;
-	for (int i = 0; i < f->width; i++)
-	{
-		// Scale the input value (original behavior restored)
-		float scaled_value = wf[i] * 2.4;
-
-		// Normalize data to the range [0, 100] based on adjusted min/max
-		float normalized = 0;
-
-		if (!strcmp(field_str("AUTOSCOPE"), "ON")&& !in_tx) {
-			normalized = (scaled_value - wf_offset) / (max_db - wf_offset) * 100.0f;
-		} else {
-			normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
-			wf_offset = 0;
+		if (strcmp(field_str("AUTOSCOPE"), "ON") || in_tx)
+			waterfall_color_offset = 0;
+		const bool auto_scope = !strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx;
+		const bool update_history = waterfall_history_map_generation == waterfall_view_generation;
+		guint8 *row = waterfall_map + (size_t)waterfall_head * waterfall_storage_width * 3;
+		guint8 *row_hist = waterfall_history_map + (size_t)waterfall_head * waterfall_storage_width * 3;
+		for (int i = 0; i < f->width; i++) {
+			panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
+				waterfall_color_offset, auto_scope,
+				row + i * 3);
+			if (update_history)
+				panadapter_renderer_waterfall_pixel(wf[i], min_db, max_db,
+					waterfall_color_offset, auto_scope,
+					row_hist + i * 3);
 		}
 
-		// Clamp normalized values to [0, 100]
-		if (normalized < 0)
-			normalized = 0;
-		else if (normalized > 100)
-			normalized = 100;
-
-		int v = (int)(normalized);
-
-		// Gradient mapping: black -> WATERFALL_LOW -> WATERFALL_MID -> WATERFALL_HIGH
-		float wr, wg, wb;
-		if (v < 34)
-		{ // black to WATERFALL_LOW
-			float t = v / 33.0;
-			wr = palette[WATERFALL_LOW][0] * t;
-			wg = palette[WATERFALL_LOW][1] * t;
-			wb = palette[WATERFALL_LOW][2] * t;
-		}
-		else if (v < 67)
-		{ // WATERFALL_LOW to WATERFALL_MID
-			float t = (v - 33) / 34.0;
-			wr = palette[WATERFALL_LOW][0] + (palette[WATERFALL_MID][0] - palette[WATERFALL_LOW][0]) * t;
-			wg = palette[WATERFALL_LOW][1] + (palette[WATERFALL_MID][1] - palette[WATERFALL_LOW][1]) * t;
-			wb = palette[WATERFALL_LOW][2] + (palette[WATERFALL_MID][2] - palette[WATERFALL_LOW][2]) * t;
-		}
-		else
-		{ // WATERFALL_MID to WATERFALL_HIGH
-			float t = (v - 67) / 33.0;
-			wr = palette[WATERFALL_MID][0] + (palette[WATERFALL_HIGH][0] - palette[WATERFALL_MID][0]) * t;
-			wg = palette[WATERFALL_MID][1] + (palette[WATERFALL_HIGH][1] - palette[WATERFALL_MID][1]) * t;
-			wb = palette[WATERFALL_MID][2] + (palette[WATERFALL_HIGH][2] - palette[WATERFALL_MID][2]) * t;
-		}
-		waterfall_map[index++] = (int)(wr * 255);
-		waterfall_map[index++] = (int)(wg * 255);
-		waterfall_map[index++] = (int)(wb * 255);
+		waterfall_color_offset += ((sp_baseline + 40)*2 - waterfall_color_offset) / 10;
 	}
 
-	// Use the same baseline that had been calculated for the spectrum
-	// This gives good results as it's averaged, hence less noisy
-	// Smoothly adjust the waterfall offset
-	wf_offset += ((sp_baseline + 40)*2 - wf_offset) / 10;
-
-	// Draw the updated waterfall
-	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
-	cairo_paint(gfx);
+	// Draw the updated waterfall. The visible logical rows [0, f->height)
+	// may wrap around the end of the ring, so paint at most two segments.
+	{
+		struct waterfall_segment seg[2];
+		const int n = waterfall_segments(f->height, seg);
+		int painted = 0;
+		for (int s = 0; s < n; s++) {
+			GdkPixbuf *pb = gdk_pixbuf_new_from_data(
+				waterfall_map + (size_t)seg[s].offset * waterfall_storage_width * 3,
+				GDK_COLORSPACE_RGB, FALSE, 8, f->width, seg[s].count,
+				waterfall_storage_width * 3, NULL, NULL);
+			if (pb) {
+				gdk_cairo_set_source_pixbuf(gfx, pb, f->x, f->y + painted);
+				cairo_paint(gfx);
+				g_object_unref(pb);
+			}
+			painted += seg[s].count;
+		}
+	}
 	cairo_fill(gfx);
-}
 
-void draw_spectrum_grid(struct field *f_spectrum, cairo_t *gfx)
-{
-	int sub_division, grid_height;
-	struct field *f = f_spectrum;
+	if (wf_latency_enabled() && spectrum_latency_ms >= 0) {
+		char label[32];
+		snprintf(label, sizeof(label), "WF Latency %d ms", spectrum_latency_ms);
 
-	sub_division = f->width / 10;
-	grid_height = f->height - (font_table[STYLE_SMALL].height * 4 / 3);
-
-	cairo_set_line_width(gfx, 1);
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_GRID][0],
-						 palette[SPECTRUM_GRID][1], palette[SPECTRUM_GRID][2]);
-
-	cairo_set_line_width(gfx, 1);
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_GRID][0],
-						 palette[SPECTRUM_GRID][1], palette[SPECTRUM_GRID][2]);
-
-	// draw the horizontal grid
-	int i;
-	for (i = 0; i <= grid_height; i += grid_height / 10)
-	{
-		cairo_move_to(gfx, f->x, f->y + i);
-		cairo_line_to(gfx, f->x + f->width, f->y + i);
+		cairo_save(gfx);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL,
+							   CAIRO_FONT_WEIGHT_NORMAL);
+		cairo_set_font_size(gfx, 10);
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, label, &extents);
+		const double x = f->x + f->width - extents.x_bearing - extents.width - 4;
+		const double y = f->y + f->height - extents.y_bearing - extents.height - 3;
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.65);
+		cairo_rectangle(gfx, x + extents.x_bearing - 3,
+						y + extents.y_bearing - 2,
+						extents.width + 6, extents.height + 4);
+		cairo_fill(gfx);
+		cairo_set_source_rgba(gfx, 1.0, 1.0, 1.0, 0.9);
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, label);
+		cairo_restore(gfx);
 	}
-
-	// draw the vertical grid
-	for (i = 0; i <= f->width; i += f->width / 10)
-	{
-		cairo_move_to(gfx, f->x + i, f->y);
-		cairo_line_to(gfx, f->x + i, f->y + grid_height);
-	}
-	cairo_stroke(gfx);
+	draw_panadapter_controls(f, gfx);
 }
 
-void update_spectrum_history(int *current_spectrum, int n_bins)
+// Clear averaging whenever the selected bin layout changes.
+static void prepare_spectrum_history(const struct panadapter_fft_frame *frame,
+									 int mode)
 {
-	// Add the current spectrum data to the history buffer
-	memcpy(spectrum_history[current_frame_index], current_spectrum, n_bins * sizeof(int));
+	bool changed = !spectrum_history.valid ||
+		spectrum_history.span_hz != frame->config.display_span_hz ||
+		spectrum_history.center_hz != frame->config.center_hz ||
+		spectrum_history.mode != mode ||
+		spectrum_history.count != frame->count || spectrum_history.in_tx != in_tx;
+	if (!changed)
+		return;
 
-	// Advance to the next frame index, wrapping around if needed
-	current_frame_index = (current_frame_index + 1) % scope_avg;
+	memset(spectrum_history.frames, 0, sizeof(spectrum_history.frames));
+	spectrum_history.current_frame_index = 0;
+	spectrum_history.valid = true;
+	spectrum_history.span_hz = frame->config.display_span_hz;
+	spectrum_history.center_hz = frame->config.center_hz;
+	spectrum_history.mode = mode;
+	spectrum_history.count = frame->count;
+	spectrum_history.in_tx = in_tx;
 }
 
-void compute_time_based_average(int *averaged_spectrum, int n_bins)
+static void update_spectrum_history(const struct panadapter_fft_frame *frame)
 {
+	memcpy(spectrum_history.frames[spectrum_history.current_frame_index], frame->bins,
+		   frame->count * sizeof(frame->bins[0]));
+
+	spectrum_history.current_frame_index =
+		(spectrum_history.current_frame_index + 1) % scope_avg;
+}
+
+static void compute_time_based_average(int *averaged_spectrum,
+								   const struct panadapter_fft_frame *display)
+{
+	int n_bins = display->count;
 	memset(averaged_spectrum, 0, n_bins * sizeof(int));
 
 	// Sum the values from all frames in the history
@@ -3636,23 +4271,22 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 	{
 		for (int bin = 0; bin < n_bins; bin++)
 		{
-			averaged_spectrum[bin] += spectrum_history[frame][bin];
+			averaged_spectrum[bin] += spectrum_history.frames[frame][bin];
 		}
 	}
 
-	// Compute the average and the minimum
-	sp_baseline = averaged_spectrum[0];
 	for (int bin = 0; bin < n_bins; bin++)
-	{
 		averaged_spectrum[bin] /= scope_avg;
-		// Store the lowest value for the avg
-		if ((bin == 0) || (sp_baseline > averaged_spectrum[bin]))
+
+	// Find the minimum after averaging; FFT bins are signed dB values.
+	sp_baseline = averaged_spectrum[0];
+	for (int bin = 1; bin < n_bins; bin++)
+		if (sp_baseline > averaged_spectrum[bin])
 			sp_baseline = averaged_spectrum[bin];
-	}
 }
 
 static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
-								long center_freq, float span_khz, int grid_height)
+								long tuned_freq, int span_hz, int grid_height)
 {
 	if (oob_range_count == 0) return;
 
@@ -3664,25 +4298,25 @@ static void draw_oob_band_strip(struct field *f, cairo_t *gfx,
 	if (all_class_only) return;
 
 	const int   STRIP_H = 5;
-	const long  half_span = (long)(span_khz * 500.0f);  // half span in Hz
-	const long  vis_start = center_freq - half_span;
-	const long  vis_stop  = center_freq + half_span;
-	const float hz_per_px = (float)f->width / (span_khz * 1000.0f);
+	const long  vis_start = spectrum_view_start(tuned_freq);
+	const long  vis_stop  = vis_start + span_hz;
 	const int   strip_y   = f->y + (grid_height / 2) - (STRIP_H / 2);  // vertically centered
 
 	for (int i = 0; i < oob_range_count; i++) {
 		struct oob_range *r = &oob_ranges[i];
 
 		// Skip ranges entirely outside the visible span
-		if (r->stop < vis_start || r->start > vis_stop) continue;
+		if (r->stop <= vis_start || r->start >= vis_stop) continue;
 
 		// Clamp to visible area and convert to pixel coords
 		long  clamp_start = r->start > vis_start ? r->start : vis_start;
 		long  clamp_stop  = r->stop  < vis_stop  ? r->stop  : vis_stop;
-		int   px_start = f->x + (int)((clamp_start - vis_start) * hz_per_px);
-		int   px_stop  = f->x + (int)((clamp_stop  - vis_start) * hz_per_px);
+		int px_start = panadapter_view_frequency_x(f->x, f->width,
+			clamp_start, vis_start, span_hz);
+		int px_stop = panadapter_view_frequency_x(f->x, f->width,
+			clamp_stop, vis_start, span_hz);
+		px_stop = MAX(px_start + 1, px_stop);
 		int   px_width = px_stop - px_start;
-		if (px_width < 1) px_width = 1;
 
 		double cr, cg, cb, ca;
 		oob_class_color(r->lic_class, &cr, &cg, &cb, &ca);
@@ -3728,11 +4362,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		return;
 	}
 
-	int y, sub_division, i, grid_height, bw_high, bw_low, pitch, tx_pitch;
-	float span;
+	int grid_height, bw_high, bw_low, pitch, tx_pitch;
 	struct field *f;
-	long freq, freq_div;
-	char freq_text[20];
+	long freq;
 
 	if (in_tx)
 	{
@@ -3759,62 +4391,43 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	tx_pitch = field_int("TX_PITCH");
 	freq = atol(get_field("r1:freq")->value);
 
-	span = atof(get_field("#span")->value);
+	struct field *rit = get_field("#rit");
+	long display_freq = spectrum_display_frequency();
+	const int span_hz = spectrum_display_span_hz();
+	const long view_start = spectrum_view_start(display_freq);
 	bw_high = atoi(get_field("r1:high")->value);
 	bw_low = atoi(get_field("r1:low")->value);
 	grid_height = f_spectrum->height - ((font_table[STYLE_SMALL].height * 4) / 3);
-	sub_division = f_spectrum->width / 10;
-
-	// the step is in khz, we multiply by 1000 and div 10(divisions) = 100
-	freq_div = span * 100;
+	const int tuned_x = panadapter_view_frequency_x(f_spectrum->x,
+		f_spectrum->width, display_freq, view_start, span_hz);
 
 	// calculate the position of bandwidth strip
-	int filter_start, filter_width;
+	long filter_freq_start, filter_freq_stop;
+	spectrum_filter_range(display_freq, &filter_freq_start, &filter_freq_stop);
 
 	if (!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB"))
 	{
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) -
-					   ((f_spectrum->width * bw_high) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-		{
-			filter_width = ((f_spectrum->width * (bw_high - bw_low)) / (span * 1000)) - (f_spectrum->x - filter_start);
-			filter_start = f_spectrum->x;
-		}
-		else
-		{
-			filter_width = (f_spectrum->width * (bw_high - bw_low)) / (span * 1000);
-		}
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2) -
-				((f_spectrum->width * pitch) / (span * 1000));
+		pitch = panadapter_view_frequency_x(f_spectrum->x, f_spectrum->width,
+			display_freq - pitch, view_start, span_hz);
 	}
 	else if (!strcmp(mode_f->value, "AM") || !strcmp(mode_f->value, "FM"))
 	{
 		// For AM/FM mode, cover both sidebands
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) -
-					   ((f_spectrum->width * bw_high) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high + bw_low)) / (span * 1000);
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2); // Center pitch for AM/FM
+		pitch = panadapter_view_frequency_x(f_spectrum->x, f_spectrum->width,
+			display_freq, view_start, span_hz);
 	}
 	else
 	{
-		filter_start = f_spectrum->x + (f_spectrum->width / 2) +
-					   ((f_spectrum->width * bw_low) / (span * 1000));
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high - bw_low)) / (span * 1000);
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width / 2) +
-				((f_spectrum->width * pitch) / (span * 1000));
-		tx_pitch = f_spectrum->x + (f_spectrum->width / 2) +
-				   ((f_spectrum->width * tx_pitch) / (span * 1000));
+		pitch = panadapter_view_frequency_x(f_spectrum->x, f_spectrum->width,
+			display_freq + pitch, view_start, span_hz);
+		tx_pitch = panadapter_view_frequency_x(f_spectrum->x, f_spectrum->width,
+			freq + tx_pitch, view_start, span_hz);
 	}
+	int filter_start = panadapter_view_frequency_x(f_spectrum->x,
+		f_spectrum->width, filter_freq_start, view_start, span_hz);
+	int filter_stop = panadapter_view_frequency_x(f_spectrum->x,
+		f_spectrum->width, filter_freq_stop, view_start, span_hz);
+	int filter_width = MAX(0, filter_stop - filter_start);
 
 	// clear the spectrum
 	f = f_spectrum;
@@ -3823,9 +4436,10 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	fill_rect(gfx, filter_start, f->y, filter_width, grid_height, SPECTRUM_BANDWIDTH);
 	cairo_stroke(gfx);
 
-	draw_spectrum_grid(f_spectrum, gfx);
+	panadapter_renderer_draw_grid(gfx, f_spectrum->x, f_spectrum->y,
+		f_spectrum->width, grid_height, view_start, span_hz);
 	// Draw color-coded license privilege band strip along the bottom of the grid
-	draw_oob_band_strip(f_spectrum, gfx, freq, span, grid_height);
+	draw_oob_band_strip(f_spectrum, gfx, display_freq, span_hz, grid_height);
 	f = f_spectrum;
 
 	// Display TX meters in the top left corner of the spectrum grid during transmission
@@ -3849,7 +4463,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
 	int yellow_bar_height = scope_size - 13;
 	int notch_start, notch_width;
-	int center_x = f_spectrum->x + (f_spectrum->width / 2);
+	int center_x = tuned_x;
 
 	if (notch_enabled)
 	{
@@ -3860,16 +4474,16 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			{
 				// For USB and CW mode
 				notch_start = center_x +
-							  ((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / (span * 1000));
+							  ((f_spectrum->width * (notch_freq - notch_bandwidth / 2)) / span_hz);
 
 				if (notch_start < f_spectrum->x)
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz - (f_spectrum->x - notch_start);
 					notch_start = f_spectrum->x;
 				}
 				else
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz;
 				}
 
 				if (notch_width + notch_start > f_spectrum->x + f_spectrum->width)
@@ -3881,20 +4495,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			{
 				// For LSB and CWR mode
 				notch_start = center_x -
-							  ((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / (span * 1000));
+							  ((f_spectrum->width * (notch_freq + notch_bandwidth / 2)) / span_hz);
 
-				if (notch_start + (f_spectrum->width * notch_bandwidth) / (span * 1000) > f_spectrum->x + f_spectrum->width)
+				if (notch_start + (f_spectrum->width * notch_bandwidth) / span_hz > f_spectrum->x + f_spectrum->width)
 				{
 					notch_width = (f_spectrum->x + f_spectrum->width) - notch_start;
 				}
 				else
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz;
 				}
 
 				if (notch_start < f_spectrum->x)
 				{
-					notch_width = (f_spectrum->width * notch_bandwidth) / (span * 1000) - (f_spectrum->x - notch_start);
+					notch_width = (f_spectrum->width * notch_bandwidth) / span_hz - (f_spectrum->x - notch_start);
 					notch_start = f_spectrum->x;
 				}
 			}
@@ -4224,37 +4838,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	// draw the frequency readout at the bottom
-	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-
-	// Get RIT status and delta to adjust frequency display when RIT is enabled
-	struct field *rit = get_field("#rit");
-	struct field *rit_delta = get_field("#rit_delta");
-	long display_freq = freq;
-
-	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
-	if (!strcmp(rit->value, "ON") && !in_tx) {
-		// Adjust the display frequency to show RX frequency (freq + rit_delta)
-		display_freq = freq + atoi(rit_delta->value);
-	}
-
-	long f_start = display_freq - (4 * freq_div);
-	for (i = f->width / 10; i < f->width; i += f->width / 10)
-	{
-		if ((span == 25) || (span == 10))
-		{
-			sprintf(freq_text, "%ld", f_start / 1000);
-		}
-		else
-		{
-			float f_start_temp = (((float)f_start / 1000000.0) - ((int)(f_start / 1000000))) * 1000;
-			sprintf(freq_text, "%5.1f", f_start_temp);
-		}
-		int off = measure_text(gfx, freq_text, STYLE_SMALL) / 2;
-		draw_text(gfx, f->x + i - off, f->y + grid_height, freq_text, STYLE_SMALL);
-		f_start += freq_div;
-	}
+	panadapter_renderer_draw_labels(gfx, f->x, f->y, f->width, grid_height,
+		view_start, span_hz);
 
 	//--- S-Meter test W2JON
 	// Only show S-meter if we're not transmitting in LSB, USB, or AM modes
@@ -4336,154 +4921,33 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	// we only plot the second half of the bins (on the lower sideband
-	int last_y = 100;
+	const struct panadapter_fft_config display_config = spectrum_fft_config();
+	struct panadapter_fft_frame display_frame;
+	panadapter_frame_get(panadapter_fft_context, &display_config, &display_frame);
+	spectrum_latency_ms = panadapter_fft_frame_latency_ms(&display_frame);
+	waterfall_live_sample_end = display_frame.sample_end;
+	prepare_spectrum_history(&display_frame, mode_id(mode_f->value));
+	int n_bins = display_frame.count;
 
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
-
-	float x_step = (1.0 * f->width) / n_bins;
-
-	// start the plot
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
-						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
-	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
-
-	//	float x = fmod((1.0 * spectrum_span), 46.875);
-	float x = 0;
-	int j = 0;
-
-	// Calculate the dynamic range
-	int min_value = INT_MAX;
-	int max_value = INT_MIN;
-
-	// Compute the time-based average spectrum
 	int averaged_spectrum[MAX_BINS];
-	compute_time_based_average(averaged_spectrum, MAX_BINS);
-
-	// Find min and max values for dynamic range computation
-	for (int i = starting_bin; i <= ending_bin; i++)
-	{
-		int raw_value = spectrum_plot[i] + waterfall_offset; // Use raw spectrum for waterfall
-		if (raw_value < min_value)
-			min_value = raw_value;
-		if (raw_value > max_value)
-			max_value = raw_value;
-	}
-
-	// Prevent division by zero in case of flat input
-	int dynamic_range = max_value - min_value;
-	if (dynamic_range == 0)
-		dynamic_range = 1;
-
-	// Define a fixed stretch factor
-	float stretch_factor = 3; // Adjust to control the stretching
-
-	// Create a linear gradient for the spectrum fill
-	cairo_pattern_t *gradient = cairo_pattern_create_linear(0, f->y + grid_height, 0, f->y);
-
-	// Set antialiasing mode for smoother rendering
-	cairo_set_antialias(gfx, CAIRO_ANTIALIAS_FAST);
-
-	// Add color stops using theme palette (WATERFALL_LOW -> MID -> HIGH)
-	cairo_pattern_add_color_stop_rgba(gradient, 0.0,
-		palette[WATERFALL_LOW][0],  palette[WATERFALL_LOW][1],  palette[WATERFALL_LOW][2],
-		0.5 + scope_alpha_plus);
-	cairo_pattern_add_color_stop_rgba(gradient, 0.5,
-		palette[WATERFALL_MID][0],  palette[WATERFALL_MID][1],  palette[WATERFALL_MID][2],
-		0.7 + scope_alpha_plus);
-	cairo_pattern_add_color_stop_rgba(gradient, 1.0,
-		palette[WATERFALL_HIGH][0], palette[WATERFALL_HIGH][1], palette[WATERFALL_HIGH][2],
-		0.9 + scope_alpha_plus);
-	// Begin a new path for the filled spectrum
-	cairo_move_to(gfx, f->x + f->width, f->y + grid_height); // Start at bottom-right corner
-
-	// We want the baseline of the spectrum always to be visible at the bottom
-	// of the graph.
-	static float sp_baseline_offs = 0.0;
-
-	for (int i = starting_bin; i <= ending_bin; i++)
-	{
-		int y;
-
-		// Original scaling for the waterfall (unchanged)
-		int raw_value = spectrum_plot[i] + waterfall_offset; // Use original data for waterfall
-		y = ((raw_value)*f->height) / 80;					 // Original linear scaling for waterfall
-
-		// Clamp y for valid range (for the waterfall)
-		if (y < 0)
-			y = 0;
-		if (y > f->height)
-			y = f->height - 1;
-
-		// Apply stretch factor and floating offset to the averaged spectrum plot
-		int enhanced_y = y;												// Start with the original y
-		float averaged_value = averaged_spectrum[i]; // Use averaged data
-
-                if (!strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx)
-			averaged_value -= sp_baseline_offs; // If option set, autoadjust the spectrum baseline
-		else
-			averaged_value += waterfall_offset;
-
-		float stretched_value = averaged_value * scope_gain; // Apply stretch factor
-
-		// Scale stretched value to screen coordinates
-		enhanced_y = (int)((stretched_value * f->height) / 80 + 1);
-
-		// Clip enhanced_y to grid height
-		if (enhanced_y > grid_height)
-			enhanced_y = grid_height; // Limit to grid height
-
-		// Clip enhanced_y to zero
-		if (enhanced_y < 0)
-			enhanced_y = 0;
-
-		// Add the spectrum line point to the path
-		// shift by half a bin width to align with waterfall:
-        cairo_line_to(gfx, f->x + f->width - (int)x + x_step / 2.0, f->y + grid_height - enhanced_y);
-
-		// Fill the waterfall with the original (unchanged) y value
-		for (int k = 0; k <= 1 + (int)x_step; k++)
-			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
-
-		x += x_step;
-		if (f->width <= x)
-			x = f->width - 1;
-	}
-
-	// We adjust slowly the baseline offset, to keep it smoothly stable where we want it in the graph
-	sp_baseline_offs -= (sp_baseline_offs - sp_baseline) / 5;
-
-	// Close the path to create a filled shape
-	cairo_line_to(gfx, f->x, f->y + grid_height); // Bottom-left corner
-	cairo_close_path(gfx);
-
-	// Apply the gradient as the fill
-	cairo_set_source(gfx, gradient);
-	cairo_fill(gfx);
-
-	// Clean up the gradient
-	cairo_pattern_destroy(gradient);
-
-	// Redraw the spectrum line on top
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
-						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
-	cairo_stroke(gfx);
+	compute_time_based_average(averaged_spectrum, &display_frame);
+	panadapter_renderer_draw_spectrum(gfx, f->x, f->y, f->width, f->height,
+		grid_height, display_frame.bins, averaged_spectrum, n_bins,
+		waterfall_offset, scope_gain,
+		!strcmp(field_str("AUTOSCOPE"), "ON") && !in_tx,
+		sp_baseline, wf);
 
 	// Update the history buffer with the current spectrum
-	update_spectrum_history(spectrum_plot, MAX_BINS);
+	update_spectrum_history(&display_frame);
 
 	if (pitch >= f_spectrum->x)
 	{
 		cairo_set_source_rgb(gfx, palette[COLOR_RX_PITCH][0],
 							 palette[COLOR_RX_PITCH][1], palette[COLOR_RX_PITCH][2]);
 		if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "DIGI"))
-		{ // for LSB, USB, and DIGI draw pitch line at center
-			cairo_move_to(gfx, f->x + (f->width / 2), f->y);
-			cairo_line_to(gfx, f->x + (f->width / 2), f->y + grid_height);
+		{ // LSB, USB, and DIGI mark the tuned frequency directly
+			cairo_move_to(gfx, tuned_x, f->y);
+			cairo_line_to(gfx, tuned_x, f->y + grid_height);
 		}
 		else
 		{
@@ -4504,63 +4968,22 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// draw the needle
 	for (struct rx *r = rx_list; r; r = r->next)
 	{
-		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
+		int needle_x = tuned_x - f->x;
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
 
-
 		// Draw TX frequency indicator when RIT is enabled
-		struct field *rit = get_field("#rit");
-		struct field *rit_delta = get_field("#rit_delta");
-		struct field *freq_field = get_field("r1:freq");
-		struct field *mode_f = get_field("r1:mode");
-
 		if (!strcmp(rit->value, "ON") && !in_tx)
 		{
-			// Get the RIT delta value and current frequency
-			int rit_delta_value = atoi(rit_delta->value);
-			long rx_freq = atol(freq_field->value);
-			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
-
-			// Calculate the TX bin position directly
-			// We need to calculate where the TX frequency would be in the spectrum
-			// First, determine the frequency span visible in the spectrum
-			float span_khz = atof(get_field("#span")->value);
-			float span_hz = span_khz * 1000;
-
-			// Now we calculate the frequency difference between RX and TX in Hz
-			long freq_diff = rx_freq - tx_freq;
-
-			// Let's calculate the pixel offset based on the frequency difference and span
-			// The center of the spectrum is at f->width/2
-			// The full width represents span_hz
-			float pixels_per_hz = (float)f->width / span_hz;
-			// Invert the offset to match the spectrum panning direction
-			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
-
-			// Calculate the TX needle position
-			// WE can use the same calculation method as the RX needle (tuned_bin)
-			// but with an offset based on the RIT delta
-			int tx_needle_x;
-
-			// Calculate the TX needle position directly from the RX needle position
-			// The RX needle is always at the center (f->width/2)
-			// We just need to offset it based on the RIT delta
-			tx_needle_x = (f->width / 2) + offset_pixels;
-
-			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
-			int is_at_edge = 0;
-			int arrow_direction = 0; // -1 for left, 1 for right
-
-			if (tx_needle_x < 0) {
-				tx_needle_x = 0;
-        is_at_edge = 1;
-				arrow_direction = -1; // Point left
-			}
-			if (tx_needle_x >= f->width) {
+			long view_stop = view_start + span_hz;
+			int is_at_edge = freq < view_start || freq > view_stop;
+			int arrow_direction = freq < view_start ? -1 : 1;
+			int tx_needle_x = panadapter_view_frequency_x(f->x, f->width,
+				freq, view_start, span_hz) - f->x;
+			if (is_at_edge && arrow_direction < 0)
+				tx_needle_x = MIN(1, f->width - 1);
+			if (tx_needle_x >= f->width)
 				tx_needle_x = f->width - 1;
-			  is_at_edge = 1;
-				arrow_direction = 1; // Point right
-			}
+
 			// Draw red TX frequency indicator
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
 			cairo_set_line_width(gfx, 1.0);
@@ -4885,8 +5308,12 @@ void field_move(char *field_label, int x, int y, int width, int height)
 	f->width = width;
 	f->height = height;
 	update_field(f);
-	if (!strcmp(field_label, "WATERFALL"))
-		init_waterfall();
+	if (!strcmp(field_label, "WATERFALL")) {
+		if (waterfall_map)
+			resize_waterfall(f);
+		else
+			init_waterfall();
+	}
 }
 
 void menu_display(int show) {
@@ -4957,10 +5384,12 @@ void menu2_display(int show) {
 		field_move("WFMIN", SC(5), screen_height - SC(80), SC(70), SC(37));
 		field_move("WFMAX", SC(5), screen_height - SC(40), SC(70), SC(37));
 		field_move("WFSPD", SC(80), screen_height - SC(80), SC(70), SC(37));
+		field_move("PANDIR", SC(80), screen_height - SC(40), SC(70), SC(37));
 		field_move("SCOPEGAIN", SC(170), screen_height - SC(80), SC(70), SC(37));
 		field_move("SCOPEAVG", SC(170), screen_height - SC(40), SC(70), SC(37));  // Add SCOPEAVG field
 		field_move("SCOPESIZE", SC(245), screen_height - SC(80), SC(70), SC(37)); // Add SCOPESIZE field
 		field_move("TXPANAFAL", SC(320), screen_height - SC(80), SC(70), SC(37)); // Add TXPANAFAL field
+		field_move("PANPERF", SC(395), screen_height - SC(80), SC(70), SC(37)); // Panadapter load preset
 		field_move("INTENSITY", SC(245), screen_height - SC(40), SC(70), SC(37)); // Add SCOPE ALPHA field
 		field_move("AUTOSCOPE", SC(320), screen_height - SC(40), SC(70), SC(37)); // Add AUTOADJUST spectrum field
 		if (!strcmp(field_str("EPTTOPT"), "ON"))
@@ -5046,7 +5475,6 @@ static void layout_ui()
     if (f_scale) { f_scale->x = SC(85); f_scale->y = SC(5); f_scale->width = SC(45); f_scale->height = SC(40); update_field(f_scale); }
 
     field_move("PAD",    SC(135), SC(5), SC(40), SC(40));
-    field_move("REC",    SC(459), SC(50), SC(40), SC(40));
     field_move("TUNE",   x2 - SC(443), SC(5), SC(40), SC(40));
     field_move("CALL", SC(5),   SC(50), SC(85), SC(20));
     field_move("SENT", SC(90),  SC(50), SC(50), SC(20));
@@ -5057,7 +5485,6 @@ static void layout_ui()
     field_move("WIPE", SC(330), SC(50), SC(40), SC(40));
     field_move("QRZ",  SC(370), SC(50), SC(40), SC(40));
     field_move("LOG",  SC(410), SC(50), SC(40), SC(40));
-    field_move("MENU", SC(410), SC(5), SC(40), SC(40));
     field_move("TEXT", SC(5), SC(70), SC(285), SC(20));
   }
 
@@ -5076,14 +5503,21 @@ static void layout_ui()
   field_move("FREQ", x2 - SC(271), SC(3), SC(180), SC(40));
   field_move("VFO", x2 - SC(314), SC(5), SC(40), SC(40));
   field_move("RIT", x2 - SC(357), SC(5), SC(40), SC(40));
-  field_move("STEP", x2 - SC(252), SC(50), SC(40), SC(40));
+  field_move("STEP", x2 - SC(221), SC(50), SC(40), SC(40));
 
   field_move("IF", x2 - SC(45), SC(50), SC(40), SC(40));
-  field_move("DRIVE", x2 - SC(87), SC(50), SC(42), SC(40));
-  field_move("BW", x2 - SC(127), SC(50), SC(40), SC(40));
-  field_move("AGC", x2 - SC(170), SC(50), SC(42), SC(40));
-  field_move("SPAN", x2 - SC(212), SC(50), SC(42), SC(40));
-  field_move("SPLIT", x2 - SC(292), SC(50), SC(40), SC(40));
+  field_move("DRIVE", x2 - SC(90), SC(50), SC(42), SC(40));
+  field_move("BW", x2 - SC(133), SC(50), SC(40), SC(40));
+  field_move("AGC", x2 - SC(178), SC(50), SC(42), SC(40));
+  field_move("SPLIT", x2 - SC(264), SC(50), SC(40), SC(40));
+
+  // Left pair and the menu slot keep the same rows on both layouts.
+  //   TUNE       : x2-443 .. x2-403
+  //   REC        : x2-400 .. x2-360 (top row)
+  //   MENU       : SC(473) .. SC(513) (second row)
+  field_move("TUNE", x2 - SC(443), SC(5), SC(40), SC(40));
+  field_move("MENU", SC(473), SC(50), SC(40), SC(40));
+  field_move("REC", x2 - SC(400), SC(5), SC(40), SC(40));
 
   // Left pair of the top row, continuing the uniform 3px spacing to the left
   // of RIT. TUNE is always here. The slot immediately left of RIT holds REC
@@ -5614,6 +6048,8 @@ static void hover_field(struct field *f)
 static void edit_field(struct field *f, int action)
 {
 	int v;
+	if (f->value_type == FIELD_STATIC)
+		return;
 	if (f == f_focus)
 		focus_since = millis();
 
@@ -5724,6 +6160,7 @@ static void edit_field(struct field *f, int action)
 	do_control_action(buff);
 	f->is_dirty = 1;
 	f->update_remote = 1;
+	panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
 	//	update_field(f);
 	settings_updated++;
 }
@@ -5976,11 +6413,12 @@ void abort_tx()
 
 int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	struct field *f_freq, *f_span, *f_pitch;
+	struct field *f_freq, *f_pitch;
 	int span, pitch;
 	long freq;
 	char buff[100];
 	int mode = mode_id(get_field("r1:mode")->value);
+	static double drag_remainder;
 
 	// Check if we need to handle tap to reveal display during remote session
 	if (event == GDK_BUTTON_PRESS && is_remote_browser_active() && !is_localhost_connection_only()) {
@@ -6005,40 +6443,45 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	switch (event)
 	{
 	case FIELD_DRAW:
+		cairo_save(gfx);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_clip(gfx);
 		draw_spectrum(f, gfx);
+		cairo_restore(gfx);
 		return 1;
 		break;
 	case GDK_MOTION_NOTIFY:
 		f_freq = get_field("r1:freq");
 		freq = atoi(f_freq->value);
-		f_span = get_field("#span");
-		span = atof(f_span->value) * 1000;
+		span = spectrum_display_span_hz();
 		// a has the x position of the mouse
-		freq -= ((a - last_mouse_x) * (span / f->width));
+		const double drag_hz = drag_remainder
+			+ (double)(a - last_mouse_x) * span / f->width;
+		const long rounded_drag_hz = lround(drag_hz);
+		drag_remainder = drag_hz - rounded_drag_hz;
+		freq -= rounded_drag_hz;
 		sprintf(buff, "%ld", freq);
 		set_field("r1:freq", buff);
 		return 1;
 		break;
 	case GDK_BUTTON_PRESS:
-		if (c == GDK_BUTTON_SECONDARY)
-		{ // right click QSY
+		if (c == GDK_BUTTON_PRIMARY || c == GDK_BUTTON_SECONDARY)
+		{ // tap or right click to QSY
+			drag_remainder = 0;
 			f_freq = get_field("r1:freq");
 			freq = atoi(f_freq->value);
-			f_span = get_field("#span");
-			span = atof(f_span->value) * 1000;
+			span = spectrum_display_span_hz();
 			f_pitch = get_field("rx_pitch");
 			pitch = atoi(f_pitch->value);
+			float position = (float)(a - f->x) / (float)f->width;
+			freq = spectrum_view_start(freq) + position * span;
 			if (mode == MODE_CW)
 			{
-				freq += ((((float)(a - f->x) / (float)f->width) - 0.5) * (float)span) - pitch;
+				freq -= pitch;
 			}
 			else if (mode == MODE_CWR)
 			{
-				freq += ((((float)(a - f->x) / (float)f->width) - 0.5) * (float)span) + pitch;
-			}
-			else
-			{ // other modes may need to be optimized - k3ng 2022-09-02
-				freq += (((float)(a - f->x) / (float)f->width) - 0.5) * (float)span;
+				freq += pitch;
 			}
 			sprintf(buff, "%ld", freq);
 			set_field("r1:freq", buff);
@@ -6071,24 +6514,48 @@ int do_waterfall(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		invalidate_rect(0, 0, 800, 480);
 	}
 
+	if (event == GDK_BUTTON_PRESS && c == GDK_BUTTON_PRIMARY) {
+		waterfall_dragging = false;
+		if (activate_panadapter_control(f, a, b))
+			return 1;
+		waterfall_dragging = true;
+		return 1;
+	}
+	if (event == GDK_2BUTTON_PRESS && c == GDK_BUTTON_PRIMARY) {
+		waterfall_dragging = false;
+		if (panadapter_control_at(f, a, b) >= 0)
+			return 1;
+		const struct panadapter_view previous = panadapter_view;
+		const double position = MAX(0.0, MIN(1.0, (double)(a - f->x) / f->width));
+		panadapter_view_zoom_at(&panadapter_view, 2.0, position);
+		panadapter_view_pan(&panadapter_view, position - 0.5);
+		if (fabs(previous.zoom - panadapter_view.zoom) > 0.001
+			|| fabs(previous.center - panadapter_view.center) > 0.0001)
+			panadapter_view_refresh(&previous);
+		return 1;
+	}
+
 	switch (event)
 	{
 	case FIELD_DRAW:
+		cairo_save(gfx);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_clip(gfx);
 		draw_waterfall(f, gfx);
+		cairo_restore(gfx);
 		return 1;
-		/*
-				case GDK_MOUSE_MOVE:{
-					struct field *f_freq = get_field("r1:freq");
-					long freq = atoi(f_freq->value);
-					struct field *f_span = get_field("#span");
-					int span = atoi(f_focus->value);
-					freq -= ((x - last_mouse_x) *tuning_step)/4;	//slow this down a bit
-					sprintf(buff, "%ld", freq);
-					set_field("r1:freq", buff);
-					}
-					return 1;
-				break;
-		*/
+	case GDK_MOTION_NOTIFY:
+		if (!waterfall_dragging)
+			return 0;
+		const struct panadapter_view previous = panadapter_view;
+		panadapter_view_pan(&panadapter_view,
+			-(double)(a - last_mouse_x) / f->width);
+		if (fabs(previous.center - panadapter_view.center) > 0.0001)
+			panadapter_view_refresh(&previous);
+		return 1;
+	case GDK_BUTTON_RELEASE:
+		waterfall_dragging = false;
+		return 1;
 	}
 	return 0;
 }
@@ -6371,6 +6838,7 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
+		panadapter_redraw_field_updated(&panadapter_redraw_state, f->label);
 		int mode = mode_id(get_field("r1:mode")->value);
 		modem_set_pitch(v, mode);
 		char buff[20], response[20];
@@ -8258,6 +8726,66 @@ int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int
 	return 0;
 }
 
+/*
+ * Mirror the #pan_* fields into the globals the analysis paths read, and keep
+ * PANPERF and the four individual knobs consistent.
+ *
+ * PANPERF writes the other four; touching one of those four directly reports
+ * CUSTOM, so that reloading settings does not stomp a deliberate override. The
+ * recursion guard keeps a preset's own writes from immediately reporting CUSTOM.
+ */
+int do_panadapter_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	static int applying_preset;
+	(void)gfx; (void)event; (void)a; (void)b; (void)c;
+
+	struct panadapter_preset preset;
+	if (f && !strcmp(f->label, "PANPERF") && !applying_preset) {
+		// CUSTOM (and anything unrecognised) resolves to nothing on purpose:
+		// the individual knobs are authoritative in that case.
+		if (panadapter_preset_lookup(field_str("PANPERF"), &preset)) {
+			applying_preset = 1;
+			set_field("#pan_bins", preset.bins);
+			set_field("#pan_hist_secs", preset.hist_secs);
+			set_field("#pan_wf_rebuild", preset.wf_rebuild);
+			set_field("#pan_web_bins", preset.web_bins);
+			applying_preset = 0;
+		}
+	} else if (f && !applying_preset && strcmp(field_str("PANPERF"), "CUSTOM")) {
+		/*
+		 * An individual knob was set directly. Only clear the preset name if the
+		 * knobs actually disagree with it -- reloading settings replays all four
+		 * values after the preset that produced them, so an unconditional
+		 * "became CUSTOM" here relabelled every preset as CUSTOM on restart.
+		 */
+		const struct panadapter_preset current = {
+			.bins = field_str("PANBINS"),
+			.hist_secs = field_str("PANHISTSECS"),
+			.wf_rebuild = field_str("WFREBUILD"),
+			.web_bins = field_str("WEBBINS"),
+		};
+		if (!panadapter_preset_matches(field_str("PANPERF"), &current)) {
+			applying_preset = 1;
+			set_field("#pan_perf", "CUSTOM");
+			applying_preset = 0;
+		}
+	}
+
+	panadapter_max_bins = atoi(field_str("PANBINS"));
+	panadapter_wf_rebuild = !strcmp(field_str("WFREBUILD"), "ON");
+
+	const char *const web_bins = field_str("WEBBINS");
+	panadapter_web_enabled = strcmp(web_bins, "OFF") != 0;
+	panadapter_web_bins = panadapter_web_enabled ? atoi(web_bins)
+	                                             : PANADAPTER_FFT_FRAME_BINS;
+
+	// Contexts do not exist until panadapter_init(); this fires during ini_parse.
+	const uint64_t history = (uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE;
+	panadapter_fft_set_history_limit(panadapter_fft_context, history);
+	panadapter_fft_set_history_limit(web_panadapter_fft_context, history);
+	return 0;
+}
+
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *field_name = f->label;					 // Get the field label
@@ -8912,16 +9440,12 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		return FALSE;
 	}
 
-	//	printf("keyPress %x %x\n", event->keyval, event->state);
+	// printf("keyPress %x %x\n", event->keyval, event->state);
 	// key_modifier = event->keyval;
 	switch (event->keyval)
 	{
 	case MIN_KEY_ESC:
 		// TODO we could do a 2-stage esc: call it with false the first time, true the second
-		if (swr_sweep_is_running())
-		{
-			swr_sweep_cancel();
-		}
 		modem_abort(true);
 		tx_off();
 		call_wipe();
@@ -8990,23 +9514,38 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 
 	if (hoverField)
 	{
-		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
-		//printf("scroll @%lf, %lf; direction %d reverse? %d field %s\n", event->x, event->y, event->direction, reverse, hoverField->label);
-		if (event->direction == 0)
-		{
-			if (reverse)
-				edit_field(hoverField, MIN_KEY_DOWN);
-			else
-				edit_field(hoverField, MIN_KEY_UP);
+		double delta_x = 0.0;
+		double delta_y = 0.0;
+		if (!gdk_event_get_scroll_deltas((GdkEvent *)event, &delta_x, &delta_y)) {
+			if (event->direction == GDK_SCROLL_UP) delta_y = -1.0;
+			if (event->direction == GDK_SCROLL_DOWN) delta_y = 1.0;
+			if (event->direction == GDK_SCROLL_LEFT) delta_x = -1.0;
+			if (event->direction == GDK_SCROLL_RIGHT) delta_x = 1.0;
 		}
-		else
-		{
+
+		if (!strcmp(hoverField->cmd, "spectrum") || !strcmp(hoverField->cmd, "waterfall")) {
+			const struct panadapter_view previous = panadapter_view;
+			if (fabs(delta_y) > 0.001) {
+				const double position = (event->x - hoverField->x) / hoverField->width;
+				panadapter_view_zoom_at(&panadapter_view, pow(1.25, -delta_y), position);
+			}
+			if (fabs(delta_x) > 0.001)
+				panadapter_view_pan(&panadapter_view, delta_x * 0.15);
+			if (fabs(previous.zoom - panadapter_view.zoom) > 0.001
+				|| fabs(previous.center - panadapter_view.center) > 0.0001)
+				panadapter_view_refresh(&previous);
+			return TRUE;
+		}
+
+		const bool reverse = !strcmp(get_field("reverse_scrolling")->value, "ON");
+		if (fabs(delta_y) > 0.001) {
+			bool scroll_up = delta_y < 0.0;
 			if (reverse)
-				edit_field(hoverField, MIN_KEY_UP);
-			else
-				edit_field(hoverField, MIN_KEY_DOWN);
+				scroll_up = !scroll_up;
+			edit_field(hoverField, scroll_up ? MIN_KEY_UP : MIN_KEY_DOWN);
 		}
 	}
+	return FALSE;
 }
 
 static gboolean on_window_state(GtkWidget *widget, GdkEventWindowState *event, gpointer user_data)
@@ -9066,11 +9605,28 @@ static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer
 static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
 	struct field *f;
-
+	
+	swr_sweep_cancel();  // cancel SWR sweep on any mouse click
+	
 	if (event->type == GDK_BUTTON_RELEASE)
 	{
 		mouse_down = 0;
 		// puts("mouse up in on_mouse_press");
+	}
+	else if (event->type == GDK_2BUTTON_PRESS)
+	{
+		for (int i = 0; active_layout[i].cmd[0] > 0; i++)
+		{
+			f = active_layout + i;
+			if (!strcmp(f->cmd, "waterfall")
+				&& f->x < event->x && event->x < f->x + f->width
+				&& f->y < event->y && event->y < f->y + f->height)
+			{
+				if (f->fn)
+					f->fn(f, NULL, GDK_2BUTTON_PRESS, event->x, event->y, event->button);
+				break;
+			}
+		}
 	}
 	else if (event->type == GDK_BUTTON_PRESS /*&& event->button == GDK_BUTTON_PRIMARY*/)
 	{
@@ -9751,13 +10307,6 @@ int web_get_console(char *buff, int max)
 
 void web_get_spectrum(char *buff)
 {
-
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
-
 	int j = 3;
 	if (in_tx)
 	{
@@ -9773,12 +10322,29 @@ void web_get_spectrum(char *buff)
 				buff[j++] = ' ';
 		}
 	}
+	else if (!panadapter_web_enabled)
+	{
+		// WEBBINS is OFF: sbitx.c is not even feeding this context.
+		strcpy(buff, "RX ");
+	}
 	else
 	{
+		const int mode = mode_id(get_field("r1:mode")->value);
+		const struct panadapter_fft_config config = {
+			.display_span_hz = PANADAPTER_FULL_SPAN_HZ,
+			.center_hz = 0,
+			.is_cw = mode == MODE_CW || mode == MODE_CWR,
+			.wpm = MAX(1, get_wpm()),
+			.refresh_ms = spectrum_refresh_interval_ms(mode),
+			.display_width_px = panadapter_web_bins,
+			.max_bins = panadapter_max_bins,
+		};
+		struct panadapter_fft_frame frame;
+		panadapter_frame_get(web_panadapter_fft_context, &config, &frame);
 		strcpy(buff, "RX ");
-		for (int i = starting_bin; i <= ending_bin; i++)
+		for (int i = 0; i < frame.count; i++)
 		{
-			int y = spectrum_plot[i] + waterfall_offset;
+			int y = frame.bins[i] + waterfall_offset;
 			if (y > 95)
 				buff[j++] = 127;
 			else if (y >= 0)
@@ -10018,6 +10584,9 @@ gboolean ui_tick(gpointer gook)
 		}
 	}
 
+	if (panadapter_redraw_tick(&panadapter_redraw_state))
+		update_field(get_field("spectrum"));
+
 	for (struct field *f = active_layout; f->cmd[0] > 0; f++)
 	{
 		if (f->is_dirty)
@@ -10054,57 +10623,19 @@ gboolean ui_tick(gpointer gook)
 		// write_console(STYLE_LOG, message);
 	}
 
+	int current_mode = mode_id(get_field("r1:mode")->value);
 	// every 20 ticks call modem_poll to see if any modes need work done
 	if (ticks % 20 == 0)
-		modem_poll(mode_id(get_field("r1:mode")->value));
+		modem_poll(current_mode);
 	else
 	{
 		// calling modem_poll every 20 ticks isn't enough to keep up with a fast
 		// straight key, so now we go on _every_ tick in MODE_CW or MODE_CWR
-		if ((mode_id(get_field("r1:mode")->value)) == MODE_CW ||
-			(mode_id(get_field("r1:mode")->value)) == MODE_CWR)
-			modem_poll(mode_id(get_field("r1:mode")->value));
+		if (current_mode == MODE_CW || current_mode == MODE_CWR)
+			modem_poll(current_mode);
 	}
 
-	int tick_count = 100;
-
-	switch (mode_id(field_str("MODE")))
-	{
-	case MODE_CW:
-	case MODE_CWR:
-		tick_count = wf_spd; // Use wf_spd for CW and CWR modes
-		break;
-
-	case MODE_FT4:
-	case MODE_FT8:
-		if (wf_spd < 50)
-		{
-			tick_count = 50; // Ensure tick_count is at least 50 if wf_spd is too low
-		}
-		else
-		{
-			tick_count = wf_spd; // Use wf_spd as tick_count otherwise
-		}
-		break;
-
-	case MODE_AM:
-		tick_count = wf_spd; // Use wf_spd for AM mode
-		break;
-
-	default:
-		tick_count = wf_spd; // Default to wf_spd
-		break;
-	}
-
-	// Ensure tick_count is within reasonable bounds
-	if (tick_count < 1)
-	{
-		tick_count = 1; // Minimum tick_count to avoid division by zero or overly frequent updates
-	}
-	else if (tick_count > 500)
-	{
-		tick_count = 500; // Arbitrary maximum to prevent too infrequent updates
-	}
+	int tick_count = spectrum_refresh_interval_ms(current_mode);
 	if (ticks >= tick_count)
 	{
 
@@ -10477,7 +11008,9 @@ void ui_init(int argc, char *argv[])
 	 * subscribe to. In particular, we need to ask for the
 	 * button press and motion notify events that want to handle.
 	 */
-	gtk_widget_set_events(display_area, gtk_widget_get_events(display_area) | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_SCROLL_MASK | GDK_POINTER_MOTION_MASK);
+	gtk_widget_set_events(display_area, gtk_widget_get_events(display_area)
+		| GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_SCROLL_MASK
+		| GDK_SMOOTH_SCROLL_MASK | GDK_POINTER_MOTION_MASK);
 
 	gtk_widget_show_all(window);
 	layout_ui();
@@ -11137,27 +11670,6 @@ void do_control_action(char *cmd)
 	{
 		tuning_step = 10;
 	}
-	else if (!strcmp(request, "SPAN 2.5K"))
-	{
-		spectrum_span = 2500;
-	}
-	else if (!strcmp(request, "SPAN 6K"))
-	{
-		spectrum_span = 6000;
-	}
-	else if (!strcmp(request, "SPAN 8K"))
-	{
-		spectrum_span = 8000;
-	}
-	else if (!strcmp(request, "SPAN 10K"))
-	{
-		spectrum_span = 10000;
-	}
-	else if (!strcmp(request, "SPAN 25K"))
-	{
-		// spectrum_span = 25000;
-		spectrum_span = 24980; // trimmed to prevent edge of bin artifract from showing on scope
-	}
 	else if (!strcmp(request, "80M") ||
 			 !strcmp(request, "60M") ||
 			 !strcmp(request, "40M") ||
@@ -11221,6 +11733,13 @@ void do_control_action(char *cmd)
 			if (premute_volume[0])
 				set_field("r1:volume", premute_volume);
 		}
+	}
+	else if (!strncmp(request, "PANDIR", 6))
+	{
+		struct field *waterfall = get_field("waterfall");
+		if (waterfall)
+			update_field(waterfall);
+		settings_updated++;
 	}
 	else
 	{
@@ -11607,6 +12126,24 @@ else if (!strcasecmp(exec, "decode"))
     struct field *cf = get_field("#console");
     if (cf) cf->is_dirty = 1;
   }
+	else if (!strcasecmp(exec, "wflatency"))
+	{
+		if (!args[0])
+		{
+			char msg[64];
+			snprintf(msg, sizeof(msg), "WFLATENCY is %s\n",
+					 wf_latency_enabled() ? "ON" : "OFF");
+			write_console(STYLE_LOG, msg);
+		}
+		else if (!wf_latency_set(args))
+		{
+			settings_updated++;
+			write_console(STYLE_LOG, wf_latency_enabled() ?
+					"WFLATENCY set to ON\n" : "WFLATENCY set to OFF\n");
+		}
+		else
+			write_console(STYLE_LOG, "Usage: \\wflatency on|off\n");
+	}
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))
@@ -12217,7 +12754,6 @@ int main(int argc, char *argv[])
 	do_control_action("FREQ 7100000");
 	do_control_action("MODE LSB");
 	do_control_action("STEP 1K");
-	do_control_action("SPAN 25K");
 
 	strcpy(vfo_a_mode, "USB");
 	strcpy(vfo_b_mode, "LSB");
@@ -12244,6 +12780,27 @@ int main(int argc, char *argv[])
 		strcat(directory, "/sbitx/data/default_settings.ini");
 		ini_parse(directory, user_settings_handler, NULL);
 	}
+
+	/*
+	 * Create the panadapter analysis contexts now: user_settings.ini has been
+	 * parsed (so PANHISTSECS is known) and the audio threads have not started
+	 * yet, so nothing is pushing samples into a ring that does not exist.
+	 *
+	 * The do_panadapter_edit() call is required, not belt-and-braces. set_field()
+	 * only auto-fires a field's handler while the field is off-screen (f->y < 0),
+	 * which covers the four hidden #pan_* fields but not PANPERF once
+	 * menu2_display() has given it a real position -- and menu2_display(0) never
+	 * moves it back. It also covers a first run with no #pan_* keys in the INI,
+	 * where no handler fires at all.
+	 */
+	panadapter_init((uint64_t)atoi(field_str("PANHISTSECS")) * SDR_SAMPLE_RATE);
+	do_panadapter_edit(get_field("#pan_perf"), NULL, FIELD_EDIT, 0, 0, 0);
+	// Report the resolved settings once, next to the existing "Panadapter FFT
+	// bins:" line, so a bug report says what the analysis was actually asked for.
+	printf("Panadapter settings: PANPERF=%s PANBINS=%s PANHISTSECS=%s "
+		   "WFREBUILD=%s WEBBINS=%s\n",
+		   field_str("PANPERF"), field_str("PANBINS"), field_str("PANHISTSECS"),
+		   field_str("WFREBUILD"), field_str("WEBBINS"));
 
 	/*
 	 * Start audio threads now that user_settings.ini has been loaded.

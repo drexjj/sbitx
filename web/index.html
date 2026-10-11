@@ -40,6 +40,8 @@
     <script src="nosleep.min.js"></script>
     <script src="proj4.js"></script>
     <script src="gridmap.js"></script>
+    <script src="panadapter-view.js"></script>
+    <script src="panadapter-redraw.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         #spectrum_header {
@@ -359,16 +361,6 @@
                     <option value="ON">ON</option>
                 </select>
             </div>
-            <div class="sbitxv3-control">
-                <label class="sbitxv3-label" for="SPAN">SPAN</label>
-                <select class="sbitxv3-selection sbitx-selection" id="SPAN">
-                    <option value="25K">25K</option>
-                    <option value="10K">10K</option>
-                    <option value="8K">8K</option>
-                    <option value="6K">6K</option>
-                    <option value="2.5K">2.5K</option>
-                </select>
-            </div>
             <div class="linear cw-ft8-control" id="linear_SIDETONE">
                 <label class="linear-label" for="SIDETONE">SIDETN</label>
                 <input type="number" id="SIDETONE" min="0" max="100" class="linear-value">
@@ -470,7 +462,27 @@
                 <div id="spectrum-wrap" style="position: relative; border: 2px solid #333; border-radius: 4px; padding: 0px; background: #1a1a1a; box-shadow: inset 0 0 2px rgba(0,0,0,0.5);">
                     <canvas id="spectrum" width="600" height="80"></canvas>
                 </div>
-                <canvas id="waterfall" width="600" height="80"></canvas>
+                <div id="waterfall-wrap">
+                    <canvas id="waterfall" width="600" height="80"></canvas>
+                    <div id="panadapter-controls">
+                        <button id="panadapter-zoom-out" aria-label="Zoom out" title="Zoom out">
+                            <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"></circle><path d="M14.5 14.5L21 21M7 10h6"></path></svg>
+                        </button>
+                        <button id="panadapter-zoom-in" aria-label="Zoom in" title="Zoom in">
+                            <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"></circle><path d="M14.5 14.5L21 21M7 10h6M10 7v6"></path></svg>
+                        </button>
+                        <button id="panadapter-pan-left" aria-label="Pan left" title="Pan left">
+                            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></svg>
+                        </button>
+                        <button id="panadapter-pan-right" aria-label="Pan right" title="Pan right">
+                            <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+                        <button id="panadapter-reset" aria-label="Show full 25 kHz" title="Show full 25 kHz">
+                            <svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"></path></svg>
+                        </button>
+                        <span id="panadapter-span">25 kHz</span>
+                    </div>
+                </div>
             </section>
             <section id="more_keys" class="sbitx-panel">
                 <div class="sbitxv3-MACRO">
@@ -1575,6 +1587,68 @@
 
     var waterfall_image = null;
 
+    const PANADAPTER_BANDWIDTH_HZ = 25000;
+    const panadapterView = PanadapterView.create(PANADAPTER_BANDWIDTH_HZ, 64);
+
+    function spectrumTunedX(width) {
+        return PanadapterView.tunedX(panadapterView, width);
+    }
+
+    function panadapterSpanHz() {
+        return PanadapterView.spanHz(panadapterView);
+    }
+
+    function filterPixelRange(width) {
+        const hzPerPixel = width / panadapterSpanHz();
+        const tunedX = spectrumTunedX(width);
+        const mode = el("MODE").value;
+        const low = parseFloat(el("LOW").value);
+        const high = parseFloat(el("HIGH").value);
+        let left, right;
+
+        if (mode === "LSB" || mode === "CWR") {
+            left = tunedX - hzPerPixel * high;
+            right = tunedX - hzPerPixel * low;
+        } else if (mode === "AM" || mode === "FM") {
+            const halfWidth = parseFloat(el("BW").value) * hzPerPixel;
+            left = tunedX - halfWidth;
+            right = tunedX + halfWidth;
+        } else {
+            left = tunedX + hzPerPixel * low;
+            right = tunedX + hzPerPixel * high;
+        }
+        return { left, right, hzPerPixel, tunedX, mode };
+    }
+
+    function panadapterViewChanged() {
+        const span = panadapterSpanHz();
+        el("panadapter-span").textContent =
+            span >= 1000 ? `${(span / 1000).toFixed(span % 1000 ? 1 : 0)} kHz` : `${span} Hz`;
+        el("panadapter-zoom-out").disabled = panadapterView.zoom <= 1;
+        el("panadapter-zoom-in").disabled =
+            panadapterView.zoom >= panadapterView.maxZoom;
+        const limit = 0.5 - 0.5 / panadapterView.zoom;
+        el("panadapter-pan-left").disabled =
+            panadapterView.center <= -limit + 1e-9;
+        el("panadapter-pan-right").disabled =
+            panadapterView.center >= limit - 1e-9;
+        el("panadapter-reset").disabled =
+            panadapterView.zoom === 1 && panadapterView.center === 0;
+
+        const waterfall = el("waterfall");
+        waterfall.getContext("2d").clearRect(0, 0, waterfall.width, waterfall.height);
+    }
+
+    function panadapterZoom(factor, position = 0.5) {
+        PanadapterView.zoomAt(panadapterView, factor, position);
+        panadapterViewChanged();
+    }
+
+    function panadapterPan(fraction) {
+        PanadapterView.pan(panadapterView, fraction);
+        panadapterViewChanged();
+    }
+
     function waterfall_init() {
         var w = el("waterfall");
         var ctx = w.getContext("2d");
@@ -1598,8 +1672,10 @@
         let w = rect.width;
         console.log("waterfall click " + x + ", " + w);
         let freq = parseInt(el('FREQ').value);
-        let span = parseFloat(el('SPAN').value) * 1000;
-        freq = Math.round((freq - span / 2 + (span / w) * x) / 100) * 100;
+        const span = panadapterSpanHz();
+        const center = freq + panadapterView.center * PANADAPTER_BANDWIDTH_HZ;
+        const start = center - span / 2;
+        freq = Math.round((start + (span / w) * x) / 100) * 100;
         console.log("waterfall freq " + freq);
         update_freq(freq);
     }
@@ -1651,45 +1727,20 @@
         const { width, height } = canvas;
         const drawHeight = height - 15;
 
-        // Calculate filter edge positions directly
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
-        const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2;
-
-        // Get current filter values
-        const mode = el("MODE").value;
+        const { left, right, mode } = filterPixelRange(width);
 
         // Skip filter edge detection for FTx modes
         if (mode === "FT8" || mode === "FT4") {
             return null;
         }
 
-        const bw = parseFloat(el("BW").value);
-        const low = parseFloat(el("LOW").value);
-        const high = parseFloat(el("HIGH").value);
-
-        let filterLeftX, filterRightX, visualLeftEdgeX, visualRightEdgeX;
-
-        if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
-        } else if (mode === "AM" || mode === "FM") {
-            const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
-        } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
-        }
-
         // Calculate the visual edge positions (where the edges are actually drawn)
-        visualLeftEdgeX = filterLeftX;
-        visualRightEdgeX = filterRightX - 6; // Right edge is drawn 6 pixels to the left
+        const visualLeftEdgeX = left;
+        const visualRightEdgeX = right - 6; // Right edge is drawn 6 pixels to the left
 
         // Store these calculated positions for reference
-        window.filterLeftEdgeX = filterLeftX;
-        window.filterRightEdgeX = filterRightX;
+        window.filterLeftEdgeX = left;
+        window.filterRightEdgeX = right;
         window.visualLeftEdgeX = visualLeftEdgeX;
         window.visualRightEdgeX = visualRightEdgeX;
 
@@ -1733,8 +1784,7 @@
         const adjustedDelta = deltaX * scaleX;
 
         const { width } = canvas;
-        const nbins = 1024; // Typical value for spectrum
-        const calculated_span = nbins * 46.875;
+        const calculated_span = panadapterSpanHz();
         const hz_per_pixel = width / calculated_span;
 
         // Get current filter values
@@ -1878,30 +1928,8 @@
             const spectrumCanvas = el("spectrum");
             const { width, height } = spectrumCanvas;
             const drawHeight = height - 15;
-            const nbins = 1024; // Typical value for spectrum
-            const calculated_span = nbins * 46.875;
-            const hz_per_pixel = width / calculated_span;
-            const half_width = width / 2;
-
-            // Get current filter values
-            const mode = el("MODE").value;
-            const bw = parseFloat(el("BW").value);
-            const low = parseFloat(el("LOW").value);
-            const high = parseFloat(el("HIGH").value);
-
-            let filterLeftX, filterRightX;
-
-            if (mode === "LSB" || mode === "CWR") {
-                filterLeftX = half_width - hz_per_pixel * high;
-                filterRightX = half_width - hz_per_pixel * low;
-            } else if (mode === "AM") {
-                const blockWidth = bw * hz_per_pixel * 2;
-                filterLeftX = half_width - blockWidth / 2;
-                filterRightX = half_width + blockWidth / 2;
-            } else {
-                filterLeftX = half_width + hz_per_pixel * low;
-                filterRightX = half_width + hz_per_pixel * high;
-            }
+            const { left: filterLeftX, right } = filterPixelRange(width);
+            const filterRightX = right - 6;
 
             // Use a wider detection area (20 pixels) for clicking
             const edgeWidth = getEdgeDetectionWidth(false);
@@ -1986,6 +2014,42 @@
     // Attach event listeners
     const waterfallCanvas = el("waterfall");
     const spectrumCanvas = el("spectrum");
+
+    function handlePanadapterWheel(event) {
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        const position = Math.max(0, Math.min(1,
+            (event.clientX - rect.left) / rect.width));
+        if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+            const delta = event.deltaX || event.deltaY;
+            panadapterPan(Math.max(-0.25, Math.min(0.25, delta / 500)));
+        } else {
+            const delta = Math.max(-200, Math.min(200, event.deltaY));
+            panadapterZoom(Math.exp(-delta * 0.0025), position);
+        }
+    }
+
+    spectrumCanvas.addEventListener("wheel", handlePanadapterWheel, { passive: false });
+    waterfallCanvas.addEventListener("wheel", handlePanadapterWheel, { passive: false });
+    const panadapterControlActions = {
+        "panadapter-zoom-out": () => panadapterZoom(1 / 1.4),
+        "panadapter-zoom-in": () => panadapterZoom(1.4),
+        "panadapter-pan-left": () => panadapterPan(-0.2),
+        "panadapter-pan-right": () => panadapterPan(0.2),
+        "panadapter-reset": () => {
+            PanadapterView.reset(panadapterView);
+            panadapterViewChanged();
+        }
+    };
+    el("panadapter-controls").addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        const action = button && panadapterControlActions[button.id];
+        if (!action)
+            return;
+        event.stopPropagation();
+        action();
+    });
+    panadapterViewChanged();
 
     // Mouse events for waterfall
     waterfallCanvas.addEventListener("mousedown", (e) => startWaterfallDrag(e, false));
@@ -2244,9 +2308,6 @@
     // Cache DOM elements (assumed to be stable) outside the function
     const spectrumEl = el("spectrum");
     const modeEl = el("MODE");
-    const bwEl = el("BW");
-    const lowEl = el("LOW");
-    const highEl = el("HIGH");
     const statusEl = el("STATUS");
     const freqEl = el("FREQ");
     const pitchEl = el("PITCH");
@@ -2260,16 +2321,23 @@
     // Global declarations
     let activeSpots = new Map(); // Map<callsign, { spot, last_seen }>
     const SPOT_TIMEOUT = 15000; // 15 seconds
+    const webPanadapterRedraw = WebPanadapterRedraw.create(
+        update => spectrum_update(update));
 
     function spectrum_update(update) {
+        webPanadapterRedraw.spectrumUpdated(update);
         const { width, height } = spectrumEl;
         const ctx = spectrumEl.getContext("2d");
         const nbins = update.length - 3;
         const scale = width / nbins;
         const drawHeight = height - 15; // Keep original height allocation
-        const calculated_span = nbins * 46.875;
-        const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2;
+        const {
+            left: filterLeftX,
+            right: filterRightX,
+            hzPerPixel: hz_per_pixel,
+            tunedX: tuned_x,
+            mode
+        } = filterPixelRange(width);
 
         // Clear canvas
         ctx.fillStyle = "#000";
@@ -2289,30 +2357,11 @@
         }
 
         // Cache DOM values
-        const mode = modeEl.value;
-        const bw = parseFloat(bwEl.value);
-        const low = parseFloat(lowEl.value);
-        const high = parseFloat(highEl.value);
         const status = statusEl.value;
 
         // Draw filter block
         ctx.fillStyle = "#444";
-        let filterLeftX, filterRightX;
-
-        if (mode === "LSB" || mode === "CWR") {
-            filterLeftX = half_width - hz_per_pixel * high;
-            filterRightX = half_width - hz_per_pixel * low;
-            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
-        } else if (mode === "AM" || mode === "FM") {
-            const blockWidth = bw * hz_per_pixel * 2;
-            filterLeftX = half_width - blockWidth / 2;
-            filterRightX = half_width + blockWidth / 2;
-            ctx.fillRect(filterLeftX, 0, blockWidth, drawHeight);
-        } else {
-            filterLeftX = half_width + hz_per_pixel * low;
-            filterRightX = half_width + hz_per_pixel * high;
-            ctx.fillRect(filterLeftX, 0, (high - low) * hz_per_pixel, drawHeight);
-        }
+        ctx.fillRect(filterLeftX, 0, filterRightX - filterLeftX, drawHeight);
 
         // Skip filter visualization for FTx modes
         if (mode !== "FT8" && mode !== "FT4") {
@@ -2385,22 +2434,21 @@
             ctx.strokeStyle = "#ffff00";
             ctx.stroke();
         } else {
-            const binWidth = Math.max(1, scale);
-            for (let x = 0; x < nbins; x++) {
-                const px = (nbins - x - 1) * scale;
-
+            for (let x = 0; x < width; x++) {
+                const bin = PanadapterView.sourceBin(
+                    panadapterView, x, width, nbins);
                 // Adjust the spectrum level calculation for FT8 mode
                 let ph;
                 if (mode === "FT8" || mode === "FT4") {
                     // Use a more appropriate scaling for FT8 mode
-                    ph = -((update.charCodeAt(x + 3) - 32) * drawHeight) / 100;
+                    ph = -((update.charCodeAt(bin + 3) - 32) * drawHeight) / 100;
                 } else {
                     // Original calculation for other modes
-                    ph = -((update.charCodeAt(x + 3) - 32) * drawHeight * 2) / 100;
+                    ph = -((update.charCodeAt(bin + 3) - 32) * drawHeight * 2) / 100;
                 }
 
                 ctx.fillStyle = cachedGradient;
-                ctx.fillRect(px, drawHeight - 1, binWidth, ph);
+                ctx.fillRect(x, drawHeight - 1, 1, ph);
             }
         }
 
@@ -2444,7 +2492,7 @@
         for (const [callsign, { spot }] of activeSpots) {
             const spot_freq = spot.frequency * 1000;
             const relative_freq = spot_freq - freq * 1000;
-            const spot_x = half_width + relative_freq * hz_per_pixel;
+            const spot_x = tuned_x + relative_freq * hz_per_pixel;
             spots_with_x.push({ x: spot_x, callsign, timestamp: spot.timestamp || currentTime });
         }
 
@@ -2484,11 +2532,11 @@
         let rx_x;
 
         if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
-            rx_x = half_width;
+            rx_x = tuned_x;
         } else if (mode === "CWR") {
-            rx_x = half_width - rx_pitch * hz_per_pixel;
+            rx_x = tuned_x - rx_pitch * hz_per_pixel;
         } else {
-            rx_x = half_width + rx_pitch * hz_per_pixel;
+            rx_x = tuned_x + rx_pitch * hz_per_pixel;
         }
 
         // Check for overlap with spot labels
@@ -2518,7 +2566,7 @@
             ctx.beginPath();
             ctx.strokeStyle = "red";
             ctx.fillStyle = "red";
-            const tx_x = half_width + tx_pitch * hz_per_pixel;
+            const tx_x = tuned_x + tx_pitch * hz_per_pixel;
             ctx.moveTo(tx_x, 0);
             ctx.lineTo(tx_x, drawHeight);
             ctx.fillText("TX", tx_x - 10, drawHeight + 12);
@@ -2536,7 +2584,7 @@
             // TX freq = RX freq - RIT delta (same calculation as in GTK)
             const freq_diff = -rit_delta; // Negative because we subtract RIT delta from RX freq
             const offset_pixels = freq_diff * hz_per_pixel;
-            const tx_needle_x = half_width + offset_pixels;
+            const tx_needle_x = tuned_x + offset_pixels;
 
             // Check if TX indicator is within visible range
             let is_at_edge = false;
@@ -2616,10 +2664,9 @@
 
         const ctx = waterfallEl.getContext("2d", { willReadFrequently: true });
         const nbins = update.length - 3;
-        const scale = nbins / width;
-        const calculated_span = nbins * 46.875;
+        const calculated_span = panadapterSpanHz();
         const hz_per_pixel = width / calculated_span;
-        const half_width = width / 2; // Precompute for reuse
+        const tuned_x = spectrumTunedX(width);
 
         // Get mode and pitch values
         const mode = modeEl.value;
@@ -2632,14 +2679,14 @@
         // Simplify rx_spot calculation
         let rx_spot;
         if (mode === "USB" || mode === "LSB" || mode === "DIGI" || mode === "AM" || mode === "FM") {
-            rx_spot = Math.round(half_width);
+            rx_spot = Math.round(tuned_x);
         } else if (mode === "CWR") {
-            rx_spot = Math.round(half_width - rx_pitch * hz_per_pixel);
+            rx_spot = Math.round(tuned_x - rx_pitch * hz_per_pixel);
         } else {
-            rx_spot = Math.round(half_width + rx_pitch * hz_per_pixel);
+            rx_spot = Math.round(tuned_x + rx_pitch * hz_per_pixel);
         }
 
-        const tx_spot = mode === "FT8" || mode === "FT4" ? Math.round(half_width + tx_pitch * hz_per_pixel) : -1;
+        const tx_spot = mode === "FT8" || mode === "FT4" ? Math.round(tuned_x + tx_pitch * hz_per_pixel) : -1;
 
         // Shift existing image down
         const img = ctx.getImageData(0, 0, width, height);
@@ -2651,7 +2698,8 @@
         let i = 0;
 
         for (let x = 0; x < width; x++) {
-            const bin = Math.floor((width - x) * scale);
+            const bin = PanadapterView.sourceBin(
+                panadapterView, x, width, nbins);
             let v = (update.charCodeAt(bin + 3) - 32) * 2;
             v = Math.min(v, 100);
 
@@ -3218,6 +3266,7 @@
         }
 
         websocket_send(e.id + " " + e.value);
+        webPanadapterRedraw.fieldUpdated(e.id);
     }
 
     function sbitx_slider_changed(event) {
@@ -4381,7 +4430,7 @@
             case 'WATERFALL':
                 break;
             case 'FREQ':
-                e = el(cmd);
+                e = el(cmd === "FTX_RX_PITCH" ? "PITCH" : cmd);
                 log("freq " + args);
                 if (e)
                     e.value = args;
@@ -4509,6 +4558,7 @@
                 if (e) {
                     if (e.value != args) {
                         e.value = args;
+                        webPanadapterRedraw.fieldUpdated(cmd);
                         if (e.classList.contains('knob-value'))
                             knob_update(e);
                         else if (e.classList.contains('linear-value')) {
@@ -4580,7 +4630,7 @@
     //specific control handler
     //$("#knob_on").on("click", toggle_dial);
 
-    spectrumEl.addEventListener("mouseup", (event) => { getMousePosition(canvas, event)});
+    spectrumEl.addEventListener("mouseup", (event) => { getMousePosition(spectrumEl, event)});
     $("#STORE").on("click", () => { websocket_send(el("BAND").value); });
     $("#sound_mute").on("click", () => {
         sound_mute = !sound_mute;
@@ -4859,6 +4909,7 @@
         var control = event.currentTarget;
         var control_id = control.id.substring(7);
         el(control_id).value = control.value;
+        webPanadapterRedraw.fieldUpdated(control_id);
 
         // Special handling for BFO slider
         if (control_id === "BFO") {
