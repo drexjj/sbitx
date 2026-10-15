@@ -26,8 +26,16 @@
 #define MAX_SYMBOLS 100
 #define CW_MAX_SYMBOLS 12
 #define FLOAT_SCALE (1073741824.0)  // 2^30
-#define HIGH_DECAY 100   // larger means change sig level slower
-#define NOISE_DECAY 100  // controls max noise_level adjustment
+// RX decoder time step: the detector decides mark or space every CW_HOP
+// samples at 12 kHz (2.67 ms), each time over a Goertzel window of the
+// last N_BINS samples (10.67 ms). All RX timing (dot_len, ticker, gaps) is
+// counted in these hops.
+#define CW_HOP 32
+#define CW_HOPS_PER_BLOCK (N_BINS / CW_HOP)
+// level tracking time constants, in hops
+#define HIGH_DECAY 400        // peak follows the signal down over ~1 s, in marks
+#define HIGH_DECAY_GAP 3000   // and over ~8 s in gaps, so long gaps keep the threshold
+#define NOISE_DECAY 400       // noise floor adjusts over ~1 s, in gaps
 
 // structs
 struct morse_tx {
@@ -79,6 +87,9 @@ struct cw_decoder {
   struct bin signal_plus1;
   struct bin signal_plus2;
 
+  // the last N_BINS conditioned samples: the Goertzel window, slid by CW_HOP
+  int32_t window[N_BINS];
+
   // per-bin median filter history (3-tick window)
   int bin_hist[5][3];   // [bin_index][tick], circular
   int bin_hist_pos;     // shared write position (all bins advance together)
@@ -124,6 +135,7 @@ struct cw_decoder {
 
   // cw_rx_denoise will track signal confidence
   float sig_confidence;
+  int   disagree;  // consecutive hops sig_state has differed from mark
 
   // early dot_len adaptation (breaks stuck-low-WPM cycle)
   float  recent_marks[8];       // circular buffer of recent mark durations (ticks)
@@ -831,26 +843,32 @@ void handle_cw_state_machine(uint8_t state_machine_mode, uint8_t symbol_now) {
 // returns: void
 void cw_rx(int32_t *samples, int count) {
   int32_t conditioned[N_BINS];
-  // Stage 2: Signal conditioning (AGC hook + anti-alias + decimate)
+  // Stage 2: Signal conditioning (anti-alias + decimate to 12 kHz)
   cw_rx_condition(samples, count, conditioned, decoder.n_bins);
-  // Stage 3: Frequency analysis (Goertzel bins + clustering → sig_state)
-  cw_rx_bin(&decoder, conditioned);
-  // Stage 4: Signal level tracking (high_level / noise_floor)
-  cw_rx_update_levels(&decoder);
-  // Stage 5: Denoising / mark decision (EMA + hysteresis → mark)
-  cw_rx_denoise(&decoder);
-  // Stage 6: Symbol detection (transitions → symbol buffer)
-  bool char_ready = cw_rx_detect_symbol(&decoder);
-  // Stage 7 & 8 (only if char is ready for output)
-  if (char_ready) {
-    // Stage 7: Build morse string
-    struct cw_morse_result result;
-    // Build Morse character from symbol buffer
-    cw_rx_build_morse(&decoder, &result);
-    // Reset symbol buffer before output so next symbols start fresh
-    decoder.next_symbol = 0;
-    // Stage 8: Classify and output
-    cw_rx_classify_and_output(&decoder, &result);
+  // Stages 3-8 run once per hop: CW_HOPS_PER_BLOCK times per block
+  for (int h = 0; h < CW_HOPS_PER_BLOCK; h++) {
+    // slide the Goertzel window along by one hop
+    memmove(decoder.window, decoder.window + CW_HOP, (N_BINS - CW_HOP) * sizeof(int32_t));
+    memcpy(decoder.window + N_BINS - CW_HOP, conditioned + h * CW_HOP, CW_HOP * sizeof(int32_t));
+    // Stage 3: Frequency analysis (Goertzel bins → sig_state)
+    cw_rx_bin(&decoder, decoder.window);
+    // Stage 4: Signal level tracking (high_level / noise_floor)
+    cw_rx_update_levels(&decoder);
+    // Stage 5: Mark decision (sig_state, debounced → mark)
+    cw_rx_denoise(&decoder);
+    // Stage 6: Symbol detection (transitions → symbol buffer)
+    bool char_ready = cw_rx_detect_symbol(&decoder);
+    // Stage 7 & 8 (only if char is ready for output)
+    if (char_ready) {
+      // Stage 7: Build morse string
+      struct cw_morse_result result;
+      // Build Morse character from symbol buffer
+      cw_rx_build_morse(&decoder, &result);
+      // Reset symbol buffer before output so next symbols start fresh
+      decoder.next_symbol = 0;
+      // Stage 8: Classify and output
+      cw_rx_classify_and_output(&decoder, &result);
+    }
   }
 }
 
@@ -860,25 +878,32 @@ void cw_rx(int32_t *samples, int count) {
 
 // Condition raw 96 kHz samples down to 12 kHz for Goertzel analysis.
 //
-//   FIR low-pass filter (5 kHz cutoff at 96 kHz)
+//   FIR low-pass filter (5 kHz cutoff at 96 kHz), computed only for the
+//   samples kept, with the previous block's last 63 samples as history
 //   Decimate by 8 → 12 kHz
 //   Drop 8 LSBs (A/D is 24-bit, not 32)
 //
-// inputs:  raw 96 kHz samples, sample count,
+// inputs:  raw 96 kHz samples, sample count (at least 64),
 //          output buffer (must hold at least out_len samples)
 // returns: void
 static void cw_rx_condition(int32_t *samples, int count,
                             int32_t *out, int out_len) {
   const int decimation_factor = 8;  // 96 kHz -> 12 kHz
-  int32_t filtered[count];  // local; don't modify caller's buffer
+  const int order = 64;
+  static int32_t history[64 - 1];   // last order-1 samples of the previous block
 
-  // anti-alias low-pass filter
-  apply_fir_filter(samples, filtered, fir_coeffs, count, 64);
-
-  // downsample and strip 8 LSBs (A/D was 24 bits, not 32)
   for (int i = 0; i < out_len; i++) {
-    out[i] = filtered[i * decimation_factor] >> 8;
+    int n = i * decimation_factor;
+    float sum = 0.0f;
+    for (int j = 0; j < order; j++) {
+      int k = n - j;
+      int32_t x = (k >= 0) ? samples[k] : history[order - 1 + k];
+      sum += (float)x * fir_coeffs[j];
+    }
+    // strip 8 LSBs (A/D was 24 bits, not 32)
+    out[i] = ((int32_t)sum) >> 8;
   }
+  memcpy(history, samples + count - (order - 1), (order - 1) * sizeof(int32_t));
 }
 
 // apply the FIR low-pass filter using convolution
@@ -955,20 +980,11 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   if (filtered[3] > sig_now) { sig_now = filtered[3]; max_idx = 3; }
   if (filtered[4] > sig_now) { sig_now = filtered[4]; max_idx = 4; }
 
-  // Adaptive EMA smoothing on winning magnitude
-  // alpha scales with speed: at low WPM we smooth more, at high WPM nearly transparent
-  // alpha = clamp(2.0 / dot_len, 0.3, 0.9) keeps the effective window under half a dot
-  float ema_alpha = 2.0f / (float)p->dot_len;
-  if (ema_alpha < 0.3f) ema_alpha = 0.3f;
-  if (ema_alpha > 0.9f) ema_alpha = 0.9f;
-
-  if (p->smoothed_magnitude <= 0.0f) {
-    // first sample: seed the EMA
-    p->smoothed_magnitude = (float)sig_now;
-  } else {
-    p->smoothed_magnitude = (1.0f - ema_alpha) * p->smoothed_magnitude + ema_alpha * (float)sig_now;
-  }
-  p->magnitude = (int)(p->smoothed_magnitude + 0.5f);
+  // No further smoothing: the 10.67 ms window and the 3-hop median already
+  // smooth the magnitude, and both delay rising and falling edges alike, so
+  // a threshold half way up keeps mark and gap lengths true.
+  p->smoothed_magnitude = (float)sig_now;
+  p->magnitude = sig_now;
 
   // Track winning bin streak
   if (p->max_bin_idx == max_idx) {
@@ -978,23 +994,20 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
     p->max_bin_idx = max_idx;
   }
 
-  // Signal / noise decision (hybrid magnitude + k-means)
+  // Signal / noise decision: half way between the noise floor and the
+  // signal's peak, with hysteresis.
   //
-  // Features: x0 = log(1+mag), x1 = distance-from-center (abs(max_idx-2))
-  // Quick magnitude thresholds for clear cases; otherwise consult k-means
-  // when confident.
-  const float Z_HIGH = 0.50f;   // strong-signal threshold (normalized)
-  const float Z_LOW  = 0.15f;   // clear-noise threshold (normalized)
-  const float min_centroid_sep = 0.25f;  // min separation to trust clustering
-  const int MIN_KCOUNT = 8;              // require some samples in each cluster
-  const int min_signal_streak = 2;       // streaks for hysteresis
-  const int min_noise_streak = 2;
+  // The decision is made on the linear magnitude.  A threshold in the log
+  // domain (where the k-means clusters live) sits far below half way on a
+  // strong signal, so a falling edge takes longer to cross it than a
+  // rising edge does: marks come out long and gaps short, worse the
+  // stronger the signal.  The k-means centroids are still updated, since
+  // Section 7's confidence score uses them.
+  const float Z_ON  = 0.55f;  // mark when the magnitude rises above this
+  const float Z_OFF = 0.45f;  // space when it falls below this
 
-  // always update centroids and get back distances for decision-making
   float d_noise = 0.0f, d_signal = 0.0f, centroid_sep = 0.0f;
-  int assigned_signal = cw_rx_kmeans_update_2d(p, p->magnitude, max_idx, &d_noise, &d_signal, &centroid_sep);
-  bool kmeans_reliable = (p->k_initialized && centroid_sep >= min_centroid_sep &&
-                          p->k_count_noise >= MIN_KCOUNT && p->k_count_signal >= MIN_KCOUNT);
+  (void)cw_rx_kmeans_update_2d(p, p->magnitude, max_idx, &d_noise, &d_signal, &centroid_sep);
 
   // compute normalized magnitude z = (mag - noise) / (high - noise)
   float denom = (float)(p->high_level - p->noise_floor);
@@ -1003,46 +1016,20 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
 
   // SNR gate: if the spread between high_level and noise_floor is too small
   // there is no usable signal — suppress detections to avoid garbage output
-  // 3 dB ≈ linear ratio of ~1.41
-  // 2 db = 1.25
-  const float MIN_SNR_LINEAR = 1.25f;  // ~2 dB
-  float snr_ratio = (p->noise_floor > 0) 
-      ? (float)p->high_level / (float)p->noise_floor 
+  // 2 dB = linear ratio of 1.25
+  const float MIN_SNR_LINEAR = 1.25f;
+  float snr_ratio = (p->noise_floor > 0)
+      ? (float)p->high_level / (float)p->noise_floor
       : 0.0f;
 
   if (snr_ratio < MIN_SNR_LINEAR) {
     p->sig_state = false;
-    p->ticker++;
-    return;
-  }
-
-  if (z >= Z_HIGH) {
+  } else if (z >= Z_ON) {
     p->sig_state = true;
-  } else if (z <= Z_LOW) {
-    // clear noise by magnitude
+  } else if (z <= Z_OFF) {
     p->sig_state = false;
-  } else {
-    // if signal not clearly present, consult kmeans if it's reliable
-    if (kmeans_reliable) {
-      // use assignment + streak hysteresis (kmeans updated streaks internally)
-      if (assigned_signal) {
-        if (p->k_signal_streak >= min_signal_streak) p->sig_state = true;
-        // otherwise keep previous p->sig_state until streak threshold reached
-      } else {
-        if (p->k_noise_streak >= min_noise_streak) p->sig_state = false;
-      }
-    } else { 
-      // clustering not reliable yet: fallback to legacy SNR heuristic
-      if ((p->max_bin_streak == 1) &&
-          (p->magnitude >= p->noise_floor + 0.4f * (p->high_level - p->noise_floor)))
-        p->sig_state = true;
-      else if ((p->max_bin_streak >= 2) &&
-               (p->magnitude >= p->noise_floor + 0.15f * (p->high_level - p->noise_floor)))
-        p->sig_state = true;
-      else
-        p->sig_state = false;
-    }
   }
+  // else leave p->sig_state unchanged (hysteresis)
 
   p->ticker++;
 }
@@ -1204,105 +1191,60 @@ static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq
 // inputs:  struct cw_decoder *p
 // returns: void
 static void cw_rx_update_levels(struct cw_decoder *p) {
-  // treat current magnitude as a candidate for the new high level
-  int new_high = p->magnitude;
   // if the current signal is higher than the tracked peak, update high_level instantly
-  if (p->high_level < p->magnitude)
-    p->high_level = new_high;
-  else
-    // decay high_level smoothly toward the new value
-    p->high_level = (p->magnitude + ((HIGH_DECAY - 1) * p->high_level)) / HIGH_DECAY;
+  if (p->high_level < p->magnitude) {
+    p->high_level = p->magnitude;
+  } else {
+    // otherwise decay high_level toward the magnitude: over ~1 s while
+    // marking (to follow fading), over ~8 s in gaps (so the threshold
+    // holds through long word gaps and Farnsworth spacing)
+    int64_t decay = p->sig_state ? HIGH_DECAY : HIGH_DECAY_GAP;
+    p->high_level = (int)((p->magnitude + (decay - 1) * (int64_t)p->high_level) / decay);
+  }
   // if current magnitude is much lower (less than half way between high and low)
   // it might be background noise or a space between morse marks
   if (p->magnitude < (p->noise_floor + 0.5f * (p->high_level - p->noise_floor))) {
     // limit the minimum magnitude to 100
     if (p->magnitude < 100) p->magnitude = 100;
     // update the noise floor with a similar decay mechanism
-    p->noise_floor = (p->magnitude + ((NOISE_DECAY - 1) * p->noise_floor)) / NOISE_DECAY;
+    p->noise_floor = (int)((p->magnitude + (NOISE_DECAY - 1) * (int64_t)p->noise_floor) / NOISE_DECAY);
   }
 }
 
 //////////////////////////////////////////////////////////////////////////
-// Section 5: Denoising / mark decision (EMA + hysteresis)
+// Section 5: Mark decision (debounce)
 //////////////////////////////////////////////////////////////////////////
 
-// Converts sig_state (boolean, from Section 3) into a filtered mark/space
-// decision using an EMA-based confidence tracker with SNR-adaptive
-// hysteresis.
+// Turns sig_state (from Section 3) into p->mark: mark follows sig_state
+// once they have disagreed for 2 consecutive hops (5.3 ms).  This rejects
+// a one-hop glitch, and delays rising and falling edges by the same
+// amount, so it doesn't change mark or gap lengths.  Its time constant is
+// fixed: it doesn't depend on dot_len, so a wrong speed estimate can't make
+// the detector slower and lose more gaps.
 //
-// Design principle: at low SNR, the Section 3 median filter has already
-// removed noise spikes.  The denoiser should therefore be MORE responsive
-// at low SNR (to catch weak dots) rather than more cautious.  Caution
-// comes from the median filter; responsiveness comes from here.
-//
-// Produces: p->mark (boolean) and p->sig_confidence (0..1).
+// Produces: p->mark (boolean) and p->sig_confidence (0 or 1).
 // inputs:  struct cw_decoder *p
 // returns: void
 static void cw_rx_denoise(struct cw_decoder *p) {
+  const int DEBOUNCE_HOPS = 2;
+
   // preserve previous mark state
   p->prev_mark = p->mark;
 
-  // numeric input (1.0 for sig_state true, 0.0 for false)
-  float x = p->sig_state ? 1.0f : 0.0f;
-
-  // guard: clamp dot_len to a sane maximum so the denoiser
-  // never becomes so sluggish that it can't detect real dots.
-  // max_dot_len corresponds to ~5 WPM (slowest reasonable CW).
-  int max_dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * 5);
+  // guard: clamp dot_len to a sane maximum (~5 WPM, slowest reasonable CW)
+  int max_dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * 5);
   if (max_dot_len < 1) max_dot_len = 1;
   if (p->dot_len > max_dot_len) p->dot_len = max_dot_len;
 
-  // choose tau (time constant) as a fraction of dot_len (in ticks)
-  // controls responsiveness — smaller is faster
-  float factor = 0.5f;  // respond over roughly half a dot by default
-  float tau = (float)p->dot_len * factor;
-  if (tau < 1.0f) tau = 1.0f;
-
-  // discrete-time alpha from tau: alpha = 1 - exp(-1/tau)
-  float alpha = 1.0f - expf(-1.0f / tau);
-
-  // clamp alpha to safe bounds
-  if (alpha < 0.02f) alpha = 0.02f;
-  if (alpha > 0.85f) alpha = 0.85f;
-
-  // SNR-adaptive alpha: FASTER at low SNR to catch weak dots,
-  // slightly slower at high SNR where we have margin to smooth.
-  // This reverses the previous policy — the median filter in
-  // Section 3 now handles noise rejection, so we can afford to
-  // be responsive here.
-  float snr_linear = (p->noise_floor > 0) ? (float)p->high_level / (float)p->noise_floor : 1.0f;
-  float snr_norm = (snr_linear - 1.0f) / 5.0f; // normalize 1..6 → 0..1
-  if (snr_norm < 0.0f) snr_norm = 0.0f;
-  if (snr_norm > 1.0f) snr_norm = 1.0f;
-
-  float alpha_fast = alpha * 1.3f;   // used at low SNR (be responsive)
-  float alpha_slow = alpha * 1.1f;   // used at high SNR (smooth a bit)
-  alpha = alpha_fast + (alpha_slow - alpha_fast) * snr_norm;
-  if (alpha < 0.01f) alpha = 0.01f;
-  if (alpha > 0.95f) alpha = 0.95f;
-
-  // update smoothed confidence
-  p->sig_confidence = (1.0f - alpha) * p->sig_confidence + alpha * x;
-
-  // SNR-adaptive hysteresis: NARROWER gap at low SNR so weak dots
-  // can cross the threshold; wider gap at high SNR where we have
-  // margin and want to reject occasional noise that survived the
-  // median filter.
-  //
-  // At low  SNR (snr_norm→0): gap = 0.20 → thresholds 0.40 / 0.60
-  // At high SNR (snr_norm→1): gap = 0.40 → thresholds 0.30 / 0.70
-  float gap = 0.20f + 0.20f * snr_norm;
-  if (gap < 0.15f) gap = 0.15f;
-  if (gap > 0.50f) gap = 0.50f;
-  float th_high = 0.5f + gap * 0.5f;
-  float th_low  = 0.5f - gap * 0.5f;
-
-  if (p->sig_confidence >= th_high) {
-    p->mark = true;
-  } else if (p->sig_confidence <= th_low) {
-    p->mark = false;
+  if (p->sig_state != p->mark) {
+    if (++p->disagree >= DEBOUNCE_HOPS) {
+      p->mark = p->sig_state;
+      p->disagree = 0;
+    }
+  } else {
+    p->disagree = 0;
   }
-  // else leave p->mark unchanged (hysteresis)
+  p->sig_confidence = p->mark ? 1.0f : 0.0f;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1352,7 +1294,7 @@ static void cw_rx_early_dot_adapt(struct cw_decoder *p, int mark_ticks) {
   float proposed = (1.0f - alpha) * (float)p->dot_len + alpha * shortest;
 
   // floor: don't let dot_len go below ~60 WPM equivalent
-  int min_dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * 60);
+  int min_dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * 60);
   if (min_dot_len < 1) min_dot_len = 1;
   if (proposed < (float)min_dot_len) proposed = (float)min_dot_len;
 
@@ -1393,7 +1335,7 @@ static bool cw_rx_detect_symbol(struct cw_decoder *p) {
   // When dot_len drifts high, using it raw for gap thresholds creates a
   // positive feedback loop.  Blending with the UI-expected value caps the
   // gap growth and keeps characters closing at a reasonable rate.
-  int expected_dot = (6 * SAMPLING_FREQ) / (5 * N_BINS * p->wpm);
+  int expected_dot = (6 * SAMPLING_FREQ) / (5 * CW_HOP * p->wpm);
   if (expected_dot < 1) expected_dot = 1;
   const float GAP_DOT_BLEND = 0.5f;  // 50/50 blend
   int dot = (int)(GAP_DOT_BLEND * (float)p->dot_len
@@ -1795,7 +1737,7 @@ static void cw_rx_classify_and_output(struct cw_decoder *p, struct cw_morse_resu
     if (single_dur > 0.0f && single_dur < (float)p->dot_len * 0.75f) {
       const float SINGLE_ALPHA = 0.08f;
       float proposed = (1.0f - SINGLE_ALPHA) * (float)p->dot_len + SINGLE_ALPHA * single_dur;
-      int min_dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * 60);
+      int min_dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * 60);
       if (min_dot_len < 1) min_dot_len = 1;
       if (proposed < (float)min_dot_len) proposed = (float)min_dot_len;
       p->dot_len = (int)(proposed + 0.5f);
@@ -1805,7 +1747,7 @@ static void cw_rx_classify_and_output(struct cw_decoder *p, struct cw_morse_resu
 
   // recover dot_len toward UI WPM whenever adaptation didn't run this cycle.
   if (!adapted_this_cycle) {
-    int expected_dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * p->wpm);
+    int expected_dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * p->wpm);
     if (expected_dot_len < 1) expected_dot_len = 1;
 
     float err_ratio = (float)p->dot_len / (float)expected_dot_len;
@@ -1977,9 +1919,11 @@ void cw_init(void) {
       decoder.bin_hist[b][t] = 0;
   decoder.bin_hist_pos = 0;
   decoder.bin_hist_count = 0;
+  memset(decoder.window, 0, sizeof(decoder.window));
+  decoder.disagree = 0;
 
   // RX decoder: timing
-  decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * INIT_WPM);
+  decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * INIT_WPM);
   decoder.next_symbol = 0;
   decoder.last_char_was_space = 0;
   decoder.decoded_char_seen = 0;
@@ -2086,7 +2030,7 @@ char *cw_get_stats(char *buf, size_t len)
   float inst_wpm_f = 0.0f;
   if (dot_ticks > 0.0f) {
     inst_wpm_f = (6.0f * (float)SAMPLING_FREQ) /
-                 (5.0f * (float)decoder.n_bins * dot_ticks);
+                 (5.0f * (float)CW_HOP * dot_ticks);
   }
   if (inst_wpm_f < 1.0f) inst_wpm_f = 1.0f;
 
@@ -2145,7 +2089,7 @@ void cw_poll(int bytes_available, int tx_is_on) {
   cw_period = (12 * 9600) / wpm;
   if (wpm != decoder.wpm) {
     decoder.wpm = wpm;
-    decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * N_BINS * wpm);
+    decoder.dot_len = (6 * SAMPLING_FREQ) / (5 * CW_HOP * wpm);
   }
   if (wpm != tx_decoder.wpm) {
     tx_decoder.wpm = wpm;
