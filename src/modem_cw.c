@@ -36,6 +36,11 @@
 #define HIGH_DECAY 400        // peak follows the signal down over ~1 s, in marks
 #define HIGH_DECAY_GAP 3000   // and over ~8 s in gaps, so long gaps keep the threshold
 #define NOISE_DECAY 400       // noise floor adjusts over ~1 s, in gaps
+#define LEVEL_WARMUP_HOPS 112 // the first ~300 ms after cw_init() only learn the noise
+// the mark threshold, in dB, as fractions of the span from noise floor to peak
+#define MARK_DB_FRAC 0.40f
+#define MARK_DB_HYST 0.10f    // either side of MARK_DB_FRAC
+#define MARK_EXTRA_HOPS 2     // taken off each mark, added to the gap after it
 
 // structs
 struct morse_tx {
@@ -106,6 +111,9 @@ struct cw_decoder {
   float smoothed_magnitude;  // EMA-filtered magnitude (adaptive alpha)
   int high_level;
   int noise_floor;
+  int level_warm;            // hops of level learning since cw_init()
+  float thr_on, thr_off;     // the mark thresholds, as magnitudes
+  int mark_peak;             // the largest magnitude in the current mark
   int max_bin_idx;
   int max_bin_streak;
 
@@ -981,8 +989,7 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
   if (filtered[4] > sig_now) { sig_now = filtered[4]; max_idx = 4; }
 
   // No further smoothing: the 10.67 ms window and the 3-hop median already
-  // smooth the magnitude, and both delay rising and falling edges alike, so
-  // a threshold half way up keeps mark and gap lengths true.
+  // smooth the magnitude, and both delay rising and falling edges alike.
   p->smoothed_magnitude = (float)sig_now;
   p->magnitude = sig_now;
 
@@ -994,25 +1001,25 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
     p->max_bin_idx = max_idx;
   }
 
-  // Signal / noise decision: half way between the noise floor and the
-  // signal's peak, with hysteresis.
-  //
-  // The decision is made on the linear magnitude.  A threshold in the log
-  // domain (where the k-means clusters live) sits far below half way on a
-  // strong signal, so a falling edge takes longer to cross it than a
-  // rising edge does: marks come out long and gaps short, worse the
-  // stronger the signal.  The k-means centroids are still updated, since
-  // Section 7's confidence score uses them.
-  const float Z_ON  = 0.55f;  // mark when the magnitude rises above this
-  const float Z_OFF = 0.45f;  // space when it falls below this
-
+  // Signal / noise decision, in dB: a mark starts MARK_DB_FRAC +
+  // MARK_DB_HYST of the way from the noise floor up to the signal's peak
+  // and ends MARK_DB_FRAC - MARK_DB_HYST of the way. Measured in dB, the
+  // threshold sits well below a strong signal, so a fade of 10 to 15 dB
+  // still clears it. Low on the 10.67 ms window's rising and falling edges,
+  // it makes each mark longer and each gap shorter;
+  // cw_rx_detect_symbol() takes that back out, using thr_on and thr_off.
+  // The k-means centroids are still updated, since Section 7's confidence
+  // score uses them.
   float d_noise = 0.0f, d_signal = 0.0f, centroid_sep = 0.0f;
   (void)cw_rx_kmeans_update_2d(p, p->magnitude, max_idx, &d_noise, &d_signal, &centroid_sep);
 
-  // compute normalized magnitude z = (mag - noise) / (high - noise)
-  float denom = (float)(p->high_level - p->noise_floor);
-  if (denom <= 0.0f) denom = 1.0f;
-  float z = ((float)p->magnitude - (float)p->noise_floor) / denom;
+  float l_noise = logf((float)p->noise_floor + 1.0f);
+  float l_span = logf((float)p->high_level + 1.0f) - l_noise;
+  float l_on = l_noise + (MARK_DB_FRAC + MARK_DB_HYST) * l_span;
+  float l_off = l_noise + (MARK_DB_FRAC - MARK_DB_HYST) * l_span;
+  float l_mag = logf((float)p->magnitude + 1.0f);
+  p->thr_on = expf(l_on) - 1.0f;
+  p->thr_off = expf(l_off) - 1.0f;
 
   // SNR gate: if the spread between high_level and noise_floor is too small
   // there is no usable signal — suppress detections to avoid garbage output
@@ -1024,9 +1031,9 @@ static void cw_rx_bin(struct cw_decoder *p, int32_t *samples) {
 
   if (snr_ratio < MIN_SNR_LINEAR) {
     p->sig_state = false;
-  } else if (z >= Z_ON) {
+  } else if (l_mag >= l_on) {
     p->sig_state = true;
-  } else if (z <= Z_OFF) {
+  } else if (l_mag <= l_off) {
     p->sig_state = false;
   }
   // else leave p->sig_state unchanged (hysteresis)
@@ -1191,6 +1198,16 @@ static void cw_rx_bin_init(struct bin *p, float freq, int n, float sampling_freq
 // inputs:  struct cw_decoder *p
 // returns: void
 static void cw_rx_update_levels(struct cw_decoder *p) {
+  // first, learn the noise quickly, deciding nothing: the dB threshold
+  // needs a noise floor near the real one to start from
+  if (p->level_warm < LEVEL_WARMUP_HOPS) {
+    if (p->magnitude < 100) p->magnitude = 100;
+    p->noise_floor = p->level_warm ? (p->magnitude + 10 * p->noise_floor) / 11 : p->magnitude;
+    p->high_level = p->noise_floor;
+    p->sig_state = false;
+    p->level_warm++;
+    return;
+  }
   // if the current signal is higher than the tracked peak, update high_level instantly
   if (p->high_level < p->magnitude) {
     p->high_level = p->magnitude;
@@ -1201,9 +1218,8 @@ static void cw_rx_update_levels(struct cw_decoder *p) {
     int64_t decay = p->sig_state ? HIGH_DECAY : HIGH_DECAY_GAP;
     p->high_level = (int)((p->magnitude + (decay - 1) * (int64_t)p->high_level) / decay);
   }
-  // if current magnitude is much lower (less than half way between high and low)
-  // it might be background noise or a space between morse marks
-  if (p->magnitude < (p->noise_floor + 0.5f * (p->high_level - p->noise_floor))) {
+  // the noise floor learns in gaps only, so a faded mark can't raise it
+  if (!p->sig_state) {
     // limit the minimum magnitude to 100
     if (p->magnitude < 100) p->magnitude = 100;
     // update the noise floor with a similar decay mechanism
@@ -1245,6 +1261,8 @@ static void cw_rx_denoise(struct cw_decoder *p) {
     p->disagree = 0;
   }
   p->sig_confidence = p->mark ? 1.0f : 0.0f;
+  if (p->mark && p->magnitude > p->mark_peak)
+    p->mark_peak = p->magnitude;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1369,9 +1387,25 @@ static bool cw_rx_detect_symbol(struct cw_decoder *p) {
 
   // -- Transition (MARK -> SPACE): End of element
   if (!p->mark && p->prev_mark) {
+    // The window's edges ramp over N_BINS / CW_HOP hops. A threshold at a
+    // fraction f of the mark's peak is crossed (0.5 - f) of the ramp early
+    // on the way up and as late on the way down, so the mark comes out
+    // (1 - f_on - f_off) ramps long and the gap after it as much short.
+    // MARK_EXTRA_HOPS more is what the bench's grid preferred.
+    int bias = MARK_EXTRA_HOPS;
+    if (p->mark_peak > 0) {
+      float f_on = p->thr_on / (float)p->mark_peak;
+      float f_off = p->thr_off / (float)p->mark_peak;
+      if (f_on > 0.5f) f_on = 0.5f;
+      if (f_off > 0.5f) f_off = 0.5f;
+      bias += (int)lroundf((1.0f - f_on - f_off) * (float)(N_BINS / CW_HOP));
+    }
+    if (bias > p->ticker - 1) bias = p->ticker - 1;
+    if (bias < 0) bias = 0;
+    p->ticker -= bias;
     cw_rx_add_symbol(p, 'm');
     cw_rx_early_dot_adapt(p, p->ticker);
-    p->ticker = 0;
+    p->ticker = bias;    // the gap has already lasted this long
     return false;
   }
 
@@ -1379,6 +1413,7 @@ static bool cw_rx_detect_symbol(struct cw_decoder *p) {
   if (p->mark && !p->prev_mark) {
     int gap_ticks = p->ticker;
     cw_rx_add_symbol(p, ' ');
+    p->mark_peak = 0;
 
     // Only clear the space flag if SNR suggests a real signal is present.
     // This prevents noise glitches from re-enabling space emission.
@@ -1910,6 +1945,8 @@ void cw_init(void) {
   decoder.smoothed_magnitude = 0.0f;
   decoder.high_level = 500;  // start with non-zero values for SNR
   decoder.noise_floor = 200;
+  decoder.level_warm = 0;
+  decoder.mark_peak = 0;
   decoder.max_bin_idx = -1;
   decoder.max_bin_streak = 0;
 
