@@ -1,4 +1,4 @@
-# A MESSAGE TO THE sBitx COMMUNITY
+# A MESSAGE TO THE SBITX COMMUNITY
 
 I've invested countless hours developing, improving, testing, and supporting software for the sBitx and zBitx platforms, much of which I've made freely available to the amateur radio community. I've done this because I believe in contributing to the community and helping the sBitx ecosystem grow.
 
@@ -57,6 +57,7 @@ I especially want to recognize:
 - Steve - N3SB
 
 **You are appreciated, and your contributions will not be forgotten.** Thank you for being part of this journey and for giving your time and talent to something that benefits the entire amateur radio community.
+
 I also want to recognize Farhan - VU2ESE, for his initial coding efforts where this project is derived from. Thank you.
 
 
