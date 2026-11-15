@@ -57,10 +57,11 @@ I especially want to recognize:
 - Steve - N3SB
 
 **You are appreciated, and your contributions will not be forgotten.** Thank you for being part of this journey and for giving your time and talent to something that benefits the entire amateur radio community.
+I also want to recognize Farhan - VU2ESE, for his initial coding efforts where this project is derived from. Thank you.
+
 
 I want to see the sBitx and zBitx communities thrive. I want collaboration, innovation, and people benefiting from the work we've done. But I also expect basic respect, honesty, and recognition of the people who made those contributions possible.
 
-I also want to recognize Farhan - VU2ESE, for his initial coding efforts where this project is derived from. Thank you.
 
 **Respect the work. Respect the developers. Give credit where credit is due.**
 
