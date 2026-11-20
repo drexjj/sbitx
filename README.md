@@ -1,3 +1,6 @@
+# jeSDR is coming soon! Visit www.jesdr.com for details
+
+
 # A MESSAGE TO THE SBITX COMMUNITY
 
 I've invested countless hours developing, improving, testing, and supporting software for the sBitx and zBitx platforms, much of which I've made freely available to the amateur radio community. I've done this because I believe in contributing to the community and helping the sBitx ecosystem grow.
